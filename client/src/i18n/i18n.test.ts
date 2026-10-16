@@ -10,11 +10,18 @@ function keys(obj: object, prefix = ''): string[] {
 }
 
 describe('translations', () => {
-  test('Hebrew and Russian have the same keys', () => {
-    const he = new Set(keys(resources.he.translation));
-    const ru = new Set(keys(resources.ru.translation));
+  test.each([['he'], ['ru']] as const)('%s has the same keys as English', (lng) => {
+    const en = new Set(keys(resources.en.translation));
+    const other = new Set(keys(resources[lng].translation));
 
-    expect([...he].sort()).toEqual([...ru].sort());
+    expect([...other].sort()).toEqual([...en].sort());
+  });
+
+  test.each([
+    [1, '1 item'],
+    [5, '5 items'],
+  ])('English plural for %i', (count, expected) => {
+    expect(i18n.t('items.count', { count, lng: 'en' })).toBe(expected);
   });
 
   test.each([

@@ -5,6 +5,14 @@ import i18n from '@/i18n';
 import { Home } from '.';
 
 describe('<Home />', () => {
+  test('renders the title and categories in English', async () => {
+    await i18n.changeLanguage('en');
+    await render(<Home />);
+
+    expect(screen.getByText('My wardrobe')).toBeOnTheScreen();
+    expect(screen.getByText('Outerwear')).toBeOnTheScreen();
+  });
+
   test('renders the title and categories in Russian', async () => {
     await i18n.changeLanguage('ru');
     await render(<Home />);

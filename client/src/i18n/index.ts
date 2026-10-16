@@ -2,16 +2,18 @@ import { getLocales } from 'expo-localization';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+import en from './locales/en.json';
 import he from './locales/he.json';
 import ru from './locales/ru.json';
 
-export const SUPPORTED_LANGUAGES = ['he', 'ru'] as const;
+export const SUPPORTED_LANGUAGES = ['en', 'he', 'ru'] as const;
 export type Language = (typeof SUPPORTED_LANGUAGES)[number];
 
-// Israel is the first market, so Hebrew is what a phone in any other language gets.
-export const FALLBACK_LANGUAGE: Language = 'he';
+// What a phone in any other language gets.
+export const FALLBACK_LANGUAGE: Language = 'en';
 
 export const resources = {
+  en: { translation: en },
   he: { translation: he },
   ru: { translation: ru },
 } as const;
