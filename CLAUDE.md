@@ -23,7 +23,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - pnpm monorepo (`client`, `server`, `shared`), TypeScript strict, Node 22. pnpm may not be on PATH: use `corepack enable` once, or `corepack pnpm …`.
 - `server/` (`@closet-ai/server`): Fastify 5 + Zod (`fastify-type-provider-zod`), Drizzle ORM on Postgres 17 with pgvector, items table, `GET/POST /api/items`, health check. `buildApp` takes the repository as a parameter, so tests use an in-memory repo and need no database.
 - `shared/` (`@closet-ai/shared`): Zod schemas and types for server and client. Exported as raw TS (`exports: ./src/index.ts`), no build step.
-- `client/` (`@closet-ai/client`): Expo SDK 58, Expo Router (`src/app`), TypeScript. One placeholder screen that imports from `@closet-ai/shared`. `expo-localization` with `supportedLocales: ["he", "ru"]`. No i18n library and no tests yet.
+- `client/` (`@closet-ai/client`): Expo SDK 58, Expo Router (`src/app`), TypeScript. Placeholder home screen (`src/screens/home`, rendered by `src/app/index.tsx`) that imports from `@closet-ai/shared`. i18n: i18next + react-i18next in `src/i18n`, languages en (fallback), he, ru, picked from the device via `expo-localization`; `t()` keys are typed from `en.json`. Tests: Jest 30 + jest-expo + Testing Library (`pnpm --filter @closet-ai/client test`). Jest is in `expo.install.exclude` because expo-doctor still expects Jest 29.
 - No `node-linker=hoisted`: Expo supports pnpm isolated installs since SDK 54. Switch to `nodeLinker: hoisted` in `pnpm-workspace.yaml` only if a native library breaks.
 - `docker-compose.yml`: Postgres + Redis.
 - CI: `pnpm install --frozen-lockfile`, typecheck (all three packages), tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
@@ -34,21 +34,21 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 Tests stay inside each package, not in a shared top-level folder:
 
 - `server/test/` for API tests (Vitest). Unit tests for a single module can also sit next to it as `*.test.ts`.
-- `client/` will use Jest (jest-expo), with tests next to components as `*.test.tsx`.
+- `client/` uses Jest (jest-expo), with tests next to components as `*.test.tsx`. Never put tests in `src/app`: every file there becomes a route.
 - `shared/` gets Vitest only when there's real logic there; plain schemas don't need tests.
 
 Reason: server and client use different test runners and environments (Node vs React Native), and each package should be testable on its own with `pnpm --filter <pkg> test`. If we add end-to-end tests later, they go in a top-level `e2e/`.
 
 ## RTL
 
-- RTL is on by default in SDK 58; on iOS it only applies to locales listed in `supportedLocales`.
+- RTL is on by default in SDK 58; on iOS it only applies to locales listed in `supportedLocales` (en, he, ru).
 - Use `start`/`end` (`marginStart`, `paddingEnd`, …) instead of `left`/`right` in styles.
 - `textAlign` has no `start`/`end` in React Native: `'left'` follows the layout direction and acts as start.
 - Changing direction at runtime (`I18nManager`) needs an app restart and does not work in Expo Go.
 
 ## Roadmap (v1, in order)
 
-0. Client foundation: i18n (he, ru) and Jest (jest-expo + Testing Library).
+0. ~~Client foundation: i18n (en, he, ru) and Jest (jest-expo + Testing Library).~~ Done.
 1. Basic auth: `users` table, email + password via Better Auth, sessions in Postgres, token in `expo-secure-store`, `/api/items` protected, items get `owner_id`.
 2. Image upload and storage: presigned upload from the client; SeaweedFS locally, Cloudflare R2 (free tier) in production.
 3. BullMQ job queue for image processing (upload returns immediately, worker processes, client polls or gets SSE).
@@ -68,7 +68,7 @@ Reason: server and client use different test runners and environments (Node vs R
 - Zod schema in `shared` is the single source of truth: TS types, request validation and DB enums come from it.
 - AI calls go through one client module in `server` so tests can swap it for a stub and never spend money.
 - Secrets only in `.env`, never committed. `.env.example` is kept up to date.
-- UI strings go through i18n from the start (he, ru; uk later). No hardcoded text in components.
+- UI strings go through i18n from the start (en as fallback, he, ru; uk later). No hardcoded text in components. New strings go into `en.json` first; a test checks that he and ru have the same keys.
 
 ## Commands
 

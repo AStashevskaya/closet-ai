@@ -37,6 +37,7 @@
         "expo-localization",
         {
           "supportedLocales": [
+            "en",
             "he",
             "ru"
           ]

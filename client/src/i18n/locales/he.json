@@ -1,0 +1,19 @@
+{
+  "home": {
+    "title": "הארון שלי",
+    "categories": "קטגוריות"
+  },
+  "items": {
+    "count_one": "פריט אחד",
+    "count_two": "שני פריטים",
+    "count_other": "{{count}} פריטים"
+  },
+  "categories": {
+    "top": "חלק עליון",
+    "bottom": "חלק תחתון",
+    "dress": "שמלה",
+    "outerwear": "מעיל",
+    "shoes": "נעליים",
+    "accessory": "אקססוריז"
+  }
+}
