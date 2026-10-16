@@ -34,18 +34,18 @@ Stylists are part of the plan: a person can give a stylist access to their wardr
 ## Project structure
 
 ```
-apps/
-  api/                 Fastify server
-    src/
-      config/          env validation
-      db/              Drizzle schema and client
-      modules/items/   routes + repository
-      routes/          health check
-    test/
-  mobile/              Expo app (planned)
-packages/
-  shared/              Zod schemas and types shared between apps
+client/                Expo (React Native) app (planned)      @closet-ai/client
+server/                Fastify API                            @closet-ai/server
+  src/
+    config/            env validation
+    db/                Drizzle schema and client
+    modules/items/     routes + repository
+    routes/            health check
+  test/
+shared/                Zod schemas and types for client and server   @closet-ai/shared
 ```
+
+Tests live inside each package and run on their own with `pnpm --filter <pkg> test`.
 
 ## Getting started
 
@@ -54,9 +54,9 @@ Requirements: Node 22+, pnpm 9+, Docker.
 ```bash
 pnpm install
 pnpm db:up                                   # Postgres + Redis
-cp apps/api/.env.example apps/api/.env
-pnpm --filter @closet-ai/api db:generate     # create a migration from the schema
-pnpm --filter @closet-ai/api db:migrate
+cp server/.env.example server/.env
+pnpm --filter @closet-ai/server db:generate  # create a migration from the schema
+pnpm --filter @closet-ai/server db:migrate
 pnpm dev                                     # http://localhost:3000/health
 ```
 
