@@ -1,0 +1,20 @@
+{
+  "home": {
+    "title": "Мой гардероб",
+    "categories": "Категории"
+  },
+  "items": {
+    "count_one": "{{count}} вещь",
+    "count_few": "{{count}} вещи",
+    "count_many": "{{count}} вещей",
+    "count_other": "{{count}} вещи"
+  },
+  "categories": {
+    "top": "Верх",
+    "bottom": "Низ",
+    "dress": "Платье",
+    "outerwear": "Верхняя одежда",
+    "shoes": "Обувь",
+    "accessory": "Аксессуар"
+  }
+}
