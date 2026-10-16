@@ -15,7 +15,10 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.10",
+    "@better-auth/expo": "^1.7.10",
     "@closet-ai/shared": "workspace:*",
+    "better-auth": "^1.7.10",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.2.0",
     "fastify-type-provider-zod": "^4.0.2",

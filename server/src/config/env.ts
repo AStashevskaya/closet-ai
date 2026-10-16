@@ -6,6 +6,10 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().url(),
+  // Signs session cookies and tokens. Generate with `openssl rand -base64 32`.
+  BETTER_AUTH_SECRET: z.string().min(32),
+  // Public URL of this server, used by Better Auth to build callback URLs.
+  BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
 });
 
 export type Env = z.infer<typeof envSchema>;
