@@ -1,5 +1,5 @@
 {
-  "name": "@closet-ai/api",
+  "name": "@closet-ai/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
