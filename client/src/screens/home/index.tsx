@@ -1,6 +1,8 @@
 import { ITEM_CATEGORIES } from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+
+import { authClient } from '@/lib/auth-client';
 
 // Placeholder until the wardrobe screen exists: proves the link to @closet-ai/shared and i18n.
 export function Home() {
@@ -15,6 +17,9 @@ export function Home() {
           {t(`categories.${category}`)}
         </Text>
       ))}
+      <Pressable onPress={() => authClient.signOut()} accessibilityRole="button">
+        <Text style={[styles.text, styles.link]}>{t('auth.signOut')}</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -37,5 +42,9 @@ const styles = StyleSheet.create({
   heading: {
     marginTop: 8,
     fontWeight: '600',
+  },
+  link: {
+    marginTop: 16,
+    color: '#1565c0',
   },
 });

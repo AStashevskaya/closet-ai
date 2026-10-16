@@ -16,5 +16,23 @@
     "outerwear": "Верхняя одежда",
     "shoes": "Обувь",
     "accessory": "Аксессуар"
+  },
+  "auth": {
+    "signIn": "Вход",
+    "signUp": "Регистрация",
+    "name": "Имя",
+    "email": "Email",
+    "password": "Пароль",
+    "toSignUp": "Нет аккаунта? Зарегистрироваться",
+    "toSignIn": "Уже есть аккаунт? Войти",
+    "signOut": "Выйти",
+    "errors": {
+      "required": "Заполните все поля",
+      "passwordTooShort": "Пароль должен быть не короче 8 символов",
+      "invalidEmail": "Некорректный email",
+      "invalidCredentials": "Неверный email или пароль",
+      "userExists": "Аккаунт с таким email уже есть",
+      "generic": "Что-то пошло не так. Попробуйте ещё раз."
+    }
   }
 }
