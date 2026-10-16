@@ -46,20 +46,22 @@ Reason: server and client use different test runners and environments (Node vs R
 - `textAlign` has no `start`/`end` in React Native: `'left'` follows the layout direction and acts as start.
 - Changing direction at runtime (`I18nManager`) needs an app restart and does not work in Expo Go.
 
-## After that (v1 roadmap, in order)
+## Roadmap (v1, in order)
 
-1. Image upload and storage.
-2. BullMQ job queue for image processing (upload returns immediately, worker processes, client polls or gets SSE).
-3. Item tagging with a vision model: structured output validated with Zod. Tags: type, colour, fit, length, fabric, style, brand guess, condition.
-4. Background removal.
-5. Wardrobe sharing table (owner, grantee, permissions) for stylists later.
-6. Item `source` field: `own` / `resale` / `brand_partner`.
-7. "What do I wear this with?" from a single item.
-8. Declutter: keep / sell / not sure.
-9. Listing generator (Hebrew + Russian, price range), shared via the OS share sheet.
-10. "Want / Can" part 1: similar look from own wardrobe (embeddings + pgvector).
-11. Auth, free-tier limits, RevenueCat trial.
-12. Prompt evals: a few test wardrobes, scored by hand, rerun after each prompt change.
+0. Client foundation: i18n (he, ru) and Jest (jest-expo + Testing Library).
+1. Basic auth: `users` table, email + password via Better Auth, sessions in Postgres, token in `expo-secure-store`, `/api/items` protected, items get `owner_id`.
+2. Image upload and storage: presigned upload from the client; SeaweedFS locally, Cloudflare R2 (free tier) in production.
+3. BullMQ job queue for image processing (upload returns immediately, worker processes, client polls or gets SSE).
+4. Item tagging with a vision model: structured output validated with Zod. Tags: type, colour, fit, length, fabric, style, brand guess, condition.
+5. Background removal.
+6. Wardrobe sharing table (owner, grantee, permissions) for stylists later.
+7. Item `source` field: `own` / `resale` / `brand_partner`.
+8. "What do I wear this with?" from a single item.
+9. Declutter: keep / sell / not sure.
+10. Listing generator (Hebrew + Russian, price range), shared via the OS share sheet.
+11. "Want / Can" part 1: similar look from own wardrobe (embeddings + pgvector).
+12. Sign in with Apple / Google, free-tier limits, RevenueCat trial.
+13. Prompt evals: a few test wardrobes, scored by hand, rerun after each prompt change. Start collecting the set at step 4.
 
 ## Conventions
 
