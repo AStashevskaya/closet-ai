@@ -19,6 +19,9 @@ export function createAuth(env: Env, database: BetterAuthOptions["database"]) {
       // Expo Go opens the app under exp:// URLs; never trust them outside development.
       ...(env.NODE_ENV === "development" ? ["exp://", "exp://**"] : []),
     ],
+    // Better Auth silently skips the origin check when NODE_ENV is "test".
+    // Setting it explicitly keeps tests checking what production does.
+    advanced: { disableOriginCheck: false },
   });
 }
 

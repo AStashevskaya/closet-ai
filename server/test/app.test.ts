@@ -90,6 +90,27 @@ describe("auth", () => {
     expect(res.cookies.length).toBeGreaterThan(0);
   });
 
+  it("trusts the app's own scheme as an origin", async () => {
+    const res = await (await setup()).inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      // A cookie makes Better Auth validate the origin; without one the check is skipped.
+      headers: { origin: "closetai://", cookie: "x=1" },
+      payload: { name: "Test User", email: "app@example.com", password: "correct-horse-battery" },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("rejects requests from an untrusted website", async () => {
+    const res = await (await setup()).inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { origin: "https://evil.example.com", cookie: "x=1" },
+      payload: { name: "Test User", email: "evil@example.com", password: "correct-horse-battery" },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
   it("rejects a wrong password", async () => {
     const server = await setup();
     await signUp(server, "anna@example.com");
