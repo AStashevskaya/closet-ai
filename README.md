@@ -28,13 +28,14 @@ Stylists are part of the plan: a person can give a stylist access to their wardr
 - Redis + BullMQ for background jobs (planned)
 - Vitest
 - Vision LLM for item tagging, listings and outfits (planned)
-- Mobile: React Native with Expo, subscriptions via RevenueCat (planned)
+- Mobile: React Native with Expo (SDK 58, Expo Router), subscriptions via RevenueCat (planned)
 - Stylist dashboard: Next.js (later)
 
 ## Project structure
 
 ```
-client/                Expo (React Native) app (planned)      @closet-ai/client
+client/                Expo (React Native) app                @closet-ai/client
+  src/app/             Expo Router routes
 server/                Fastify API                            @closet-ai/server
   src/
     config/            env validation
@@ -57,7 +58,8 @@ pnpm db:up                                   # Postgres + Redis
 cp server/.env.example server/.env
 pnpm --filter @closet-ai/server db:generate  # create a migration from the schema
 pnpm --filter @closet-ai/server db:migrate
-pnpm dev                                     # http://localhost:3000/health
+pnpm dev:server                              # http://localhost:3000/health
+pnpm dev:client                              # Expo dev server (scan the QR code with Expo Go)
 ```
 
 Tests don't need a database, the app gets an in-memory repository:

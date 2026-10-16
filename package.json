@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter @closet-ai/server dev",
+    "dev:server": "pnpm --filter @closet-ai/server dev",
+    "dev:client": "pnpm --filter @closet-ai/client start",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
