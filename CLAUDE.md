@@ -20,39 +20,16 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 
 ## Current state
 
-- pnpm monorepo, TypeScript strict, Node 22.
-- `apps/api`: Fastify 5 + Zod (`fastify-type-provider-zod`), Drizzle ORM on Postgres 17 with pgvector, items table, `GET/POST /api/items`, health check. `buildApp` takes the repository as a parameter, so tests use an in-memory repo and need no database.
-- `packages/shared`: Zod schemas and types used by the server (and later the client). Exported as raw TS (`exports: ./src/index.ts`), no build step.
+- pnpm monorepo (`client`, `server`, `shared`), TypeScript strict, Node 22. pnpm may not be on PATH: use `corepack enable` once, or `corepack pnpm …`.
+- `server/` (`@closet-ai/server`): Fastify 5 + Zod (`fastify-type-provider-zod`), Drizzle ORM on Postgres 17 with pgvector, items table, `GET/POST /api/items`, health check. `buildApp` takes the repository as a parameter, so tests use an in-memory repo and need no database.
+- `shared/` (`@closet-ai/shared`): Zod schemas and types for server and client. Exported as raw TS (`exports: ./src/index.ts`), no build step.
+- `client/` (`@closet-ai/client`): Expo SDK 58, Expo Router (`src/app`), TypeScript. One placeholder screen that imports from `@closet-ai/shared`. `expo-localization` with `supportedLocales: ["he", "ru"]`. No i18n library and no tests yet.
+- No `node-linker=hoisted`: Expo supports pnpm isolated installs since SDK 54. Switch to `nodeLinker: hoisted` in `pnpm-workspace.yaml` only if a native library breaks.
 - `docker-compose.yml`: Postgres + Redis.
-- CI runs typecheck and tests. Still uses `--no-frozen-lockfile`: once `pnpm-lock.yaml` is committed, switch to `--frozen-lockfile`.
-- No mobile app yet.
+- CI: `pnpm install --frozen-lockfile`, typecheck (all three packages), tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
+- Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
-## Task 1: restructure the repo
-
-Current layout (`apps/*`, `packages/*`) should become:
-
-```
-client/          Expo (React Native) app            package: @closet-ai/client
-server/          Fastify API (was apps/api)          package: @closet-ai/server
-  src/
-  test/
-shared/          Zod schemas + types (was packages/shared)  package: @closet-ai/shared
-docker-compose.yml
-pnpm-workspace.yaml
-tsconfig.base.json
-```
-
-Steps:
-
-1. `git mv apps/api server` and `git mv packages/shared shared` so history is kept. Remove the empty `apps/` and `packages/`.
-2. Rename packages: `@closet-ai/api` → `@closet-ai/server`. Update every `--filter` and `workspace:*` reference (root `package.json` scripts, README, CI).
-3. `pnpm-workspace.yaml` → `packages: ["client", "server", "shared"]`.
-4. Fix relative paths in `server/tsconfig.json` and `shared/tsconfig.json` (`extends: "../tsconfig.base.json"` instead of `../../`), and in `drizzle.config.ts` / `tsup.config.ts` if any.
-5. Don't create `client/` in this task. It will be generated in Task 2 with `create-expo-app`.
-6. Update the "Project structure" and "Getting started" sections in README.md.
-7. `pnpm install`, `pnpm typecheck`, `pnpm test` must pass. Commit as `refactor: move to client/server/shared layout`.
-
-### Where tests live
+## Tests
 
 Tests stay inside each package, not in a shared top-level folder:
 
@@ -62,13 +39,12 @@ Tests stay inside each package, not in a shared top-level folder:
 
 Reason: server and client use different test runners and environments (Node vs React Native), and each package should be testable on its own with `pnpm --filter <pkg> test`. If we add end-to-end tests later, they go in a top-level `e2e/`.
 
-## Task 2: create the Expo app
+## RTL
 
-- `client/` via `create-expo-app` with TypeScript, Expo Router.
-- pnpm + Expo in a monorepo: add `node-linker=hoisted` to `.npmrc` at the root unless current Expo docs say it's no longer needed. Check the docs first.
-- Import a schema from `@closet-ai/shared` in the client to prove the workspace link works.
-- RTL (Hebrew) must be supported from day one: use `start`/`end` instead of `left`/`right` in styles.
-- Add root scripts: `dev:server`, `dev:client`.
+- RTL is on by default in SDK 58; on iOS it only applies to locales listed in `supportedLocales`.
+- Use `start`/`end` (`marginStart`, `paddingEnd`, …) instead of `left`/`right` in styles.
+- `textAlign` has no `start`/`end` in React Native: `'left'` follows the layout direction and acts as start.
+- Changing direction at runtime (`I18nManager`) needs an app restart and does not work in Expo Go.
 
 ## After that (v1 roadmap, in order)
 
@@ -100,8 +76,8 @@ pnpm db:up                                    # Postgres + Redis in Docker
 cp server/.env.example server/.env
 pnpm --filter @closet-ai/server db:generate
 pnpm --filter @closet-ai/server db:migrate
-pnpm dev                                      # API on http://localhost:3000
+pnpm dev:server                               # API on http://localhost:3000
+pnpm dev:client                               # Expo dev server
 pnpm typecheck
 pnpm test
 ```
-(Before Task 1 these paths are still `apps/api` and `@closet-ai/api`.)
