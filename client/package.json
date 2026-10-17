@@ -3,8 +3,10 @@
   "version": "0.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@better-auth/expo": "^1.7.10",
     "@closet-ai/shared": "workspace:*",
     "@expo/ui": "~58.0.19",
+    "better-auth": "^1.7.10",
     "expo": "~58.0.12",
     "expo-constants": "~58.0.12",
     "expo-device": "~58.0.5",
@@ -13,7 +15,9 @@
     "expo-image": "~58.0.15",
     "expo-linking": "~58.0.13",
     "expo-localization": "~58.0.4",
+    "expo-network": "~58.0.3",
     "expo-router": "~58.0.21",
+    "expo-secure-store": "~58.0.2",
     "expo-splash-screen": "~58.0.9",
     "expo-status-bar": "~58.0.3",
     "expo-symbols": "~58.0.4",
@@ -35,6 +39,8 @@
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
     "jest": "~30.5.2",
     "jest-expo": "~58.0.11",
     "typescript": "~6.0.3"
@@ -44,7 +50,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint",
+    "lint": "expo lint --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch"

@@ -4,6 +4,8 @@ import i18n from '@/i18n';
 
 import { Home } from '.';
 
+jest.mock('@/lib/auth-client', () => ({ authClient: { signOut: jest.fn() } }));
+
 describe('<Home />', () => {
   test('renders the title and categories in English', async () => {
     await i18n.changeLanguage('en');

@@ -14,5 +14,24 @@
     "outerwear": "Outerwear",
     "shoes": "Shoes",
     "accessory": "Accessory"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "name": "Name",
+    "email": "Email",
+    "password": "Password",
+    "toSignUp": "No account yet? Create one",
+    "toSignIn": "Already have an account? Sign in",
+    "signOut": "Sign out",
+    "errors": {
+      "required": "Fill in all fields",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "invalidEmail": "Enter a valid email",
+      "invalidCredentials": "Wrong email or password",
+      "userExists": "An account with this email already exists",
+      "network": "Can't reach the server. Check your connection and try again.",
+      "generic": "Something went wrong. Try again."
+    }
   }
 }

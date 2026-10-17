@@ -1,0 +1,39 @@
+import { describe, expect, it } from "vitest";
+import { parseEnv } from "../src/config/env";
+
+const base = {
+  DATABASE_URL: "postgres://closet:closet@localhost:5432/closet",
+  BETTER_AUTH_SECRET: "a-real-secret-that-is-at-least-32-characters",
+};
+
+function errorsFor(source: Record<string, string>) {
+  const parsed = parseEnv(source);
+  return parsed.success ? {} : parsed.error.flatten().fieldErrors;
+}
+
+describe("parseEnv", () => {
+  it("accepts a development setup and defaults the auth URL to localhost", () => {
+    const parsed = parseEnv(base);
+    expect(parsed.success && parsed.data.BETTER_AUTH_URL).toBe("http://localhost:3000");
+  });
+
+  it("rejects the example secret from .env.example", () => {
+    const errors = errorsFor({
+      ...base,
+      BETTER_AUTH_SECRET: "change-me-to-a-random-string-of-32-chars-or-more",
+    });
+    expect(errors.BETTER_AUTH_SECRET).toBeDefined();
+  });
+
+  it("requires an https auth URL in production", () => {
+    expect(errorsFor({ ...base, NODE_ENV: "production" }).BETTER_AUTH_URL).toBeDefined();
+    expect(
+      errorsFor({ ...base, NODE_ENV: "production", BETTER_AUTH_URL: "http://api.example.com" })
+        .BETTER_AUTH_URL,
+    ).toBeDefined();
+    expect(
+      parseEnv({ ...base, NODE_ENV: "production", BETTER_AUTH_URL: "https://api.example.com" })
+        .success,
+    ).toBe(true);
+  });
+});

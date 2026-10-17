@@ -28,6 +28,8 @@ export function detectLanguage(): Language {
   return (match?.languageCode as Language | undefined) ?? FALLBACK_LANGUAGE;
 }
 
+// i18next's default export is the instance, so `i18n.use` is the intended call.
+// eslint-disable-next-line import/no-named-as-default-member
 i18n.use(initReactI18next).init({
   resources,
   lng: detectLanguage(),
