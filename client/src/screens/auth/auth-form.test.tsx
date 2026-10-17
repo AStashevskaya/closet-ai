@@ -5,6 +5,11 @@ import { authClient } from '@/lib/auth-client';
 
 import { AuthForm } from './auth-form';
 
+jest.mock(
+  'react-native-safe-area-context',
+  () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
+);
+
 jest.mock('@/lib/auth-client', () => ({
   authClient: { signIn: { email: jest.fn() }, signUp: { email: jest.fn() } },
 }));
@@ -102,6 +107,13 @@ describe('<AuthForm mode="sign-up" />', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'An account with this email already exists',
     );
+  });
+
+  test('shows the app name and a sign-up heading', async () => {
+    await render(<AuthForm mode="sign-up" />);
+
+    expect(screen.getByText('CLOSET')).toBeOnTheScreen();
+    expect(screen.getByRole('header')).toHaveTextContent('Start your closet');
   });
 
   test('renders in Hebrew', async () => {

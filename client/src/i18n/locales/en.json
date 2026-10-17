@@ -1,4 +1,8 @@
 {
+  "app": {
+    "name": "CLOSET",
+    "tagline": "your closet · your mood"
+  },
   "home": {
     "title": "My wardrobe",
     "categories": "Categories"
@@ -32,6 +36,9 @@
       "userExists": "An account with this email already exists",
       "network": "Can't reach the server. Check your connection and try again.",
       "generic": "Something went wrong. Try again."
-    }
+    },
+    "welcomeTitle": "Welcome",
+    "signUpTitle": "Start your closet",
+    "intro": "Put together outfits from your own closet, sell what you don't wear and find similar pieces for less."
   }
 }

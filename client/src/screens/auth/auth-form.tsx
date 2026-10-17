@@ -1,9 +1,22 @@
 import { Link } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authClient } from '@/lib/auth-client';
+import { colors, fonts } from '@/theme';
 
 // Same limit as Better Auth's default; checked here so the user gets the message without a round trip.
 const MIN_PASSWORD_LENGTH = 8;
@@ -29,6 +42,7 @@ const ERROR_KEYS: Record<string, ErrorKey> = {
 
 export function AuthForm({ mode }: { mode: Mode }) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,98 +78,189 @@ export function AuthForm({ mode }: { mode: Mode }) {
   }
 
   return (
-    <View style={styles.container}>
-      {isSignUp && (
-        <TextInput
-          style={styles.input}
-          placeholder={t('auth.name')}
-          value={name}
-          onChangeText={setName}
-          autoComplete="name"
-          textContentType="name"
-        />
-      )}
-      <TextInput
-        style={styles.input}
-        placeholder={t('auth.email')}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        autoComplete="email"
-        keyboardType="email-address"
-        textContentType="emailAddress"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder={t('auth.password')}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete={isSignUp ? 'new-password' : 'current-password'}
-        textContentType={isSignUp ? 'newPassword' : 'password'}
-      />
-
-      {error && (
-        <Text style={[styles.text, styles.error]} accessibilityRole="alert">
-          {t(error)}
-        </Text>
-      )}
-
-      <Pressable
-        style={styles.button}
-        onPress={submit}
-        disabled={submitting}
-        accessibilityRole="button"
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* Dark icons: the screen is always light pink, even in dark mode. */}
+      <StatusBar style="dark" />
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
       >
-        {submitting ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.buttonText}>{t(isSignUp ? 'auth.signUp' : 'auth.signIn')}</Text>
-        )}
-      </Pressable>
+        <View style={[styles.hero, { paddingTop: insets.top + 40 }]}>
+          <Text style={styles.wordmark}>{t('app.name')}</Text>
+          <Text style={styles.tagline}>{t('app.tagline')}</Text>
+        </View>
 
-      <Link href={isSignUp ? '/sign-in' : '/sign-up'} replace style={[styles.text, styles.link]}>
-        {t(isSignUp ? 'auth.toSignIn' : 'auth.toSignUp')}
-      </Link>
-    </View>
+        <View style={styles.body}>
+          <Text style={styles.title} accessibilityRole="header">
+            {t(isSignUp ? 'auth.signUpTitle' : 'auth.welcomeTitle')}
+          </Text>
+          <Text style={[styles.text, styles.intro]}>{t('auth.intro')}</Text>
+
+          <View style={styles.fields}>
+            {isSignUp && (
+              <TextInput
+                style={styles.input}
+                placeholder={t('auth.name')}
+                placeholderTextColor={colors.textMuted}
+                value={name}
+                onChangeText={setName}
+                autoComplete="name"
+                textContentType="name"
+              />
+            )}
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.email')}
+              placeholderTextColor={colors.textMuted}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              textContentType="emailAddress"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.password')}
+              placeholderTextColor={colors.textMuted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              textContentType={isSignUp ? 'newPassword' : 'password'}
+            />
+
+            {error && (
+              <Text style={[styles.text, styles.error]} accessibilityRole="alert">
+                {t(error)}
+              </Text>
+            )}
+
+            <Pressable
+              style={[styles.button, submitting && styles.buttonBusy]}
+              onPress={submit}
+              disabled={submitting}
+              accessibilityRole="button"
+            >
+              {submitting ? (
+                <ActivityIndicator color={colors.onAccent} />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {t(isSignUp ? 'auth.signUp' : 'auth.signIn')}
+                </Text>
+              )}
+            </Pressable>
+
+            <Link href={isSignUp ? '/sign-in' : '/sign-up'} replace style={styles.link}>
+              {t(isSignUp ? 'auth.toSignIn' : 'auth.toSignUp')}
+            </Link>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
+// textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    gap: 12,
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
+  scroll: {
+    flexGrow: 1,
+    paddingBottom: 32,
+  },
+  hero: {
+    paddingHorizontal: 26,
+    paddingBottom: 40,
+    gap: 6,
+    backgroundColor: colors.hero,
+    borderBottomStartRadius: 40,
+    borderBottomEndRadius: 40,
+  },
+  wordmark: {
+    fontFamily: fonts.displayLight,
+    fontSize: 56,
+    lineHeight: 60,
+    letterSpacing: 2,
+    color: colors.accentDark,
+    textAlign: 'left',
+  },
+  tagline: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 10,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    color: colors.accent,
+    textAlign: 'left',
+  },
+  body: {
+    paddingHorizontal: 26,
+    paddingTop: 30,
+    gap: 8,
+  },
+  title: {
+    fontFamily: fonts.display,
+    fontSize: 34,
+    lineHeight: 38,
+    color: colors.text,
     textAlign: 'left',
   },
   text: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'left',
+  },
+  intro: {
+    color: colors.textSecondary,
+  },
+  fields: {
+    marginTop: 18,
+    gap: 10,
+  },
+  input: {
+    height: 52,
+    paddingHorizontal: 20,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    fontFamily: fonts.body,
     fontSize: 15,
+    color: colors.text,
     textAlign: 'left',
   },
   error: {
-    color: '#c62828',
+    fontFamily: fonts.bodyMedium,
+    color: colors.error,
   },
   button: {
-    backgroundColor: '#111',
-    borderRadius: 8,
-    paddingVertical: 12,
+    height: 52,
+    marginTop: 4,
+    borderRadius: 26,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+  },
+  buttonBusy: {
+    opacity: 0.8,
   },
   buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    color: colors.onAccent,
   },
   link: {
-    color: '#1565c0',
+    paddingVertical: 12,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: colors.accent,
+    textAlign: 'center',
   },
 });
