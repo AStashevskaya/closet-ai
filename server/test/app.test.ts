@@ -35,7 +35,10 @@ let app: App | undefined;
 
 async function setup() {
   // Better Auth runs for real, backed by its in-memory adapter instead of Postgres.
-  const auth = createAuth(env, memoryAdapter({ user: [], session: [], account: [], verification: [] }));
+  const auth = createAuth(
+    env,
+    memoryAdapter({ user: [], session: [], account: [], verification: [] }),
+  );
   app = await buildApp({ env, auth, itemsRepository: createInMemoryItemsRepository() });
   return app;
 }
@@ -67,9 +70,36 @@ describe("GET /health", () => {
   });
 });
 
+describe("errors", () => {
+  it("hides the message of unexpected errors", async () => {
+    const server = await setup();
+    server.get("/boom", () => {
+      throw new Error('relation "items" does not exist');
+    });
+
+    const res = await server.inject({ method: "GET", url: "/boom" });
+    expect(res.statusCode).toBe(500);
+    expect(res.body).not.toContain("relation");
+  });
+
+  it("keeps the message of validation errors", async () => {
+    const server = await setup();
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      payload: "{",
+      headers: { "content-type": "application/json" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ message: string }>().message).not.toBe("Internal Server Error");
+  });
+});
+
 describe("auth", () => {
   it("rejects sign-up with a short password", async () => {
-    const res = await (await setup()).inject({
+    const res = await (
+      await setup()
+    ).inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
       payload: { name: "Test User", email: "short@example.com", password: "123" },
@@ -91,7 +121,9 @@ describe("auth", () => {
   });
 
   it("trusts the app's own scheme as an origin", async () => {
-    const res = await (await setup()).inject({
+    const res = await (
+      await setup()
+    ).inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
       // A cookie makes Better Auth validate the origin; without one the check is skipped.
@@ -102,7 +134,9 @@ describe("auth", () => {
   });
 
   it("rejects requests from an untrusted website", async () => {
-    const res = await (await setup()).inject({
+    const res = await (
+      await setup()
+    ).inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
       headers: { origin: "https://evil.example.com", cookie: "x=1" },
@@ -155,9 +189,18 @@ describe("/api/items", () => {
     const anna = await signUp(server, "anna@example.com");
     const maya = await signUp(server, "maya@example.com");
 
-    await server.inject({ method: "POST", url: "/api/items", headers: { cookie: anna }, payload: shirt });
+    await server.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie: anna },
+      payload: shirt,
+    });
 
-    const mayas = await server.inject({ method: "GET", url: "/api/items", headers: { cookie: maya } });
+    const mayas = await server.inject({
+      method: "GET",
+      url: "/api/items",
+      headers: { cookie: maya },
+    });
     expect(mayas.json<Item[]>()).toEqual([]);
   });
 
