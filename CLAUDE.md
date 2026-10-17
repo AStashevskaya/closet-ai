@@ -15,7 +15,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - Explain non-obvious decisions in a sentence or two (why this library, why this pattern). I want to understand the code, not just receive it.
 - Small, focused commits with conventional messages (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`).
 - Don't add a dependency without saying what it's for and what the alternative was.
-- Run `pnpm typecheck` and `pnpm test` before saying something is done.
+- Run `pnpm typecheck`, `pnpm lint` and `pnpm test` before saying something is done.
 - If a task is ambiguous or touches the data model in a way that's hard to undo, ask first.
 
 ## Current state
@@ -30,7 +30,8 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `client/` (`@closet-ai/client`): Expo SDK 58, Expo Router (`src/app`), TypeScript. Placeholder home screen (`src/screens/home`, rendered by `src/app/index.tsx`) that imports from `@closet-ai/shared`. i18n: i18next + react-i18next in `src/i18n`, languages en (fallback), he, ru, picked from the device via `expo-localization`; `t()` keys are typed from `en.json`. Auth: Better Auth client with the Expo plugin (`src/lib/auth-client.ts`), session cookie in `expo-secure-store`, sign-in / sign-up screens behind `Stack.Protected` in `src/app/_layout.tsx`. API URL: `EXPO_PUBLIC_API_URL`, or in development the LAN host Metro serves from, port 3000. Tests: Jest 30 + jest-expo + Testing Library (`pnpm --filter @closet-ai/client test`). Jest is in `expo.install.exclude` because expo-doctor still expects Jest 29.
 - No `node-linker=hoisted`: Expo supports pnpm isolated installs since SDK 54. Switch to `nodeLinker: hoisted` in `pnpm-workspace.yaml` only if a native library breaks.
 - `docker-compose.yml`: Postgres + Redis.
-- CI: `pnpm install --frozen-lockfile`, typecheck (all three packages), tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
+- Lint: ESLint 9 (not 10: `eslint-plugin-react` inside `eslint-config-expo` crashes on 10). Root `eslint.config.js` covers `server` and `shared` with type-aware `typescript-eslint` rules; `client/eslint.config.js` uses `eslint-config-expo`, which includes the React Compiler rules. `pnpm lint` runs both and fails on warnings.
+- CI: `pnpm install --frozen-lockfile`, typecheck (all three packages), lint, tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
 - Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
 ## Tests
@@ -85,5 +86,6 @@ pnpm --filter @closet-ai/server db:generate    # only after changing src/db/sche
 pnpm dev:server                               # API on http://localhost:3000
 pnpm dev:client                               # Expo dev server
 pnpm typecheck
+pnpm lint
 pnpm test
 ```

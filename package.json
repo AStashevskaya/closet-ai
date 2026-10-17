@@ -13,12 +13,16 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "lint": "eslint . --max-warnings 0 && pnpm --filter @closet-ai/client lint",
     "format": "prettier --write .",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   },
   "devDependencies": {
+    "@eslint/js": "^9",
+    "eslint": "^9",
     "prettier": "^3.4.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2"
   }
 }

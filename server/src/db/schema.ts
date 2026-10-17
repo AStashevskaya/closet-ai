@@ -19,7 +19,10 @@ export const items = pgTable(
     name: text("name").notNull(),
     category: itemCategoryEnum("category").notNull(),
     colors: text("colors").array().notNull(),
-    seasons: seasonEnum("seasons").array().notNull().default(sql`'{}'`),
+    seasons: seasonEnum("seasons")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     imageUrl: text("image_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
