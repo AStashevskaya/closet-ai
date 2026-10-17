@@ -80,8 +80,8 @@ Reason: server and client use different test runners and environments (Node vs R
 pnpm install
 pnpm db:up                                    # Postgres + Redis in Docker
 cp server/.env.example server/.env              # then set BETTER_AUTH_SECRET: openssl rand -base64 32
-pnpm --filter @closet-ai/server db:generate
-pnpm --filter @closet-ai/server db:migrate
+pnpm --filter @closet-ai/server db:migrate     # apply committed migrations
+pnpm --filter @closet-ai/server db:generate    # only after changing src/db/schema.ts; commit the result
 pnpm dev:server                               # API on http://localhost:3000
 pnpm dev:client                               # Expo dev server
 pnpm typecheck

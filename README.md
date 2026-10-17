@@ -10,7 +10,7 @@ The core feature is **"Want / Can"**. Drop in a screenshot of something you want
 
 First markets: Israel (Hebrew and Russian, Yad2 and Facebook groups), then Ukraine and Belarus.
 
-Status: early development. The backend skeleton and a basic items API are in place; the mobile app is next.
+Status: early development. The API (Fastify, Postgres) and the Expo app are in place, with email + password sign-in and the app in English, Hebrew and Russian. Image upload is next.
 
 ## How it works for people
 
@@ -36,10 +36,15 @@ Stylists are part of the plan: a person can give a stylist access to their wardr
 ```
 client/                Expo (React Native) app                @closet-ai/client
   src/app/             Expo Router routes
+  src/screens/         screen bodies (routes only render them)
+  src/i18n/            translations: en, he, ru
+  src/lib/             API URL, auth client
 server/                Fastify API                            @closet-ai/server
   src/
+    auth/              Better Auth setup, /api/auth/* routes, requireUser
     config/            env validation
     db/                Drizzle schema and client
+  drizzle/             SQL migrations (committed)
     modules/items/     routes + repository
     routes/            health check
   test/
@@ -55,14 +60,17 @@ Requirements: Node 22+, pnpm 9+, Docker.
 ```bash
 pnpm install
 pnpm db:up                                   # Postgres + Redis
-cp server/.env.example server/.env
-pnpm --filter @closet-ai/server db:generate  # create a migration from the schema
-pnpm --filter @closet-ai/server db:migrate
+cp server/.env.example server/.env           # then set BETTER_AUTH_SECRET: openssl rand -base64 32
+pnpm --filter @closet-ai/server db:migrate   # apply the committed migrations
 pnpm dev:server                              # http://localhost:3000/health
 pnpm dev:client                              # Expo dev server (scan the QR code with Expo Go)
 ```
 
-Tests don't need a database, the app gets an in-memory repository:
+The phone and the computer need to be on the same Wi-Fi: in development the app calls the API on the computer's LAN address, port 3000.
+
+After changing `server/src/db/schema.ts`, create a new migration with `pnpm --filter @closet-ai/server db:generate` and commit it.
+
+Tests don't need a database: the API tests use Better Auth's in-memory adapter and an in-memory repository.
 
 ```bash
 pnpm test
@@ -73,6 +81,8 @@ pnpm test
 ### v1: photo → wear it or sell it (6–8 weeks)
 
 - [x] Monorepo, Fastify, Drizzle, Zod, CI
+- [x] Expo app with i18n (English, Hebrew, Russian) and RTL
+- [x] Email + password sign-in (Better Auth), each user sees only their own items
 - [ ] Image upload and storage
 - [ ] Background jobs (BullMQ) for image processing
 - [ ] Item tagging with a vision model: type, colour, fit, length, fabric, brand, condition (structured output, validated with Zod)
@@ -82,7 +92,7 @@ pnpm test
 - [ ] Declutter flow: swipe keep / sell / not sure
 - [ ] Listing generator in Hebrew and Russian with a price range; share to Yad2 / Facebook Marketplace / Vinted via the share sheet
 - [ ] "Want / Can", part 1: similar look from your own wardrobe (embeddings + pgvector)
-- [ ] Expo app: auth, wardrobe, outfits, sell; RTL support for Hebrew from day one
+- [ ] Expo app: wardrobe, outfits, sell; RTL support for Hebrew from day one
 - [ ] Free tier limits and Pro trial via RevenueCat
 - [ ] Evals: a few test wardrobes, scored by hand, rerun after every prompt change
 - [ ] TestFlight with 20–30 testers
