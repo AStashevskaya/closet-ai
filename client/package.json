@@ -5,6 +5,8 @@
   "dependencies": {
     "@better-auth/expo": "^1.7.10",
     "@closet-ai/shared": "workspace:*",
+    "@expo-google-fonts/cormorant-garamond": "^0.4.1",
+    "@expo-google-fonts/manrope": "^0.4.2",
     "@expo/ui": "~57.0.25",
     "better-auth": "^1.7.10",
     "expo": "~57.0.30",
