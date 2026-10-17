@@ -4,7 +4,6 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 
 import { fontAssets } from '@/fonts';
 import { authClient } from '@/lib/auth-client';
@@ -14,7 +13,6 @@ import { authClient } from '@/lib/auth-client';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { t } = useTranslation();
   const { data: session, isPending } = authClient.useSession();
   // A font that fails to load falls back to the system font rather than blocking the app.
   const [fontsLoaded, fontError] = useFonts(fontAssets);
@@ -31,7 +29,7 @@ export default function RootLayout() {
   return (
     <Stack>
       <Stack.Protected guard={signedIn}>
-        <Stack.Screen name="index" options={{ title: t('home.title') }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         {/* The auth screens draw their own full-bleed header. */}

@@ -3,10 +3,32 @@
     "name": "CLOSET",
     "tagline": "твой шкаф · твоё настроение"
   },
-  "home": {
+  "closet": {
     "title": "Мой гардероб",
     "categories": "Категории"
   },
+  "tabs": {
+    "home": "Главная",
+    "closet": "Шкаф",
+    "want": "Хочу",
+    "trends": "Тренды",
+    "profile": "Профиль"
+  },
+  "menu": {
+    "title": "Меню",
+    "soon": "скоро",
+    "sections": {
+      "closet": "Мой шкаф",
+      "looks": "Образы",
+      "wantCan": "Хочу / Могу",
+      "trends": "Тренды недели",
+      "sell": "Продать вещи",
+      "votes": "Голосования подруг",
+      "showroom": "Шоурум брендов",
+      "favorites": "Избранное"
+    }
+  },
+  "comingSoon": "Этот раздел скоро появится",
   "items": {
     "count_one": "{{count}} вещь",
     "count_few": "{{count}} вещи",

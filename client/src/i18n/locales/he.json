@@ -3,10 +3,32 @@
     "name": "CLOSET",
     "tagline": "הארון שלך · מצב הרוח שלך"
   },
-  "home": {
+  "closet": {
     "title": "הארון שלי",
     "categories": "קטגוריות"
   },
+  "tabs": {
+    "home": "ראשי",
+    "closet": "ארון",
+    "want": "רוצה",
+    "trends": "טרנדים",
+    "profile": "פרופיל"
+  },
+  "menu": {
+    "title": "תפריט",
+    "soon": "בקרוב",
+    "sections": {
+      "closet": "הארון שלי",
+      "looks": "לוקים",
+      "wantCan": "רוצה / יכולה",
+      "trends": "טרנדים של השבוע",
+      "sell": "מכירת פריטים",
+      "votes": "הצבעות של חברות",
+      "showroom": "שואורום מותגים",
+      "favorites": "מועדפים"
+    }
+  },
+  "comingSoon": "המדור הזה יגיע בקרוב",
   "items": {
     "count_one": "פריט אחד",
     "count_two": "שני פריטים",

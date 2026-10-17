@@ -3,10 +3,32 @@
     "name": "CLOSET",
     "tagline": "your closet · your mood"
   },
-  "home": {
+  "closet": {
     "title": "My wardrobe",
     "categories": "Categories"
   },
+  "tabs": {
+    "home": "Home",
+    "closet": "Closet",
+    "want": "Want",
+    "trends": "Trends",
+    "profile": "Profile"
+  },
+  "menu": {
+    "title": "Menu",
+    "soon": "soon",
+    "sections": {
+      "closet": "My closet",
+      "looks": "Outfits",
+      "wantCan": "Want / Can",
+      "trends": "Trends of the week",
+      "sell": "Sell items",
+      "votes": "Friends' votes",
+      "showroom": "Brand showroom",
+      "favorites": "Favorites"
+    }
+  },
+  "comingSoon": "This section is coming soon",
   "items": {
     "count_one": "{{count}} item",
     "count_other": "{{count}} items"
