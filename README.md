@@ -28,7 +28,7 @@ Stylists are part of the plan: a person can give a stylist access to their wardr
 - Redis + BullMQ for background jobs (planned)
 - Vitest
 - Vision LLM for item tagging, listings and outfits (planned)
-- Mobile: React Native with Expo (SDK 58, Expo Router), subscriptions via RevenueCat (planned)
+- Mobile: React Native with Expo (SDK 57, Expo Router), subscriptions via RevenueCat (planned)
 - Stylist dashboard: Next.js (later)
 
 ## Project structure
