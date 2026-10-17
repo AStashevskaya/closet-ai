@@ -50,6 +50,19 @@ describe('<AuthForm mode="sign-in" />', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Wrong email or password');
   });
 
+  test('recovers when the server cannot be reached', async () => {
+    // better-fetch throws on network failure instead of returning { error }.
+    signIn.mockRejectedValue(new TypeError('Network request failed'));
+    await render(<AuthForm mode="sign-in" />);
+
+    await fill('Email', 'anna@example.com');
+    await fill('Password', 'correct-horse-battery');
+    await fireEvent.press(screen.getByRole('button'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Can't reach the server/);
+    expect(screen.getByRole('button')).toBeEnabled();
+  });
+
   test('does not call the server with empty fields', async () => {
     await render(<AuthForm mode="sign-in" />);
     await fireEvent.press(screen.getByRole('button'));

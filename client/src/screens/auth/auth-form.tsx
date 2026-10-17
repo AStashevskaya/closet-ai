@@ -15,6 +15,7 @@ type ErrorKey =
   | 'auth.errors.invalidEmail'
   | 'auth.errors.invalidCredentials'
   | 'auth.errors.userExists'
+  | 'auth.errors.network'
   | 'auth.errors.generic';
 
 // Better Auth error codes → translation keys. Anything unknown gets the generic message.
@@ -45,14 +46,20 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
     setError(null);
     setSubmitting(true);
-    const result = isSignUp
-      ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password })
-      : await authClient.signIn.email({ email: email.trim(), password });
-    setSubmitting(false);
+    try {
+      const result = isSignUp
+        ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password })
+        : await authClient.signIn.email({ email: email.trim(), password });
 
-    // On success the session updates and the protected routes in _layout switch screens.
-    if (result.error) {
-      setError(ERROR_KEYS[result.error.code ?? ''] ?? 'auth.errors.generic');
+      // On success the session updates and the protected routes in _layout switch screens.
+      if (result.error) {
+        setError(ERROR_KEYS[result.error.code ?? ''] ?? 'auth.errors.generic');
+      }
+    } catch {
+      // Server errors come back in result.error; a throw means the request never got an answer.
+      setError('auth.errors.network');
+    } finally {
+      setSubmitting(false);
     }
   }
 
