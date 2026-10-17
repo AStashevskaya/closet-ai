@@ -11,6 +11,10 @@ export const colors = {
   accentDark: '#4A0D18',
   onAccent: '#FBF6F3',
   border: '#E2C6C1',
+  divider: '#EFD9D5',
+  accentSoft: '#F0D3D0',
+  iconMuted: '#9C6A70',
+  tabInactive: '#9C7A80',
   error: '#B3261E',
 } as const;
 
