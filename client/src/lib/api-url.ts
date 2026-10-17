@@ -9,6 +9,11 @@ export function apiUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv;
 
+  // A release build has no dev server to fall back to; failing here beats calling localhost on the phone.
+  if (!__DEV__) {
+    throw new Error('EXPO_PUBLIC_API_URL must be set for release builds');
+  }
+
   const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
   return `http://${devHost ?? 'localhost'}:${API_PORT}`;
 }
