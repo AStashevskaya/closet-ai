@@ -8,6 +8,21 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Same image as docker-compose.yml; the server's Postgres tests run against it.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: closet
+          POSTGRES_PASSWORD: closet
+          POSTGRES_DB: closet_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U closet"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -18,3 +33,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+        env:
+          TEST_DATABASE_URL: postgres://closet:closet@localhost:5432/closet_test

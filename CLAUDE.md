@@ -31,7 +31,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - No `node-linker=hoisted`: Expo supports pnpm isolated installs since SDK 54. Switch to `nodeLinker: hoisted` in `pnpm-workspace.yaml` only if a native library breaks.
 - `docker-compose.yml`: Postgres + Redis.
 - Lint: ESLint 9 (not 10: `eslint-plugin-react` inside `eslint-config-expo` crashes on 10). Root `eslint.config.js` covers `server` and `shared` with type-aware `typescript-eslint` rules; `client/eslint.config.js` uses `eslint-config-expo`, which includes the React Compiler rules. `pnpm lint` runs both and fails on warnings.
-- CI: `pnpm install --frozen-lockfile`, typecheck (all three packages), lint, tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
+- CI: `pnpm install --frozen-lockfile`, typecheck (all three packages), lint, tests, with a Postgres 17 + pgvector service for the server's Postgres tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
 - Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
 ## Tests
@@ -39,6 +39,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 Tests stay inside each package, not in a shared top-level folder:
 
 - `server/test/` for API tests (Vitest). Unit tests for a single module can also sit next to it as `*.test.ts`.
+  - `server/test/postgres.test.ts` runs the real app (Drizzle repository, Better Auth Drizzle adapter, committed migrations) on Postgres. It runs only when `TEST_DATABASE_URL` is set, always in CI (a Postgres service in the workflow), and fails in CI if the variable is missing. It wipes that database first, so the database name must end in `_test`. Locally, once: `createdb -O closet closet_test` and `psql -d closet_test -c 'ALTER SCHEMA public OWNER TO closet'` (Postgres 14 and older give `public` to the superuser); then then `TEST_DATABASE_URL=postgres://closet:closet@localhost:5432/closet_test pnpm --filter @closet-ai/server test`.
 - `client/` uses Jest (jest-expo), with tests next to components as `*.test.tsx`. Never put tests in `src/app`: every file there becomes a route.
 - `shared/` gets Vitest only when there's real logic there; plain schemas don't need tests.
 
