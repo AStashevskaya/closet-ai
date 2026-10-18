@@ -6,6 +6,8 @@ import { items } from "../../db/schema";
 // Every method takes the owner, so one user can never read or write another user's items.
 export interface ItemsRepository {
   list(ownerId: string): Promise<Item[]>;
+  // null when the item doesn't exist or belongs to someone else.
+  get(ownerId: string, itemId: string): Promise<Item | null>;
   create(ownerId: string, input: CreateItemInput): Promise<Item>;
   // null when the item doesn't exist, belongs to someone else, or has no photo.
   photoKey(ownerId: string, itemId: string): Promise<string | null>;
@@ -40,6 +42,14 @@ export function createItemsRepository(db: Db): ItemsRepository {
         .where(eq(items.ownerId, ownerId))
         .orderBy(desc(items.createdAt));
       return rows.map(toItem);
+    },
+
+    async get(ownerId, itemId) {
+      const [row] = await db
+        .select()
+        .from(items)
+        .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
+      return row ? toItem(row) : null;
     },
 
     async create(ownerId, input) {

@@ -292,3 +292,53 @@ describe("DELETE /api/items/:id", () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe("GET /api/items/:id", () => {
+  it("requires a session", async () => {
+    const server = await setup();
+    const res = await server.inject({ method: "GET", url: `/api/items/${crypto.randomUUID()}` });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("returns the caller's item", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const created = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: shirt,
+      })
+    ).json<Item>();
+
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/items/${created.id}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<Item>()).toEqual(created);
+  });
+
+  it("answers 404 for someone else's item", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const { id } = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: anna },
+        payload: shirt,
+      })
+    ).json<Item>();
+
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/items/${id}`,
+      headers: { cookie: maya },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
