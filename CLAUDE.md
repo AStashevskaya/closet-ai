@@ -73,7 +73,7 @@ Reason: server and client use different test runners and environments (Node vs R
 - Zod schema in `shared` is the single source of truth: TS types, request validation and DB enums come from it.
 - AI calls go through one client module in `server` so tests can swap it for a stub and never spend money.
 - Secrets only in `.env`, never committed. `.env.example` is kept up to date.
-- UI strings go through i18n from the start (en as fallback, he, ru; uk later). No hardcoded text in components. New strings go into `en.json` first; a test checks that he and ru have the same keys.
+- UI strings go through i18n from the start (en as fallback, he, ru; uk later). No hardcoded text in components. New strings go into `en.json` first; a test checks that he and ru have the same keys. Russian copy addresses the user as «ты» (as in the design), never «вы».
 
 ## Commands
 
