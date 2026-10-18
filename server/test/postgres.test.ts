@@ -147,6 +147,35 @@ describe.skipIf(!url)("on Postgres", () => {
     expect([...photo.rawPayload]).toEqual([1, 2, 3]);
   });
 
+  it("deletes only the caller's own item", async () => {
+    const owner = await signUp("deleting@example.com");
+    const other = await signUp("intruder@example.com");
+    const { id } = (
+      await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: owner },
+        payload: shirt,
+      })
+    ).json<Item>();
+
+    const foreign = await app.inject({
+      method: "DELETE",
+      url: `/api/items/${id}`,
+      headers: { cookie: other },
+    });
+    expect(foreign.statusCode).toBe(404);
+
+    const own = await app.inject({
+      method: "DELETE",
+      url: `/api/items/${id}`,
+      headers: { cookie: owner },
+    });
+    expect(own.statusCode).toBe(204);
+    const left = await db.db.select().from(schema.items).where(eq(schema.items.id, id));
+    expect(left).toEqual([]);
+  });
+
   it("deletes a user's items together with the user", async () => {
     const cookie = await signUp("leaving@example.com");
     await app.inject({ method: "POST", url: "/api/items", headers: { cookie }, payload: shirt });

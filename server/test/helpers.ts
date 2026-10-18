@@ -36,5 +36,11 @@ export function createInMemoryItemsRepository(): ItemsRepository {
     },
     photoKey: async (ownerId, itemId) =>
       store.find((row) => row.ownerId === ownerId && row.item.id === itemId)?.photoKey ?? null,
+    delete: async (ownerId, itemId) => {
+      const index = store.findIndex((row) => row.ownerId === ownerId && row.item.id === itemId);
+      if (index === -1) return null;
+      const [row] = store.splice(index, 1);
+      return { photoKey: row?.photoKey ?? null };
+    },
   };
 }

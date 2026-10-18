@@ -120,6 +120,52 @@ describe("item photos", () => {
     expect(other.statusCode).toBe(404);
   });
 
+  it("deletes the photo file together with the item", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+    const { id } = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { ...shirt, photoKey },
+      })
+    ).json<Item>();
+
+    const res = await server.inject({
+      method: "DELETE",
+      url: `/api/items/${id}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(await storage.exists(photoKey)).toBe(false);
+  });
+
+  it("still deletes the item when the storage fails", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+    const { id } = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { ...shirt, photoKey },
+      })
+    ).json<Item>();
+    storage.delete = () => Promise.reject(new Error("S3 is down"));
+
+    const res = await server.inject({
+      method: "DELETE",
+      url: `/api/items/${id}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(204);
+    const list = await server.inject({ method: "GET", url: "/api/items", headers: { cookie } });
+    expect(list.json<Item[]>()).toEqual([]);
+  });
+
   it("refuses someone else's photo and keys that were never uploaded", async () => {
     const server = await setup();
     const anna = await signUp(server, "anna@example.com");

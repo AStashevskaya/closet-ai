@@ -211,3 +211,84 @@ describe("/api/items", () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe("DELETE /api/items/:id", () => {
+  async function createShirt(server: App, cookie: string) {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: shirt,
+    });
+    return res.json<Item>().id;
+  }
+
+  it("requires a session", async () => {
+    const server = await setup();
+    const res = await server.inject({ method: "DELETE", url: `/api/items/${crypto.randomUUID()}` });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("deletes an item without a photo", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const id = await createShirt(server, cookie);
+
+    const res = await server.inject({
+      method: "DELETE",
+      url: `/api/items/${id}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(res.body).toBe("");
+
+    const list = await server.inject({ method: "GET", url: "/api/items", headers: { cookie } });
+    expect(list.json<Item[]>()).toEqual([]);
+  });
+
+  it("answers 404 for an item that is already gone", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const id = await createShirt(server, cookie);
+    await server.inject({ method: "DELETE", url: `/api/items/${id}`, headers: { cookie } });
+
+    const again = await server.inject({
+      method: "DELETE",
+      url: `/api/items/${id}`,
+      headers: { cookie },
+    });
+    expect(again.statusCode).toBe(404);
+  });
+
+  it("does not let one user delete another user's item", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const id = await createShirt(server, anna);
+
+    const res = await server.inject({
+      method: "DELETE",
+      url: `/api/items/${id}`,
+      headers: { cookie: maya },
+    });
+    expect(res.statusCode).toBe(404);
+
+    const annas = await server.inject({
+      method: "GET",
+      url: "/api/items",
+      headers: { cookie: anna },
+    });
+    expect(annas.json<Item[]>()).toHaveLength(1);
+  });
+
+  it("rejects an id that is not a UUID", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const res = await server.inject({
+      method: "DELETE",
+      url: "/api/items/abc",
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});

@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -21,6 +22,8 @@ export interface Storage {
   put(key: string, body: Uint8Array, contentType: string): Promise<void>;
   get(key: string): Promise<StoredObject | null>;
   exists(key: string): Promise<boolean>;
+  // Deleting a key that doesn't exist is not an error (S3 behaves the same way).
+  delete(key: string): Promise<void>;
 }
 
 function isMissing(error: unknown) {
@@ -70,6 +73,10 @@ export function createS3Storage(env: Env) {
         throw error;
       }
     },
+
+    async delete(key) {
+      await client.send(new DeleteObjectCommand({ Bucket, Key: key }));
+    },
   };
 
   // Local SeaweedFS starts empty; in production the bucket is created once in the R2 dashboard.
@@ -93,5 +100,8 @@ export function createMemoryStorage(): Storage {
     },
     get: async (key) => objects.get(key) ?? null,
     exists: async (key) => objects.has(key),
+    delete: async (key) => {
+      objects.delete(key);
+    },
   };
 }

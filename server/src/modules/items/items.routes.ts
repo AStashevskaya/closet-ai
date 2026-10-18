@@ -54,4 +54,24 @@ export const itemsRoutes =
           .send(Buffer.from(photo.body));
       },
     );
+
+    app.delete(
+      "/items/:id",
+      { schema: { params: z.object({ id: z.string().uuid() }) } },
+      async (request, reply) => {
+        // The row goes first: a leftover file is harmless, an item pointing at a missing file is not.
+        const deleted = await repo.delete(userOf(request).id, request.params.id);
+        if (!deleted) throw httpError(404, "item not found");
+
+        if (deleted.photoKey) {
+          try {
+            await storage.delete(deleted.photoKey);
+          } catch (error) {
+            // The item is already gone, so the client still gets 204; the file stays behind.
+            request.log.warn({ err: error, key: deleted.photoKey }, "failed to delete item photo");
+          }
+        }
+        return reply.code(204).send();
+      },
+    );
   };

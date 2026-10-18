@@ -9,6 +9,9 @@ export interface ItemsRepository {
   create(ownerId: string, input: CreateItemInput): Promise<Item>;
   // null when the item doesn't exist, belongs to someone else, or has no photo.
   photoKey(ownerId: string, itemId: string): Promise<string | null>;
+  // null when there was nothing to delete (no such item, or someone else's).
+  // Otherwise the deleted item's photo key, so the caller can remove the file too.
+  delete(ownerId: string, itemId: string): Promise<{ photoKey: string | null } | null>;
 }
 
 // Photos are served by the API (it checks the session), so items carry a path, not a storage URL.
@@ -54,6 +57,14 @@ export function createItemsRepository(db: Db): ItemsRepository {
         .from(items)
         .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
       return row?.photoKey ?? null;
+    },
+
+    async delete(ownerId, itemId) {
+      const [row] = await db
+        .delete(items)
+        .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)))
+        .returning({ photoKey: items.photoKey });
+      return row ?? null;
     },
   };
 }
