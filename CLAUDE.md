@@ -72,6 +72,27 @@ Reason: server and client use different test runners and environments (Node vs R
 12. Sign in with Apple / Google, free-tier limits, RevenueCat trial.
 13. Prompt evals: a few test wardrobes, scored by hand, rerun after each prompt change. Start collecting the set at step 4.
 
+## Demo: brand recommendations via live search (for pitching brands)
+
+Goal: show brands and partners how the app recommends their items, before any partner has given us a catalog. This is a demo feature, not the production design.
+
+How it works:
+
+1. A config file holds a plain list of brand sites: `server/src/modules/showroom/demo-sites.ts` exporting `DEMO_SITES: { name: string; url: string; instagram?: string }[]`. Order matters: the first sites are searched first, so before a meeting with a specific brand we move that brand to the top.
+2. Input: a user item or a "Want" screenshot. The vision model turns it into a short search description (type, colour, cut, length, fabric), validated with a Zod schema.
+3. Search only within the listed domains through a web search API that supports domain filtering (pick one, explain the choice and the cost per request). No crawling, no storing the sites' catalogs, no Instagram scraping.
+4. The model looks at the found product pages and returns the 3-5 closest items: title, price if shown, image URL, product URL, brand name, and a one-line reason why it matches.
+5. Every result links to the brand's own site.
+6. Cache results per query for a day so the demo is fast and cheap.
+7. Behind a feature flag (`SHOWROOM_SOURCE=demo-search | partners-db`). Partners-db is the future mode where we search our own stored catalog of brands that agreed. Switching must not touch the client.
+
+Also for the demo: a simple "Brand dashboard" screen (web, can be static data for now) showing impressions, clicks to the brand's site, and the user queries that surfaced their items.
+
+Rules:
+- Demo only: not shown in public builds, store screenshots or marketing until the brand has agreed.
+- Low request volume, respect robots.txt, remove a brand immediately if they ask.
+- Results labelled as partner/ads in the UI once real partners exist.
+
 ## Conventions
 
 - Zod schema in `shared` is the single source of truth: TS types, request validation and DB enums (category, season, color) come from it.
