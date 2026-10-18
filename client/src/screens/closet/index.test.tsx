@@ -2,14 +2,17 @@ import { render, screen } from '@testing-library/react-native';
 
 import i18n from '@/i18n';
 
-import { Home } from '.';
+import { Closet } from '.';
 
-jest.mock('@/lib/auth-client', () => ({ authClient: { signOut: jest.fn() } }));
+jest.mock(
+  'react-native-safe-area-context',
+  () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
+);
 
-describe('<Home />', () => {
+describe('<Closet />', () => {
   test('renders the title and categories in English', async () => {
     await i18n.changeLanguage('en');
-    await render(<Home />);
+    await render(<Closet />);
 
     expect(screen.getByText('My wardrobe')).toBeOnTheScreen();
     expect(screen.getByText('Outerwear')).toBeOnTheScreen();
@@ -17,7 +20,7 @@ describe('<Home />', () => {
 
   test('renders the title and categories in Russian', async () => {
     await i18n.changeLanguage('ru');
-    await render(<Home />);
+    await render(<Closet />);
 
     expect(screen.getByText('Мой гардероб')).toBeOnTheScreen();
     expect(screen.getByText('Верхняя одежда')).toBeOnTheScreen();
@@ -25,7 +28,7 @@ describe('<Home />', () => {
 
   test('renders the title in Hebrew', async () => {
     await i18n.changeLanguage('he');
-    await render(<Home />);
+    await render(<Closet />);
 
     expect(screen.getByText('הארון שלי')).toBeOnTheScreen();
   });

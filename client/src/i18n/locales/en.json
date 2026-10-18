@@ -1,8 +1,34 @@
 {
-  "home": {
+  "app": {
+    "name": "CLOSET",
+    "tagline": "your closet · your mood"
+  },
+  "closet": {
     "title": "My wardrobe",
     "categories": "Categories"
   },
+  "tabs": {
+    "home": "Home",
+    "closet": "Closet",
+    "want": "Want",
+    "trends": "Trends",
+    "profile": "Profile"
+  },
+  "menu": {
+    "title": "Menu",
+    "soon": "soon",
+    "sections": {
+      "closet": "My closet",
+      "looks": "Outfits",
+      "wantCan": "Want / Can",
+      "trends": "Trends of the week",
+      "sell": "Sell items",
+      "votes": "Friends' votes",
+      "showroom": "Brand showroom",
+      "favorites": "Favorites"
+    }
+  },
+  "comingSoon": "This section is coming soon",
   "items": {
     "count_one": "{{count}} item",
     "count_other": "{{count}} items"
@@ -32,6 +58,9 @@
       "userExists": "An account with this email already exists",
       "network": "Can't reach the server. Check your connection and try again.",
       "generic": "Something went wrong. Try again."
-    }
+    },
+    "welcomeTitle": "Welcome",
+    "signUpTitle": "Start your closet",
+    "intro": "Put together outfits from your own closet, sell what you don't wear and find similar pieces for less."
   }
 }
