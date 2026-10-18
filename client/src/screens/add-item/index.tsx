@@ -1,4 +1,5 @@
 import { ITEM_CATEGORIES, ITEM_COLORS, type ItemCategory, type ItemColor } from '@closet-ai/shared';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -8,16 +9,18 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { createItem, uploadPhoto } from '@/lib/api';
 import { shrinkPhoto } from '@/lib/shrink-photo';
+import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { Chip } from './chip';
@@ -74,22 +77,28 @@ export function AddItem() {
     );
   }
 
+  function fail(key: ErrorKey) {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    setError(key);
+  }
+
   async function save() {
-    if (!photoUri) return setError('addItem.errors.photo');
-    if (!name.trim()) return setError('addItem.errors.name');
-    if (!category) return setError('addItem.errors.category');
-    if (itemColors.length === 0) return setError('addItem.errors.colors');
+    if (!photoUri) return fail('addItem.errors.photo');
+    if (!name.trim()) return fail('addItem.errors.name');
+    if (!category) return fail('addItem.errors.category');
+    if (itemColors.length === 0) return fail('addItem.errors.colors');
 
     setError(null);
     setBusy(true);
     try {
       const photoKey = await uploadPhoto(photoUri);
       await createItem({ name: name.trim(), category, colors: itemColors, seasons: [], photoKey });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (cause) {
       // The user sees a generic message; the real error goes to the Metro terminal.
       if (__DEV__) console.warn('Saving the item failed', cause);
-      setError('addItem.errors.save');
+      fail('addItem.errors.save');
       setBusy(false);
     }
   }
@@ -108,13 +117,18 @@ export function AddItem() {
         keyboardDismissMode="interactive"
       >
         {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.photo} contentFit="cover" />
+          <Image
+            source={{ uri: photoUri }}
+            style={styles.photo}
+            contentFit="cover"
+            transition={250}
+          />
         ) : (
           <View style={[styles.photo, styles.photoEmpty]} />
         )}
 
         <View style={styles.photoButtons}>
-          <Pressable
+          <PressableScale
             style={styles.secondaryButton}
             onPress={() => pick('camera')}
             disabled={busy}
@@ -123,15 +137,15 @@ export function AddItem() {
             <Text style={styles.secondaryButtonText}>
               {t(photoUri ? 'addItem.changePhoto' : 'addItem.takePhoto')}
             </Text>
-          </Pressable>
-          <Pressable
+          </PressableScale>
+          <PressableScale
             style={styles.secondaryButton}
             onPress={() => pick('library')}
             disabled={busy}
             accessibilityRole="button"
           >
             <Text style={styles.secondaryButtonText}>{t('addItem.choosePhoto')}</Text>
-          </Pressable>
+          </PressableScale>
         </View>
 
         <Text style={styles.label}>{t('addItem.name')}</Text>
@@ -172,13 +186,20 @@ export function AddItem() {
           ))}
         </View>
 
+        {/* Keyed by the message, so a new error fades in again instead of swapping in place. */}
         {error && (
-          <Text style={styles.error} accessibilityRole="alert">
+          <Animated.Text
+            key={error}
+            style={styles.error}
+            entering={FadeIn.duration(durations.state)}
+            exiting={FadeOut.duration(durations.press)}
+            accessibilityRole="alert"
+          >
             {t(error)}
-          </Text>
+          </Animated.Text>
         )}
 
-        <Pressable
+        <PressableScale
           style={[styles.button, busy && styles.buttonBusy]}
           onPress={save}
           disabled={busy}
@@ -189,7 +210,7 @@ export function AddItem() {
           ) : (
             <Text style={styles.buttonText}>{t('addItem.save')}</Text>
           )}
-        </Pressable>
+        </PressableScale>
       </ScrollView>
     </KeyboardAvoidingView>
   );
