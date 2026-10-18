@@ -185,6 +185,19 @@ describe("/api/items", () => {
     expect(mayas.json<Item[]>()).toEqual([]);
   });
 
+  it("rejects a color outside the palette", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { ...shirt, colors: ["sky"] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("rejects an unknown category", async () => {
     const server = await setup();
     const cookie = await signUp(server, "anna@example.com");

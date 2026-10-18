@@ -1,0 +1,2 @@
+CREATE TYPE "public"."item_color" AS ENUM('black', 'white', 'gray', 'beige', 'brown', 'red', 'pink', 'orange', 'yellow', 'green', 'blue', 'purple', 'multicolor');--> statement-breakpoint
+ALTER TABLE "items" ALTER COLUMN "colors" SET DATA TYPE "public"."item_color"[] USING "colors"::"public"."item_color"[];

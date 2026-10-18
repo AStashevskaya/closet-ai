@@ -15,6 +15,13 @@
       "when": 1792315718689,
       "tag": "0001_photo_key",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792317242485,
+      "tag": "0002_item_color",
+      "breakpoints": true
     }
   ]
 }
