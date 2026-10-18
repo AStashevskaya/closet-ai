@@ -3,10 +3,18 @@ import { Image } from 'expo-image';
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { absoluteUrl, listItems, sessionHeaders } from '@/lib/api';
+import { absoluteUrl, deleteItem, listItems, sessionHeaders } from '@/lib/api';
 import { colors, fonts } from '@/theme';
 
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: Item[] };
@@ -18,18 +26,55 @@ export function Closet() {
   // Photos are served by the API to their owner only, so the image requests carry the session cookie.
   const [headers, setHeaders] = useState<Record<string, string>>();
 
-  const load = useCallback(() => {
-    listItems()
-      .then((items) => setState({ status: 'ready', items }))
-      .catch(() => setState({ status: 'error' }));
+  const load = useCallback(async () => {
+    try {
+      const items = await listItems();
+      setState({ status: 'ready', items });
+    } catch {
+      setState({ status: 'error' });
+    }
   }, []);
 
   // Reload whenever the tab comes into view, e.g. after adding an item.
-  useFocusEffect(load);
+  // The callback may only return a cleanup function, not a promise, hence the wrapper.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   useEffect(() => {
-    sessionHeaders().then(setHeaders, () => setHeaders({}));
+    // An effect can't be async itself, so the async work goes in an inner function.
+    const loadHeaders = async () => {
+      try {
+        setHeaders(await sessionHeaders());
+      } catch {
+        setHeaders({});
+      }
+    };
+    void loadHeaders();
   }, []);
+
+  // The card disappears once the server confirms, so a failed delete never hides an item.
+  const remove = async (id: string) => {
+    try {
+      await deleteItem(id);
+      setState((current) =>
+        current.status === 'ready'
+          ? { status: 'ready', items: current.items.filter((item) => item.id !== id) }
+          : current,
+      );
+    } catch {
+      Alert.alert(t('closet.deleteError'));
+    }
+  };
+
+  const confirmDelete = (item: Item) => {
+    Alert.alert(t('closet.deleteTitle', { name: item.name }), t('closet.deleteMessage'), [
+      { text: t('closet.cancel'), style: 'cancel' },
+      { text: t('closet.delete'), style: 'destructive', onPress: () => void remove(item.id) },
+    ]);
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 24 }]}>
@@ -54,7 +99,7 @@ export function Closet() {
           <Pressable
             onPress={() => {
               setState({ status: 'loading' });
-              load();
+              void load();
             }}
             accessibilityRole="button"
           >
@@ -77,7 +122,16 @@ export function Closet() {
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            // Long press asks to delete. Screen readers get the same as a named action,
+            // since they can't discover a gesture.
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+              onLongPress={() => confirmDelete(item)}
+              accessibilityActions={[{ name: 'delete', label: t('closet.delete') }]}
+              onAccessibilityAction={(event) => {
+                if (event.nativeEvent.actionName === 'delete') confirmDelete(item);
+              }}
+            >
               {item.photoUrl && headers ? (
                 <Image
                   source={{ uri: absoluteUrl(item.photoUrl), headers }}
@@ -93,7 +147,7 @@ export function Closet() {
                 {item.name}
               </Text>
               <Text style={styles.category}>{t(`categories.${item.category}`)}</Text>
-            </View>
+            </Pressable>
           )}
         />
       )}
@@ -165,6 +219,9 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     gap: 4,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   photo: {
     width: '100%',
