@@ -22,6 +22,12 @@ const envSchema = z
       }),
     // Public URL of this server, used by Better Auth to build callback URLs.
     BETTER_AUTH_URL: z.string().url().optional(),
+    // S3-compatible storage for item photos: SeaweedFS in development, Cloudflare R2 in production.
+    S3_ENDPOINT: z.string().url(),
+    S3_REGION: z.string().default("auto"),
+    S3_BUCKET: z.string().min(1),
+    S3_ACCESS_KEY_ID: z.string().min(1),
+    S3_SECRET_ACCESS_KEY: z.string().min(1),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== "production") return;

@@ -4,6 +4,10 @@ import { parseEnv } from "../src/config/env";
 const base = {
   DATABASE_URL: "postgres://closet:closet@localhost:5432/closet",
   BETTER_AUTH_SECRET: "a-real-secret-that-is-at-least-32-characters",
+  S3_ENDPOINT: "http://localhost:8333",
+  S3_BUCKET: "closet-photos",
+  S3_ACCESS_KEY_ID: "closet",
+  S3_SECRET_ACCESS_KEY: "closet-dev-secret",
 };
 
 function errorsFor(source: Record<string, string>) {

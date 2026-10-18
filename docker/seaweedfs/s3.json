@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "closet",
+      "credentials": [{ "accessKey": "closet", "secretKey": "closet-dev-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

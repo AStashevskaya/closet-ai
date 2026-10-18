@@ -22,5 +22,17 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
 
+  # S3-compatible storage for item photos; Cloudflare R2 plays this role in production.
+  # Development-only keys live in docker/seaweedfs/s3.json.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - seaweeddata:/data
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+
 volumes:
   pgdata:
+  seaweeddata:

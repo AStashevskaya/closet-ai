@@ -1,34 +1,10 @@
-import { randomUUID } from "node:crypto";
 import type { Item } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
-import type { Env } from "../src/config/env";
-import type { ItemsRepository } from "../src/modules/items/items.repository";
-
-const env: Env = {
-  NODE_ENV: "test",
-  HOST: "127.0.0.1",
-  PORT: 0,
-  LOG_LEVEL: "silent",
-  DATABASE_URL: "postgres://unused:unused@localhost:5432/unused",
-  BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters-long",
-  BETTER_AUTH_URL: "http://localhost:3000",
-};
-
-function createInMemoryItemsRepository(): ItemsRepository {
-  const store: (Item & { ownerId: string })[] = [];
-  return {
-    list: async (ownerId) =>
-      store.filter((row) => row.ownerId === ownerId).map(({ ownerId: _, ...item }) => item),
-    create: async (ownerId, input) => {
-      const created: Item = { ...input, id: randomUUID(), createdAt: new Date().toISOString() };
-      store.push({ ...created, ownerId });
-      return created;
-    },
-  };
-}
+import { createMemoryStorage } from "../src/storage/storage";
+import { createInMemoryItemsRepository, testEnv as env } from "./helpers";
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
@@ -39,7 +15,12 @@ async function setup() {
     env,
     memoryAdapter({ user: [], session: [], account: [], verification: [] }),
   );
-  app = await buildApp({ env, auth, itemsRepository: createInMemoryItemsRepository() });
+  app = await buildApp({
+    env,
+    auth,
+    itemsRepository: createInMemoryItemsRepository(),
+    storage: createMemoryStorage(),
+  });
   return app;
 }
 

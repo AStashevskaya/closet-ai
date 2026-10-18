@@ -23,7 +23,8 @@ export const items = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'`),
-    imageUrl: text("image_url"),
+    // Storage key of the processed photo (photos/<owner id>/<uuid>.webp), not a URL.
+    photoKey: text("photo_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   // Every items query filters by owner.

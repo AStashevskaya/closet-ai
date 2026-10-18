@@ -10,6 +10,7 @@ import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createItemsRepository } from "../src/modules/items/items.repository";
+import { createMemoryStorage } from "../src/storage/storage";
 
 // The same app as in production, on a real Postgres: Drizzle queries, the Better Auth
 // Drizzle adapter and the committed migrations. Runs only when TEST_DATABASE_URL is set
@@ -28,6 +29,7 @@ const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
 describe.skipIf(!url)("on Postgres", () => {
   let db: ReturnType<typeof createDb>;
   let app: Awaited<ReturnType<typeof buildApp>>;
+  const storage = createMemoryStorage();
 
   beforeAll(async () => {
     // The database is wiped below, so refuse anything that isn't clearly a test database.
@@ -49,9 +51,20 @@ describe.skipIf(!url)("on Postgres", () => {
       DATABASE_URL: url!,
       BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters-long",
       BETTER_AUTH_URL: "http://localhost:3000",
+      S3_ENDPOINT: "http://localhost:8333",
+      S3_REGION: "auto",
+      S3_BUCKET: "unused",
+      S3_ACCESS_KEY_ID: "unused",
+      S3_SECRET_ACCESS_KEY: "unused",
     };
     const auth = createAuth(env, drizzleAdapter(db.db, { provider: "pg", schema }));
-    app = await buildApp({ env, auth, itemsRepository: createItemsRepository(db.db) });
+    // Photo processing is covered in photos.test.ts; here storage is only a stand-in.
+    app = await buildApp({
+      env,
+      auth,
+      itemsRepository: createItemsRepository(db.db),
+      storage,
+    });
   });
 
   afterAll(async () => {
@@ -111,6 +124,27 @@ describe.skipIf(!url)("on Postgres", () => {
 
     const list = await app.inject({ method: "GET", url: "/api/items", headers: { cookie: other } });
     expect(list.json<Item[]>()).toEqual([]);
+  });
+
+  it("stores the photo key and serves the photo by item id", async () => {
+    const cookie = await signUp("photo@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "photo@example.com"));
+    const photoKey = `photos/${user!.id}/test.webp`;
+    await storage.put(photoKey, new Uint8Array([1, 2, 3]), "image/webp");
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { ...shirt, photoKey },
+    });
+    const { photoUrl } = created.json<Item>();
+    const photo = await app.inject({ method: "GET", url: photoUrl!, headers: { cookie } });
+    expect(photo.statusCode).toBe(200);
+    expect([...photo.rawPayload]).toEqual([1, 2, 3]);
   });
 
   it("deletes a user's items together with the user", async () => {
