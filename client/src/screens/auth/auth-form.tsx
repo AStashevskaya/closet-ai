@@ -80,13 +80,17 @@ export function AuthForm({ mode }: { mode: Mode }) {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // iOS is handled by the ScrollView below; Android still needs the view to shrink.
+      behavior={Platform.OS === 'android' ? 'height' : undefined}
     >
       {/* Dark icons: the screen is always light pink, even in dark mode. */}
       <StatusBar style="dark" />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        // iOS insets the scroll view by the keyboard and keeps the focused field above it.
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
         bounces={false}
       >
         <View style={[styles.hero, { paddingTop: insets.top + 40 }]}>

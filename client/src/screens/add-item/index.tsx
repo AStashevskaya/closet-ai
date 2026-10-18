@@ -97,9 +97,16 @@ export function AddItem() {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // iOS is handled by the ScrollView below; Android still needs the view to shrink.
+      behavior={Platform.OS === 'android' ? 'height' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        // iOS insets the scroll view by the keyboard and keeps the focused field above it.
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
+      >
         {photoUri ? (
           <Image source={{ uri: photoUri }} style={styles.photo} contentFit="cover" />
         ) : (
