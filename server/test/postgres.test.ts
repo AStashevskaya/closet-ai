@@ -147,7 +147,7 @@ describe.skipIf(!url)("on Postgres", () => {
     expect([...photo.rawPayload]).toEqual([1, 2, 3]);
   });
 
-  it("deletes only the caller's own item", async () => {
+  it("reads and deletes only the caller's own item", async () => {
     const owner = await signUp("deleting@example.com");
     const other = await signUp("intruder@example.com");
     const { id } = (
@@ -158,6 +158,19 @@ describe.skipIf(!url)("on Postgres", () => {
         payload: shirt,
       })
     ).json<Item>();
+
+    const read = await app.inject({
+      method: "GET",
+      url: `/api/items/${id}`,
+      headers: { cookie: owner },
+    });
+    expect(read.json<Item>().id).toBe(id);
+    const hidden = await app.inject({
+      method: "GET",
+      url: `/api/items/${id}`,
+      headers: { cookie: other },
+    });
+    expect(hidden.statusCode).toBe(404);
 
     const foreign = await app.inject({
       method: "DELETE",

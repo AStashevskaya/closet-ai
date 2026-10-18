@@ -7,6 +7,18 @@
     "title": "My wardrobe",
     "categories": "Categories",
     "add": "Add item",
+    "edit": "Edit",
+    "done": "Done",
+    "deleteItem": "Delete {{name}}",
+    "filters": {
+      "all": "All",
+      "top": "Tops",
+      "bottom": "Bottoms",
+      "dress": "Dresses",
+      "outerwear": "Outerwear",
+      "shoes": "Shoes",
+      "accessory": "Accessories"
+    },
     "empty": "Your closet is empty. Photograph your first item.",
     "loadError": "Couldn't load your closet.",
     "retry": "Try again",

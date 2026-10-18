@@ -1,5 +1,5 @@
-import type { Item } from '@closet-ai/shared';
-import { Image } from 'expo-image';
+import { ITEM_CATEGORIES, type Item } from '@closet-ai/shared';
+import * as Haptics from 'expo-haptics';
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,12 +12,23 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { absoluteUrl, deleteItem, listItems, sessionHeaders } from '@/lib/api';
+import { Icon } from '@/components/icon';
+import { PressableScale } from '@/components/pressable-scale';
+import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
+import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
+import { ClosetCard } from './card';
+import { CategoryFilter, type Filter } from './category-filter';
+
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: Item[] };
+
+// The first screenful staggers in on the first load; later cards and reloads just appear.
+const STAGGERED = 6;
+const STAGGER_STEP = 45;
 
 export function Closet() {
   const { t } = useTranslation();
@@ -25,6 +36,10 @@ export function Closet() {
   const [state, setState] = useState<State>({ status: 'loading' });
   // Photos are served by the API to their owner only, so the image requests carry the session cookie.
   const [headers, setHeaders] = useState<Record<string, string>>();
+  const [editing, setEditing] = useState(false);
+  const [leaving, setLeaving] = useState<ReadonlySet<string>>(new Set());
+  const [entered, setEntered] = useState(false);
+  const [filter, setFilter] = useState<Filter>('all');
 
   const load = useCallback(async () => {
     try {
@@ -35,11 +50,12 @@ export function Closet() {
     }
   }, []);
 
-  // Reload whenever the tab comes into view, e.g. after adding an item.
-  // The callback may only return a cleanup function, not a promise, hence the wrapper.
+  // Reload whenever the tab comes into view, e.g. after adding an item, and leave edit mode
+  // when it goes out of view. The callback may only return a cleanup function, not a promise.
   useFocusEffect(
     useCallback(() => {
       void load();
+      return () => setEditing(false);
     }, [load]),
   );
 
@@ -55,16 +71,45 @@ export function Closet() {
     void loadHeaders();
   }, []);
 
+  // Once the first cards have played their entrance, cards mounted later (scrolling, reloads) skip it.
+  const ready = state.status === 'ready';
+  useEffect(() => {
+    if (!ready) return;
+    const timer = setTimeout(() => setEntered(true), STAGGERED * STAGGER_STEP + durations.enter);
+    return () => clearTimeout(timer);
+  }, [ready]);
+
+  const items = state.status === 'ready' ? state.items : [];
+  // Nothing left to edit: leave edit mode by itself.
+  const isEditing = editing && items.length > 0;
+  // Chips only for categories the closet has, in the canonical order. If the last item of the
+  // chosen category is deleted, the filter falls back to everything.
+  const categories = ITEM_CATEGORIES.filter((c) => items.some((item) => item.category === c));
+  const activeFilter = filter !== 'all' && categories.includes(filter) ? filter : 'all';
+  const visible =
+    activeFilter === 'all' ? items : items.filter((item) => item.category === activeFilter);
+
   // The card disappears once the server confirms, so a failed delete never hides an item.
+  // It fades out first and only then leaves the list.
   const remove = async (id: string) => {
     try {
       await deleteItem(id);
-      setState((current) =>
-        current.status === 'ready'
-          ? { status: 'ready', items: current.items.filter((item) => item.id !== id) }
-          : current,
-      );
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setLeaving((current) => new Set(current).add(id));
+      setTimeout(() => {
+        setState((current) =>
+          current.status === 'ready'
+            ? { status: 'ready', items: current.items.filter((item) => item.id !== id) }
+            : current,
+        );
+        setLeaving((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+      }, durations.leave);
     } catch {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(t('closet.deleteError'));
     }
   };
@@ -76,16 +121,44 @@ export function Closet() {
     ]);
   };
 
+  // A long press is a shortcut into edit mode, the way it is on the home screen.
+  const startEditing = () => {
+    if (isEditing) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEditing(true);
+  };
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 24 }]}>
       <View style={styles.header}>
-        <Text style={styles.title} accessibilityRole="header">
-          {t('closet.title')}
-        </Text>
-        <Link href="/add-item" asChild>
-          <Pressable style={styles.addButton} accessibilityRole="button">
-            <Text style={styles.addButtonText}>{t('closet.add')}</Text>
+        <View style={styles.heading}>
+          <Text style={styles.title} accessibilityRole="header">
+            {t('closet.title')}
+          </Text>
+          {items.length > 0 && (
+            <Text style={styles.count}>{t('items.count', { count: items.length })}</Text>
+          )}
+        </View>
+        {items.length > 0 && (
+          <Pressable
+            style={styles.editButton}
+            onPress={() => setEditing(!isEditing)}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
+            <Text style={styles.editButtonText}>
+              {t(isEditing ? 'closet.done' : 'closet.edit')}
+            </Text>
           </Pressable>
+        )}
+        <Link href="/add-item" asChild>
+          <PressableScale
+            style={styles.addButton}
+            accessibilityRole="button"
+            accessibilityLabel={t('closet.add')}
+          >
+            <Icon name="plus" color={colors.onAccent} size={20} strokeWidth={1.6} />
+          </PressableScale>
         </Link>
       </View>
 
@@ -108,48 +181,45 @@ export function Closet() {
         </View>
       )}
 
-      {state.status === 'ready' && state.items.length === 0 && (
-        <View style={styles.center}>
+      {state.status === 'ready' && items.length === 0 && (
+        <Animated.View style={styles.center} entering={FadeIn.duration(durations.enter)}>
           <Text style={styles.message}>{t('closet.empty')}</Text>
-        </View>
+        </Animated.View>
       )}
 
-      {state.status === 'ready' && state.items.length > 0 && (
-        <FlatList
-          data={state.items}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
-          renderItem={({ item }) => (
-            // Long press asks to delete. Screen readers get the same as a named action,
-            // since they can't discover a gesture.
-            <Pressable
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-              onLongPress={() => confirmDelete(item)}
-              accessibilityActions={[{ name: 'delete', label: t('closet.delete') }]}
-              onAccessibilityAction={(event) => {
-                if (event.nativeEvent.actionName === 'delete') confirmDelete(item);
-              }}
-            >
-              {item.photoUrl && headers ? (
-                <Image
-                  source={{ uri: absoluteUrl(item.photoUrl), headers }}
-                  style={styles.photo}
-                  contentFit="cover"
-                  transition={150}
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                <View style={styles.photo} />
-              )}
-              <Text style={styles.name} numberOfLines={2}>
-                {item.name}
-              </Text>
-              <Text style={styles.category}>{t(`categories.${item.category}`)}</Text>
-            </Pressable>
-          )}
-        />
+      {/* A single category has nothing to filter. */}
+      {categories.length > 1 && (
+        <CategoryFilter categories={categories} value={activeFilter} onChange={setFilter} />
+      )}
+
+      {items.length > 0 && (
+        // Keyed by the filter: a new filter brings a fresh grid that fades in from the top,
+        // instead of cards jumping between rows. The first load has its own staggered entrance.
+        <Animated.View
+          key={activeFilter}
+          style={styles.list}
+          entering={entered ? FadeIn.duration(durations.state) : undefined}
+        >
+          <FlatList
+            data={visible}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.grid}
+            extraData={{ isEditing, leaving, headers }}
+            renderItem={({ item, index }) => (
+              <ClosetCard
+                item={item}
+                headers={headers}
+                editing={isEditing}
+                leaving={leaving.has(item.id)}
+                enterDelay={!entered && index < STAGGERED ? index * STAGGER_STEP : undefined}
+                onLongPress={startEditing}
+                onDelete={() => confirmDelete(item)}
+              />
+            )}
+          />
+        </Animated.View>
       )}
     </View>
   );
@@ -163,31 +233,46 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 22,
-    paddingBottom: 16,
+    paddingBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
+  },
+  heading: {
+    flex: 1,
+    gap: 2,
   },
   title: {
-    flexShrink: 1,
     fontFamily: fonts.display,
     fontSize: 34,
     lineHeight: 38,
     color: colors.text,
     textAlign: 'left',
   },
-  addButton: {
-    height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
+  count: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+    textAlign: 'left',
   },
-  addButtonText: {
+  editButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  editButtonText: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 14,
-    color: colors.onAccent,
+    color: colors.accent,
+  },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
   },
   center: {
     flex: 1,
@@ -208,38 +293,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.accent,
   },
+  list: {
+    flex: 1,
+  },
   grid: {
     paddingHorizontal: 16,
-    paddingBottom: 24,
-    gap: 16,
+    paddingBottom: 32,
+    gap: 22,
   },
   row: {
-    gap: 12,
-  },
-  card: {
-    flex: 1,
-    gap: 4,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  photo: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: 16,
-    backgroundColor: colors.hero,
-  },
-  name: {
-    marginTop: 4,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  category: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'left',
+    gap: 14,
   },
 });

@@ -20,6 +20,16 @@ export const itemsRoutes =
       repo.list(userOf(request).id),
     );
 
+    app.get(
+      "/items/:id",
+      { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: item } } },
+      async (request) => {
+        const found = await repo.get(userOf(request).id, request.params.id);
+        if (!found) throw httpError(404, "item not found");
+        return found;
+      },
+    );
+
     app.post(
       "/items",
       { schema: { body: createItemInput, response: { 201: item } } },

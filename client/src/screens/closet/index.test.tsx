@@ -51,6 +51,14 @@ const shirt: Item = {
   createdAt: '2026-10-18T10:00:00.000Z',
 };
 
+const jeans: Item = {
+  ...shirt,
+  id: '6b1f7c3e-0000-4000-8000-000000000002',
+  name: 'Blue jeans',
+  category: 'bottom',
+  photoUrl: '/api/items/6b1f7c3e-0000-4000-8000-000000000002/photo',
+};
+
 beforeEach(async () => {
   jest.clearAllMocks();
   await i18n.changeLanguage('en');
@@ -70,7 +78,7 @@ describe('<Closet />', () => {
     await render(<Closet />);
 
     expect(await screen.findByText(/Your closet is empty/)).toBeOnTheScreen();
-    expect(screen.getByText('Add item')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Add item' })).toBeOnTheScreen();
   });
 
   test('offers to retry after a failed load', async () => {
@@ -89,13 +97,79 @@ describe('<Closet />', () => {
     expect(await screen.findByText('Мой гардероб')).toBeOnTheScreen();
   });
 
+  describe('filtering by category', () => {
+    test('shows a chip per category the closet has, and filters the grid', async () => {
+      list.mockResolvedValue([shirt, jeans]);
+      await render(<Closet />);
+
+      await screen.findByText('White linen shirt');
+      expect(screen.getByRole('button', { name: 'All', selected: true })).toBeOnTheScreen();
+      // No dresses in this closet, so no chip for them.
+      expect(screen.queryByText('Dresses')).not.toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByText('Bottoms'));
+      expect(screen.getByRole('button', { name: 'Bottoms', selected: true })).toBeOnTheScreen();
+      expect(screen.getByText('Blue jeans')).toBeOnTheScreen();
+      expect(screen.queryByText('White linen shirt')).not.toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByText('All'));
+      expect(screen.getByText('White linen shirt')).toBeOnTheScreen();
+      expect(screen.getByText('Blue jeans')).toBeOnTheScreen();
+    });
+
+    test('is hidden when everything is in one category', async () => {
+      list.mockResolvedValue([shirt]);
+      await render(<Closet />);
+
+      await screen.findByText('White linen shirt');
+      expect(screen.queryByText('All')).not.toBeOnTheScreen();
+    });
+
+    test('goes back to all items when the last one of the chosen category is deleted', async () => {
+      list.mockResolvedValue([shirt, jeans]);
+      remove.mockResolvedValue();
+      await render(<Closet />);
+
+      await fireEvent.press(await screen.findByText('Bottoms'));
+      await fireEvent.press(screen.getByText('Edit'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Delete Blue jeans' }));
+      await pressAlertButton('Delete');
+
+      expect(await screen.findByText('White linen shirt')).toBeOnTheScreen();
+      expect(screen.queryByText('Bottoms')).not.toBeOnTheScreen();
+    });
+  });
+
   describe('deleting an item', () => {
+    test('Edit shows a delete button on each card, Done hides it', async () => {
+      list.mockResolvedValue([shirt]);
+      await render(<Closet />);
+
+      await fireEvent.press(await screen.findByText('Edit'));
+      expect(screen.getByRole('button', { name: 'Delete White linen shirt' })).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByText('Done'));
+      expect(
+        screen.queryByRole('button', { name: 'Delete White linen shirt' }),
+      ).not.toBeOnTheScreen();
+    });
+
+    test('a long press on a card starts editing', async () => {
+      list.mockResolvedValue([shirt]);
+      await render(<Closet />);
+
+      await fireEvent(await screen.findByText('White linen shirt'), 'longPress');
+      expect(screen.getByRole('button', { name: 'Delete White linen shirt' })).toBeOnTheScreen();
+      expect(alert).not.toHaveBeenCalled();
+    });
+
     test('asks first, then removes the item', async () => {
       list.mockResolvedValue([shirt]);
       remove.mockResolvedValue();
       await render(<Closet />);
 
-      await fireEvent(await screen.findByText('White linen shirt'), 'longPress');
+      await fireEvent.press(await screen.findByText('Edit'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Delete White linen shirt' }));
       expect(alert).toHaveBeenCalledWith(
         'Delete “White linen shirt”?',
         expect.any(String),
@@ -106,13 +180,16 @@ describe('<Closet />', () => {
       await pressAlertButton('Delete');
       expect(remove).toHaveBeenCalledWith(shirt.id);
       await waitFor(() => expect(screen.queryByText('White linen shirt')).not.toBeOnTheScreen());
+      // With nothing left to edit, the Edit button goes away too.
+      expect(screen.queryByText('Done')).not.toBeOnTheScreen();
     });
 
     test('keeps the item when the user cancels', async () => {
       list.mockResolvedValue([shirt]);
       await render(<Closet />);
 
-      await fireEvent(await screen.findByText('White linen shirt'), 'longPress');
+      await fireEvent.press(await screen.findByText('Edit'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Delete White linen shirt' }));
       await pressAlertButton('Cancel');
 
       expect(remove).not.toHaveBeenCalled();
@@ -124,7 +201,8 @@ describe('<Closet />', () => {
       remove.mockRejectedValue(new Error('offline'));
       await render(<Closet />);
 
-      await fireEvent(await screen.findByText('White linen shirt'), 'longPress');
+      await fireEvent.press(await screen.findByText('Edit'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Delete White linen shirt' }));
       await pressAlertButton('Delete');
 
       expect(alert).toHaveBeenLastCalledWith("Couldn't delete the item. Try again.");

@@ -34,6 +34,8 @@ export function createInMemoryItemsRepository(): ItemsRepository {
       store.push({ item, ownerId, photoKey });
       return item;
     },
+    get: async (ownerId, itemId) =>
+      store.find((row) => row.ownerId === ownerId && row.item.id === itemId)?.item ?? null,
     photoKey: async (ownerId, itemId) =>
       store.find((row) => row.ownerId === ownerId && row.item.id === itemId)?.photoKey ?? null,
     delete: async (ownerId, itemId) => {

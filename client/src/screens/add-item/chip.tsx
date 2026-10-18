@@ -1,6 +1,10 @@
 import type { ItemColor } from '@closet-ai/shared';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
+import { PressableScale } from '@/components/pressable-scale';
+import { CSS_EASE_OUT, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // What each palette color looks like as a small dot next to its name.
@@ -30,9 +34,12 @@ type Props = {
 
 export function Chip({ label, selected, onPress, color }: Props) {
   return (
-    <Pressable
+    <PressableScale
       style={[styles.chip, selected && styles.selected]}
-      onPress={onPress}
+      onPress={() => {
+        void Haptics.selectionAsync();
+        onPress();
+      }}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: selected }}
     >
@@ -45,8 +52,20 @@ export function Chip({ label, selected, onPress, color }: Props) {
       ) : color ? (
         <View style={[styles.dot, { backgroundColor: SWATCHES[color] }]} />
       ) : null}
-      <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>
-    </Pressable>
+      <Animated.Text
+        style={[
+          styles.label,
+          selected && styles.labelSelected,
+          {
+            transitionProperty: 'color',
+            transitionDuration: durations.press,
+            transitionTimingFunction: CSS_EASE_OUT,
+          },
+        ]}
+      >
+        {label}
+      </Animated.Text>
+    </PressableScale>
   );
 }
 

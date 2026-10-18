@@ -15,6 +15,8 @@ const PATHS = {
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1.5-4 4.5-6 8-6s6.5 2 8 6',
   logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
   chevron: 'M9 6l6 6-6 6',
+  plus: 'M12 5v14M5 12h14',
+  close: 'M7 7l10 10M17 7L7 17',
 } as const;
 
 export type IconName = keyof typeof PATHS;
