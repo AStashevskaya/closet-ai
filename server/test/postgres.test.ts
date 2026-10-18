@@ -36,7 +36,9 @@ describe.skipIf(!url)("on Postgres", () => {
     }
     db = createDb(url!);
     // Start from an empty database, then apply the committed migrations.
-    await db.db.execute("DROP OWNED BY CURRENT_USER CASCADE");
+    await db.db.execute("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await db.db.execute("DROP SCHEMA IF EXISTS public CASCADE");
+    await db.db.execute("CREATE SCHEMA public");
     await migrate(db.db, { migrationsFolder });
 
     const env: Env = {

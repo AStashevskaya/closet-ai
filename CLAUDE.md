@@ -39,7 +39,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 Tests stay inside each package, not in a shared top-level folder:
 
 - `server/test/` for API tests (Vitest). Unit tests for a single module can also sit next to it as `*.test.ts`.
-  - `server/test/postgres.test.ts` runs the real app (Drizzle repository, Better Auth Drizzle adapter, committed migrations) on Postgres. It runs only when `TEST_DATABASE_URL` is set, always in CI (a Postgres service in the workflow), and fails in CI if the variable is missing. It wipes that database first, so the database name must end in `_test`. Locally: `createdb -O closet closet_test` once, then `TEST_DATABASE_URL=postgres://closet:closet@localhost:5432/closet_test pnpm --filter @closet-ai/server test`.
+  - `server/test/postgres.test.ts` runs the real app (Drizzle repository, Better Auth Drizzle adapter, committed migrations) on Postgres. It runs only when `TEST_DATABASE_URL` is set, always in CI (a Postgres service in the workflow), and fails in CI if the variable is missing. It wipes that database first, so the database name must end in `_test`. Locally, once: `createdb -O closet closet_test` and `psql -d closet_test -c 'ALTER SCHEMA public OWNER TO closet'` (Postgres 14 and older give `public` to the superuser); then then `TEST_DATABASE_URL=postgres://closet:closet@localhost:5432/closet_test pnpm --filter @closet-ai/server test`.
 - `client/` uses Jest (jest-expo), with tests next to components as `*.test.tsx`. Never put tests in `src/app`: every file there becomes a route.
 - `shared/` gets Vitest only when there's real logic there; plain schemas don't need tests.
 
