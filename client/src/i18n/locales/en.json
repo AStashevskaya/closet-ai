@@ -9,7 +9,12 @@
     "add": "Add item",
     "empty": "Your closet is empty. Photograph your first item.",
     "loadError": "Couldn't load your closet.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "delete": "Delete",
+    "deleteTitle": "Delete “{{name}}”?",
+    "deleteMessage": "The item and its photo will be removed from your closet.",
+    "cancel": "Cancel",
+    "deleteError": "Couldn't delete the item. Try again."
   },
   "addItem": {
     "title": "New item",

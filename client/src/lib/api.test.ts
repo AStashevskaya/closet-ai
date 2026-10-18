@@ -1,6 +1,6 @@
 import { File } from 'expo-file-system';
 
-import { uploadPhoto } from './api';
+import { ApiError, deleteItem, uploadPhoto } from './api';
 
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -36,5 +36,31 @@ describe('uploadPhoto', () => {
     expect(field).toBe('photo');
     expect(part).toBeInstanceOf(File);
     expect(part.uri).toBe('file:///small.jpg');
+  });
+});
+
+describe('deleteItem', () => {
+  test('sends DELETE with the session cookie and does not read the empty body', async () => {
+    const json = jest.fn().mockRejectedValue(new SyntaxError('Unexpected end of JSON input'));
+    fetchMock.mockResolvedValue({ ok: true, status: 204, json });
+
+    await deleteItem('item-1');
+
+    const [url, init] = fetchMock.mock.calls.at(-1);
+    expect(url).toBe('http://api.test/api/items/item-1');
+    expect(init.method).toBe('DELETE');
+    expect(init.headers).toEqual({ cookie: 'session=abc' });
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  test('throws an ApiError when the server refuses', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      json: async () => ({ message: 'item not found' }),
+    });
+
+    await expect(deleteItem('item-1')).rejects.toEqual(new ApiError(404, 'item not found'));
   });
 });

@@ -23,12 +23,8 @@ export async function sessionHeaders(): Promise<Record<string, string>> {
 // Paths from the API (such as an item's photoUrl) are relative to the server.
 export const absoluteUrl = (path: string) => `${apiUrl()}${path}`;
 
-// Responses are parsed with the shared Zod schemas, so a server/app mismatch fails loudly here.
-async function request<T>(
-  path: string,
-  schema: { parse(data: unknown): T },
-  init: RequestInit = {},
-): Promise<T> {
+// Sends the request with the session cookie and turns a non-2xx status into an ApiError.
+async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(absoluteUrl(path), {
     ...init,
     headers: { ...(await sessionHeaders()), ...init.headers },
@@ -37,6 +33,16 @@ async function request<T>(
     const body = (await res.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(res.status, body?.message ?? res.statusText);
   }
+  return res;
+}
+
+// Responses are parsed with the shared Zod schemas, so a server/app mismatch fails loudly here.
+async function request<T>(
+  path: string,
+  schema: { parse(data: unknown): T },
+  init: RequestInit = {},
+): Promise<T> {
+  const res = await send(path, init);
   return schema.parse(await res.json());
 }
 
@@ -50,6 +56,11 @@ export function createItem(input: CreateItemInput): Promise<Item> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
+}
+
+// The server answers 204 with no body, so there is nothing to parse.
+export async function deleteItem(id: string): Promise<void> {
+  await send(`/api/items/${id}`, { method: 'DELETE' });
 }
 
 // Uploads a local JPEG (see shrinkPhoto) and returns the key to pass to createItem.
