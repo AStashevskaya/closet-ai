@@ -48,7 +48,14 @@
       "expo-font",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "closet-ai uses the camera to photograph your clothes.",
+          "photosPermission": "closet-ai adds photos of your clothes from your library."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

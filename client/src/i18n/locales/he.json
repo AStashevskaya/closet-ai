@@ -5,7 +5,31 @@
   },
   "closet": {
     "title": "הארון שלי",
-    "categories": "קטגוריות"
+    "categories": "קטגוריות",
+    "add": "הוספת פריט",
+    "empty": "הארון עדיין ריק. צלמו את הפריט הראשון.",
+    "loadError": "לא הצלחנו לטעון את הארון.",
+    "retry": "נסו שוב"
+  },
+  "addItem": {
+    "title": "פריט חדש",
+    "takePhoto": "צילום",
+    "choosePhoto": "בחירה מהגלריה",
+    "changePhoto": "החלפת תמונה",
+    "name": "שם",
+    "namePlaceholder": "למשל, חולצת פשתן לבנה",
+    "category": "קטגוריה",
+    "colors": "צבעים",
+    "colorsHint": "עד 5",
+    "save": "שמירה",
+    "errors": {
+      "photo": "הוסיפו תמונה של הפריט",
+      "name": "תנו לפריט שם",
+      "category": "בחרו קטגוריה",
+      "colors": "בחרו לפחות צבע אחד",
+      "cameraPermission": "אפשרו גישה למצלמה בהגדרות כדי לצלם",
+      "save": "לא הצלחנו לשמור את הפריט. נסו שוב."
+    }
   },
   "tabs": {
     "home": "ראשי",
@@ -41,6 +65,21 @@
     "outerwear": "מעיל",
     "shoes": "נעליים",
     "accessory": "אקססוריז"
+  },
+  "colors": {
+    "black": "שחור",
+    "white": "לבן",
+    "gray": "אפור",
+    "beige": "בז׳",
+    "brown": "חום",
+    "red": "אדום",
+    "pink": "ורוד",
+    "orange": "כתום",
+    "yellow": "צהוב",
+    "green": "ירוק",
+    "blue": "כחול",
+    "purple": "סגול",
+    "multicolor": "צבעוני"
   },
   "auth": {
     "signIn": "התחברות",
