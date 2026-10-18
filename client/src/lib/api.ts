@@ -1,4 +1,5 @@
 import { type CreateItemInput, item, type Item, itemList, uploadedPhoto } from '@closet-ai/shared';
+import { File } from 'expo-file-system';
 
 import { apiUrl } from './api-url';
 import { authClient } from './auth-client';
@@ -54,8 +55,9 @@ export function createItem(input: CreateItemInput): Promise<Item> {
 // Uploads a local JPEG (see shrinkPhoto) and returns the key to pass to createItem.
 export async function uploadPhoto(uri: string): Promise<string> {
   const form = new FormData();
-  // React Native's FormData takes a file as { uri, name, type } instead of a Blob.
-  form.append('photo', { uri, name: 'photo.jpg', type: 'image/jpeg' } as unknown as Blob);
+  // The global fetch is expo/fetch, which rejects React Native's { uri, name, type } parts
+  // ("Unsupported FormDataPart implementation"). An expo-file-system File is a Blob it can read.
+  form.append('photo', new File(uri));
   const { photoKey } = await request('/api/photos', uploadedPhoto, { method: 'POST', body: form });
   return photoKey;
 }

@@ -86,7 +86,9 @@ export function AddItem() {
       const photoKey = await uploadPhoto(photoUri);
       await createItem({ name: name.trim(), category, colors: itemColors, seasons: [], photoKey });
       router.back();
-    } catch {
+    } catch (cause) {
+      // The user sees a generic message; the real error goes to the Metro terminal.
+      if (__DEV__) console.warn('Saving the item failed', cause);
       setError('addItem.errors.save');
       setBusy(false);
     }
