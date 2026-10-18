@@ -47,6 +47,9 @@ export const item = createItemInput.omit({ photoKey: true }).extend({
 });
 export type Item = z.infer<typeof item>;
 
+// Response of GET /api/items.
+export const itemList = z.array(item);
+
 // Response of POST /api/photos: pass photoKey on to POST /api/items.
 export const uploadedPhoto = z.object({ photoKey: z.string() });
 export type UploadedPhoto = z.infer<typeof uploadedPhoto>;
