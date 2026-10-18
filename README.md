@@ -55,7 +55,7 @@ Tests live inside each package and run on their own with `pnpm --filter <pkg> te
 
 ## Getting started
 
-Requirements: Node 22+, pnpm 9+, Docker.
+Requirements: Node 22+, pnpm 9+ (`corepack enable`), Docker (on a Mac: OrbStack or Docker Desktop).
 
 ```bash
 pnpm install
