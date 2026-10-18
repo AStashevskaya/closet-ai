@@ -5,7 +5,31 @@
   },
   "closet": {
     "title": "My wardrobe",
-    "categories": "Categories"
+    "categories": "Categories",
+    "add": "Add item",
+    "empty": "Your closet is empty. Photograph your first item.",
+    "loadError": "Couldn't load your closet.",
+    "retry": "Try again"
+  },
+  "addItem": {
+    "title": "New item",
+    "takePhoto": "Take a photo",
+    "choosePhoto": "Choose from gallery",
+    "changePhoto": "Change photo",
+    "name": "Name",
+    "namePlaceholder": "e.g. White linen shirt",
+    "category": "Category",
+    "colors": "Colors",
+    "colorsHint": "Up to 5",
+    "save": "Save",
+    "errors": {
+      "photo": "Add a photo of the item",
+      "name": "Give the item a name",
+      "category": "Pick a category",
+      "colors": "Pick at least one color",
+      "cameraPermission": "Allow camera access in Settings to take a photo",
+      "save": "Couldn't save the item. Try again."
+    }
   },
   "tabs": {
     "home": "Home",
@@ -40,6 +64,21 @@
     "outerwear": "Outerwear",
     "shoes": "Shoes",
     "accessory": "Accessory"
+  },
+  "colors": {
+    "black": "Black",
+    "white": "White",
+    "gray": "Gray",
+    "beige": "Beige",
+    "brown": "Brown",
+    "red": "Red",
+    "pink": "Pink",
+    "orange": "Orange",
+    "yellow": "Yellow",
+    "green": "Green",
+    "blue": "Blue",
+    "purple": "Purple",
+    "multicolor": "Multicolor"
   },
   "auth": {
     "signIn": "Sign in",

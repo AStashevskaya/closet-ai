@@ -1,4 +1,4 @@
-import { createItemInput, item } from "@closet-ai/shared";
+import { createItemInput, item, itemList } from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
@@ -16,7 +16,7 @@ export const itemsRoutes =
     // requireUser has run by the time a handler is called, so the user is set.
     const userOf = (request: { user: SessionUser | null }) => request.user as SessionUser;
 
-    app.get("/items", { schema: { response: { 200: z.array(item) } } }, (request) =>
+    app.get("/items", { schema: { response: { 200: itemList } } }, (request) =>
       repo.list(userOf(request).id),
     );
 

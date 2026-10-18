@@ -1,4 +1,4 @@
-import { ITEM_CATEGORIES, SEASONS } from "@closet-ai/shared";
+import { ITEM_CATEGORIES, ITEM_COLORS, SEASONS } from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
 import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
@@ -7,6 +7,7 @@ export * from "./auth-schema";
 
 export const itemCategoryEnum = pgEnum("item_category", ITEM_CATEGORIES);
 export const seasonEnum = pgEnum("season", SEASONS);
+export const itemColorEnum = pgEnum("item_color", ITEM_COLORS);
 
 export const items = pgTable(
   "items",
@@ -18,7 +19,7 @@ export const items = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     category: itemCategoryEnum("category").notNull(),
-    colors: text("colors").array().notNull(),
+    colors: itemColorEnum("colors").array().notNull(),
     seasons: seasonEnum("seasons")
       .array()
       .notNull()
