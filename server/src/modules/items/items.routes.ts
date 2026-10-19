@@ -1,4 +1,4 @@
-import { createItemInput, item, itemList } from "@closet-ai/shared";
+import { createItemInput, item, itemDetail, itemList, updateItemInput } from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
@@ -28,11 +28,28 @@ export const itemsRoutes =
 
     app.get(
       "/items/:id",
-      { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: item } } },
+      { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: itemDetail } } },
       async (request) => {
         const found = await repo.get(userOf(request).id, request.params.id);
         if (!found) throw httpError(404, "item not found");
         return found;
+      },
+    );
+
+    // The item screen saves the user's corrections here: name, category, colors, seasons.
+    app.patch(
+      "/items/:id",
+      {
+        schema: {
+          params: z.object({ id: z.string().uuid() }),
+          body: updateItemInput,
+          response: { 200: itemDetail },
+        },
+      },
+      async (request) => {
+        const updated = await repo.update(userOf(request).id, request.params.id, request.body);
+        if (!updated) throw httpError(404, "item not found");
+        return updated;
       },
     );
 

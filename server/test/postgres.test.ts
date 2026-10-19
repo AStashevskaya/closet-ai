@@ -164,6 +164,40 @@ describe.skipIf(!url)("on Postgres", () => {
     expect([...photo.rawPayload]).toEqual([1, 2, 3]);
   });
 
+  it("updates only the caller's own item, and only the fields sent", async () => {
+    const owner = await signUp("editing@example.com");
+    const other = await signUp("editing-intruder@example.com");
+    const { id } = (
+      await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: owner },
+        payload: shirt,
+      })
+    ).json<Item>();
+
+    const foreign = await app.inject({
+      method: "PATCH",
+      url: `/api/items/${id}`,
+      headers: { cookie: other },
+      payload: { name: "Mine now" },
+    });
+    expect(foreign.statusCode).toBe(404);
+
+    const own = await app.inject({
+      method: "PATCH",
+      url: `/api/items/${id}`,
+      headers: { cookie: owner },
+      payload: { seasons: ["summer", "spring"], colors: ["white", "blue"] },
+    });
+    expect(own.json<Item>()).toMatchObject({
+      name: shirt.name,
+      seasons: ["summer", "spring"],
+      colors: ["white", "blue"],
+      tags: null,
+    });
+  });
+
   it("reads and deletes only the caller's own item", async () => {
     const owner = await signUp("deleting@example.com");
     const other = await signUp("intruder@example.com");

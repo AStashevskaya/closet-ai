@@ -320,7 +320,8 @@ describe("GET /api/items/:id", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json<Item>()).toEqual(created);
+    // No photo, so nothing was tagged.
+    expect(res.json<Item>()).toEqual({ ...created, tags: null });
   });
 
   it("answers 404 for someone else's item", async () => {
@@ -342,5 +343,88 @@ describe("GET /api/items/:id", () => {
       headers: { cookie: maya },
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("PATCH /api/items/:id", () => {
+  async function createShirt(server: App, cookie: string) {
+    return (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: shirt,
+      })
+    ).json<Item>();
+  }
+
+  it("changes only the fields sent", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const created = await createShirt(server, cookie);
+
+    const res = await server.inject({
+      method: "PATCH",
+      url: `/api/items/${created.id}`,
+      headers: { cookie },
+      payload: { name: "  Linen shirt ", seasons: ["summer"] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<Item>()).toEqual({
+      ...created,
+      name: "Linen shirt",
+      seasons: ["summer"],
+      tags: null,
+    });
+
+    const list = await server.inject({ method: "GET", url: "/api/items", headers: { cookie } });
+    expect(list.json<Item[]>()[0]).toMatchObject({ name: "Linen shirt", category: "top" });
+  });
+
+  it("validates like creating does", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const { id } = await createShirt(server, cookie);
+
+    for (const payload of [{ name: "  " }, { colors: [] }, { category: "hat" }]) {
+      const res = await server.inject({
+        method: "PATCH",
+        url: `/api/items/${id}`,
+        headers: { cookie },
+        payload,
+      });
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it("answers 404 for someone else's item and leaves it alone", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const { id } = await createShirt(server, anna);
+
+    const res = await server.inject({
+      method: "PATCH",
+      url: `/api/items/${id}`,
+      headers: { cookie: maya },
+      payload: { name: "Mine now" },
+    });
+    expect(res.statusCode).toBe(404);
+    const own = await server.inject({
+      method: "GET",
+      url: `/api/items/${id}`,
+      headers: { cookie: anna },
+    });
+    expect(own.json<Item>().name).toBe(shirt.name);
+  });
+
+  it("requires a session", async () => {
+    const server = await setup();
+    const res = await server.inject({
+      method: "PATCH",
+      url: `/api/items/${crypto.randomUUID()}`,
+      payload: { name: "x" },
+    });
+    expect(res.statusCode).toBe(401);
   });
 });
