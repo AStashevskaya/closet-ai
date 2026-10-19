@@ -60,3 +60,45 @@ export const itemList = z.array(item);
 // the background, so it starts out "processing".
 export const uploadedPhoto = z.object({ photoKey: z.string(), status: photoStatus });
 export type UploadedPhoto = z.infer<typeof uploadedPhoto>;
+
+// What the vision model reads off an item photo (roadmap step 4). The app pre-fills the
+// add-item form with name, category, colors and seasons; the rest describes the item for
+// search and matching later. Fields the photo doesn't show are null, never guessed.
+export const ITEM_FITS = ["slim", "regular", "relaxed", "oversized"] as const;
+export const ITEM_CONDITIONS = ["new", "good", "worn"] as const;
+// The languages the app speaks; the suggested name comes back in the user's.
+export const APP_LANGUAGES = ["en", "he", "ru"] as const;
+export type AppLanguage = (typeof APP_LANGUAGES)[number];
+
+export const itemTags = z.object({
+  // false when the photo shows no single clothing item (a person, a room, several items):
+  // the app then pre-fills nothing.
+  recognized: z.boolean(),
+  name: z.string().max(120),
+  category: itemCategory,
+  colors: z.array(itemColor).max(5),
+  // All four for an all-season item, so an empty list only ever means "not tagged".
+  seasons: z.array(season),
+  fit: z.enum(ITEM_FITS).nullable(),
+  length: z.string().max(40).nullable(),
+  fabric: z.string().max(60).nullable(),
+  style: z.string().max(60).nullable(),
+  // Only from a visible logo or label.
+  brand: z.string().max(60).nullable(),
+  condition: z.enum(ITEM_CONDITIONS).nullable(),
+});
+export type ItemTags = z.infer<typeof itemTags>;
+
+// pending: queued for the model; done: tags are there; failed: gave up (the form stays as typed).
+export const TAG_STATUSES = ["pending", "done", "failed"] as const;
+export const tagStatus = z.enum(TAG_STATUSES);
+export type TagStatus = z.infer<typeof tagStatus>;
+
+// Response of GET /api/photos/status: the app polls it while the add-item form is open.
+export const photoState = z.object({
+  status: photoStatus,
+  // null when tagging is off (no API key configured).
+  tagStatus: tagStatus.nullable(),
+  tags: itemTags.nullable(),
+});
+export type PhotoState = z.infer<typeof photoState>;

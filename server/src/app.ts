@@ -25,6 +25,8 @@ export interface AppDeps {
   photosRepository: PhotosRepository;
   photoQueue: PhotoQueue;
   storage: Storage;
+  // Whether a tagger is configured (ANTHROPIC_API_KEY); the worker does the tagging.
+  taggingEnabled: boolean;
 }
 
 // The app sends a photo already shrunk to ~1600 px JPEG (well under 1 MB); the limit only
@@ -38,6 +40,7 @@ export async function buildApp({
   photosRepository,
   photoQueue,
   storage,
+  taggingEnabled,
 }: AppDeps) {
   const app = Fastify({
     logger:
@@ -70,7 +73,7 @@ export async function buildApp({
   await app.register(itemsRoutes(itemsRepository, photosRepository, storage, auth), {
     prefix: "/api",
   });
-  await app.register(photosRoutes(storage, photosRepository, photoQueue, auth), {
+  await app.register(photosRoutes(storage, photosRepository, photoQueue, auth, taggingEnabled), {
     prefix: "/api",
   });
 

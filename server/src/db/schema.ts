@@ -1,6 +1,13 @@
-import { ITEM_CATEGORIES, ITEM_COLORS, PHOTO_STATUSES, SEASONS } from "@closet-ai/shared";
+import {
+  ITEM_CATEGORIES,
+  ITEM_COLORS,
+  PHOTO_STATUSES,
+  SEASONS,
+  TAG_STATUSES,
+  type ItemTags,
+} from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
-import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
 export * from "./auth-schema";
@@ -9,6 +16,7 @@ export const itemCategoryEnum = pgEnum("item_category", ITEM_CATEGORIES);
 export const seasonEnum = pgEnum("season", SEASONS);
 export const itemColorEnum = pgEnum("item_color", ITEM_COLORS);
 export const photoStatusEnum = pgEnum("photo_status", PHOTO_STATUSES);
+export const tagStatusEnum = pgEnum("tag_status", TAG_STATUSES);
 
 // One row per uploaded photo. The worker turns the original (uploadKey) into the shrunk WebP
 // at key; photos never attached to an item are cleaned up after a day.
@@ -23,6 +31,10 @@ export const photos = pgTable(
     // Storage key of the original upload; null once it has been processed and deleted.
     uploadKey: text("upload_key"),
     status: photoStatusEnum("status").notNull().default("processing"),
+    // What the vision model read off the photo. tagStatus is null when tagging is off
+    // (no API key), so the app knows not to wait for tags.
+    tagStatus: tagStatusEnum("tag_status"),
+    tags: jsonb("tags").$type<ItemTags>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("photos_owner_id_idx").on(table.ownerId)],

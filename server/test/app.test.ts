@@ -20,6 +20,7 @@ async function setup() {
     auth,
     ...createInMemoryRepositories(),
     photoQueue: createManualPhotoQueue().photoQueue,
+    taggingEnabled: false,
     storage: createMemoryStorage(),
   });
   return app;

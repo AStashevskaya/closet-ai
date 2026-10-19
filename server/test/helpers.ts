@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { CreateItemInput } from "@closet-ai/shared";
+import type { AppLanguage, CreateItemInput, ItemTags } from "@closet-ai/shared";
+import type { ItemTagger } from "../src/ai/item-tagger";
 import type { Env } from "../src/config/env";
 import { toItem, type ItemsRepository } from "../src/modules/items/items.repository";
-import { processUploadedPhoto, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
+import {
+  processUploadedPhoto,
+  tagPhoto,
+  type PhotoJobDeps,
+} from "../src/modules/photos/photo-jobs";
 import type { Photo, PhotosRepository } from "../src/modules/photos/photos.repository";
 import type { PhotoQueue } from "../src/queue/photo-queue";
 
@@ -59,13 +64,18 @@ export function createInMemoryRepositories() {
 
   const photosRepository: PhotosRepository = {
     create: async (photo) => {
-      photoRows.set(photo.key, { ...photo, status: "processing", createdAt: new Date() });
+      photoRows.set(photo.key, {
+        ...photo,
+        status: "processing",
+        tags: null,
+        createdAt: new Date(),
+      });
     },
     get: async (key) => {
       const row = photoRows.get(key);
-      return row
-        ? { key: row.key, ownerId: row.ownerId, uploadKey: row.uploadKey, status: row.status }
-        : null;
+      if (!row) return null;
+      const { createdAt: _createdAt, ...photo } = row;
+      return photo;
     },
     markReady: async (key) => {
       const row = photoRows.get(key);
@@ -74,6 +84,14 @@ export function createInMemoryRepositories() {
     markFailed: async (key) => {
       const row = photoRows.get(key);
       if (row) row.status = "failed";
+    },
+    setTags: async (key, tags) => {
+      const row = photoRows.get(key);
+      if (row) Object.assign(row, { tagStatus: "done", tags });
+    },
+    markTagsFailed: async (key) => {
+      const row = photoRows.get(key);
+      if (row) row.tagStatus = "failed";
     },
     listUnattached: async (before) =>
       [...photoRows.values()].filter(
@@ -88,16 +106,51 @@ export function createInMemoryRepositories() {
   return { itemsRepository, photosRepository };
 }
 
-// Records queued photos instead of sending them to Redis; runAll plays the worker's part.
+type QueuedJob = { name: "process" | "tag"; key: string; lang: AppLanguage };
+
+// Records queued jobs instead of sending them to Redis; runAll plays the worker's part,
+// including the tag jobs that processing queues on the way.
 export function createManualPhotoQueue() {
-  const queued: string[] = [];
+  const queued: QueuedJob[] = [];
   const photoQueue: PhotoQueue = {
-    enqueueProcessing: async (key) => {
-      queued.push(key);
+    enqueueProcessing: async (key, lang) => {
+      queued.push({ name: "process", key, lang });
+    },
+    enqueueTagging: async (key, lang) => {
+      queued.push({ name: "tag", key, lang });
     },
   };
   async function runAll(deps: PhotoJobDeps) {
-    for (let key = queued.shift(); key; key = queued.shift()) await processUploadedPhoto(deps, key);
+    for (let job = queued.shift(); job; job = queued.shift()) {
+      if (job.name === "process") await processUploadedPhoto(deps, job.key, job.lang);
+      else await tagPhoto(deps, job.key, job.lang);
+    }
   }
   return { photoQueue, queued, runAll };
+}
+
+export const shirtTags: ItemTags = {
+  recognized: true,
+  name: "White linen shirt",
+  category: "top",
+  colors: ["white"],
+  seasons: ["spring", "summer"],
+  fit: "relaxed",
+  length: "hip-length",
+  fabric: "linen",
+  style: "casual",
+  brand: null,
+  condition: "good",
+};
+
+// Stands in for Claude: answers with fixed tags and records what it was asked.
+export function createStubTagger(answer: () => Promise<ItemTags> = async () => shirtTags) {
+  const calls: { bytes: number; lang: AppLanguage }[] = [];
+  const tagger: ItemTagger = {
+    tag: async (image, lang) => {
+      calls.push({ bytes: image.length, lang });
+      return answer();
+    },
+  };
+  return { tagger, calls };
 }

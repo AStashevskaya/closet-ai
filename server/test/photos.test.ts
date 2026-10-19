@@ -1,7 +1,8 @@
-import type { Item, UploadedPhoto } from "@closet-ai/shared";
+import type { Item, PhotoState, UploadedPhoto } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
+import { TaggingRefusedError, type ItemTagger } from "../src/ai/item-tagger";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import {
@@ -11,7 +12,13 @@ import {
   UNATTACHED_PHOTO_TTL_MS,
 } from "../src/modules/photos/photo-jobs";
 import { createMemoryStorage, type Storage } from "../src/storage/storage";
-import { createInMemoryRepositories, createManualPhotoQueue, testEnv as env } from "./helpers";
+import {
+  createInMemoryRepositories,
+  createManualPhotoQueue,
+  createStubTagger,
+  shirtTags,
+  testEnv as env,
+} from "./helpers";
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
@@ -20,16 +27,33 @@ let queue: ReturnType<typeof createManualPhotoQueue>;
 // What the worker gets: the same photos store and storage as the API.
 let jobDeps: PhotoJobDeps;
 
-async function setup() {
+let stub: ReturnType<typeof createStubTagger>;
+
+// Tagging is on by default, with a stub instead of Claude; pass tagger: null to turn it off.
+async function setup({ tagger }: { tagger?: ItemTagger | null } = {}) {
   storage = createMemoryStorage();
   queue = createManualPhotoQueue();
+  stub = createStubTagger();
+  const activeTagger = tagger === undefined ? stub.tagger : tagger;
   const repositories = createInMemoryRepositories();
-  jobDeps = { photos: repositories.photosRepository, storage };
+  jobDeps = {
+    photos: repositories.photosRepository,
+    storage,
+    tagger: activeTagger,
+    queue: queue.photoQueue,
+  };
   const auth = createAuth(
     env,
     memoryAdapter({ user: [], session: [], account: [], verification: [] }),
   );
-  app = await buildApp({ env, auth, ...repositories, photoQueue: queue.photoQueue, storage });
+  app = await buildApp({
+    env,
+    auth,
+    ...repositories,
+    photoQueue: queue.photoQueue,
+    storage,
+    taggingEnabled: activeTagger !== null,
+  });
   return app;
 }
 
@@ -66,10 +90,15 @@ function makeCameraPhoto() {
     .toBuffer();
 }
 
-function upload(server: App, cookie: string, bytes: Uint8Array, type = "image/jpeg") {
+function upload(server: App, cookie: string, bytes: Uint8Array, type = "image/jpeg", query = "") {
   const form = new FormData();
   form.append("photo", new Blob([bytes], { type }), "photo.jpg");
-  return server.inject({ method: "POST", url: "/api/photos", headers: { cookie }, payload: form });
+  return server.inject({
+    method: "POST",
+    url: `/api/photos${query}`,
+    headers: { cookie },
+    payload: form,
+  });
 }
 
 describe("POST /api/photos", () => {
@@ -88,7 +117,7 @@ describe("POST /api/photos", () => {
     const { photoKey, status } = res.json<UploadedPhoto>();
     expect(photoKey).toMatch(/^photos\/[^/]+\/[0-9a-f-]{36}\.webp$/);
     expect(status).toBe("processing");
-    expect(queue.queued).toEqual([photoKey]);
+    expect(queue.queued).toEqual([{ name: "process", key: photoKey, lang: "en" }]);
     // Nothing processed yet: the WebP appears only after the worker has run.
     expect(await storage.exists(photoKey)).toBe(false);
   });
@@ -315,5 +344,83 @@ describe("worker jobs", () => {
     expect(await storage.exists(abandoned)).toBe(false);
     expect(await jobDeps.photos.get(abandoned)).toBeNull();
     expect(await storage.exists(attached)).toBe(true);
+  });
+});
+
+describe("tagging", () => {
+  const status = (server: App, cookie: string, key: string) =>
+    server.inject({
+      method: "GET",
+      url: `/api/photos/status?key=${encodeURIComponent(key)}`,
+      headers: { cookie },
+    });
+
+  it("tags the processed photo in the language the app asked for", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (
+      await upload(server, cookie, await cameraPhoto(), "image/jpeg", "?lang=ru")
+    ).json<UploadedPhoto>();
+
+    expect((await status(server, cookie, photoKey)).json<PhotoState>()).toEqual({
+      status: "processing",
+      tagStatus: "pending",
+      tags: null,
+    });
+
+    await runWorker();
+    expect((await status(server, cookie, photoKey)).json<PhotoState>()).toEqual({
+      status: "ready",
+      tagStatus: "done",
+      tags: shirtTags,
+    });
+    // One call, on the small WebP rather than the 3000 px original.
+    expect(stub.calls).toHaveLength(1);
+    expect(stub.calls[0]!.lang).toBe("ru");
+    expect(stub.calls[0]!.bytes).toBe((await storage.get(photoKey))!.body.length);
+  });
+
+  it("shows a photo's status only to its owner", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const { photoKey } = (await upload(server, anna, await cameraPhoto())).json<UploadedPhoto>();
+
+    expect((await status(server, maya, photoKey)).statusCode).toBe(404);
+    expect((await status(server, anna, "photos/nobody/missing.webp")).statusCode).toBe(404);
+    expect((await status(server, "", photoKey)).statusCode).toBe(401);
+  });
+
+  it("leaves photos untagged when no tagger is configured", async () => {
+    const server = await setup({ tagger: null });
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+
+    await runWorker();
+    expect((await status(server, cookie, photoKey)).json<PhotoState>()).toEqual({
+      status: "ready",
+      tagStatus: null,
+      tags: null,
+    });
+  });
+
+  it("treats a refusal as final, and other errors as worth a retry", async () => {
+    const refused = await setup({
+      tagger: { tag: () => Promise.reject(new TaggingRefusedError("declined")) },
+    });
+    const cookie = await signUp(refused, "anna@example.com");
+    await upload(refused, cookie, await cameraPhoto());
+    await expect(runWorker()).rejects.toThrow(PermanentPhotoError);
+    await refused.close();
+
+    const flaky = await setup({
+      tagger: { tag: () => Promise.reject(new Error("overloaded")) },
+    });
+    const other = await signUp(flaky, "maya@example.com");
+    const { photoKey } = (await upload(flaky, other, await cameraPhoto())).json<UploadedPhoto>();
+    await expect(runWorker()).rejects.toThrow("overloaded");
+    expect(queue.queued).toEqual([]);
+    // Still pending: BullMQ retries the job.
+    expect((await status(flaky, other, photoKey)).json<PhotoState>().tagStatus).toBe("pending");
   });
 });
