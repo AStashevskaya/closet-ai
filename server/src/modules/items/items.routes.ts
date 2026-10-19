@@ -97,9 +97,19 @@ export const itemsRoutes =
 
     app.get(
       "/items/:id/photo",
-      { schema: { params: z.object({ id: z.string().uuid() }) } },
+      {
+        schema: {
+          params: z.object({ id: z.string().uuid() }),
+          // The cut-out has its own URL, so the phone's cache of the photo stays valid.
+          querystring: z.object({ variant: z.enum(["photo", "cutout"]).default("photo") }),
+        },
+      },
       async (request, reply) => {
-        const key = await repo.photoKey(userOf(request).id, request.params.id);
+        const key = await repo.photoKey(
+          userOf(request).id,
+          request.params.id,
+          request.query.variant,
+        );
         const photo = key ? await storage.get(key) : null;
         if (!photo) throw httpError(404, "no photo");
 

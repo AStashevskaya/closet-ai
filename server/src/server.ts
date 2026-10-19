@@ -1,4 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { createFalBackgroundRemover } from "./ai/background-remover";
 import { createFashionSiglipEmbedder } from "./ai/item-embedder";
 import { createClaudeItemTagger } from "./ai/item-tagger";
 import { buildApp } from "./app";
@@ -29,6 +30,7 @@ const worker = createPhotoWorker(env.REDIS_URL, {
   tagger,
   // The model loads on the first embed job; the first run downloads it into MODEL_CACHE_DIR.
   embedder: createFashionSiglipEmbedder(env.MODEL_CACHE_DIR),
+  remover: env.FAL_KEY ? createFalBackgroundRemover(env.FAL_KEY) : null,
   queue: queue.photoQueue,
 });
 await queue.scheduleCleanup();
@@ -42,6 +44,7 @@ const app = await buildApp({
   taggingEnabled: tagger !== null,
 });
 if (!tagger) app.log.warn("ANTHROPIC_API_KEY is not set: photos will not be tagged");
+if (!env.FAL_KEY) app.log.warn("FAL_KEY is not set: photo backgrounds will not be removed");
 
 async function shutdown(signal: string) {
   app.log.info({ signal }, "shutting down");

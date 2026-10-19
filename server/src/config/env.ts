@@ -32,6 +32,8 @@ const envSchema = z
     REDIS_URL: z.string().url().default("redis://localhost:6379"),
     // Claude API key for tagging item photos. Without it photos are stored but not tagged.
     ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional(),
+    // fal.ai key for removing photo backgrounds (BiRefNet). Without it photos keep their background.
+    FAL_KEY: z.string().min(1).optional(),
     // Where the embedding model's weights (~100 MB) are downloaded on first use. Outside git.
     MODEL_CACHE_DIR: z.string().default(".models"),
   })

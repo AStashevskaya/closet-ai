@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
+import sharp from "sharp";
 import type { AppLanguage, CreateItemInput, ItemTags } from "@closet-ai/shared";
+import type { BackgroundRemover } from "../src/ai/background-remover";
 import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
 import type { ItemTagger } from "../src/ai/item-tagger";
 import type { Env } from "../src/config/env";
 import { toItem, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
+  cutOutPhoto,
   embedPhoto,
   processUploadedPhoto,
   tagPhoto,
@@ -41,8 +44,11 @@ export function createInMemoryRepositories() {
 
   const toApiItem = ({ id, ownerId, input, createdAt }: ItemRow) => {
     const { photoKey = null, seasons = [], ...rest } = input;
-    const status = photoKey ? (photoRows.get(photoKey)?.status ?? null) : null;
-    return toItem({ ...rest, seasons, id, ownerId, photoKey, createdAt }, status);
+    const photo = photoKey ? photoRows.get(photoKey) : undefined;
+    return toItem(
+      { ...rest, seasons, id, ownerId, photoKey, createdAt },
+      { photoStatus: photo?.status ?? null, cutoutKey: photo?.cutoutKey ?? null },
+    );
   };
 
   const toDetail = (row: ItemRow) => {
@@ -87,8 +93,12 @@ export function createInMemoryRepositories() {
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit);
     },
-    photoKey: async (ownerId, itemId) =>
-      itemRows.find((row) => row.ownerId === ownerId && row.id === itemId)?.input.photoKey ?? null,
+    photoKey: async (ownerId, itemId, variant) => {
+      const photoKey = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId)?.input
+        .photoKey;
+      if (!photoKey) return null;
+      return variant === "cutout" ? (photoRows.get(photoKey)?.cutoutKey ?? null) : photoKey;
+    },
     delete: async (ownerId, itemId) => {
       const index = itemRows.findIndex((row) => row.ownerId === ownerId && row.id === itemId);
       if (index === -1) return null;
@@ -103,6 +113,7 @@ export function createInMemoryRepositories() {
         ...photo,
         status: "processing",
         tags: null,
+        cutoutKey: null,
         createdAt: new Date(),
       });
     },
@@ -128,6 +139,14 @@ export function createInMemoryRepositories() {
       const row = photoRows.get(key);
       if (row) row.embedding = embedding;
     },
+    setCutout: async (key, cutoutKey) => {
+      const row = photoRows.get(key);
+      if (row) row.cutoutKey = cutoutKey;
+    },
+    listWithoutCutout: async () =>
+      [...photoRows.values()]
+        .filter((row) => row.status === "ready" && !row.cutoutKey)
+        .map((row) => row.key),
     listWithoutEmbedding: async () =>
       [...photoRows.values()]
         .filter((row) => row.status === "ready" && !row.embedding)
@@ -150,7 +169,8 @@ export function createInMemoryRepositories() {
 }
 
 type QueuedJob =
-  { name: "process" | "tag"; key: string; lang: AppLanguage } | { name: "embed"; key: string };
+  | { name: "process" | "tag"; key: string; lang: AppLanguage }
+  | { name: "cutout" | "embed"; key: string };
 
 // Records queued jobs instead of sending them to Redis; runAll plays the worker's part,
 // including the tag jobs that processing queues on the way.
@@ -163,6 +183,9 @@ export function createManualPhotoQueue() {
     enqueueTagging: async (key, lang) => {
       queued.push({ name: "tag", key, lang });
     },
+    enqueueCutout: async (key) => {
+      queued.push({ name: "cutout", key });
+    },
     enqueueEmbedding: async (key) => {
       queued.push({ name: "embed", key });
     },
@@ -171,6 +194,7 @@ export function createManualPhotoQueue() {
     for (let job = queued.shift(); job; job = queued.shift()) {
       if (job.name === "process") await processUploadedPhoto(deps, job.key, job.lang);
       else if (job.name === "tag") await tagPhoto(deps, job.key, job.lang);
+      else if (job.name === "cutout") await cutOutPhoto(deps, job.key);
       else await embedPhoto(deps, job.key);
     }
   }
@@ -222,4 +246,36 @@ export function createStubEmbedder(vector: number[] = unitVector(1)) {
     },
   };
   return { embedder, calls };
+}
+
+// Stands in for fal.ai: answers with a transparent PNG the size of the input, with an opaque
+// square in the middle (the "item"), and records the calls. answer can make it fail, or find
+// nothing (null), instead.
+export function createStubRemover(answer?: () => Promise<Uint8Array | null>) {
+  const calls: { bytes: number }[] = [];
+  const remover: BackgroundRemover = {
+    removeBackground: async (image) => {
+      calls.push({ bytes: image.length });
+      if (answer) return answer();
+      const { width = 100, height = 100 } = await sharp(image).metadata();
+      const side = Math.round(Math.min(width, height) / 2);
+      const item = await sharp({
+        create: {
+          width: side,
+          height: side,
+          channels: 4,
+          background: { r: 200, g: 40, b: 40, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+      return sharp({
+        create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([{ input: item, gravity: "center" }])
+        .png()
+        .toBuffer();
+    },
+  };
+  return { remover, calls };
 }

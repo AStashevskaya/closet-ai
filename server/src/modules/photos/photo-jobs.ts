@@ -1,9 +1,15 @@
 import type { AppLanguage } from "@closet-ai/shared";
+import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import { TaggingRefusedError, type ItemTagger } from "../../ai/item-tagger";
 import type { PhotoQueue } from "../../queue/photo-queue";
 import type { Storage } from "../../storage/storage";
-import { processPhoto, UnsupportedPhotoError } from "./process-photo";
+import {
+  flattenOnWhite,
+  processCutout,
+  processPhoto,
+  UnsupportedPhotoError,
+} from "./process-photo";
 import type { PhotosRepository } from "./photos.repository";
 
 export interface PhotoJobDeps {
@@ -13,8 +19,13 @@ export interface PhotoJobDeps {
   tagger: ItemTagger | null;
   // null where the model isn't loaded (tests that don't need it).
   embedder: ItemEmbedder | null;
-  queue: Pick<PhotoQueue, "enqueueTagging" | "enqueueEmbedding">;
+  // null when no fal.ai key is configured: photos keep their background.
+  remover: BackgroundRemover | null;
+  queue: Pick<PhotoQueue, "enqueueTagging" | "enqueueEmbedding" | "enqueueCutout">;
 }
+
+// The cut-out sits next to the photo: photos/<owner id>/<uuid>-cutout.webp
+export const cutoutKeyFor = (photoKey: string) => photoKey.replace(/\.webp$/, "-cutout.webp");
 
 // A photo that can never be processed (not an image after all, original gone).
 // The worker marks it failed straight away instead of retrying.
@@ -23,7 +34,7 @@ export class PermanentPhotoError extends Error {}
 // Job "process": turns the uploaded original into the stored WebP. Safe to run twice:
 // a photo that is no longer "processing" is left alone.
 export async function processUploadedPhoto(
-  { photos, storage, queue, embedder }: PhotoJobDeps,
+  { photos, storage, queue, embedder, remover }: PhotoJobDeps,
   key: string,
   lang: AppLanguage,
 ) {
@@ -47,17 +58,53 @@ export async function processUploadedPhoto(
   await storage.delete(photo.uploadKey);
   // Tagging is its own job with its own retries: a slow or failing model never holds up the photo.
   // It reads the small WebP, which is also what keeps the model call cheap.
+  // The tagger reads the whole photo: the background doesn't confuse it, and it shouldn't wait.
   if (photo.tagStatus === "pending") await queue.enqueueTagging(photo.key, lang);
+  // The embedding is better made from the cut-out, so with a remover it waits for it.
+  if (remover) await queue.enqueueCutout(photo.key);
+  else if (embedder) await queue.enqueueEmbedding(photo.key);
+}
+
+// Job "cutout": cuts the item out of its background, then queues the embedding, which is made
+// from the cut-out. Running it twice makes the same cut-out again.
+export async function cutOutPhoto(
+  { photos, storage, remover, embedder, queue }: PhotoJobDeps,
+  key: string,
+) {
+  if (!remover) return;
+  const photo = await photos.get(key);
+  if (!photo || photo.status !== "ready") return;
+
+  const file = await storage.get(photo.key);
+  if (!file) throw new PermanentPhotoError("processed photo is missing from storage");
+
+  const png = await remover.removeBackground(file.body);
+  // No item found: the photo keeps its background, and is embedded as it is.
+  if (png) {
+    const cutoutKey = cutoutKeyFor(photo.key);
+    await storage.put(cutoutKey, await processCutout(png), "image/webp");
+    await photos.setCutout(photo.key, cutoutKey);
+  }
   if (embedder) await queue.enqueueEmbedding(photo.key);
 }
 
-// Job "embed": computes the photo's embedding for "find similar". Running it twice just
-// computes the same vector again.
+// Job "embed": computes the photo's embedding for "find similar", from the cut-out when there
+// is one, so the bed or floor under the item doesn't count. Running it twice just computes the
+// same vector again.
 export async function embedPhoto({ photos, storage, embedder }: PhotoJobDeps, key: string) {
   if (!embedder) return;
   const photo = await photos.get(key);
   if (!photo || photo.status !== "ready") return;
 
+  if (photo.cutoutKey) {
+    const cutout = await storage.get(photo.cutoutKey);
+    if (!cutout) throw new PermanentPhotoError("cut-out is missing from storage");
+    await photos.setEmbedding(
+      photo.key,
+      await embedder.embedImage(await flattenOnWhite(cutout.body)),
+    );
+    return;
+  }
   const file = await storage.get(photo.key);
   if (!file) throw new PermanentPhotoError("processed photo is missing from storage");
   await photos.setEmbedding(photo.key, await embedder.embedImage(file.body));
@@ -85,7 +132,8 @@ export async function tagPhoto(
   }
 }
 
-// Removes a photo for good: the processed file, the original if it is still there, then the row.
+// Removes a photo for good: the processed file, the cut-out and the original if they are there,
+// then the row.
 // The row goes last, so if storage fails the photo stays unattached and the cleanup job retries.
 // Deleting needs only the photos table and storage, so the API can call it too.
 type StorageDeps = Pick<PhotoJobDeps, "photos" | "storage">;
@@ -94,6 +142,7 @@ export async function deletePhoto({ photos, storage }: StorageDeps, key: string)
   const photo = await photos.get(key);
   if (!photo) return;
   await storage.delete(photo.key);
+  if (photo.cutoutKey) await storage.delete(photo.cutoutKey);
   if (photo.uploadKey) await storage.delete(photo.uploadKey);
   await photos.delete(photo.key);
 }
