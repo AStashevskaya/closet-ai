@@ -7,6 +7,7 @@ import {
   type ItemDetail,
   type ItemTags,
   type Season,
+  type SimilarItem,
 } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -29,7 +30,14 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Chip } from '@/components/chip';
 import { PressableScale } from '@/components/pressable-scale';
-import { absoluteUrl, deleteItem, getItem, sessionHeaders, updateItem } from '@/lib/api';
+import {
+  absoluteUrl,
+  deleteItem,
+  getItem,
+  getSimilarItems,
+  sessionHeaders,
+  updateItem,
+} from '@/lib/api';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -56,6 +64,7 @@ export function ItemScreen({ id }: { id: string }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [busy, setBusy] = useState(false);
+  const [similar, setSimilar] = useState<SimilarItem[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +73,13 @@ export function ItemScreen({ id }: { id: string }) {
       setDraft(draftOf(item));
     } catch {
       setState({ status: 'error' });
+      return;
+    }
+    // A nice-to-have: if it fails, the row just stays hidden.
+    try {
+      setSimilar(await getSimilarItems(id));
+    } catch {
+      setSimilar([]);
     }
   }, [id]);
 
@@ -232,6 +248,47 @@ export function ItemScreen({ id }: { id: string }) {
         <Text style={styles.label}>{t('item.fromPhoto')}</Text>
         <PhotoDetails tags={item.tags} />
 
+        {similar.length > 0 && headers && (
+          <>
+            <Text style={styles.label}>{t('item.similar')}</Text>
+            <Animated.View entering={FadeIn.duration(durations.enter)}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.similarRow}
+                style={styles.similarScroll}
+              >
+                {similar.map((other) => (
+                  <PressableScale
+                    key={other.id}
+                    style={styles.similarCard}
+                    onPress={() =>
+                      router.push({ pathname: '/item/[id]', params: { id: other.id } })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={other.name}
+                  >
+                    {other.photoUrl ? (
+                      <Image
+                        source={{ uri: absoluteUrl(other.photoUrl), headers }}
+                        style={styles.similarPhoto}
+                        contentFit="cover"
+                        transition={200}
+                        accessibilityIgnoresInvertColors
+                      />
+                    ) : (
+                      <View style={[styles.similarPhoto, styles.photoEmpty]} />
+                    )}
+                    <Text style={styles.similarName} numberOfLines={2}>
+                      {other.name}
+                    </Text>
+                  </PressableScale>
+                ))}
+              </ScrollView>
+            </Animated.View>
+          </>
+        )}
+
         <PressableScale
           style={[styles.button, (!dirty || !valid || busy) && styles.buttonDisabled]}
           onPress={save}
@@ -392,6 +449,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     textAlign: 'right',
+  },
+  // The row runs edge to edge under the screen's padding.
+  similarScroll: {
+    marginHorizontal: -22,
+  },
+  similarRow: {
+    paddingHorizontal: 22,
+    gap: 12,
+  },
+  similarCard: {
+    width: 104,
+    gap: 6,
+  },
+  similarPhoto: {
+    width: 104,
+    aspectRatio: 3 / 4,
+    borderRadius: 14,
+  },
+  similarName: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.text,
+    textAlign: 'left',
   },
   button: {
     height: 52,

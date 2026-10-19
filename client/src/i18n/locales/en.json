@@ -130,6 +130,7 @@
   "item": {
     "seasons": "Seasons",
     "fromPhoto": "From the photo",
+    "similar": "Similar in your wardrobe",
     "notTagged": "Details appear once the photo has been recognised.",
     "notRecognized": "Couldn't make out a single item in this photo.",
     "fit": "Fit",

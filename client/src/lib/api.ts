@@ -8,6 +8,8 @@ import {
   itemList,
   photoState,
   type PhotoState,
+  type SimilarItem,
+  similarItems,
   type UpdateItemInput,
   uploadedPhoto,
 } from '@closet-ai/shared';
@@ -73,6 +75,11 @@ export function createItem(input: CreateItemInput): Promise<Item> {
 // The item with what the vision model read off its photo, for the item screen.
 export function getItem(id: string): Promise<ItemDetail> {
   return request(`/api/items/${id}`, itemDetail);
+}
+
+// The closest items of the same category, for "similar in your wardrobe".
+export function getSimilarItems(id: string): Promise<SimilarItem[]> {
+  return request(`/api/items/${id}/similar`, similarItems);
 }
 
 // Saves the user's corrections; only the fields given change.

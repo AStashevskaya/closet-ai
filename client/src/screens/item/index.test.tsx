@@ -3,24 +3,26 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert, type AlertButton } from 'react-native';
 
 import i18n from '@/i18n';
-import { deleteItem, getItem, updateItem } from '@/lib/api';
+import { deleteItem, getItem, getSimilarItems, updateItem } from '@/lib/api';
 
 import { ItemScreen } from '.';
 
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual('react');
   return {
     Stack: { Screen: () => null },
-    useRouter: () => ({ back: mockBack }),
+    useRouter: () => ({ back: mockBack, push: mockPush }),
     // Runs the callback once on mount, as if the screen just came into view.
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
   };
 });
 jest.mock('@/lib/api', () => ({
   getItem: jest.fn(),
+  getSimilarItems: jest.fn(),
   updateItem: jest.fn(),
   deleteItem: jest.fn(),
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
@@ -69,6 +71,7 @@ beforeEach(async () => {
   jest.mocked(getItem).mockResolvedValue(shirt);
   jest.mocked(updateItem).mockImplementation(async (_id, patch) => ({ ...shirt, ...patch }));
   jest.mocked(deleteItem).mockResolvedValue();
+  jest.mocked(getSimilarItems).mockResolvedValue([]);
 });
 
 describe('<ItemScreen />', () => {
@@ -104,6 +107,34 @@ describe('<ItemScreen />', () => {
       seasons: ['spring', 'summer', 'winter'],
     });
     expect(mockBack).toHaveBeenCalled();
+  });
+
+  test('shows similar items from the wardrobe and opens them', async () => {
+    const { tags: _tags, ...base } = shirt;
+    jest
+      .mocked(getSimilarItems)
+      .mockResolvedValue([
+        {
+          ...base,
+          id: '6b1f7c3e-0000-4000-8000-000000000002',
+          name: 'Cream shirt',
+          similarity: 0.9,
+        },
+      ]);
+    await render(<ItemScreen id={shirt.id} />);
+
+    expect(await screen.findByText('Similar in your wardrobe')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cream shirt' }));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/item/[id]',
+      params: { id: '6b1f7c3e-0000-4000-8000-000000000002' },
+    });
+  });
+
+  test('hides the similar row when there is nothing similar', async () => {
+    await render(<ItemScreen id={shirt.id} />);
+    await screen.findByDisplayValue('White linen shirt');
+    expect(screen.queryByText('Similar in your wardrobe')).not.toBeOnTheScreen();
   });
 
   test('says when the photo has not been tagged yet', async () => {
