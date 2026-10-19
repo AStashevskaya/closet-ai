@@ -5,11 +5,17 @@ import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { Storage } from "../../storage/storage";
-import { photoPrefix } from "../photos/photos.routes";
+import { deletePhoto } from "../photos/photo-jobs";
+import type { PhotosRepository } from "../photos/photos.repository";
 import type { ItemsRepository } from "./items.repository";
 
 export const itemsRoutes =
-  (repo: ItemsRepository, storage: Storage, auth: Auth): FastifyPluginAsyncZod =>
+  (
+    repo: ItemsRepository,
+    photos: PhotosRepository,
+    storage: Storage,
+    auth: Auth,
+  ): FastifyPluginAsyncZod =>
   async (app) => {
     app.addHook("preHandler", requireUser(auth));
 
@@ -36,12 +42,13 @@ export const itemsRoutes =
       async (request, reply) => {
         const user = userOf(request);
         const { photoKey } = request.body;
-        // Only a photo this user uploaded, and that is really there, can be attached.
-        if (
-          photoKey !== undefined &&
-          (!photoKey.startsWith(photoPrefix(user.id)) || !(await storage.exists(photoKey)))
-        ) {
-          throw httpError(400, "unknown photoKey");
+        // Only a photo this user uploaded can be attached. It may still be processing
+        // (the app saves right after the upload); a photo that failed can't.
+        if (photoKey !== undefined) {
+          const photo = await photos.get(photoKey);
+          if (!photo || photo.ownerId !== user.id || photo.status === "failed") {
+            throw httpError(400, "unknown photoKey");
+          }
         }
         const created = await repo.create(user.id, request.body);
         return reply.code(201).send(created);
@@ -75,9 +82,10 @@ export const itemsRoutes =
 
         if (deleted.photoKey) {
           try {
-            await storage.delete(deleted.photoKey);
+            await deletePhoto({ photos, storage }, deleted.photoKey);
           } catch (error) {
-            // The item is already gone, so the client still gets 204; the file stays behind.
+            // The item is already gone, so the client still gets 204. The photo is now
+            // unattached, so the hourly cleanup job tries again.
             request.log.warn({ err: error, key: deleted.photoKey }, "failed to delete item photo");
           }
         }

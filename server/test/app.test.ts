@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import { createMemoryStorage } from "../src/storage/storage";
-import { createInMemoryItemsRepository, testEnv as env } from "./helpers";
+import { createInMemoryRepositories, createManualPhotoQueue, testEnv as env } from "./helpers";
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
@@ -18,7 +18,8 @@ async function setup() {
   app = await buildApp({
     env,
     auth,
-    itemsRepository: createInMemoryItemsRepository(),
+    ...createInMemoryRepositories(),
+    photoQueue: createManualPhotoQueue().photoQueue,
     storage: createMemoryStorage(),
   });
   return app;

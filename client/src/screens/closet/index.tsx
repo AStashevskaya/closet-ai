@@ -24,6 +24,8 @@ import { colors, fonts } from '@/theme';
 import { ClosetCard } from './card';
 import { CategoryFilter, type Filter } from './category-filter';
 
+const PHOTO_POLL_MS = 1500;
+
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: Item[] };
 
 // The first screenful staggers in on the first load; later cards and reloads just appear.
@@ -70,6 +72,16 @@ export function Closet() {
     };
     void loadHeaders();
   }, []);
+
+  // The server shrinks new photos in the background, usually within a second or two.
+  // While any is still processing, check again shortly; each load schedules the next one.
+  useEffect(() => {
+    const waiting =
+      state.status === 'ready' && state.items.some((item) => item.photoStatus === 'processing');
+    if (!waiting) return;
+    const timer = setTimeout(() => void load(), PHOTO_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [state, load]);
 
   // Once the first cards have played their entrance, cards mounted later (scrolling, reloads) skip it.
   const ready = state.status === 'ready';

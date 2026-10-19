@@ -10,7 +10,9 @@ import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createItemsRepository } from "../src/modules/items/items.repository";
+import { createPhotosRepository } from "../src/modules/photos/photos.repository";
 import { createMemoryStorage } from "../src/storage/storage";
+import { createManualPhotoQueue } from "./helpers";
 
 // The same app as in production, on a real Postgres: Drizzle queries, the Better Auth
 // Drizzle adapter and the committed migrations. Runs only when TEST_DATABASE_URL is set
@@ -56,6 +58,7 @@ describe.skipIf(!url)("on Postgres", () => {
       S3_BUCKET: "unused",
       S3_ACCESS_KEY_ID: "unused",
       S3_SECRET_ACCESS_KEY: "unused",
+      REDIS_URL: "redis://localhost:6379",
     };
     const auth = createAuth(env, drizzleAdapter(db.db, { provider: "pg", schema }));
     // Photo processing is covered in photos.test.ts; here storage is only a stand-in.
@@ -63,6 +66,8 @@ describe.skipIf(!url)("on Postgres", () => {
       env,
       auth,
       itemsRepository: createItemsRepository(db.db),
+      photosRepository: createPhotosRepository(db.db),
+      photoQueue: createManualPhotoQueue().photoQueue,
       storage,
     });
   });
@@ -126,14 +131,21 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(list.json<Item[]>()).toEqual([]);
   });
 
-  it("stores the photo key and serves the photo by item id", async () => {
+  it("stores the photo key and serves the photo by item id once it is ready", async () => {
     const cookie = await signUp("photo@example.com");
     const [user] = await db.db
       .select()
       .from(schema.user)
       .where(eq(schema.user.email, "photo@example.com"));
+    const photos = createPhotosRepository(db.db);
     const photoKey = `photos/${user!.id}/test.webp`;
+    await photos.create({
+      key: photoKey,
+      ownerId: user!.id,
+      uploadKey: `uploads/${user!.id}/test`,
+    });
     await storage.put(photoKey, new Uint8Array([1, 2, 3]), "image/webp");
+    await photos.markReady(photoKey);
 
     const created = await app.inject({
       method: "POST",
@@ -187,6 +199,32 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(own.statusCode).toBe(204);
     const left = await db.db.select().from(schema.items).where(eq(schema.items.id, id));
     expect(left).toEqual([]);
+  });
+
+  it("lists only photos no item points to, created before the cutoff", async () => {
+    const cookie = await signUp("cleanup@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "cleanup@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const loose = `photos/${user!.id}/loose.webp`;
+    const used = `photos/${user!.id}/used.webp`;
+    for (const key of [loose, used]) {
+      await photos.create({ key, ownerId: user!.id, uploadKey: `uploads/${user!.id}/x` });
+    }
+    await app.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { ...shirt, photoKey: used },
+    });
+
+    const later = new Date(Date.now() + 60_000);
+    const keys = (await photos.listUnattached(later)).map((photo) => photo.key);
+    expect(keys).toContain(loose);
+    expect(keys).not.toContain(used);
+    expect(await photos.listUnattached(new Date(0))).toEqual([]);
   });
 
   it("deletes a user's items together with the user", async () => {
