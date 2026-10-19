@@ -31,7 +31,7 @@ import { shrinkPhoto } from '@/lib/shrink-photo';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-import { Chip } from './chip';
+import { Chip } from '@/components/chip';
 
 const MAX_COLORS = 5;
 // How often the form asks whether the photo has been tagged, and for how long. The model

@@ -3,9 +3,12 @@ import {
   type CreateItemInput,
   item,
   type Item,
+  itemDetail,
+  type ItemDetail,
   itemList,
   photoState,
   type PhotoState,
+  type UpdateItemInput,
   uploadedPhoto,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
@@ -64,6 +67,20 @@ export function createItem(input: CreateItemInput): Promise<Item> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
+  });
+}
+
+// The item with what the vision model read off its photo, for the item screen.
+export function getItem(id: string): Promise<ItemDetail> {
+  return request(`/api/items/${id}`, itemDetail);
+}
+
+// Saves the user's corrections; only the fields given change.
+export function updateItem(id: string, patch: UpdateItemInput): Promise<ItemDetail> {
+  return request(`/api/items/${id}`, itemDetail, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
   });
 }
 
