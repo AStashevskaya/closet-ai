@@ -60,6 +60,8 @@ export async function processUploadedPhoto(
   // It reads the small WebP, which is also what keeps the model call cheap.
   // The tagger reads the whole photo: the background doesn't confuse it, and it shouldn't wait.
   if (photo.tagStatus === "pending") await queue.enqueueTagging(photo.key, lang);
+  // A look is only read for its items: the items picked from it get their own photos.
+  if (photo.kind === "look") return;
   // The embedding is better made from the cut-out, so with a remover it waits for it.
   if (remover) await queue.enqueueCutout(photo.key);
   else if (embedder) await queue.enqueueEmbedding(photo.key);
@@ -110,8 +112,8 @@ export async function embedPhoto({ photos, storage, embedder }: PhotoJobDeps, ke
   await photos.setEmbedding(photo.key, await embedder.embedImage(file.body));
 }
 
-// Job "tag": asks the vision model what the item is. Safe to run twice: only a ready photo
-// still waiting for tags is tagged.
+// Job "tag": asks the vision model what the item is, or for a look photo, which items it shows.
+// Safe to run twice: only a ready photo still waiting for tags is tagged.
 export async function tagPhoto(
   { photos, storage, tagger }: PhotoJobDeps,
   key: string,
@@ -125,7 +127,9 @@ export async function tagPhoto(
   if (!file) throw new PermanentPhotoError("processed photo is missing from storage");
 
   try {
-    await photos.setTags(photo.key, await tagger.tag(file.body, lang));
+    if (photo.kind === "look")
+      await photos.setLookItems(photo.key, await tagger.findItems(file.body, lang));
+    else await photos.setTags(photo.key, await tagger.tag(file.body, lang));
   } catch (error) {
     if (error instanceof TaggingRefusedError) throw new PermanentPhotoError(error.message);
     throw error;

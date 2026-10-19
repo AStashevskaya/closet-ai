@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import type { AppLanguage, CreateItemInput, ItemTags } from "@closet-ai/shared";
+import type { AppLanguage, CreateItemInput, ItemTags, LookItem } from "@closet-ai/shared";
 import type { BackgroundRemover } from "../src/ai/background-remover";
 import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
@@ -110,12 +110,30 @@ export function createInMemoryRepositories() {
   const photosRepository: PhotosRepository = {
     create: async (photo) => {
       photoRows.set(photo.key, {
+        kind: "item",
         ...photo,
         status: "processing",
         tags: null,
+        lookItems: null,
         cutoutKey: null,
         createdAt: new Date(),
       });
+    },
+    createReady: async (photo) => {
+      photoRows.set(photo.key, {
+        ...photo,
+        uploadKey: null,
+        kind: "item",
+        status: "ready",
+        tagStatus: "done",
+        lookItems: null,
+        cutoutKey: null,
+        createdAt: new Date(),
+      });
+    },
+    setLookItems: async (key, lookItems) => {
+      const row = photoRows.get(key);
+      if (row) Object.assign(row, { tagStatus: "done", lookItems });
     },
     get: async (key) => {
       const row = photoRows.get(key);
@@ -215,13 +233,42 @@ export const shirtTags: ItemTags = {
   condition: "good",
 };
 
-// Stands in for Claude: answers with fixed tags and records what it was asked.
-export function createStubTagger(answer: () => Promise<ItemTags> = async () => shirtTags) {
-  const calls: { bytes: number; lang: AppLanguage }[] = [];
+// What the stub finds on a look photo: a top in the upper half, jeans in the lower.
+export const lookItems: LookItem[] = [
+  {
+    ...withoutRecognized(shirtTags),
+    name: "Pink mesh top",
+    colors: ["pink"],
+    box: { xMin: 0.25, yMin: 0.1, xMax: 0.75, yMax: 0.45 },
+  },
+  {
+    ...withoutRecognized(shirtTags),
+    name: "Blue wide-leg jeans",
+    category: "bottom",
+    colors: ["blue"],
+    fabric: "denim",
+    box: { xMin: 0.2, yMin: 0.45, xMax: 0.8, yMax: 0.95 },
+  },
+];
+
+function withoutRecognized({ recognized: _recognized, ...tags }: ItemTags) {
+  return tags;
+}
+
+// Stands in for Claude: answers with fixed tags (or look items) and records what it was asked.
+export function createStubTagger(
+  answer: () => Promise<ItemTags> = async () => shirtTags,
+  look: () => Promise<LookItem[]> = async () => lookItems,
+) {
+  const calls: { bytes: number; lang: AppLanguage; kind: "item" | "look" }[] = [];
   const tagger: ItemTagger = {
     tag: async (image, lang) => {
-      calls.push({ bytes: image.length, lang });
+      calls.push({ bytes: image.length, lang, kind: "item" });
       return answer();
+    },
+    findItems: async (image, lang) => {
+      calls.push({ bytes: image.length, lang, kind: "look" });
+      return look();
     },
   };
   return { tagger, calls };
