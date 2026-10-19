@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
+import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { shrinkPhoto } from '@/lib/shrink-photo';
@@ -243,6 +244,18 @@ export function AddItem() {
           </PressableScale>
         </View>
 
+        {/* A mirror selfie has several items: that has its own screen, in place of this one. */}
+        {!photoUri && (
+          <PressableScale
+            style={styles.lookLink}
+            onPress={() => router.replace('/add-look')}
+            accessibilityRole="link"
+          >
+            <Icon name="look" color={colors.accent} size={18} strokeWidth={1.5} />
+            <Text style={styles.lookLinkText}>{t('addLook.entry')}</Text>
+          </PressableScale>
+        )}
+
         {/* Keyed by the state, so "filled in" fades in after "recognising" instead of swapping. */}
         {tagging !== 'idle' && (
           <Animated.View
@@ -364,6 +377,23 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.accent,
+    textAlign: 'center',
+  },
+  lookLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor: colors.accentSoft,
+  },
+  lookLinkText: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyMedium,
     fontSize: 14,
     color: colors.accent,
     textAlign: 'center',

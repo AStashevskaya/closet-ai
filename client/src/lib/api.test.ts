@@ -33,7 +33,7 @@ describe('uploadPhoto', () => {
     expect(key).toBe('photos/u1/p1.webp');
     const [url, init] = fetchMock.mock.calls[0];
     // The language the suggested item name should come back in.
-    expect(url).toBe('http://api.test/api/photos?lang=ru');
+    expect(url).toBe('http://api.test/api/photos?lang=ru&kind=item');
     expect(init.headers).toEqual({ cookie: 'session=abc' });
     // Not React Native's { uri, name, type }: expo/fetch rejects that.
     const [field, part] = append.mock.calls[0] as unknown as [string, { uri: string }];
@@ -47,12 +47,12 @@ describe('getPhotoState', () => {
   test('escapes the key, whose slashes would otherwise break the query', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ status: 'ready', tagStatus: 'pending', tags: null }),
+      json: async () => ({ status: 'ready', tagStatus: 'pending', tags: null, lookItems: null }),
     });
 
     const state = await getPhotoState('photos/u1/p1.webp');
 
-    expect(state).toEqual({ status: 'ready', tagStatus: 'pending', tags: null });
+    expect(state).toEqual({ status: 'ready', tagStatus: 'pending', tags: null, lookItems: null });
     expect(fetchMock.mock.lastCall?.[0]).toBe(
       'http://api.test/api/photos/status?key=photos%2Fu1%2Fp1.webp',
     );

@@ -1,4 +1,5 @@
 import {
+  type AddLookItemsInput,
   type AppLanguage,
   type CreateItemInput,
   item,
@@ -6,6 +7,7 @@ import {
   itemDetail,
   type ItemDetail,
   itemList,
+  type PhotoKind,
   photoState,
   type PhotoState,
   type SimilarItem,
@@ -97,13 +99,18 @@ export async function deleteItem(id: string): Promise<void> {
 }
 
 // Uploads a local JPEG (see shrinkPhoto) and returns the key to pass to createItem.
-// lang is the language the server's suggested item name comes back in.
-export async function uploadPhoto(uri: string, lang: AppLanguage): Promise<string> {
+// lang is the language the server's suggested item name comes back in; a "look" photo is an
+// outfit to pick items from (see addLookItems).
+export async function uploadPhoto(
+  uri: string,
+  lang: AppLanguage,
+  kind: PhotoKind = 'item',
+): Promise<string> {
   const form = new FormData();
   // The global fetch is expo/fetch, which rejects React Native's { uri, name, type } parts
   // ("Unsupported FormDataPart implementation"). An expo-file-system File is a Blob it can read.
   form.append('photo', new File(uri));
-  const { photoKey } = await request(`/api/photos?lang=${lang}`, uploadedPhoto, {
+  const { photoKey } = await request(`/api/photos?lang=${lang}&kind=${kind}`, uploadedPhoto, {
     method: 'POST',
     body: form,
   });
@@ -113,4 +120,13 @@ export async function uploadPhoto(uri: string, lang: AppLanguage): Promise<strin
 // Whether an uploaded photo is processed yet, and what the vision model read off it.
 export function getPhotoState(photoKey: string): Promise<PhotoState> {
   return request(`/api/photos/status?key=${encodeURIComponent(photoKey)}`, photoState);
+}
+
+// Adds the items picked from a look photo to the wardrobe; each gets the look cropped to it.
+export function addLookItems(input: AddLookItemsInput): Promise<Item[]> {
+  return request('/api/photos/look-items', itemList, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 }

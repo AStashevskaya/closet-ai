@@ -43,6 +43,16 @@ export default function RootLayout() {
             headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
           }}
         />
+        <Stack.Screen
+          name="add-look"
+          options={{
+            presentation: 'modal',
+            title: t('addLook.title'),
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+          }}
+        />
         {/* The screen sets its title to the item's name once it has loaded. */}
         <Stack.Screen
           name="item/[id]"
