@@ -4,7 +4,7 @@ import type { AppLanguage, CreateItemInput, ItemTags, LookItem } from "@closet-a
 import type { BackgroundRemover } from "../src/ai/background-remover";
 import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
-import type { ItemTagger } from "../src/ai/item-tagger";
+import type { ItemTagger, MatchVerdict } from "../src/ai/item-tagger";
 import type { Env } from "../src/config/env";
 import { toItem, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
@@ -115,6 +115,7 @@ export function createInMemoryRepositories() {
         status: "processing",
         tags: null,
         lookItems: null,
+        matches: null,
         cutoutKey: null,
         createdAt: new Date(),
       });
@@ -127,14 +128,33 @@ export function createInMemoryRepositories() {
         status: "ready",
         tagStatus: "done",
         lookItems: null,
+        matches: null,
         cutoutKey: null,
         createdAt: new Date(),
       });
     },
-    setLookItems: async (key, lookItems) => {
+    setLookItems: async (key, lookItems, matches) => {
       const row = photoRows.get(key);
-      if (row) Object.assign(row, { tagStatus: "done", lookItems });
+      if (row) Object.assign(row, { tagStatus: "done", lookItems, matches: matches ?? null });
     },
+    closestItems: async (ownerId, category, embedding, limit) =>
+      itemRows
+        .filter((row) => row.ownerId === ownerId && row.input.category === category)
+        .flatMap((row) => {
+          const photo = row.input.photoKey ? photoRows.get(row.input.photoKey) : undefined;
+          if (!photo?.embedding) return [];
+          return [
+            {
+              itemId: row.id,
+              name: row.input.name,
+              photoKey: photo.key,
+              cutoutKey: photo.cutoutKey,
+              similarity: dot(photo.embedding, embedding),
+            },
+          ];
+        })
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit),
     get: async (key) => {
       const row = photoRows.get(key);
       if (!row) return null;
@@ -259,9 +279,14 @@ function withoutRecognized({ recognized: _recognized, ...tags }: ItemTags) {
 export function createStubTagger(
   answer: () => Promise<ItemTags> = async () => shirtTags,
   look: () => Promise<LookItem[]> = async () => lookItems,
-  { onPerson = false } = {},
+  {
+    onPerson = false,
+    verdict = async (): Promise<MatchVerdict> => ({ how: "same", index: 0 }),
+  } = {},
 ) {
   const calls: { bytes: number; lang: AppLanguage; kind: "item" | "look" }[] = [];
+  // The names of the wardrobe items each comparison was shown.
+  const compared: string[][] = [];
   const tagger: ItemTagger = {
     tag: async (image, lang) => {
       calls.push({ bytes: image.length, lang, kind: "item" });
@@ -271,8 +296,12 @@ export function createStubTagger(
       calls.push({ bytes: image.length, lang, kind: "look" });
       return look();
     },
+    compare: async (_item, candidates) => {
+      compared.push(candidates.map((candidate) => candidate.name));
+      return verdict();
+    },
   };
-  return { tagger, calls };
+  return { tagger, calls, compared };
 }
 
 const dot = (a: number[], b: number[]) => a.reduce((sum, x, i) => sum + x * b[i]!, 0);

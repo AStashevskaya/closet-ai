@@ -1,5 +1,13 @@
-import type { ItemTags, LookItem, PhotoKind, PhotoStatus, TagStatus } from "@closet-ai/shared";
-import { and, eq, isNull, lt } from "drizzle-orm";
+import type {
+  ItemCategory,
+  ItemTags,
+  LookItem,
+  LookMatch,
+  PhotoKind,
+  PhotoStatus,
+  TagStatus,
+} from "@closet-ai/shared";
+import { and, cosineDistance, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { items, photos } from "../../db/schema";
 
@@ -12,7 +20,17 @@ export interface Photo {
   tagStatus: TagStatus | null;
   tags: ItemTags | null;
   lookItems: LookItem[] | null;
+  matches: LookMatch[] | null;
   cutoutKey: string | null;
+}
+
+// A wardrobe item that may match an item on a "want" look, with what its photo is stored as.
+export interface ClosestItem {
+  itemId: string;
+  name: string;
+  photoKey: string;
+  cutoutKey: string | null;
+  similarity: number;
 }
 
 export interface PhotosRepository {
@@ -33,7 +51,15 @@ export interface PhotosRepository {
   markReady(key: string): Promise<void>;
   markFailed(key: string): Promise<void>;
   setTags(key: string, tags: ItemTags): Promise<void>;
-  setLookItems(key: string, items: LookItem[]): Promise<void>;
+  // A look's items, and for a "want" look their wardrobe matches. Marks the tags done.
+  setLookItems(key: string, items: LookItem[], matches?: LookMatch[]): Promise<void>;
+  // The owner's items of a category whose photos look most like the embedding, closest first.
+  closestItems(
+    ownerId: string,
+    category: ItemCategory,
+    embedding: number[],
+    limit: number,
+  ): Promise<ClosestItem[]>;
   setEmbedding(key: string, embedding: number[]): Promise<void>;
   setCutout(key: string, cutoutKey: string): Promise<void>;
   // Ready photos with no cut-out yet: what the cut-out backfill script queues.
@@ -56,6 +82,7 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     tagStatus: photos.tagStatus,
     tags: photos.tags,
     lookItems: photos.lookItems,
+    matches: photos.matches,
     cutoutKey: photos.cutoutKey,
   };
 
@@ -85,8 +112,35 @@ export function createPhotosRepository(db: Db): PhotosRepository {
       await db.update(photos).set({ tagStatus: "done", tags }).where(eq(photos.key, key));
     },
 
-    async setLookItems(key, lookItems) {
-      await db.update(photos).set({ tagStatus: "done", lookItems }).where(eq(photos.key, key));
+    async setLookItems(key, lookItems, matches) {
+      await db
+        .update(photos)
+        .set({ tagStatus: "done", lookItems, matches: matches ?? null })
+        .where(eq(photos.key, key));
+    },
+
+    async closestItems(ownerId, category, embedding, limit) {
+      const distance = cosineDistance(photos.embedding, embedding);
+      const rows = await db
+        .select({
+          itemId: items.id,
+          name: items.name,
+          photoKey: photos.key,
+          cutoutKey: photos.cutoutKey,
+          distance,
+        })
+        .from(items)
+        .innerJoin(photos, eq(photos.key, items.photoKey))
+        .where(
+          and(
+            eq(items.ownerId, ownerId),
+            eq(items.category, category),
+            isNotNull(photos.embedding),
+          ),
+        )
+        .orderBy(distance)
+        .limit(limit);
+      return rows.map(({ distance: d, ...row }) => ({ ...row, similarity: 1 - Number(d) }));
     },
 
     async setEmbedding(key, embedding) {

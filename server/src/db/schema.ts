@@ -7,6 +7,7 @@ import {
   TAG_STATUSES,
   type ItemTags,
   type LookItem,
+  type LookMatch,
 } from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
 import { index, jsonb, pgEnum, pgTable, text, timestamp, uuid, vector } from "drizzle-orm/pg-core";
@@ -35,7 +36,7 @@ export const photos = pgTable(
     // Storage key of the original upload; null once it has been processed and deleted.
     uploadKey: text("upload_key"),
     status: photoStatusEnum("status").notNull().default("processing"),
-    // A look photo is never attached to an item itself: the items the user picks from it get
+    // A look photo (a selfie, or a "want" screenshot) is never attached to an item itself: the items the user picks from it get
     // photos of their own (crops), and the look is cleaned up like any unattached photo.
     kind: photoKindEnum("kind").notNull().default("item"),
     // What the vision model read off the photo. tagStatus is null when tagging is off
@@ -44,6 +45,8 @@ export const photos = pgTable(
     tags: jsonb("tags").$type<ItemTags>(),
     // A look photo's items, found by the same tagging job; null for item photos.
     lookItems: jsonb("look_items").$type<LookItem[]>(),
+    // A "want" look's matches in the wardrobe, one per look item; null for other photos.
+    matches: jsonb("matches").$type<LookMatch[]>(),
     // The photo's image embedding (Marqo-FashionSigLIP, normalized), for "find similar".
     // Null until the worker has computed it.
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),

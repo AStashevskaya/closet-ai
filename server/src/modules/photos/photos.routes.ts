@@ -86,7 +86,7 @@ export const photosRoutes =
     );
 
     // The add-item form polls this until the photo is processed and tagged, then pre-fills
-    // itself from the tags. The key goes in the query because it contains slashes.
+    // itself from the tags; the look screens poll it for the items found (and matched). The key goes in the query because it contains slashes.
     app.get(
       "/photos/status",
       {
@@ -96,16 +96,29 @@ export const photosRoutes =
         },
       },
       async (request) => {
+        const user = request.user as SessionUser;
         const photo = await photos.get(request.query.key);
         // Someone else's photo answers like a missing one.
-        if (!photo || photo.ownerId !== (request.user as SessionUser).id) {
+        if (!photo || photo.ownerId !== user.id) {
           throw httpError(404, "photo not found");
         }
+        // A matched item deleted since counts as no match.
+        const matches =
+          photo.matches &&
+          (await Promise.all(
+            photo.matches.map(async ({ how, itemId }) => {
+              const found = itemId ? await items.get(user.id, itemId) : null;
+              if (!found) return { how: "none" as const, item: null };
+              const { tags: _tags, ...item } = found;
+              return { how, item };
+            }),
+          ));
         return {
           status: photo.status,
           tagStatus: photo.tagStatus,
           tags: photo.tags,
           lookItems: photo.lookItems,
+          matches,
         };
       },
     );

@@ -44,7 +44,13 @@ beforeEach(async () => {
   // Tagging off unless a test turns it on, so the form stays as the test fills it.
   jest
     .mocked(getPhotoState)
-    .mockResolvedValue({ status: 'ready', tagStatus: null, tags: null, lookItems: null });
+    .mockResolvedValue({
+      status: 'ready',
+      tagStatus: null,
+      tags: null,
+      lookItems: null,
+      matches: null,
+    });
 });
 
 const tags: ItemTags = {
@@ -65,8 +71,20 @@ const tags: ItemTags = {
 function tagAfterOnePoll(result: ItemTags) {
   jest
     .mocked(getPhotoState)
-    .mockResolvedValueOnce({ status: 'ready', tagStatus: 'pending', tags: null, lookItems: null })
-    .mockResolvedValue({ status: 'ready', tagStatus: 'done', tags: result, lookItems: null });
+    .mockResolvedValueOnce({
+      status: 'ready',
+      tagStatus: 'pending',
+      tags: null,
+      lookItems: null,
+      matches: null,
+    })
+    .mockResolvedValue({
+      status: 'ready',
+      tagStatus: 'done',
+      tags: result,
+      lookItems: null,
+      matches: null,
+    });
 }
 
 async function fillForm() {

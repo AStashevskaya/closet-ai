@@ -11,6 +11,7 @@ import {
   UnsupportedPhotoError,
 } from "./process-photo";
 import type { PhotosRepository } from "./photos.repository";
+import { matchLookItems } from "./want-matches";
 
 export interface PhotoJobDeps {
   photos: PhotosRepository;
@@ -61,7 +62,7 @@ export async function processUploadedPhoto(
   // The tagger reads the whole photo: the background doesn't confuse it, and it shouldn't wait.
   if (photo.tagStatus === "pending") await queue.enqueueTagging(photo.key, lang);
   // A look is only read for its items: the items picked from it get their own photos.
-  if (photo.kind === "look") return;
+  if (photo.kind !== "item") return;
   // The cut-out waits for the tags: an item someone is wearing isn't cut out (see tagPhoto).
   // Untagged photos (tagging off) go straight on.
   if (photo.tagStatus !== "pending")
@@ -126,8 +127,8 @@ export async function embedPhoto({ photos, storage, embedder }: PhotoJobDeps, ke
   await photos.setEmbedding(photo.key, await embedder.embedImage(file.body));
 }
 
-// Job "tag": asks the vision model what the item is, then queues the cut-out, or for a look
-// photo, which items it shows.
+// Job "tag": asks the vision model what the item is, then queues the cut-out; for a look
+// photo, which items it shows, and for a "want" look, which of them the wardrobe has.
 // Safe to run twice: only a ready photo still waiting for tags is tagged.
 export async function tagPhoto(deps: PhotoJobDeps, key: string, lang: AppLanguage) {
   const { photos, storage, tagger } = deps;
@@ -141,6 +142,12 @@ export async function tagPhoto(deps: PhotoJobDeps, key: string, lang: AppLanguag
   try {
     if (photo.kind === "look") {
       await photos.setLookItems(photo.key, await tagger.findItems(file.body, lang));
+      return;
+    }
+    if (photo.kind === "want") {
+      const items = await tagger.findItems(file.body, lang);
+      const matches = await matchLookItems(deps, photo.ownerId, file.body, items);
+      await photos.setLookItems(photo.key, items, matches);
       return;
     }
     const { onPerson, ...tags } = await tagger.tag(file.body, lang);

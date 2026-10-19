@@ -31,16 +31,18 @@ describe('<Menu />', () => {
     expect(screen.getByText('Anna')).toBeOnTheScreen();
   });
 
-  test('opens the closet tab', async () => {
+  test('opens the closet and want tabs', async () => {
     await render(<Menu />);
     await fireEvent.press(screen.getByText('My closet'));
     expect(mockNavigate).toHaveBeenCalledWith('/closet');
+    await fireEvent.press(screen.getByText('Want / Can'));
+    expect(mockNavigate).toHaveBeenCalledWith('/want');
   });
 
   test('marks unbuilt sections as coming soon and disables them', async () => {
     await render(<Menu />);
 
-    expect(screen.getAllByText('soon')).toHaveLength(7);
+    expect(screen.getAllByText('soon')).toHaveLength(6);
     expect(screen.getByRole('menuitem', { name: /Outfits/ })).toBeDisabled();
   });
 

@@ -1,8 +1,5 @@
-import { useTranslation } from 'react-i18next';
-
-import { ComingSoon } from '@/screens/coming-soon';
+import { WantCan } from '@/screens/want-can';
 
 export default function WantScreen() {
-  const { t } = useTranslation();
-  return <ComingSoon title={t('tabs.want')} />;
+  return <WantCan />;
 }
