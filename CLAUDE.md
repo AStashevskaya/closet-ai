@@ -4,7 +4,7 @@
 
 A wardrobe app, mobile-first. You photograph an item and the app tells you what to wear it with, or helps you sell it. Everything you photograph ends up in your digital wardrobe, so it fills up as a side effect instead of a chore.
 
-The core feature is "Want / Can": the user drops in a screenshot of something they want, and the app shows how to (1) build a similar look from their own wardrobe, (2) find something similar for less, (3) sell items they don't wear to afford it.
+The core feature is "Want / Can": the user drops in a screenshot of a whole look (from Pinterest, Instagram, anywhere), the app finds each item in it and, piece by piece, shows what the user already has in their wardrobe and what they can get from partner brands. See the "Want / Can" section below.
 
 First market is Israel (Hebrew + Russian, Yad2 and Facebook groups), then Ukraine and Belarus. Free tier forever, 7-day Pro trial, then subscription via RevenueCat. Stylists will later get access to clients' wardrobes, so sharing is part of the data model from the start. See README.md for the full roadmap.
 
@@ -62,15 +62,39 @@ Reason: server and client use different test runners and environments (Node vs R
 2. ~~Image upload and storage: SeaweedFS locally, Cloudflare R2 (free tier) in production.~~ Done: uploads go through the API (re-encoded to a 1024 px WebP, metadata stripped) rather than presigned URLs, so nothing reaches storage unprocessed.
 3. BullMQ job queue for image processing (upload returns immediately, worker processes, client polls or gets SSE).
 4. Item tagging with a vision model: structured output validated with Zod. Tags: type, colour, fit, length, fabric, style, brand guess, condition.
-5. Background removal.
-6. Wardrobe sharing table (owner, grantee, permissions) for stylists later.
-7. Item `source` field: `own` / `resale` / `brand_partner`.
-8. "What do I wear this with?" from a single item.
-9. Declutter: keep / sell / not sure.
-10. Listing generator (Hebrew + Russian, price range), shared via the OS share sheet.
-11. "Want / Can" part 1: similar look from own wardrobe (embeddings + pgvector).
-12. Sign in with Apple / Google, free-tier limits, RevenueCat trial.
-13. Prompt evals: a few test wardrobes, scored by hand, rerun after each prompt change. Start collecting the set at step 4.
+5. Item embeddings + pgvector (image and text), the base for every "find similar" feature.
+6. Item `source` field: `own` / `resale` / `brand_partner`.
+7. **"Want / Can" from a look screenshot** (see the section below). Priority feature: one of the first things a new user tries, works even with an empty wardrobe.
+8. Background removal.
+9. Wardrobe sharing table (owner, grantee, permissions) for stylists later.
+10. "What do I wear this with?" from a single item.
+11. Declutter: keep / sell / not sure.
+12. Listing generator (Hebrew + Russian, price range), shared via the OS share sheet.
+13. Sign in with Apple / Google, free-tier limits (count AI actions per user and device), RevenueCat trial.
+14. Prompt evals: a few test wardrobes and look screenshots, scored by hand, rerun after each prompt change. Start collecting the set at step 4.
+
+## "Want / Can": look screenshot → what you have, what you can buy
+
+The user drops in a screenshot of a look they like (Pinterest, Instagram, a photo). The app splits it into items and rebuilds the look from the user's wardrobe and partner brands.
+
+Flow:
+
+1. Upload the screenshot through the existing photo pipeline (`POST /api/photos`). It is processed as a background job like other AI work.
+2. A vision model returns the items it sees, validated with a Zod schema in `shared`: for each item `category`, `color`, `cut`/`silhouette`, `length`, `fabric`, `style`, a short description, a bounding box (relative 0–1 coords) and a `confidence`. Items that are cut off or hidden are returned with low confidence or skipped; never guess.
+3. For each item, crop the screenshot by its box and search by image embedding plus text description (pgvector):
+   - first the user's own wardrobe (`source = own`);
+   - then partner brands (`brand_partner`); until partners exist, use the demo live search below behind the same interface;
+   - later resale.
+4. Result per item: `owned` (best match from the wardrobe, similarity score), `buy` (up to 3 brand items with price and link), or `missing` (nothing close enough). Thresholds live in one config so they can be tuned.
+5. Summary for the whole look: how many items the user already has ("3 of 5 from your wardrobe") and the rough cost of the rest.
+
+UI (client): screenshot at the top with item boxes, then one row per item: the detected item, the user's match or the brand options, and an honest "couldn't make out the shoes" when confidence is low. A "save as outfit" action and a share card ("I rebuilt this Pinterest look from my wardrobe") for the videos.
+
+Rules:
+- Results from brands are labelled as partner items once real partners exist; a brand never outranks a clearly better match.
+- Counts against the free-tier AI limits (one screenshot = one action, whatever the number of items).
+- The screenshot belongs to the user's private use; don't publish or reuse it anywhere.
+- Add 15–20 real look screenshots with hand-written expected items to the eval set.
 
 ## Demo: brand recommendations via live search (for pitching brands)
 
@@ -79,7 +103,7 @@ Goal: show brands and partners how the app recommends their items, before any pa
 How it works:
 
 1. A config file holds a plain list of brand sites: `server/src/modules/showroom/demo-sites.ts` exporting `DEMO_SITES: { name: string; url: string; instagram?: string }[]`. Order matters: the first sites are searched first, so before a meeting with a specific brand we move that brand to the top.
-2. Input: a user item or a "Want" screenshot. The vision model turns it into a short search description (type, colour, cut, length, fabric), validated with a Zod schema.
+2. Input: a user item or one item cropped from a "Want / Can" look screenshot. The vision model turns it into a short search description (type, colour, cut, length, fabric), validated with a Zod schema.
 3. Search only within the listed domains through a web search API that supports domain filtering (pick one, explain the choice and the cost per request). No crawling, no storing the sites' catalogs, no Instagram scraping.
 4. The model looks at the found product pages and returns the 3-5 closest items: title, price if shown, image URL, product URL, brand name, and a one-line reason why it matches.
 5. Every result links to the brand's own site.
