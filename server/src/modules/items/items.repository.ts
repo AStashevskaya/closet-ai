@@ -3,9 +3,10 @@ import type {
   Item,
   ItemDetail,
   PhotoStatus,
+  SimilarItem,
   UpdateItemInput,
 } from "@closet-ai/shared";
-import { and, desc, eq } from "drizzle-orm";
+import { and, cosineDistance, desc, eq, isNotNull, ne } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { items, photos } from "../../db/schema";
 
@@ -17,6 +18,10 @@ export interface ItemsRepository {
   // Changes only the fields given. null when the item doesn't exist or belongs to someone else.
   update(ownerId: string, itemId: string, patch: UpdateItemInput): Promise<ItemDetail | null>;
   create(ownerId: string, input: CreateItemInput): Promise<Item>;
+  // The owner's items of the same category whose photos look most like this one's, closest
+  // first. null when the item doesn't exist or belongs to someone else; empty when its photo
+  // has no embedding yet.
+  similar(ownerId: string, itemId: string, limit: number): Promise<SimilarItem[] | null>;
   // null when the item doesn't exist, belongs to someone else, or has no photo.
   photoKey(ownerId: string, itemId: string): Promise<string | null>;
   // null when there was nothing to delete (no such item, or someone else's).
@@ -92,6 +97,38 @@ export function createItemsRepository(db: Db): ItemsRepository {
             .where(eq(photos.key, row.photoKey))
         : [];
       return toItem(row, photo?.status ?? null);
+    },
+
+    async similar(ownerId, itemId, limit) {
+      const [source] = await db
+        .select({ category: items.category, embedding: photos.embedding })
+        .from(items)
+        .leftJoin(photos, eq(photos.key, items.photoKey))
+        .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
+      if (!source) return null;
+      if (!source.embedding) return [];
+
+      // Same category only: whole-photo embeddings also see the background, so a t-shirt and
+      // shorts shot on the same bed can score close.
+      const distance = cosineDistance(photos.embedding, source.embedding);
+      const rows = await db
+        .select({ item: items, photoStatus: photos.status, distance })
+        .from(items)
+        .innerJoin(photos, eq(photos.key, items.photoKey))
+        .where(
+          and(
+            eq(items.ownerId, ownerId),
+            eq(items.category, source.category),
+            ne(items.id, itemId),
+            isNotNull(photos.embedding),
+          ),
+        )
+        .orderBy(distance)
+        .limit(limit);
+      return rows.map((row) => ({
+        ...toItem(row.item, row.photoStatus),
+        similarity: 1 - Number(row.distance),
+      }));
     },
 
     async photoKey(ownerId, itemId) {

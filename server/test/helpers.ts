@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { AppLanguage, CreateItemInput, ItemTags } from "@closet-ai/shared";
+import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
+import type { ItemEmbedder } from "../src/ai/item-embedder";
 import type { ItemTagger } from "../src/ai/item-tagger";
 import type { Env } from "../src/config/env";
 import { toItem, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
+  embedPhoto,
   processUploadedPhoto,
   tagPhoto,
   type PhotoJobDeps,
@@ -26,6 +29,7 @@ export const testEnv: Env = {
   S3_ACCESS_KEY_ID: "unused",
   S3_SECRET_ACCESS_KEY: "unused",
   REDIS_URL: "redis://localhost:6379",
+  MODEL_CACHE_DIR: ".models",
 };
 
 // In-memory stand-ins for the Drizzle repositories. They share state the way the tables do:
@@ -33,7 +37,7 @@ export const testEnv: Env = {
 export function createInMemoryRepositories() {
   type ItemRow = { id: string; ownerId: string; input: CreateItemInput; createdAt: Date };
   const itemRows: ItemRow[] = [];
-  const photoRows = new Map<string, Photo & { createdAt: Date }>();
+  const photoRows = new Map<string, Photo & { createdAt: Date; embedding?: number[] }>();
 
   const toApiItem = ({ id, ownerId, input, createdAt }: ItemRow) => {
     const { photoKey = null, seasons = [], ...rest } = input;
@@ -63,6 +67,26 @@ export function createInMemoryRepositories() {
       row.input = { ...row.input, ...patch };
       return toDetail(row);
     },
+    // The Drizzle version asks pgvector; here the vectors are unit length, so cosine = dot product.
+    similar: async (ownerId, itemId, limit) => {
+      const source = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
+      if (!source) return null;
+      const embeddingOf = (row: ItemRow) =>
+        row.input.photoKey ? photoRows.get(row.input.photoKey)?.embedding : undefined;
+      const target = embeddingOf(source);
+      if (!target) return [];
+      return itemRows
+        .filter(
+          (row) =>
+            row.ownerId === ownerId &&
+            row.id !== itemId &&
+            row.input.category === source.input.category &&
+            embeddingOf(row),
+        )
+        .map((row) => ({ ...toApiItem(row), similarity: dot(embeddingOf(row)!, target) }))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit);
+    },
     photoKey: async (ownerId, itemId) =>
       itemRows.find((row) => row.ownerId === ownerId && row.id === itemId)?.input.photoKey ?? null,
     delete: async (ownerId, itemId) => {
@@ -85,7 +109,7 @@ export function createInMemoryRepositories() {
     get: async (key) => {
       const row = photoRows.get(key);
       if (!row) return null;
-      const { createdAt: _createdAt, ...photo } = row;
+      const { createdAt: _createdAt, embedding: _embedding, ...photo } = row;
       return photo;
     },
     markReady: async (key) => {
@@ -100,6 +124,14 @@ export function createInMemoryRepositories() {
       const row = photoRows.get(key);
       if (row) Object.assign(row, { tagStatus: "done", tags });
     },
+    setEmbedding: async (key, embedding) => {
+      const row = photoRows.get(key);
+      if (row) row.embedding = embedding;
+    },
+    listWithoutEmbedding: async () =>
+      [...photoRows.values()]
+        .filter((row) => row.status === "ready" && !row.embedding)
+        .map((row) => row.key),
     markTagsFailed: async (key) => {
       const row = photoRows.get(key);
       if (row) row.tagStatus = "failed";
@@ -117,7 +149,8 @@ export function createInMemoryRepositories() {
   return { itemsRepository, photosRepository };
 }
 
-type QueuedJob = { name: "process" | "tag"; key: string; lang: AppLanguage };
+type QueuedJob =
+  { name: "process" | "tag"; key: string; lang: AppLanguage } | { name: "embed"; key: string };
 
 // Records queued jobs instead of sending them to Redis; runAll plays the worker's part,
 // including the tag jobs that processing queues on the way.
@@ -130,11 +163,15 @@ export function createManualPhotoQueue() {
     enqueueTagging: async (key, lang) => {
       queued.push({ name: "tag", key, lang });
     },
+    enqueueEmbedding: async (key) => {
+      queued.push({ name: "embed", key });
+    },
   };
   async function runAll(deps: PhotoJobDeps) {
     for (let job = queued.shift(); job; job = queued.shift()) {
       if (job.name === "process") await processUploadedPhoto(deps, job.key, job.lang);
-      else await tagPhoto(deps, job.key, job.lang);
+      else if (job.name === "tag") await tagPhoto(deps, job.key, job.lang);
+      else await embedPhoto(deps, job.key);
     }
   }
   return { photoQueue, queued, runAll };
@@ -164,4 +201,25 @@ export function createStubTagger(answer: () => Promise<ItemTags> = async () => s
     },
   };
   return { tagger, calls };
+}
+
+const dot = (a: number[], b: number[]) => a.reduce((sum, x, i) => sum + x * b[i]!, 0);
+
+// A unit-length vector of the model's size whose first components are the given weights,
+// so tests can place photos closer to or further from each other.
+export function unitVector(...weights: number[]): number[] {
+  const length = Math.hypot(...weights);
+  return Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (weights[i] ?? 0) / length);
+}
+
+// Stands in for the embedding model: answers with a fixed vector and records the calls.
+export function createStubEmbedder(vector: number[] = unitVector(1)) {
+  const calls: { bytes: number }[] = [];
+  const embedder: ItemEmbedder = {
+    embedImage: async (image) => {
+      calls.push({ bytes: image.length });
+      return vector;
+    },
+  };
+  return { embedder, calls };
 }

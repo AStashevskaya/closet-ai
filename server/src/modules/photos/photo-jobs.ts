@@ -1,4 +1,5 @@
 import type { AppLanguage } from "@closet-ai/shared";
+import type { ItemEmbedder } from "../../ai/item-embedder";
 import { TaggingRefusedError, type ItemTagger } from "../../ai/item-tagger";
 import type { PhotoQueue } from "../../queue/photo-queue";
 import type { Storage } from "../../storage/storage";
@@ -10,7 +11,9 @@ export interface PhotoJobDeps {
   storage: Storage;
   // null when no API key is configured: photos are processed but not tagged.
   tagger: ItemTagger | null;
-  queue: Pick<PhotoQueue, "enqueueTagging">;
+  // null where the model isn't loaded (tests that don't need it).
+  embedder: ItemEmbedder | null;
+  queue: Pick<PhotoQueue, "enqueueTagging" | "enqueueEmbedding">;
 }
 
 // A photo that can never be processed (not an image after all, original gone).
@@ -20,7 +23,7 @@ export class PermanentPhotoError extends Error {}
 // Job "process": turns the uploaded original into the stored WebP. Safe to run twice:
 // a photo that is no longer "processing" is left alone.
 export async function processUploadedPhoto(
-  { photos, storage, queue }: PhotoJobDeps,
+  { photos, storage, queue, embedder }: PhotoJobDeps,
   key: string,
   lang: AppLanguage,
 ) {
@@ -45,6 +48,19 @@ export async function processUploadedPhoto(
   // Tagging is its own job with its own retries: a slow or failing model never holds up the photo.
   // It reads the small WebP, which is also what keeps the model call cheap.
   if (photo.tagStatus === "pending") await queue.enqueueTagging(photo.key, lang);
+  if (embedder) await queue.enqueueEmbedding(photo.key);
+}
+
+// Job "embed": computes the photo's embedding for "find similar". Running it twice just
+// computes the same vector again.
+export async function embedPhoto({ photos, storage, embedder }: PhotoJobDeps, key: string) {
+  if (!embedder) return;
+  const photo = await photos.get(key);
+  if (!photo || photo.status !== "ready") return;
+
+  const file = await storage.get(photo.key);
+  if (!file) throw new PermanentPhotoError("processed photo is missing from storage");
+  await photos.setEmbedding(photo.key, await embedder.embedImage(file.body));
 }
 
 // Job "tag": asks the vision model what the item is. Safe to run twice: only a ready photo

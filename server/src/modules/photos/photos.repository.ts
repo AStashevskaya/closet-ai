@@ -25,6 +25,9 @@ export interface PhotosRepository {
   markReady(key: string): Promise<void>;
   markFailed(key: string): Promise<void>;
   setTags(key: string, tags: ItemTags): Promise<void>;
+  setEmbedding(key: string, embedding: number[]): Promise<void>;
+  // Ready photos that have no embedding yet: what the backfill script queues.
+  listWithoutEmbedding(): Promise<string[]>;
   markTagsFailed(key: string): Promise<void>;
   // Photos created before `before` that no item points to.
   listUnattached(before: Date): Promise<Photo[]>;
@@ -61,6 +64,18 @@ export function createPhotosRepository(db: Db): PhotosRepository {
 
     async setTags(key, tags) {
       await db.update(photos).set({ tagStatus: "done", tags }).where(eq(photos.key, key));
+    },
+
+    async setEmbedding(key, embedding) {
+      await db.update(photos).set({ embedding }).where(eq(photos.key, key));
+    },
+
+    async listWithoutEmbedding() {
+      const rows = await db
+        .select({ key: photos.key })
+        .from(photos)
+        .where(and(eq(photos.status, "ready"), isNull(photos.embedding)));
+      return rows.map((row) => row.key);
     },
 
     async markTagsFailed(key) {

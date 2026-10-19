@@ -1,4 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { createFashionSiglipEmbedder } from "./ai/item-embedder";
 import { createClaudeItemTagger } from "./ai/item-tagger";
 import { buildApp } from "./app";
 import { createAuth } from "./auth/auth";
@@ -26,6 +27,8 @@ const worker = createPhotoWorker(env.REDIS_URL, {
   photos: photosRepository,
   storage: s3.storage,
   tagger,
+  // The model loads on the first embed job; the first run downloads it into MODEL_CACHE_DIR.
+  embedder: createFashionSiglipEmbedder(env.MODEL_CACHE_DIR),
   queue: queue.photoQueue,
 });
 await queue.scheduleCleanup();
