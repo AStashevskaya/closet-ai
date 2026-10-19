@@ -61,7 +61,7 @@ Reason: server and client use different test runners and environments (Node vs R
 1. ~~Basic auth: email + password via Better Auth, sessions in Postgres, cookie in `expo-secure-store`, `/api/items` protected, items get `owner_id`.~~ Done.
 2. ~~Image upload and storage: SeaweedFS locally, Cloudflare R2 (free tier) in production.~~ Done: uploads go through the API (re-encoded to a 1024 px WebP, metadata stripped) rather than presigned URLs, so nothing reaches storage unprocessed.
 3. ~~BullMQ job queue for image processing (upload returns immediately, worker processes, client polls or gets SSE).~~ Done: the client polls; the worker also cleans up unattached photos.
-4. Item tagging with a vision model: structured output validated with Zod. Tags: type, colour, fit, length, fabric, style, brand guess, condition.
+4. Item tagging with a vision model: structured output validated with Zod. Tags: type, colour, fit, length, fabric, style, brand guess, condition, seasons. Seasons are filled by the model, not asked in the add-item form (an extra step people skip or guess at; type and fabric give it away); the user can correct them on the item. An all-season item gets all four, so an empty list only ever means "not tagged yet".
 5. Item embeddings + pgvector (image and text), the base for every "find similar" feature.
 6. Item `source` field: `own` / `resale` / `brand_partner`.
 7. **"Want / Can" from a look screenshot** (see the section below). Priority feature: one of the first things a new user tries, works even with an empty wardrobe.
@@ -70,7 +70,7 @@ Reason: server and client use different test runners and environments (Node vs R
 10. "What do I wear this with?" from a single item.
 11. Declutter: keep / sell / not sure.
 12. Listing generator (Hebrew + Russian, price range), shared via the OS share sheet.
-13. Sign in with Apple / Google, free-tier limits (count AI actions per user and device), RevenueCat trial.
+13. Sign in with Apple / Google, free-tier limits (count AI actions per user and device), RevenueCat trial. Want / Can split between free and Premium: see "Free and Premium" in the Want / Can section.
 14. Prompt evals: a few test wardrobes and look screenshots, scored by hand, rerun after each prompt change. Start collecting the set at step 4.
 
 ## "Want / Can": look screenshot → what you have, what you can buy
@@ -93,6 +93,21 @@ UI (client): screenshot at the top with item boxes, then one row per item: the d
 Rules:
 - Results from brands are labelled as partner items once real partners exist; a brand never outranks a clearly better match.
 - Counts against the free-tier AI limits (one screenshot = one action, whatever the number of items).
+
+Free and Premium (decided 2026-10-19):
+
+| | Free | Premium |
+|---|---|---|
+| Look screenshots | 3–5 per month | unlimited |
+| Matches from the user's wardrobe | yes | yes |
+| Partner brand options | yes | yes |
+| Save the look as an outfit, history of looks | no | yes |
+| "Sell what you don't wear to afford it" (listing on Yad2) | no | yes |
+| Price comparison and sale alerts | no | yes |
+
+Why not Premium-only: Want / Can is what a new user tries first and what the share cards spread, so a paywall at the first screenshot loses people before they see it work. A free look costs about $0.002 (vision model + our own pgvector search). Brand options stay free because partners pay for impressions and clicks: hiding them would shrink what we can offer partners. The limit is set by value, not cost: users hit it once the feature is a habit, which is when the trial and the subscription are offered.
+
+Cost (estimates, October 2026; check before committing): recognising the items in a screenshot is ~$0.001 on Claude Haiku 5.5 (compare with Gemini Flash on the eval set, mainly for box accuracy); wardrobe and partner-catalog search run on our own Postgres. The live brand search below (~$5–8 per 1,000 searches) is the only expensive part, and it is demo-only.
 - The screenshot belongs to the user's private use; don't publish or reuse it anywhere.
 - Add 15–20 real look screenshots with hand-written expected items to the eval set.
 
