@@ -378,6 +378,7 @@ describe("tagging", () => {
       status: "processing",
       tagStatus: "pending",
       tags: null,
+      lookItems: null,
     });
 
     await runWorker();
@@ -385,6 +386,7 @@ describe("tagging", () => {
       status: "ready",
       tagStatus: "done",
       tags: shirtTags,
+      lookItems: null,
     });
     // One call, on the small WebP rather than the 3000 px original.
     expect(stub.calls).toHaveLength(1);
@@ -435,12 +437,13 @@ describe("tagging", () => {
       status: "ready",
       tagStatus: null,
       tags: null,
+      lookItems: null,
     });
   });
 
   it("treats a refusal as final, and other errors as worth a retry", async () => {
     const refused = await setup({
-      tagger: { tag: () => Promise.reject(new TaggingRefusedError("declined")) },
+      tagger: createStubTagger(() => Promise.reject(new TaggingRefusedError("declined"))).tagger,
     });
     const cookie = await signUp(refused, "anna@example.com");
     await upload(refused, cookie, await cameraPhoto());
@@ -448,7 +451,7 @@ describe("tagging", () => {
     await refused.close();
 
     const flaky = await setup({
-      tagger: { tag: () => Promise.reject(new Error("overloaded")) },
+      tagger: createStubTagger(() => Promise.reject(new Error("overloaded"))).tagger,
     });
     const other = await signUp(flaky, "maya@example.com");
     const { photoKey } = (await upload(flaky, other, await cameraPhoto())).json<UploadedPhoto>();
@@ -626,5 +629,116 @@ describe("background removal", () => {
     await server.inject({ method: "DELETE", url: `/api/items/${id}`, headers: { cookie } });
     expect(await storage.exists(cutoutKey)).toBe(false);
     expect(await storage.exists(photoKey)).toBe(false);
+  });
+});
+
+describe("items from a look photo", () => {
+  const status = (server: App, cookie: string, key: string) =>
+    server.inject({
+      method: "GET",
+      url: `/api/photos/status?key=${encodeURIComponent(key)}`,
+      headers: { cookie },
+    });
+
+  const uploadLook = async (server: App, cookie: string) =>
+    (
+      await upload(server, cookie, await cameraPhoto(), "image/jpeg", "?lang=ru&kind=look")
+    ).json<UploadedPhoto>().photoKey;
+
+  const addFromLook = (server: App, cookie: string, payload: object) =>
+    server.inject({ method: "POST", url: "/api/photos/look-items", headers: { cookie }, payload });
+
+  const picked = (index: number, name: string, category = "top") => ({
+    index,
+    name,
+    category,
+    colors: ["pink"],
+    seasons: ["summer"],
+  });
+
+  it("finds the items on a look and neither cuts it out nor embeds it", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const photoKey = await uploadLook(server, cookie);
+
+    await runWorker();
+    expect(stub.calls).toEqual([expect.objectContaining({ kind: "look", lang: "ru" })]);
+    expect(embedding.calls).toEqual([]);
+    const state = (await status(server, cookie, photoKey)).json<PhotoState>();
+    expect(state).toMatchObject({ status: "ready", tagStatus: "done", tags: null });
+    expect(state.lookItems!.map((item) => item.name)).toEqual([
+      "Pink mesh top",
+      "Blue wide-leg jeans",
+    ]);
+  });
+
+  it("adds the picked items, each with the look cropped to its box", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const photoKey = await uploadLook(server, cookie);
+    await runWorker();
+
+    const res = await addFromLook(server, cookie, {
+      photoKey,
+      items: [picked(1, "Мои любимые джинсы", "bottom")],
+    });
+    expect(res.statusCode).toBe(201);
+    const [jeans] = res.json<Item[]>();
+    expect(jeans).toMatchObject({
+      name: "Мои любимые джинсы",
+      category: "bottom",
+      photoStatus: "ready",
+    });
+
+    // The crop is the jeans' box (60% × 50% of the 1024 × 683 look) plus a small margin.
+    const photo = await server.inject({
+      method: "GET",
+      url: jeans!.photoUrl!,
+      headers: { cookie },
+    });
+    const { width = 0, height = 0 } = await sharp(photo.rawPayload).metadata();
+    expect(width).toBeGreaterThan(600);
+    expect(width).toBeLessThan(700);
+    expect(height).toBeGreaterThan(330);
+    expect(height).toBeLessThan(390);
+
+    // The model's details stay on the item; the user's name and colours win.
+    const detail = (
+      await server.inject({ method: "GET", url: `/api/items/${jeans!.id}`, headers: { cookie } })
+    ).json<ItemDetail>();
+    expect(detail.tags).toMatchObject({ fabric: "denim", colors: ["pink"], recognized: true });
+
+    // Embedded, but not cut out: the crop shows the person wearing it.
+    expect(queue.queued.map((job) => job.name)).toEqual(["embed"]);
+    await runWorker();
+    expect(embedding.calls).toHaveLength(1);
+    expect(detail.cutoutUrl).toBeUndefined();
+  });
+
+  it("refuses someone else's look, a look not read yet, a missing item and an item photo", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const look = await uploadLook(server, anna);
+
+    expect(
+      (await addFromLook(server, anna, { photoKey: look, items: [picked(0, "Top")] })).statusCode,
+    ).toBe(409);
+    await runWorker();
+    expect(
+      (await addFromLook(server, maya, { photoKey: look, items: [picked(0, "Top")] })).statusCode,
+    ).toBe(404);
+    expect(
+      (await addFromLook(server, anna, { photoKey: look, items: [picked(5, "Top")] })).statusCode,
+    ).toBe(400);
+
+    const { photoKey: itemPhoto } = (
+      await upload(server, anna, await cameraPhoto())
+    ).json<UploadedPhoto>();
+    await runWorker();
+    expect(
+      (await addFromLook(server, anna, { photoKey: itemPhoto, items: [picked(0, "Top")] }))
+        .statusCode,
+    ).toBe(404);
   });
 });

@@ -97,12 +97,33 @@ export const TAG_STATUSES = ["pending", "done", "failed"] as const;
 export const tagStatus = z.enum(TAG_STATUSES);
 export type TagStatus = z.infer<typeof tagStatus>;
 
+// A photo of one item (the add-item form), or of a whole outfit (a mirror selfie): the model
+// then lists every item it sees, and the user picks which to add to the wardrobe.
+export const PHOTO_KINDS = ["item", "look"] as const;
+export const photoKind = z.enum(PHOTO_KINDS);
+export type PhotoKind = z.infer<typeof photoKind>;
+
+// Where an item is in its photo, relative to the image: 0..1 from the left and top edges.
+export const itemBox = z.object({
+  xMin: z.number().min(0).max(1),
+  yMin: z.number().min(0).max(1),
+  xMax: z.number().min(0).max(1),
+  yMax: z.number().min(0).max(1),
+});
+export type ItemBox = z.infer<typeof itemBox>;
+
+// One item found on a look photo: its tags and its box.
+export const lookItem = itemTags.omit({ recognized: true }).extend({ box: itemBox });
+export type LookItem = z.infer<typeof lookItem>;
+
 // Response of GET /api/photos/status: the app polls it while the add-item form is open.
 export const photoState = z.object({
   status: photoStatus,
   // null when tagging is off (no API key configured).
   tagStatus: tagStatus.nullable(),
   tags: itemTags.nullable(),
+  // A look photo's items once found (empty when none); null for item photos and until then.
+  lookItems: z.array(lookItem).nullable(),
 });
 export type PhotoState = z.infer<typeof photoState>;
 
@@ -128,3 +149,23 @@ export type UpdateItemInput = z.infer<typeof updateItemInput>;
 export const similarItem = item.extend({ similarity: z.number() });
 export type SimilarItem = z.infer<typeof similarItem>;
 export const similarItems = z.array(similarItem);
+
+// Body of POST /api/photos/look-items: which of a look photo's items to add to the wardrobe,
+// with the user's corrections. Each becomes an item whose photo is that part of the look.
+export const addLookItemsInput = z.object({
+  photoKey: z.string().max(200),
+  items: z
+    .array(
+      z.object({
+        // Position in the photo's lookItems.
+        index: z.number().int().min(0),
+        name: createItemInput.shape.name,
+        category: itemCategory,
+        colors: createItemInput.shape.colors,
+        seasons: z.array(season),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
+export type AddLookItemsInput = z.infer<typeof addLookItemsInput>;

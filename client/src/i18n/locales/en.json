@@ -154,5 +154,21 @@
     "delete": "Delete item",
     "loadError": "Couldn't load the item.",
     "saveError": "Couldn't save the changes. Try again."
+  },
+  "addLook": {
+    "title": "Outfit from a selfie",
+    "intro": "Take a mirror selfie or pick one: the app finds every item you’re wearing, and you choose which to add to your closet.",
+    "finding": "Looking for the items you’re wearing…",
+    "found": "Found {{count}} items — untick what you don’t need",
+    "none": "Couldn’t find clothes on this photo. Try another one, full length.",
+    "add_one": "Add {{count}} item",
+    "add_other": "Add {{count}} items",
+    "pickAnother": "Choose another photo",
+    "entry": "A whole outfit? Add every item from a selfie",
+    "errors": {
+      "find": "Couldn’t read this photo. Try again.",
+      "save": "Couldn’t add the items. Try again.",
+      "empty": "Tick at least one item"
+    }
   }
 }

@@ -1,11 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { APP_LANGUAGES, photoState, uploadedPhoto } from "@closet-ai/shared";
+import {
+  addLookItemsInput,
+  APP_LANGUAGES,
+  itemList,
+  PHOTO_KINDS,
+  photoState,
+  uploadedPhoto,
+} from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { PhotoQueue } from "../../queue/photo-queue";
+import type { ItemsRepository } from "../items/items.repository";
+import { addItemsFromLook } from "./look-items";
 import type { Storage } from "../../storage/storage";
 import type { PhotosRepository } from "./photos.repository";
 import { checkPhoto, UnsupportedPhotoError } from "./process-photo";
@@ -19,6 +28,7 @@ export const photosRoutes =
   (
     storage: Storage,
     photos: PhotosRepository,
+    items: ItemsRepository,
     queue: PhotoQueue,
     auth: Auth,
     // false when no API key is configured: photos are processed but not tagged.
@@ -34,8 +44,12 @@ export const photosRoutes =
       "/photos",
       {
         schema: {
-          // The language for the suggested item name (the app's current language).
-          querystring: z.object({ lang: z.enum(APP_LANGUAGES).default("en") }),
+          // The language for the suggested item name (the app's current language), and
+          // whether the photo shows one item or a whole outfit to pick items from.
+          querystring: z.object({
+            lang: z.enum(APP_LANGUAGES).default("en"),
+            kind: z.enum(PHOTO_KINDS).default("item"),
+          }),
           response: { 201: uploadedPhoto },
         },
       },
@@ -62,6 +76,7 @@ export const photosRoutes =
           key: photoKey,
           ownerId: user.id,
           uploadKey,
+          kind: request.query.kind,
           tagStatus: taggingEnabled ? "pending" : null,
         });
         // If queueing fails the request fails too; the row is never attached and the cleanup job removes it.
@@ -86,7 +101,30 @@ export const photosRoutes =
         if (!photo || photo.ownerId !== (request.user as SessionUser).id) {
           throw httpError(404, "photo not found");
         }
-        return { status: photo.status, tagStatus: photo.tagStatus, tags: photo.tags };
+        return {
+          status: photo.status,
+          tagStatus: photo.tagStatus,
+          tags: photo.tags,
+          lookItems: photo.lookItems,
+        };
+      },
+    );
+
+    // Adds the items the user picked from a look photo to the wardrobe.
+    app.post(
+      "/photos/look-items",
+      { schema: { body: addLookItemsInput, response: { 201: itemList } } },
+      async (request, reply) => {
+        const user = request.user as SessionUser;
+        const result = await addItemsFromLook(
+          { photos, items, storage, queue },
+          user.id,
+          request.body,
+        );
+        if (result === "not-found") throw httpError(404, "photo not found");
+        if (result === "not-ready") throw httpError(409, "the photo's items are not found yet");
+        if (result === "bad-index") throw httpError(400, "no such item on the photo");
+        return reply.code(201).send(result);
       },
     );
   };

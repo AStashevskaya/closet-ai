@@ -73,9 +73,12 @@ export async function buildApp({
   await app.register(itemsRoutes(itemsRepository, photosRepository, storage, auth), {
     prefix: "/api",
   });
-  await app.register(photosRoutes(storage, photosRepository, photoQueue, auth, taggingEnabled), {
-    prefix: "/api",
-  });
+  await app.register(
+    photosRoutes(storage, photosRepository, itemsRepository, photoQueue, auth, taggingEnabled),
+    {
+      prefix: "/api",
+    },
+  );
 
   return app;
 }

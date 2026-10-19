@@ -71,3 +71,23 @@ export async function processCutout(png: Uint8Array): Promise<Uint8Array> {
 export async function flattenOnWhite(image: Uint8Array): Promise<Uint8Array> {
   return sharp(image).flatten({ background: "#ffffff" }).png().toBuffer();
 }
+
+// Room added around an item's box, as a share of the photo's sides: the model's boxes sit
+// tight, and a little context reads better than an item cut at its edges.
+const CROP_MARGIN = 0.03;
+
+// Crops one item out of a stored look photo by its box (relative 0..1), as a WebP.
+export async function cropToBox(
+  image: Uint8Array,
+  box: { xMin: number; yMin: number; xMax: number; yMax: number },
+): Promise<Uint8Array> {
+  const { width = 0, height = 0 } = await sharp(image).metadata();
+  const left = Math.max(0, Math.floor((box.xMin - CROP_MARGIN) * width));
+  const top = Math.max(0, Math.floor((box.yMin - CROP_MARGIN) * height));
+  const right = Math.min(width, Math.ceil((box.xMax + CROP_MARGIN) * width));
+  const bottom = Math.min(height, Math.ceil((box.yMax + CROP_MARGIN) * height));
+  return sharp(image)
+    .extract({ left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) })
+    .webp({ quality: WEBP_QUALITY, effort: 6 })
+    .toBuffer();
+}

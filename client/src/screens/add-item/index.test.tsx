@@ -10,8 +10,9 @@ import { AddItem } from '.';
 
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockBack = jest.fn();
+const mockReplace = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, replace: mockReplace }) }));
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(),
   launchCameraAsync: jest.fn(),
@@ -41,7 +42,9 @@ beforeEach(async () => {
   jest.mocked(uploadPhoto).mockResolvedValue('photos/u1/p1.webp');
   jest.mocked(createItem).mockResolvedValue({} as never);
   // Tagging off unless a test turns it on, so the form stays as the test fills it.
-  jest.mocked(getPhotoState).mockResolvedValue({ status: 'ready', tagStatus: null, tags: null });
+  jest
+    .mocked(getPhotoState)
+    .mockResolvedValue({ status: 'ready', tagStatus: null, tags: null, lookItems: null });
 });
 
 const tags: ItemTags = {
@@ -62,8 +65,8 @@ const tags: ItemTags = {
 function tagAfterOnePoll(result: ItemTags) {
   jest
     .mocked(getPhotoState)
-    .mockResolvedValueOnce({ status: 'ready', tagStatus: 'pending', tags: null })
-    .mockResolvedValue({ status: 'ready', tagStatus: 'done', tags: result });
+    .mockResolvedValueOnce({ status: 'ready', tagStatus: 'pending', tags: null, lookItems: null })
+    .mockResolvedValue({ status: 'ready', tagStatus: 'done', tags: result, lookItems: null });
 }
 
 async function fillForm() {
@@ -75,6 +78,17 @@ async function fillForm() {
 }
 
 describe('<AddItem />', () => {
+  test('offers a whole outfit from a selfie until a photo is picked', async () => {
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('A whole outfit? Add every item from a selfie'));
+    expect(mockReplace).toHaveBeenCalledWith('/add-look');
+
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    expect(
+      screen.queryByText('A whole outfit? Add every item from a selfie'),
+    ).not.toBeOnTheScreen();
+  });
+
   test('shrinks the photo, uploads it, then creates the item', async () => {
     await render(<AddItem />);
     await fillForm();

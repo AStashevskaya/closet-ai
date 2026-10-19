@@ -1,4 +1,4 @@
-import type { ItemTags, PhotoStatus, TagStatus } from "@closet-ai/shared";
+import type { ItemTags, LookItem, PhotoKind, PhotoStatus, TagStatus } from "@closet-ai/shared";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { items, photos } from "../../db/schema";
@@ -8,8 +8,10 @@ export interface Photo {
   ownerId: string;
   uploadKey: string | null;
   status: PhotoStatus;
+  kind: PhotoKind;
   tagStatus: TagStatus | null;
   tags: ItemTags | null;
+  lookItems: LookItem[] | null;
   cutoutKey: string | null;
 }
 
@@ -19,13 +21,19 @@ export interface PhotosRepository {
     key: string;
     ownerId: string;
     uploadKey: string;
+    // "item" when not given.
+    kind?: PhotoKind;
     tagStatus: "pending" | null;
   }): Promise<void>;
+  // A photo made by the server from another one (an item cropped out of a look): stored
+  // already, so it starts out ready, with the tags it was made with.
+  createReady(photo: { key: string; ownerId: string; tags: ItemTags }): Promise<void>;
   get(key: string): Promise<Photo | null>;
   // The processed WebP is stored and the original deleted.
   markReady(key: string): Promise<void>;
   markFailed(key: string): Promise<void>;
   setTags(key: string, tags: ItemTags): Promise<void>;
+  setLookItems(key: string, items: LookItem[]): Promise<void>;
   setEmbedding(key: string, embedding: number[]): Promise<void>;
   setCutout(key: string, cutoutKey: string): Promise<void>;
   // Ready photos with no cut-out yet: what the cut-out backfill script queues.
@@ -44,14 +52,20 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     ownerId: photos.ownerId,
     uploadKey: photos.uploadKey,
     status: photos.status,
+    kind: photos.kind,
     tagStatus: photos.tagStatus,
     tags: photos.tags,
+    lookItems: photos.lookItems,
     cutoutKey: photos.cutoutKey,
   };
 
   return {
     async create(photo) {
       await db.insert(photos).values(photo);
+    },
+
+    async createReady(photo) {
+      await db.insert(photos).values({ ...photo, status: "ready", tagStatus: "done" });
     },
 
     async get(key) {
@@ -69,6 +83,10 @@ export function createPhotosRepository(db: Db): PhotosRepository {
 
     async setTags(key, tags) {
       await db.update(photos).set({ tagStatus: "done", tags }).where(eq(photos.key, key));
+    },
+
+    async setLookItems(key, lookItems) {
+      await db.update(photos).set({ tagStatus: "done", lookItems }).where(eq(photos.key, key));
     },
 
     async setEmbedding(key, embedding) {
