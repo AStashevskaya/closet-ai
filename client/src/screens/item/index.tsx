@@ -10,7 +10,6 @@ import {
   type SimilarItem,
 } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -29,15 +28,9 @@ import {
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Chip } from '@/components/chip';
+import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
-import {
-  absoluteUrl,
-  deleteItem,
-  getItem,
-  getSimilarItems,
-  sessionHeaders,
-  updateItem,
-} from '@/lib/api';
+import { deleteItem, getItem, getSimilarItems, sessionHeaders, updateItem } from '@/lib/api';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -185,17 +178,7 @@ export function ItemScreen({ id }: { id: string }) {
         automaticallyAdjustKeyboardInsets
         keyboardDismissMode="interactive"
       >
-        {item.photoUrl && headers ? (
-          <Image
-            source={{ uri: absoluteUrl(item.photoUrl), headers }}
-            style={styles.photo}
-            contentFit="cover"
-            transition={200}
-            accessibilityIgnoresInvertColors
-          />
-        ) : (
-          <View style={[styles.photo, styles.photoEmpty]} />
-        )}
+        <ItemPhoto item={item} headers={headers} style={styles.photo} />
 
         <Text style={styles.label}>{t('addItem.name')}</Text>
         <TextInput
@@ -268,17 +251,7 @@ export function ItemScreen({ id }: { id: string }) {
                     accessibilityRole="button"
                     accessibilityLabel={other.name}
                   >
-                    {other.photoUrl ? (
-                      <Image
-                        source={{ uri: absoluteUrl(other.photoUrl), headers }}
-                        style={styles.similarPhoto}
-                        contentFit="cover"
-                        transition={200}
-                        accessibilityIgnoresInvertColors
-                      />
-                    ) : (
-                      <View style={[styles.similarPhoto, styles.photoEmpty]} />
-                    )}
+                    <ItemPhoto item={other} headers={headers} style={styles.similarPhoto} />
                     <Text style={styles.similarName} numberOfLines={2}>
                       {other.name}
                     </Text>
@@ -381,9 +354,6 @@ const styles = StyleSheet.create({
     width: '80%',
     aspectRatio: 3 / 4,
     borderRadius: 20,
-  },
-  photoEmpty: {
-    backgroundColor: colors.hero,
   },
   label: {
     marginTop: 12,

@@ -25,6 +25,9 @@ import { ClosetCard } from './card';
 import { CategoryFilter, type Filter } from './category-filter';
 
 const PHOTO_POLL_MS = 1500;
+// The cut-out follows a few seconds after the photo. A new item without one is checked again
+// for this long; after that removal is off or failed, and the photo stays as it is.
+const CUTOUT_WAIT_MS = 20_000;
 
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: Item[] };
 
@@ -74,11 +77,20 @@ export function Closet() {
     void loadHeaders();
   }, []);
 
-  // The server shrinks new photos in the background, usually within a second or two.
-  // While any is still processing, check again shortly; each load schedules the next one.
+  // The server shrinks new photos in the background, usually within a second or two, then
+  // removes their background. While any is still processing, or a new one has no cut-out yet,
+  // check again shortly; each load schedules the next one.
   useEffect(() => {
+    const now = Date.now();
     const waiting =
-      state.status === 'ready' && state.items.some((item) => item.photoStatus === 'processing');
+      state.status === 'ready' &&
+      state.items.some(
+        (item) =>
+          item.photoStatus === 'processing' ||
+          (item.photoStatus === 'ready' &&
+            !item.cutoutUrl &&
+            now - Date.parse(item.createdAt) < CUTOUT_WAIT_MS),
+      );
     if (!waiting) return;
     const timer = setTimeout(() => void load(), PHOTO_POLL_MS);
     return () => clearTimeout(timer);

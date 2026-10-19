@@ -156,6 +156,18 @@ describe('<Closet />', () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 
+  test('checks again until a new photo has its cut-out', async () => {
+    const fresh = { ...shirt, photoStatus: 'ready' as const, createdAt: new Date().toISOString() };
+    list
+      .mockResolvedValueOnce([fresh])
+      .mockResolvedValue([{ ...fresh, cutoutUrl: `${shirt.photoUrl}?variant=cutout` }]);
+    await render(<Closet />);
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   test('opens the item screen from a card, except in edit mode', async () => {
     list.mockResolvedValue([shirt]);
     await render(<Closet />);

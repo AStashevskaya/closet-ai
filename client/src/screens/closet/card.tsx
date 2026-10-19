@@ -1,12 +1,11 @@
 import type { Item } from '@closet-ai/shared';
-import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
-import { absoluteUrl } from '@/lib/api';
 import { CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -74,17 +73,7 @@ export function ClosetCard({
           if (event.nativeEvent.actionName === 'delete') onDelete();
         }}
       >
-        {item.photoUrl && headers ? (
-          <Image
-            source={{ uri: absoluteUrl(item.photoUrl), headers }}
-            style={styles.photo}
-            contentFit="cover"
-            transition={200}
-            accessibilityIgnoresInvertColors
-          />
-        ) : (
-          <View style={styles.photo} />
-        )}
+        <ItemPhoto item={item} headers={headers} style={styles.photo} />
         <Text style={styles.name} numberOfLines={2}>
           {item.name}
         </Text>
@@ -124,7 +113,6 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 3 / 4,
     borderRadius: 18,
-    backgroundColor: colors.hero,
   },
   name: {
     marginTop: 6,
