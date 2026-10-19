@@ -153,7 +153,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
               {submitting ? (
                 <ActivityIndicator color={colors.onAccent} />
               ) : (
-                <Text style={styles.buttonText}>{t(isSignUp ? 'auth.signUp' : 'auth.signIn')}</Text>
+                <Text style={styles.buttonText}>
+                  {t(isSignUp ? 'auth.signUp' : 'auth.signIn')}
+                </Text>
               )}
             </Pressable>
 
