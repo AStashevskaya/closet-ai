@@ -140,6 +140,18 @@ describe('<Closet />', () => {
     });
   });
 
+  test('checks again until a new photo has been processed', async () => {
+    list
+      .mockResolvedValueOnce([{ ...shirt, photoUrl: undefined, photoStatus: 'processing' }])
+      .mockResolvedValue([{ ...shirt, photoStatus: 'ready' }]);
+    await render(<Closet />);
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    // Ready now, so no further polling.
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   describe('deleting an item', () => {
     test('Edit shows a delete button on each card, Done hides it', async () => {
       list.mockResolvedValue([shirt]);

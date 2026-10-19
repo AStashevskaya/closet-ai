@@ -19,7 +19,10 @@ const fetchMock = jest.fn();
 const append = jest.spyOn(FormData.prototype, 'append');
 
 beforeEach(() => {
-  fetchMock.mockResolvedValue({ ok: true, json: async () => ({ photoKey: 'photos/u1/p1.webp' }) });
+  fetchMock.mockResolvedValue({
+    ok: true,
+    json: async () => ({ photoKey: 'photos/u1/p1.webp', status: 'processing' }),
+  });
   globalThis.fetch = fetchMock;
 });
 
