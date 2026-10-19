@@ -10,6 +10,7 @@ export interface Photo {
   status: PhotoStatus;
   tagStatus: TagStatus | null;
   tags: ItemTags | null;
+  cutoutKey: string | null;
 }
 
 export interface PhotosRepository {
@@ -26,6 +27,9 @@ export interface PhotosRepository {
   markFailed(key: string): Promise<void>;
   setTags(key: string, tags: ItemTags): Promise<void>;
   setEmbedding(key: string, embedding: number[]): Promise<void>;
+  setCutout(key: string, cutoutKey: string): Promise<void>;
+  // Ready photos with no cut-out yet: what the cut-out backfill script queues.
+  listWithoutCutout(): Promise<string[]>;
   // Ready photos that have no embedding yet: what the backfill script queues.
   listWithoutEmbedding(): Promise<string[]>;
   markTagsFailed(key: string): Promise<void>;
@@ -42,6 +46,7 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     status: photos.status,
     tagStatus: photos.tagStatus,
     tags: photos.tags,
+    cutoutKey: photos.cutoutKey,
   };
 
   return {
@@ -68,6 +73,18 @@ export function createPhotosRepository(db: Db): PhotosRepository {
 
     async setEmbedding(key, embedding) {
       await db.update(photos).set({ embedding }).where(eq(photos.key, key));
+    },
+
+    async setCutout(key, cutoutKey) {
+      await db.update(photos).set({ cutoutKey }).where(eq(photos.key, key));
+    },
+
+    async listWithoutCutout() {
+      const rows = await db
+        .select({ key: photos.key })
+        .from(photos)
+        .where(and(eq(photos.status, "ready"), isNull(photos.cutoutKey)));
+      return rows.map((row) => row.key);
     },
 
     async listWithoutEmbedding() {

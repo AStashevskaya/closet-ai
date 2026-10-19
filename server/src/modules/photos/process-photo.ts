@@ -48,3 +48,26 @@ export async function processPhoto(input: Uint8Array): Promise<Uint8Array> {
     .webp({ quality: WEBP_QUALITY, effort: 6 })
     .toBuffer();
 }
+
+// Room left around a cut-out item, as a share of its longer side, so it doesn't touch the edges
+// of a card.
+const CUTOUT_PADDING = 0.06;
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+
+// Turns the background remover's PNG into the stored cut-out: the empty margins trimmed, a
+// little even padding added back, WebP with transparency.
+export async function processCutout(png: Uint8Array): Promise<Uint8Array> {
+  const trimmed = await sharp(png).trim({ background: TRANSPARENT, threshold: 10 }).toBuffer();
+  const { width = 0, height = 0 } = await sharp(trimmed).metadata();
+  const pad = Math.round(Math.max(width, height) * CUTOUT_PADDING);
+  return sharp(trimmed)
+    .extend({ top: pad, bottom: pad, left: pad, right: pad, background: TRANSPARENT })
+    .webp({ quality: WEBP_QUALITY, alphaQuality: 90, effort: 6 })
+    .toBuffer();
+}
+
+// The cut-out on white, for models that read colour pixels only: transparent pixels would
+// otherwise come through as whatever colour they happen to hold.
+export async function flattenOnWhite(image: Uint8Array): Promise<Uint8Array> {
+  return sharp(image).flatten({ background: "#ffffff" }).png().toBuffer();
+}

@@ -3,6 +3,7 @@ import { Queue, UnrecoverableError, Worker, type Job } from "bullmq";
 import {
   deleteUnattachedPhotos,
   PermanentPhotoError,
+  cutOutPhoto,
   embedPhoto,
   processUploadedPhoto,
   tagPhoto,
@@ -13,21 +14,23 @@ const QUEUE_NAME = "photos";
 
 // The language travels with the jobs: the tagger writes the suggested name in it.
 type PhotoJobData = { key: string; lang: AppLanguage };
-type JobName = "process" | "tag" | "embed" | "cleanup";
+type JobName = "process" | "tag" | "cutout" | "embed" | "cleanup";
 
 // What the API and the jobs need from the queue; tests swap in a fake.
 export interface PhotoQueue {
   enqueueProcessing(key: string, lang: AppLanguage): Promise<void>;
   enqueueTagging(key: string, lang: AppLanguage): Promise<void>;
+  enqueueCutout(key: string): Promise<void>;
   enqueueEmbedding(key: string): Promise<void>;
 }
 
 // Same photo, same job id: a double request doesn't process or tag it twice.
 // BullMQ refuses custom ids with ":" (it uses it in its Redis keys), and storage keys have "/".
-const jobId = (name: "process" | "tag" | "embed", key: string) =>
+const jobId = (name: Exclude<JobName, "cleanup">, key: string) =>
   `${name}-${key.replaceAll(/[/:]/g, "_")}`;
 export const processJobId = (key: string) => jobId("process", key);
 export const tagJobId = (key: string) => jobId("tag", key);
+export const cutoutJobId = (key: string) => jobId("cutout", key);
 export const embedJobId = (key: string) => jobId("embed", key);
 
 const JOB_OPTIONS = {
@@ -52,6 +55,9 @@ export function createPhotoQueue(redisUrl: string) {
     async enqueueTagging(key, lang) {
       await queue.add("tag", { key, lang }, { ...JOB_OPTIONS, jobId: tagJobId(key) });
     },
+    async enqueueCutout(key) {
+      await queue.add("cutout", { key }, { ...JOB_OPTIONS, jobId: cutoutJobId(key) });
+    },
     async enqueueEmbedding(key) {
       await queue.add("embed", { key }, { ...JOB_OPTIONS, jobId: embedJobId(key) });
     },
@@ -65,12 +71,14 @@ export function createPhotoQueue(redisUrl: string) {
   return { photoQueue, scheduleCleanup, close: () => queue.close() };
 }
 
-// What to mark when a job gives up for good, so the app stops waiting. A photo without an
-// embedding just doesn't show up in "similar": nothing to mark.
+// What to do when a job gives up for good, so the app stops waiting. A photo without an
+// embedding just doesn't show up in "similar": nothing to mark. A photo that couldn't be cut
+// out keeps its background and is embedded as it is.
 async function markGaveUp(deps: PhotoJobDeps, job: Job<PhotoJobData | object, unknown, JobName>) {
   const { key } = job.data as PhotoJobData;
   if (job.name === "process") await deps.photos.markFailed(key);
   if (job.name === "tag") await deps.photos.markTagsFailed(key);
+  if (job.name === "cutout" && deps.embedder) await deps.queue.enqueueEmbedding(key);
 }
 
 export function createPhotoWorker(redisUrl: string, deps: PhotoJobDeps) {
@@ -83,6 +91,7 @@ export function createPhotoWorker(redisUrl: string, deps: PhotoJobDeps) {
       try {
         if (job.name === "process") await processUploadedPhoto(deps, key, lang);
         else if (job.name === "tag") await tagPhoto(deps, key, lang);
+        else if (job.name === "cutout") await cutOutPhoto(deps, key);
         else await embedPhoto(deps, key);
       } catch (error) {
         // No point retrying a file that isn't an image, or a photo the model declined.

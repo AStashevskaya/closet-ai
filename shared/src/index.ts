@@ -49,6 +49,9 @@ export const item = createItemInput.omit({ photoKey: true }).extend({
   createdAt: z.string().datetime(),
   // API path of the photo, relative to the server (needs the session cookie). Set once the photo is ready.
   photoUrl: z.string().optional(),
+  // The same photo with the background removed (transparent WebP). Set a few seconds after
+  // photoUrl, or never when background removal is off or failed: show photoUrl until then.
+  cutoutUrl: z.string().optional(),
   photoStatus: photoStatus.optional(),
 });
 export type Item = z.infer<typeof item>;

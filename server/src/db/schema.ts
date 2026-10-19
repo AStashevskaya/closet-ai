@@ -39,6 +39,9 @@ export const photos = pgTable(
     // The photo's image embedding (Marqo-FashionSigLIP, normalized), for "find similar".
     // Null until the worker has computed it.
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
+    // Storage key of the item cut out of its background (a WebP with transparency, next to the
+    // photo); null until the worker has made it, or when background removal is off.
+    cutoutKey: text("cutout_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

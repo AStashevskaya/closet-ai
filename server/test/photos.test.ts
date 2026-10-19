@@ -2,6 +2,7 @@ import type { Item, ItemDetail, PhotoState, SimilarItem, UploadedPhoto } from "@
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
+import type { BackgroundRemover } from "../src/ai/background-remover";
 import { TaggingRefusedError, type ItemTagger } from "../src/ai/item-tagger";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
@@ -16,6 +17,7 @@ import {
   createInMemoryRepositories,
   createManualPhotoQueue,
   createStubEmbedder,
+  createStubRemover,
   createStubTagger,
   shirtTags,
   testEnv as env,
@@ -33,7 +35,11 @@ let stub: ReturnType<typeof createStubTagger>;
 let embedding: ReturnType<typeof createStubEmbedder>;
 
 // Tagging is on by default, with a stub instead of Claude; pass tagger: null to turn it off.
-async function setup({ tagger }: { tagger?: ItemTagger | null } = {}) {
+// Background removal is off unless a remover is passed.
+async function setup({
+  tagger,
+  remover = null,
+}: { tagger?: ItemTagger | null; remover?: BackgroundRemover | null } = {}) {
   storage = createMemoryStorage();
   queue = createManualPhotoQueue();
   stub = createStubTagger();
@@ -45,6 +51,7 @@ async function setup({ tagger }: { tagger?: ItemTagger | null } = {}) {
     storage,
     tagger: activeTagger,
     embedder: embedding.embedder,
+    remover,
     queue: queue.photoQueue,
   };
   const auth = createAuth(
@@ -518,5 +525,106 @@ describe("embeddings and similar items", () => {
 
     expect((await similar(server, anna, id)).json()).toEqual([]);
     expect((await similar(server, maya, id)).statusCode).toBe(404);
+  });
+});
+
+describe("background removal", () => {
+  async function addItem(server: App, cookie: string) {
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+    await runWorker();
+    const item = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "Shirt", category: "top", colors: ["white"], photoKey },
+      })
+    ).json<Item>();
+    return { ...item, photoKey };
+  }
+
+  it("cuts the item out after processing and serves the cut-out to the owner", async () => {
+    const cut = createStubRemover();
+    const server = await setup({ remover: cut.remover });
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const { id, photoKey, photoUrl, cutoutUrl } = await addItem(server, anna);
+
+    // The remover gets the small WebP, once.
+    expect(cut.calls).toEqual([{ bytes: (await storage.get(photoKey))!.body.length }]);
+    expect(photoUrl).toBe(`/api/items/${id}/photo`);
+    expect(cutoutUrl).toBe(`/api/items/${id}/photo?variant=cutout`);
+
+    const own = await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: anna } });
+    expect(own.statusCode).toBe(200);
+    expect(own.headers["content-type"]).toBe("image/webp");
+    // Transparent, with the empty margins trimmed: the stub's item is a 512 px square in a
+    // 1024 × 683 photo, plus 6% padding on each side.
+    const meta = await sharp(own.rawPayload).metadata();
+    expect(meta.hasAlpha).toBe(true);
+    expect(meta.width).toBeLessThan(450);
+    expect(meta.width).toBe(meta.height);
+
+    // The photo itself is still the original one.
+    const photo = await server.inject({ method: "GET", url: photoUrl!, headers: { cookie: anna } });
+    expect((await sharp(photo.rawPayload).metadata()).width).toBe(1024);
+
+    const other = await server.inject({
+      method: "GET",
+      url: cutoutUrl!,
+      headers: { cookie: maya },
+    });
+    expect(other.statusCode).toBe(404);
+  });
+
+  it("embeds the cut-out on white instead of the photo with its background", async () => {
+    const cut = createStubRemover();
+    const server = await setup({ remover: cut.remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+
+    // The embed job waits for the cut-out.
+    expect(queue.queued.map((job) => job.name)).toEqual(["process"]);
+    await runWorker();
+    expect(embedding.calls).toHaveLength(1);
+    expect(embedding.calls[0]!.bytes).not.toBe((await storage.get(photoKey))!.body.length);
+  });
+
+  it("keeps the photo as it is while the cut-out isn't there", async () => {
+    const server = await setup({
+      remover: createStubRemover(async () => {
+        throw new Error("fal.ai is down");
+      }).remover,
+    });
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+
+    // The job fails, so the queue would retry it; the photo is ready all the same.
+    await expect(runWorker()).rejects.toThrow("fal.ai is down");
+    const photo = await jobDeps.photos.get(photoKey);
+    expect(photo).toMatchObject({ status: "ready", cutoutKey: null });
+    expect(await storage.exists(photoKey.replace(".webp", "-cutout.webp"))).toBe(false);
+  });
+
+  it("embeds the photo as it is when no item is found in it", async () => {
+    const server = await setup({ remover: createStubRemover(async () => null).remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+
+    await runWorker();
+    expect((await jobDeps.photos.get(photoKey))!.cutoutKey).toBeNull();
+    expect(embedding.calls).toEqual([{ bytes: (await storage.get(photoKey))!.body.length }]);
+  });
+
+  it("deletes the cut-out together with the item", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const { id, photoKey } = await addItem(server, cookie);
+    const cutoutKey = (await jobDeps.photos.get(photoKey))!.cutoutKey!;
+    expect(await storage.exists(cutoutKey)).toBe(true);
+
+    await server.inject({ method: "DELETE", url: `/api/items/${id}`, headers: { cookie } });
+    expect(await storage.exists(cutoutKey)).toBe(false);
+    expect(await storage.exists(photoKey)).toBe(false);
   });
 });

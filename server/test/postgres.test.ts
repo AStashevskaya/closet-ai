@@ -283,6 +283,39 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await photos.listWithoutEmbedding()).not.toContain(`photos/${user!.id}/shirt.webp`);
   });
 
+  it("stores the cut-out key and gives the item a cut-out URL", async () => {
+    const cookie = await signUp("cutout@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "cutout@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const key = `photos/${user!.id}/cut.webp`;
+    await photos.create({
+      key,
+      ownerId: user!.id,
+      uploadKey: `uploads/${user!.id}/cut`,
+      tagStatus: null,
+    });
+    await photos.markReady(key);
+    expect(await photos.listWithoutCutout()).toContain(key);
+    const { id } = (
+      await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "cut", category: "top", colors: ["white"], photoKey: key },
+      })
+    ).json<Item>();
+
+    await photos.setCutout(key, `photos/${user!.id}/cut-cutout.webp`);
+    expect(await photos.listWithoutCutout()).not.toContain(key);
+    const item = (
+      await app.inject({ method: "GET", url: `/api/items/${id}`, headers: { cookie } })
+    ).json<Item>();
+    expect(item.cutoutUrl).toBe(`/api/items/${id}/photo?variant=cutout`);
+  });
+
   it("lists only photos no item points to, created before the cutoff", async () => {
     const cookie = await signUp("cleanup@example.com");
     const [user] = await db.db
