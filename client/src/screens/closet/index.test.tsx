@@ -11,10 +11,14 @@ jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
+// `mock` prefix: jest.mock factories may only use variables named like this.
+const mockPush = jest.fn();
+
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual('react');
   return {
     Link: ({ children }: { children: unknown }) => children,
+    useRouter: () => ({ push: mockPush }),
     // Runs the callback once on mount, as if the tab just came into view.
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
   };
@@ -150,6 +154,19 @@ describe('<Closet />', () => {
     // Ready now, so no further polling.
     await new Promise((resolve) => setTimeout(resolve, 2000));
     expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  test('opens the item screen from a card, except in edit mode', async () => {
+    list.mockResolvedValue([shirt]);
+    await render(<Closet />);
+
+    await fireEvent.press(await screen.findByText('White linen shirt'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: shirt.id } });
+
+    mockPush.mockClear();
+    await fireEvent.press(screen.getByText('Edit'));
+    await fireEvent.press(screen.getByText('White linen shirt'));
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   describe('deleting an item', () => {

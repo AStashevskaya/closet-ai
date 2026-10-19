@@ -1,4 +1,4 @@
-import type { Item, PhotoState, UploadedPhoto } from "@closet-ai/shared";
+import type { Item, ItemDetail, PhotoState, UploadedPhoto } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -378,6 +378,28 @@ describe("tagging", () => {
     expect(stub.calls).toHaveLength(1);
     expect(stub.calls[0]!.lang).toBe("ru");
     expect(stub.calls[0]!.bytes).toBe((await storage.get(photoKey))!.body.length);
+  });
+
+  it("shows the tags on the item", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+    await runWorker();
+    const { id } = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "Shirt", category: "top", colors: ["white"], photoKey },
+      })
+    ).json<Item>();
+
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/items/${id}`,
+      headers: { cookie },
+    });
+    expect(res.json<ItemDetail>().tags).toEqual(shirtTags);
   });
 
   it("shows a photo's status only to its owner", async () => {

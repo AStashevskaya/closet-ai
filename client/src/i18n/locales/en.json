@@ -120,5 +120,38 @@
     "welcomeTitle": "Welcome",
     "signUpTitle": "Start your closet",
     "intro": "Put together outfits from your own closet, sell what you don't wear and find similar pieces for less."
+  },
+  "seasons": {
+    "spring": "Spring",
+    "summer": "Summer",
+    "autumn": "Autumn",
+    "winter": "Winter"
+  },
+  "item": {
+    "seasons": "Seasons",
+    "fromPhoto": "From the photo",
+    "notTagged": "Details appear once the photo has been recognised.",
+    "notRecognized": "Couldn't make out a single item in this photo.",
+    "fit": "Fit",
+    "length": "Length",
+    "fabric": "Fabric",
+    "style": "Style",
+    "brand": "Brand",
+    "condition": "Condition",
+    "fits": {
+      "slim": "Slim",
+      "regular": "Regular",
+      "relaxed": "Relaxed",
+      "oversized": "Oversized"
+    },
+    "conditions": {
+      "new": "New",
+      "good": "Good",
+      "worn": "Worn"
+    },
+    "save": "Save changes",
+    "delete": "Delete item",
+    "loadError": "Couldn't load the item.",
+    "saveError": "Couldn't save the changes. Try again."
   }
 }

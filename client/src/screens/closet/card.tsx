@@ -29,6 +29,8 @@ type Props = {
   leaving: boolean;
   // Only set on the first load, so cards don't replay their entrance when the list re-renders.
   enterDelay?: number;
+  // Opens the item screen; not set in edit mode, where the badge is the action.
+  onPress?: () => void;
   onLongPress: () => void;
   onDelete: () => void;
 };
@@ -39,6 +41,7 @@ export function ClosetCard({
   editing,
   leaving,
   enterDelay,
+  onPress,
   onLongPress,
   onDelete,
 }: Props) {
@@ -63,6 +66,7 @@ export function ClosetCard({
     >
       <PressableScale
         style={styles.card}
+        onPress={onPress}
         onLongPress={onLongPress}
         // Screen readers can't discover a long press or a small badge, so they get delete as a named action.
         accessibilityActions={[{ name: 'delete', label: t('closet.delete') }]}

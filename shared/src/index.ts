@@ -102,3 +102,20 @@ export const photoState = z.object({
   tags: itemTags.nullable(),
 });
 export type PhotoState = z.infer<typeof photoState>;
+
+// Response of GET /api/items/:id and PATCH /api/items/:id: the item plus what the vision
+// model read off its photo (null until tagged, or when tagging is off).
+export const itemDetail = item.extend({ tags: itemTags.nullable() });
+export type ItemDetail = z.infer<typeof itemDetail>;
+
+// Body of PATCH /api/items/:id: the fields the user can correct on the item screen.
+// Only the fields sent are changed.
+export const updateItemInput = z
+  .object({
+    name: createItemInput.shape.name,
+    category: itemCategory,
+    colors: createItemInput.shape.colors,
+    seasons: z.array(season),
+  })
+  .partial();
+export type UpdateItemInput = z.infer<typeof updateItemInput>;

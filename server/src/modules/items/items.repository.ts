@@ -1,4 +1,10 @@
-import type { CreateItemInput, Item, PhotoStatus } from "@closet-ai/shared";
+import type {
+  CreateItemInput,
+  Item,
+  ItemDetail,
+  PhotoStatus,
+  UpdateItemInput,
+} from "@closet-ai/shared";
 import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { items, photos } from "../../db/schema";
@@ -6,8 +12,10 @@ import { items, photos } from "../../db/schema";
 // Every method takes the owner, so one user can never read or write another user's items.
 export interface ItemsRepository {
   list(ownerId: string): Promise<Item[]>;
-  // null when the item doesn't exist or belongs to someone else.
-  get(ownerId: string, itemId: string): Promise<Item | null>;
+  // With its photo's tags. null when the item doesn't exist or belongs to someone else.
+  get(ownerId: string, itemId: string): Promise<ItemDetail | null>;
+  // Changes only the fields given. null when the item doesn't exist or belongs to someone else.
+  update(ownerId: string, itemId: string, patch: UpdateItemInput): Promise<ItemDetail | null>;
   create(ownerId: string, input: CreateItemInput): Promise<Item>;
   // null when the item doesn't exist, belongs to someone else, or has no photo.
   photoKey(ownerId: string, itemId: string): Promise<string | null>;
@@ -37,6 +45,15 @@ export function toItem(row: ItemRow, photoStatus: PhotoStatus | null): Item {
 }
 
 export function createItemsRepository(db: Db): ItemsRepository {
+  async function get(ownerId: string, itemId: string): Promise<ItemDetail | null> {
+    const [row] = await db
+      .select({ item: items, photoStatus: photos.status, tags: photos.tags })
+      .from(items)
+      .leftJoin(photos, eq(photos.key, items.photoKey))
+      .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
+    return row ? { ...toItem(row.item, row.photoStatus), tags: row.tags ?? null } : null;
+  }
+
   return {
     async list(ownerId) {
       const rows = await db
@@ -48,13 +65,18 @@ export function createItemsRepository(db: Db): ItemsRepository {
       return rows.map((row) => toItem(row.item, row.photoStatus));
     },
 
-    async get(ownerId, itemId) {
-      const [row] = await db
-        .select({ item: items, photoStatus: photos.status })
-        .from(items)
-        .leftJoin(photos, eq(photos.key, items.photoKey))
-        .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
-      return row ? toItem(row.item, row.photoStatus) : null;
+    get,
+
+    async update(ownerId, itemId, patch) {
+      if (Object.keys(patch).length > 0) {
+        const updated = await db
+          .update(items)
+          .set(patch)
+          .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)))
+          .returning({ id: items.id });
+        if (updated.length === 0) return null;
+      }
+      return get(ownerId, itemId);
     },
 
     async create(ownerId, input) {

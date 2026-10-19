@@ -1,6 +1,6 @@
 import { ITEM_CATEGORIES, type Item } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -35,6 +35,7 @@ const STAGGER_STEP = 45;
 export function Closet() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [state, setState] = useState<State>({ status: 'loading' });
   // Photos are served by the API to their owner only, so the image requests carry the session cookie.
   const [headers, setHeaders] = useState<Record<string, string>>();
@@ -226,6 +227,11 @@ export function Closet() {
                 editing={isEditing}
                 leaving={leaving.has(item.id)}
                 enterDelay={!entered && index < STAGGERED ? index * STAGGER_STEP : undefined}
+                onPress={
+                  isEditing
+                    ? undefined
+                    : () => router.push({ pathname: '/item/[id]', params: { id: item.id } })
+                }
                 onLongPress={startEditing}
                 onDelete={() => confirmDelete(item)}
               />

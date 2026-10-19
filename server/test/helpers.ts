@@ -41,6 +41,11 @@ export function createInMemoryRepositories() {
     return toItem({ ...rest, seasons, id, ownerId, photoKey, createdAt }, status);
   };
 
+  const toDetail = (row: ItemRow) => {
+    const photoKey = row.input.photoKey;
+    return { ...toApiItem(row), tags: (photoKey && photoRows.get(photoKey)?.tags) || null };
+  };
+
   const itemsRepository: ItemsRepository = {
     list: async (ownerId) => itemRows.filter((row) => row.ownerId === ownerId).map(toApiItem),
     create: async (ownerId, input) => {
@@ -50,7 +55,13 @@ export function createInMemoryRepositories() {
     },
     get: async (ownerId, itemId) => {
       const row = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
-      return row ? toApiItem(row) : null;
+      return row ? toDetail(row) : null;
+    },
+    update: async (ownerId, itemId, patch) => {
+      const row = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
+      if (!row) return null;
+      row.input = { ...row.input, ...patch };
+      return toDetail(row);
     },
     photoKey: async (ownerId, itemId) =>
       itemRows.find((row) => row.ownerId === ownerId && row.id === itemId)?.input.photoKey ?? null,

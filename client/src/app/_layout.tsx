@@ -43,6 +43,17 @@ export default function RootLayout() {
             headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
           }}
         />
+        {/* The screen sets its title to the item's name once it has loaded. */}
+        <Stack.Screen
+          name="item/[id]"
+          options={{
+            title: '',
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+          }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         {/* The auth screens draw their own full-bleed header. */}
