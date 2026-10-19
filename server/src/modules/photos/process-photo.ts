@@ -91,3 +91,16 @@ export async function cropToBox(
     .webp({ quality: WEBP_QUALITY, effort: 6 })
     .toBuffer();
 }
+
+// Side of the photos shown to the vision model when comparing items: enough to see colour,
+// pattern and cut, and a few of them fit in one cheap request.
+const THUMBNAIL_SIDE = 384;
+
+// A small WebP on white (a cut-out's transparency flattened), for comparing items.
+export async function thumbnail(image: Uint8Array): Promise<Uint8Array> {
+  return sharp(image)
+    .flatten({ background: "#ffffff" })
+    .resize(THUMBNAIL_SIDE, THUMBNAIL_SIDE, { fit: "inside", withoutEnlargement: true })
+    .webp({ quality: WEBP_QUALITY })
+    .toBuffer();
+}

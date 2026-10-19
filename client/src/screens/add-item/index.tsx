@@ -1,6 +1,4 @@
 import {
-  APP_LANGUAGES,
-  type AppLanguage,
   ITEM_CATEGORIES,
   ITEM_COLORS,
   type ItemCategory,
@@ -28,6 +26,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import { appLanguage } from '@/lib/app-language';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -42,10 +41,6 @@ const MAX_POLLS = 20;
 
 // idle: nothing to show; waiting: the model is looking at the photo; filled: fields came from it.
 type Tagging = 'idle' | 'waiting' | 'filled';
-
-// The app's language as the server knows it; English is the fallback, as in i18n.
-const appLanguage = (language: string): AppLanguage =>
-  (APP_LANGUAGES as readonly string[]).includes(language) ? (language as AppLanguage) : 'en';
 
 type ErrorKey =
   | 'addItem.errors.photo'

@@ -170,5 +170,22 @@
       "save": "Couldn’t add the items. Try again.",
       "empty": "Tick at least one item"
     }
+  },
+  "want": {
+    "title": "Want / Can",
+    "intro": "Add a screenshot of a look from Pinterest or Instagram: the app finds its items and shows which of them you already have.",
+    "pick": "Choose a screenshot",
+    "pickAnother": "Choose another screenshot",
+    "finding": "Finding the items and checking your closet…",
+    "summary": "You have {{owned}} of {{count}}",
+    "none": "Couldn't find clothes in this screenshot. Try another one.",
+    "match": {
+      "same": "You have it",
+      "similar": "You have a similar one",
+      "none": "Not in your closet"
+    },
+    "errors": {
+      "find": "Couldn't read the screenshot. Try again."
+    }
   }
 }

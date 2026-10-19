@@ -111,16 +111,14 @@ describe('<ItemScreen />', () => {
 
   test('shows similar items from the wardrobe and opens them', async () => {
     const { tags: _tags, ...base } = shirt;
-    jest
-      .mocked(getSimilarItems)
-      .mockResolvedValue([
-        {
-          ...base,
-          id: '6b1f7c3e-0000-4000-8000-000000000002',
-          name: 'Cream shirt',
-          similarity: 0.9,
-        },
-      ]);
+    jest.mocked(getSimilarItems).mockResolvedValue([
+      {
+        ...base,
+        id: '6b1f7c3e-0000-4000-8000-000000000002',
+        name: 'Cream shirt',
+        similarity: 0.9,
+      },
+    ]);
     await render(<ItemScreen id={shirt.id} />);
 
     expect(await screen.findByText('Similar in your wardrobe')).toBeOnTheScreen();

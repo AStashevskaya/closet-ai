@@ -48,8 +48,20 @@ const found = [item('Pink tweed top', 'top'), item('White sandals', 'shoes')];
 function findAfterOnePoll(items: LookItem[]) {
   jest
     .mocked(getPhotoState)
-    .mockResolvedValueOnce({ status: 'ready', tagStatus: 'pending', tags: null, lookItems: null })
-    .mockResolvedValue({ status: 'ready', tagStatus: 'done', tags: null, lookItems: items });
+    .mockResolvedValueOnce({
+      status: 'ready',
+      tagStatus: 'pending',
+      tags: null,
+      lookItems: null,
+      matches: null,
+    })
+    .mockResolvedValue({
+      status: 'ready',
+      tagStatus: 'done',
+      tags: null,
+      lookItems: items,
+      matches: null,
+    });
 }
 
 beforeEach(async () => {
@@ -130,7 +142,13 @@ describe('<AddLook />', () => {
   test('says so when the photo can’t be read', async () => {
     jest
       .mocked(getPhotoState)
-      .mockResolvedValue({ status: 'ready', tagStatus: 'failed', tags: null, lookItems: null });
+      .mockResolvedValue({
+        status: 'ready',
+        tagStatus: 'failed',
+        tags: null,
+        lookItems: null,
+        matches: null,
+      });
     await render(<AddLook />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
 

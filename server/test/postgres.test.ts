@@ -281,6 +281,37 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(found.map((item) => item.name)).toEqual(["close", "far"]);
     expect(found[0]!.similarity).toBeCloseTo(0.98, 2);
     expect(await photos.listWithoutEmbedding()).not.toContain(`photos/${user!.id}/shirt.webp`);
+
+    // "Want / Can" asks the same index with a look item's vector instead of an item's.
+    const closest = await photos.closestItems(user!.id, "top", unitVector(0.2, 1), 2);
+    expect(closest.map((item) => item.name)).toEqual(["far", "close"]);
+    expect(closest[0]).toMatchObject({ photoKey: `photos/${user!.id}/far.webp`, cutoutKey: null });
+    expect(closest[0]!.similarity).toBeCloseTo(1, 5);
+  });
+
+  it("stores a want look's items with their matches", async () => {
+    await signUp("want@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "want@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const key = `photos/${user!.id}/want.webp`;
+    await photos.create({
+      key,
+      ownerId: user!.id,
+      uploadKey: `uploads/${user!.id}/want`,
+      kind: "want",
+      tagStatus: "pending",
+    });
+    const box = { xMin: 0, yMin: 0, xMax: 1, yMax: 1 };
+    const { recognized: _recognized, ...tags } = shirtTags;
+    await photos.setLookItems(key, [{ ...tags, box }], [{ how: "none", itemId: null }]);
+    expect(await photos.get(key)).toMatchObject({
+      kind: "want",
+      tagStatus: "done",
+      matches: [{ how: "none", itemId: null }],
+    });
   });
 
   it("stores the cut-out key and gives the item a cut-out URL", async () => {

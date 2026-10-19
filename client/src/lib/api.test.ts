@@ -47,12 +47,24 @@ describe('getPhotoState', () => {
   test('escapes the key, whose slashes would otherwise break the query', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ status: 'ready', tagStatus: 'pending', tags: null, lookItems: null }),
+      json: async () => ({
+        status: 'ready',
+        tagStatus: 'pending',
+        tags: null,
+        lookItems: null,
+        matches: null,
+      }),
     });
 
     const state = await getPhotoState('photos/u1/p1.webp');
 
-    expect(state).toEqual({ status: 'ready', tagStatus: 'pending', tags: null, lookItems: null });
+    expect(state).toEqual({
+      status: 'ready',
+      tagStatus: 'pending',
+      tags: null,
+      lookItems: null,
+      matches: null,
+    });
     expect(fetchMock.mock.lastCall?.[0]).toBe(
       'http://api.test/api/photos/status?key=photos%2Fu1%2Fp1.webp',
     );

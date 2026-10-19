@@ -379,6 +379,7 @@ describe("tagging", () => {
       tagStatus: "pending",
       tags: null,
       lookItems: null,
+      matches: null,
     });
 
     await runWorker();
@@ -387,6 +388,7 @@ describe("tagging", () => {
       tagStatus: "done",
       tags: shirtTags,
       lookItems: null,
+      matches: null,
     });
     // One call, on the small WebP rather than the 3000 px original.
     expect(stub.calls).toHaveLength(1);
@@ -438,6 +440,7 @@ describe("tagging", () => {
       tagStatus: null,
       tags: null,
       lookItems: null,
+      matches: null,
     });
   });
 
@@ -754,5 +757,106 @@ describe("items from a look photo", () => {
       (await addFromLook(server, anna, { photoKey: itemPhoto, items: [picked(0, "Top")] }))
         .statusCode,
     ).toBe(404);
+  });
+});
+
+describe("want / can: a look matched against the wardrobe", () => {
+  const status = async (server: App, cookie: string, key: string) =>
+    (
+      await server.inject({
+        method: "GET",
+        url: `/api/photos/status?key=${encodeURIComponent(key)}`,
+        headers: { cookie },
+      })
+    ).json<PhotoState>();
+
+  async function addItem(server: App, cookie: string, name: string, category = "top") {
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+    await runWorker();
+    return (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name, category, colors: ["pink"], photoKey },
+      })
+    ).json<Item>();
+  }
+
+  const uploadWant = async (server: App, cookie: string) =>
+    (
+      await upload(server, cookie, await cameraPhoto(), "image/jpeg", "?kind=want")
+    ).json<UploadedPhoto>().photoKey;
+
+  it("finds the look's items and the wardrobe items that match them", async () => {
+    const cut = createStubRemover();
+    const server = await setup({ remover: cut.remover });
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const top = await addItem(server, anna, "My pink top");
+    await addItem(server, maya, "Maya's top");
+    cut.calls.length = 0;
+
+    const photoKey = await uploadWant(server, anna);
+    await runWorker();
+
+    const state = await status(server, anna, photoKey);
+    expect(state.tagStatus).toBe("done");
+    expect(state.lookItems!.map((item) => item.name)).toEqual([
+      "Pink mesh top",
+      "Blue wide-leg jeans",
+    ]);
+    // The top is compared with Anna's top only; no bottoms in her wardrobe, so no comparison.
+    expect(stub.compared).toEqual([["My pink top"]]);
+    expect(state.matches!.map(({ how, item }) => [how, item?.id ?? null])).toEqual([
+      ["same", top.id],
+      ["none", null],
+    ]);
+    expect(state.matches![0]!.item).toMatchObject({ name: "My pink top", category: "top" });
+    // Each look item is cut out before it is embedded; the look itself is neither.
+    expect(cut.calls).toHaveLength(2);
+    expect((await jobDeps.photos.get(photoKey))!.cutoutKey).toBeNull();
+  });
+
+  it("answers none when the model sees no match", async () => {
+    const server = await setup({
+      tagger: createStubTagger(undefined, undefined, {
+        verdict: async () => ({ how: "none", index: null }),
+      }).tagger,
+    });
+    const cookie = await signUp(server, "anna@example.com");
+    await addItem(server, cookie, "Black tee");
+    const look = await uploadWant(server, cookie);
+    await runWorker();
+    expect((await status(server, cookie, look)).matches!.map((match) => match.how)).toEqual([
+      "none",
+      "none",
+    ]);
+  });
+
+  it("answers none once the matched item is deleted", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const top = await addItem(server, cookie, "Pink top");
+    const look = await uploadWant(server, cookie);
+    await runWorker();
+    expect((await status(server, cookie, look)).matches![0]!.how).toBe("same");
+
+    await server.inject({ method: "DELETE", url: `/api/items/${top.id}`, headers: { cookie } });
+    expect((await status(server, cookie, look)).matches![0]).toEqual({ how: "none", item: null });
+  });
+
+  it("can't be read by someone else", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const look = await uploadWant(server, anna);
+    await runWorker();
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/photos/status?key=${encodeURIComponent(look)}`,
+      headers: { cookie: maya },
+    });
+    expect(res.statusCode).toBe(404);
   });
 });

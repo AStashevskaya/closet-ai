@@ -8,22 +8,15 @@ import { authClient } from '@/lib/auth-client';
 import { colors, fonts } from '@/theme';
 
 type SectionKey =
-  | 'closet'
-  | 'looks'
-  | 'wantCan'
-  | 'trends'
-  | 'sell'
-  | 'votes'
-  | 'showroom'
-  | 'favorites';
+  'closet' | 'looks' | 'wantCan' | 'trends' | 'sell' | 'votes' | 'showroom' | 'favorites';
 
-type Section = { key: SectionKey; icon: IconName; href?: '/closet' };
+type Section = { key: SectionKey; icon: IconName; href?: '/closet' | '/want' };
 
 // Order and icons from the design. Sections without an href are not built yet and show "soon".
 const SECTIONS: Section[] = [
   { key: 'closet', icon: 'hanger', href: '/closet' },
   { key: 'looks', icon: 'look' },
-  { key: 'wantCan', icon: 'spark' },
+  { key: 'wantCan', icon: 'spark', href: '/want' },
   { key: 'trends', icon: 'trend' },
   { key: 'sell', icon: 'tag' },
   { key: 'votes', icon: 'chat' },

@@ -1,4 +1,4 @@
-import { APP_LANGUAGES, type AppLanguage, type LookItem } from '@closet-ai/shared';
+import type { LookItem } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,6 +11,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { addLookItems, getPhotoState, uploadPhoto } from '@/lib/api';
+import { appLanguage } from '@/lib/app-language';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { CSS_EASE_OUT, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -20,9 +21,6 @@ import { LookCrop } from './look-crop';
 // The model takes 5–15 s on a whole outfit; after a minute the screen gives up.
 const POLL_MS = 1500;
 const MAX_POLLS = 40;
-
-const appLanguage = (language: string): AppLanguage =>
-  (APP_LANGUAGES as readonly string[]).includes(language) ? (language as AppLanguage) : 'en';
 
 // The photo picked, uploaded and read: from nothing picked yet to the items found on it.
 type Look =
