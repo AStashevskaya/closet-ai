@@ -43,8 +43,10 @@ export function createInMemoryRepositories() {
       itemRows.push(row);
       return toApiItem(row);
     },
-    get: async (ownerId, itemId) =>
-      store.find((row) => row.ownerId === ownerId && row.item.id === itemId)?.item ?? null,
+    get: async (ownerId, itemId) => {
+      const row = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
+      return row ? toApiItem(row) : null;
+    },
     photoKey: async (ownerId, itemId) =>
       itemRows.find((row) => row.ownerId === ownerId && row.id === itemId)?.input.photoKey ?? null,
     delete: async (ownerId, itemId) => {

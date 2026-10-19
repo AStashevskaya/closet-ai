@@ -50,10 +50,11 @@ export function createItemsRepository(db: Db): ItemsRepository {
 
     async get(ownerId, itemId) {
       const [row] = await db
-        .select()
+        .select({ item: items, photoStatus: photos.status })
         .from(items)
+        .leftJoin(photos, eq(photos.key, items.photoKey))
         .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
-      return row ? toItem(row) : null;
+      return row ? toItem(row.item, row.photoStatus) : null;
     },
 
     async create(ownerId, input) {
