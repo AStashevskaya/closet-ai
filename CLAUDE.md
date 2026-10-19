@@ -67,11 +67,21 @@ Reason: server and client use different test runners and environments (Node vs R
 7. **"Want / Can" from a look screenshot** (see the section below). Priority feature: one of the first things a new user tries, works even with an empty wardrobe.
 8. Background removal.
 9. Wardrobe sharing table (owner, grantee, permissions) for stylists later.
-10. "What do I wear this with?" from a single item.
+10. "What do I wear this with?" from a single item. From its first version, store every suggested outfit with the user's reaction (liked, saved, wore it, skipped, friends' votes): the data for "Outfit taste" below.
 11. Declutter: keep / sell / not sure.
 12. Listing generator (Hebrew + Russian, price range), shared via the OS share sheet.
 13. Sign in with Apple / Google, free-tier limits (count AI actions per user and device), RevenueCat trial. Want / Can split between free and Premium: see "Free and Premium" in the Want / Can section.
-14. Prompt evals: a few test wardrobes and look screenshots, scored by hand, rerun after each prompt change. Start collecting the set at step 4.
+14. Prompt evals: a few test wardrobes and look screenshots, scored by hand, rerun after each prompt change. Start collecting the set at step 4. The owner scores outfits on the 1–5 scale from the stylist questionnaire.
+
+## Outfit taste: how the AI learns to put good outfits together
+
+No model training to start with: the taste comes from the prompt, from examples and from feedback, in this order. For now the owner is the stylist; an outside stylist comes with the stylist feature (step 9).
+
+1. **Style guide in the prompt.** The owner fills in the stylist questionnaire ([doc](https://claude.ai/code/artifact/080bdeac-3673-4e9d-b3de-ea1d20a20bf8): colour, proportions, fabrics, occasions, weather, shoes and accessories, taboos, 10–20 example outfits, the 1–5 scale). Its answers become the style guide the outfit prompts are built on, kept in the repo next to the prompt.
+2. **Reference outfits.** The owner's example outfits (and ones she picks, with permission) are embedded and stored; before composing, the closest references are retrieved with pgvector and shown to the model as the direction to follow. Taste changes by editing the library, not by retraining.
+3. **Feedback.** Suggested outfits and reactions are stored from step 10 on. First as statistics (which combinations land); with a few thousand rated outfits, a small ranker on the embeddings picks the best of several AI suggestions and adapts to each user.
+4. **Evals.** The owner scores the first 30–50 AI outfits on the questionnaire's 1–5 scale with a line on what is off; that set is rerun after every prompt change (step 14), and the "what is off" lines feed new rules and taboos.
+5. **Fine-tuning** an open vision model only if 1–4 stop being enough, and only once thousands of rated outfits exist.
 
 ## "Want / Can": look screenshot → what you have, what you can buy
 
