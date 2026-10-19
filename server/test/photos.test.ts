@@ -50,7 +50,14 @@ async function signUp(server: App, email: string) {
 }
 
 // A phone-sized JPEG with EXIF data, like a photo straight from the camera roll.
-async function cameraPhoto() {
+// Made once: encoding it is the slowest part of these tests.
+let cameraPhotoBytes: Promise<Buffer> | undefined;
+function cameraPhoto() {
+  cameraPhotoBytes ??= makeCameraPhoto();
+  return cameraPhotoBytes;
+}
+
+function makeCameraPhoto() {
   return sharp({
     create: { width: 3000, height: 2000, channels: 3, background: { r: 180, g: 120, b: 140 } },
   })
