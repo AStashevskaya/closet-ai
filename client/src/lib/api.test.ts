@@ -1,6 +1,6 @@
 import { File } from 'expo-file-system';
 
-import { ApiError, deleteItem, uploadPhoto } from './api';
+import { ApiError, deleteItem, getPhotoState, uploadPhoto } from './api';
 
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -28,17 +28,34 @@ beforeEach(() => {
 
 describe('uploadPhoto', () => {
   test('sends the photo as a file the global fetch (expo/fetch) can read', async () => {
-    const key = await uploadPhoto('file:///small.jpg');
+    const key = await uploadPhoto('file:///small.jpg', 'ru');
 
     expect(key).toBe('photos/u1/p1.webp');
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://api.test/api/photos');
+    // The language the suggested item name should come back in.
+    expect(url).toBe('http://api.test/api/photos?lang=ru');
     expect(init.headers).toEqual({ cookie: 'session=abc' });
     // Not React Native's { uri, name, type }: expo/fetch rejects that.
     const [field, part] = append.mock.calls[0] as unknown as [string, { uri: string }];
     expect(field).toBe('photo');
     expect(part).toBeInstanceOf(File);
     expect(part.uri).toBe('file:///small.jpg');
+  });
+});
+
+describe('getPhotoState', () => {
+  test('escapes the key, whose slashes would otherwise break the query', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ready', tagStatus: 'pending', tags: null }),
+    });
+
+    const state = await getPhotoState('photos/u1/p1.webp');
+
+    expect(state).toEqual({ status: 'ready', tagStatus: 'pending', tags: null });
+    expect(fetchMock.mock.lastCall?.[0]).toBe(
+      'http://api.test/api/photos/status?key=photos%2Fu1%2Fp1.webp',
+    );
   });
 });
 

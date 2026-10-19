@@ -1,4 +1,4 @@
-import type { PhotoStatus } from "@closet-ai/shared";
+import type { ItemTags, PhotoStatus, TagStatus } from "@closet-ai/shared";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { items, photos } from "../../db/schema";
@@ -8,14 +8,24 @@ export interface Photo {
   ownerId: string;
   uploadKey: string | null;
   status: PhotoStatus;
+  tagStatus: TagStatus | null;
+  tags: ItemTags | null;
 }
 
 export interface PhotosRepository {
-  create(photo: { key: string; ownerId: string; uploadKey: string }): Promise<void>;
+  // tagStatus "pending" when the photo will be tagged, null when tagging is off.
+  create(photo: {
+    key: string;
+    ownerId: string;
+    uploadKey: string;
+    tagStatus: "pending" | null;
+  }): Promise<void>;
   get(key: string): Promise<Photo | null>;
   // The processed WebP is stored and the original deleted.
   markReady(key: string): Promise<void>;
   markFailed(key: string): Promise<void>;
+  setTags(key: string, tags: ItemTags): Promise<void>;
+  markTagsFailed(key: string): Promise<void>;
   // Photos created before `before` that no item points to.
   listUnattached(before: Date): Promise<Photo[]>;
   delete(key: string): Promise<void>;
@@ -27,6 +37,8 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     ownerId: photos.ownerId,
     uploadKey: photos.uploadKey,
     status: photos.status,
+    tagStatus: photos.tagStatus,
+    tags: photos.tags,
   };
 
   return {
@@ -45,6 +57,14 @@ export function createPhotosRepository(db: Db): PhotosRepository {
 
     async markFailed(key) {
       await db.update(photos).set({ status: "failed" }).where(eq(photos.key, key));
+    },
+
+    async setTags(key, tags) {
+      await db.update(photos).set({ tagStatus: "done", tags }).where(eq(photos.key, key));
+    },
+
+    async markTagsFailed(key) {
+      await db.update(photos).set({ tagStatus: "failed" }).where(eq(photos.key, key));
     },
 
     listUnattached(before) {

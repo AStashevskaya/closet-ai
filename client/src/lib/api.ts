@@ -1,4 +1,13 @@
-import { type CreateItemInput, item, type Item, itemList, uploadedPhoto } from '@closet-ai/shared';
+import {
+  type AppLanguage,
+  type CreateItemInput,
+  item,
+  type Item,
+  itemList,
+  photoState,
+  type PhotoState,
+  uploadedPhoto,
+} from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
 import { apiUrl } from './api-url';
@@ -64,11 +73,20 @@ export async function deleteItem(id: string): Promise<void> {
 }
 
 // Uploads a local JPEG (see shrinkPhoto) and returns the key to pass to createItem.
-export async function uploadPhoto(uri: string): Promise<string> {
+// lang is the language the server's suggested item name comes back in.
+export async function uploadPhoto(uri: string, lang: AppLanguage): Promise<string> {
   const form = new FormData();
   // The global fetch is expo/fetch, which rejects React Native's { uri, name, type } parts
   // ("Unsupported FormDataPart implementation"). An expo-file-system File is a Blob it can read.
   form.append('photo', new File(uri));
-  const { photoKey } = await request('/api/photos', uploadedPhoto, { method: 'POST', body: form });
+  const { photoKey } = await request(`/api/photos?lang=${lang}`, uploadedPhoto, {
+    method: 'POST',
+    body: form,
+  });
   return photoKey;
+}
+
+// Whether an uploaded photo is processed yet, and what the vision model read off it.
+export function getPhotoState(photoKey: string): Promise<PhotoState> {
+  return request(`/api/photos/status?key=${encodeURIComponent(photoKey)}`, photoState);
 }

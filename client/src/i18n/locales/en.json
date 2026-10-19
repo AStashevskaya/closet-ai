@@ -32,6 +32,8 @@
     "title": "New item",
     "takePhoto": "Take a photo",
     "choosePhoto": "Choose from gallery",
+    "tagging": "Recognising the item from the photo…",
+    "tagged": "Filled in from the photo — check it",
     "changePhoto": "Change photo",
     "name": "Name",
     "namePlaceholder": "e.g. White linen shirt",

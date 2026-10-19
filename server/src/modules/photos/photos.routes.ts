@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { uploadedPhoto } from "@closet-ai/shared";
+import { APP_LANGUAGES, photoState, uploadedPhoto } from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { z } from "zod";
 import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
@@ -20,6 +21,8 @@ export const photosRoutes =
     photos: PhotosRepository,
     queue: PhotoQueue,
     auth: Auth,
+    // false when no API key is configured: photos are processed but not tagged.
+    taggingEnabled: boolean,
   ): FastifyPluginAsyncZod =>
   async (app) => {
     app.addHook("preHandler", requireUser(auth));
@@ -29,7 +32,13 @@ export const photosRoutes =
     // its answer at once. The client sends photoKey on to POST /api/items straight away.
     app.post(
       "/photos",
-      { schema: { response: { 201: uploadedPhoto } } },
+      {
+        schema: {
+          // The language for the suggested item name (the app's current language).
+          querystring: z.object({ lang: z.enum(APP_LANGUAGES).default("en") }),
+          response: { 201: uploadedPhoto },
+        },
+      },
       async (request, reply) => {
         const user = request.user as SessionUser;
         const file = await request.file();
@@ -49,10 +58,35 @@ export const photosRoutes =
         const photoKey = `${photoPrefix(user.id)}${id}.webp`;
         const uploadKey = `${uploadPrefix(user.id)}${id}`;
         await storage.put(uploadKey, input, contentType);
-        await photos.create({ key: photoKey, ownerId: user.id, uploadKey });
+        await photos.create({
+          key: photoKey,
+          ownerId: user.id,
+          uploadKey,
+          tagStatus: taggingEnabled ? "pending" : null,
+        });
         // If queueing fails the request fails too; the row is never attached and the cleanup job removes it.
-        await queue.enqueueProcessing(photoKey);
+        await queue.enqueueProcessing(photoKey, request.query.lang);
         return reply.code(201).send({ photoKey, status: "processing" as const });
+      },
+    );
+
+    // The add-item form polls this until the photo is processed and tagged, then pre-fills
+    // itself from the tags. The key goes in the query because it contains slashes.
+    app.get(
+      "/photos/status",
+      {
+        schema: {
+          querystring: z.object({ key: z.string().max(200) }),
+          response: { 200: photoState },
+        },
+      },
+      async (request) => {
+        const photo = await photos.get(request.query.key);
+        // Someone else's photo answers like a missing one.
+        if (!photo || photo.ownerId !== (request.user as SessionUser).id) {
+          throw httpError(404, "photo not found");
+        }
+        return { status: photo.status, tagStatus: photo.tagStatus, tags: photo.tags };
       },
     );
   };

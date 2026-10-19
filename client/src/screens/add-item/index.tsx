@@ -1,9 +1,17 @@
-import { ITEM_CATEGORIES, ITEM_COLORS, type ItemCategory, type ItemColor } from '@closet-ai/shared';
+import {
+  APP_LANGUAGES,
+  type AppLanguage,
+  ITEM_CATEGORIES,
+  ITEM_COLORS,
+  type ItemCategory,
+  type ItemColor,
+  type Season,
+} from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -18,7 +26,7 @@ import {
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/pressable-scale';
-import { createItem, uploadPhoto } from '@/lib/api';
+import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -26,6 +34,17 @@ import { colors, fonts } from '@/theme';
 import { Chip } from './chip';
 
 const MAX_COLORS = 5;
+// How often the form asks whether the photo has been tagged, and for how long. The model
+// usually answers in 4–6 s; after half a minute the form simply stays as the user typed it.
+const POLL_MS = 1500;
+const MAX_POLLS = 20;
+
+// idle: nothing to show; waiting: the model is looking at the photo; filled: fields came from it.
+type Tagging = 'idle' | 'waiting' | 'filled';
+
+// The app's language as the server knows it; English is the fallback, as in i18n.
+const appLanguage = (language: string): AppLanguage =>
+  (APP_LANGUAGES as readonly string[]).includes(language) ? (language as AppLanguage) : 'en';
 
 type ErrorKey =
   | 'addItem.errors.photo'
@@ -36,10 +55,18 @@ type ErrorKey =
   | 'addItem.errors.save';
 
 export function AddItem() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
+  const lang = appLanguage(i18n.language);
   // A local JPEG, already shrunk for upload.
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  // The photo goes up as soon as it is picked, so the server can tag it while the form is
+  // filled in. Saving waits for this upload instead of starting another.
+  const upload = useRef<Promise<string> | null>(null);
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
+  const [tagging, setTagging] = useState<Tagging>('idle');
+  // Not in the form: they come from the photo's tags and can be corrected on the item later.
+  const [seasons, setSeasons] = useState<Season[]>([]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ItemCategory | null>(null);
   const [itemColors, setItemColors] = useState<ItemColor[]>([]);
@@ -59,13 +86,72 @@ export function AddItem() {
     if (!asset) return;
 
     setBusy(true);
+    let uri: string;
     try {
-      setPhotoUri(await shrinkPhoto(asset));
+      uri = await shrinkPhoto(asset);
+      setPhotoUri(uri);
       setError(null);
     } finally {
       setBusy(false);
     }
+    await startUpload(uri);
   }
+
+  async function startUpload(uri: string) {
+    setPhotoKey(null);
+    setTagging('idle');
+    const started = uploadPhoto(uri, lang);
+    upload.current = started;
+    try {
+      const key = await started;
+      // A newer photo may have been picked while this one was uploading.
+      if (upload.current !== started) return;
+      setPhotoKey(key);
+      setTagging('waiting');
+    } catch (cause) {
+      // Nothing to show yet: saving tries the upload again and reports a failure then.
+      if (__DEV__) console.warn('Uploading the photo failed', cause);
+    }
+  }
+
+  // Polls the photo until the vision model has tagged it, then fills in what the user hasn't.
+  // A field the user already typed or picked is never overwritten.
+  useEffect(() => {
+    if (!photoKey) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
+        try {
+          const state = await getPhotoState(photoKey);
+          if (cancelled) return;
+          const { tags } = state;
+          if (state.tagStatus === 'done' && tags?.recognized) {
+            setName((current) => (current.trim() ? current : tags.name));
+            setCategory((current) => current ?? tags.category);
+            setItemColors((current) =>
+              current.length > 0 ? current : tags.colors.slice(0, MAX_COLORS),
+            );
+            setSeasons(tags.seasons);
+            setTagging('filled');
+            return;
+          }
+          // Processing failed, tagging is off, or the model gave up: the form stays as typed.
+          if (state.status === 'failed' || state.tagStatus !== 'pending') break;
+        } catch {
+          // A dropped request is no reason to stop; the next poll tries again.
+        }
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        if (cancelled) return;
+      }
+      if (!cancelled) setTagging('idle');
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [photoKey]);
 
   function toggleColor(color: ItemColor) {
     setItemColors((current) =>
@@ -91,8 +177,17 @@ export function AddItem() {
     setError(null);
     setBusy(true);
     try {
-      const photoKey = await uploadPhoto(photoUri);
-      await createItem({ name: name.trim(), category, colors: itemColors, seasons: [], photoKey });
+      // Usually already uploaded while the form was filled in; if that upload failed, try once more.
+      const uploaded = await (upload.current ?? Promise.reject(new Error('not uploaded'))).catch(
+        () => uploadPhoto(photoUri, lang),
+      );
+      await createItem({
+        name: name.trim(),
+        category,
+        colors: itemColors,
+        seasons,
+        photoKey: uploaded,
+      });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (cause) {
@@ -147,6 +242,22 @@ export function AddItem() {
             <Text style={styles.secondaryButtonText}>{t('addItem.choosePhoto')}</Text>
           </PressableScale>
         </View>
+
+        {/* Keyed by the state, so "filled in" fades in after "recognising" instead of swapping. */}
+        {tagging !== 'idle' && (
+          <Animated.View
+            key={tagging}
+            style={styles.tagging}
+            entering={FadeIn.duration(durations.state)}
+            exiting={FadeOut.duration(durations.press)}
+            accessibilityLiveRegion="polite"
+          >
+            {tagging === 'waiting' && <ActivityIndicator size="small" color={colors.accent} />}
+            <Text style={styles.taggingText}>
+              {t(tagging === 'waiting' ? 'addItem.tagging' : 'addItem.tagged')}
+            </Text>
+          </Animated.View>
+        )}
 
         <Text style={styles.label}>{t('addItem.name')}</Text>
         <TextInput
@@ -255,6 +366,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 14,
     color: colors.accent,
+    textAlign: 'center',
+  },
+  tagging: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 24,
+  },
+  taggingText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   label: {

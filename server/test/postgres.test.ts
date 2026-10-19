@@ -12,7 +12,7 @@ import * as schema from "../src/db/schema";
 import { createItemsRepository } from "../src/modules/items/items.repository";
 import { createPhotosRepository } from "../src/modules/photos/photos.repository";
 import { createMemoryStorage } from "../src/storage/storage";
-import { createManualPhotoQueue } from "./helpers";
+import { createManualPhotoQueue, shirtTags } from "./helpers";
 
 // The same app as in production, on a real Postgres: Drizzle queries, the Better Auth
 // Drizzle adapter and the committed migrations. Runs only when TEST_DATABASE_URL is set
@@ -68,6 +68,7 @@ describe.skipIf(!url)("on Postgres", () => {
       itemsRepository: createItemsRepository(db.db),
       photosRepository: createPhotosRepository(db.db),
       photoQueue: createManualPhotoQueue().photoQueue,
+      taggingEnabled: false,
       storage,
     });
   });
@@ -143,8 +144,12 @@ describe.skipIf(!url)("on Postgres", () => {
       key: photoKey,
       ownerId: user!.id,
       uploadKey: `uploads/${user!.id}/test`,
+      tagStatus: "pending",
     });
     await storage.put(photoKey, new Uint8Array([1, 2, 3]), "image/webp");
+    // Tags go into a jsonb column and must come back exactly as written.
+    await photos.setTags(photoKey, shirtTags);
+    expect(await photos.get(photoKey)).toMatchObject({ tagStatus: "done", tags: shirtTags });
     await photos.markReady(photoKey);
 
     const created = await app.inject({
@@ -211,7 +216,12 @@ describe.skipIf(!url)("on Postgres", () => {
     const loose = `photos/${user!.id}/loose.webp`;
     const used = `photos/${user!.id}/used.webp`;
     for (const key of [loose, used]) {
-      await photos.create({ key, ownerId: user!.id, uploadKey: `uploads/${user!.id}/x` });
+      await photos.create({
+        key,
+        ownerId: user!.id,
+        uploadKey: `uploads/${user!.id}/x`,
+        tagStatus: null,
+      });
     }
     await app.inject({
       method: "POST",

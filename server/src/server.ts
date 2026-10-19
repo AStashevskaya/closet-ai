@@ -1,4 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { createClaudeItemTagger } from "./ai/item-tagger";
 import { buildApp } from "./app";
 import { createAuth } from "./auth/auth";
 import { loadEnv } from "./config/env";
@@ -17,10 +18,16 @@ const s3 = createS3Storage(env);
 if (env.NODE_ENV === "development") await s3.ensureBucket();
 const photosRepository = createPhotosRepository(db);
 const queue = createPhotoQueue(env.REDIS_URL);
+const tagger = env.ANTHROPIC_API_KEY ? createClaudeItemTagger(env.ANTHROPIC_API_KEY) : null;
 // The worker runs in the API process for now: one process to deploy and run locally.
 // It only needs Redis, the database and storage, so it can move to its own process when
 // photo processing starts competing with requests.
-const worker = createPhotoWorker(env.REDIS_URL, { photos: photosRepository, storage: s3.storage });
+const worker = createPhotoWorker(env.REDIS_URL, {
+  photos: photosRepository,
+  storage: s3.storage,
+  tagger,
+  queue: queue.photoQueue,
+});
 await queue.scheduleCleanup();
 const app = await buildApp({
   env,
@@ -29,7 +36,9 @@ const app = await buildApp({
   photosRepository,
   photoQueue: queue.photoQueue,
   storage: s3.storage,
+  taggingEnabled: tagger !== null,
 });
+if (!tagger) app.log.warn("ANTHROPIC_API_KEY is not set: photos will not be tagged");
 
 async function shutdown(signal: string) {
   app.log.info({ signal }, "shutting down");
