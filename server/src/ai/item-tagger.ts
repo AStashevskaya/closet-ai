@@ -14,10 +14,14 @@ import * as z from "zod/v4";
 
 // Every AI call goes through a module like this one, so tests swap in a stub and never spend money.
 export interface ItemTagger {
-  tag(image: Uint8Array, lang: AppLanguage): Promise<ItemTags>;
+  tag(image: Uint8Array, lang: AppLanguage): Promise<TaggedPhoto>;
   // Every item a person wears or carries on a look photo (a mirror selfie), each with its box.
   findItems(image: Uint8Array, lang: AppLanguage): Promise<LookItem[]>;
 }
+
+// An item photo's tags, plus whether someone is wearing the item in it. That only decides
+// whether the photo is cut out, so it isn't stored with the tags.
+export type TaggedPhoto = ItemTags & { onPerson: boolean };
 
 // The model declined the photo. Retrying the same photo won't change that.
 export class TaggingRefusedError extends Error {}
@@ -40,18 +44,19 @@ const modelTags = z.object({
   style: z.string().max(60).nullable(),
   brand: z.string().max(60).nullable(),
   condition: z.enum(ITEM_CONDITIONS).nullable(),
+  onPerson: z.boolean(),
 });
 // The model's boxes are clamped to 0..1 after parsing: a schema can't make it stay inside.
 const modelLook = z.object({
   items: z.array(
-    modelTags.omit({ recognized: true }).extend({
+    modelTags.omit({ recognized: true, onPerson: true }).extend({
       box: z.object({ xMin: z.number(), yMin: z.number(), xMax: z.number(), yMax: z.number() }),
     }),
   ),
 });
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-const sameShape: Same<z.infer<typeof modelTags>, ItemTags> = true;
+const sameShape: Same<z.infer<typeof modelTags>, TaggedPhoto> = true;
 const sameLookShape: Same<z.infer<typeof modelLook>["items"][number], LookItem> = true;
 void sameShape;
 void sameLookShape;
@@ -76,8 +81,8 @@ const TAG_RULES = `
 const SYSTEM_PROMPT = `You tag photos for a wardrobe app. Each photo is meant to show one clothing item, pair of shoes, bag or accessory that the user owns, usually lying on a bed or floor or on a hanger. The background and anything at the edges of the frame (bedding, other clothes, feet) are not the item.
 
 Fill in:
-- recognized: false if there is no single clear item (a person wearing an outfit, a room, several items with none in focus, not clothing at all). Then use name "", category "top", empty colors and seasons, and null for the rest.
 ${TAG_RULES}
+- onPerson: true if someone is wearing or holding the item (a selfie, a screenshot of an outfit), false if it lies, hangs or stands on its own.
 
 When a field can't be read from the photo, use null rather than guessing.`;
 
@@ -137,7 +142,7 @@ export function createClaudeItemTagger(apiKey: string): ItemTagger {
   }
 
   return {
-    tag: (image, lang) => ask<ItemTags>(SYSTEM_PROMPT, modelTags, image, lang),
+    tag: (image, lang) => ask<TaggedPhoto>(SYSTEM_PROMPT, modelTags, image, lang),
 
     async findItems(image, lang) {
       const { items } = await ask<z.infer<typeof modelLook>>(LOOK_PROMPT, modelLook, image, lang);

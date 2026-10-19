@@ -259,12 +259,13 @@ function withoutRecognized({ recognized: _recognized, ...tags }: ItemTags) {
 export function createStubTagger(
   answer: () => Promise<ItemTags> = async () => shirtTags,
   look: () => Promise<LookItem[]> = async () => lookItems,
+  { onPerson = false } = {},
 ) {
   const calls: { bytes: number; lang: AppLanguage; kind: "item" | "look" }[] = [];
   const tagger: ItemTagger = {
     tag: async (image, lang) => {
       calls.push({ bytes: image.length, lang, kind: "item" });
-      return answer();
+      return { ...(await answer()), onPerson };
     },
     findItems: async (image, lang) => {
       calls.push({ bytes: image.length, lang, kind: "look" });

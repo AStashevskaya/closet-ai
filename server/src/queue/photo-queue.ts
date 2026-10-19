@@ -6,6 +6,7 @@ import {
   cutOutPhoto,
   embedPhoto,
   processUploadedPhoto,
+  queueAfterTagging,
   tagPhoto,
   type PhotoJobDeps,
 } from "../modules/photos/photo-jobs";
@@ -73,11 +74,15 @@ export function createPhotoQueue(redisUrl: string) {
 
 // What to do when a job gives up for good, so the app stops waiting. A photo without an
 // embedding just doesn't show up in "similar": nothing to mark. A photo that couldn't be cut
-// out keeps its background and is embedded as it is.
+// out keeps its background and is embedded as it is. Untagged items still get cut out.
 async function markGaveUp(deps: PhotoJobDeps, job: Job<PhotoJobData | object, unknown, JobName>) {
   const { key } = job.data as PhotoJobData;
   if (job.name === "process") await deps.photos.markFailed(key);
-  if (job.name === "tag") await deps.photos.markTagsFailed(key);
+  if (job.name === "tag") {
+    await deps.photos.markTagsFailed(key);
+    // Without tags nobody knows if the item is worn: it is cut out as usual.
+    if ((await deps.photos.get(key))?.kind === "item") await queueAfterTagging(deps, key);
+  }
   if (job.name === "cutout" && deps.embedder) await deps.queue.enqueueEmbedding(key);
 }
 

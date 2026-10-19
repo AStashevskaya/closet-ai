@@ -619,6 +619,20 @@ describe("background removal", () => {
     expect(embedding.calls).toEqual([{ bytes: (await storage.get(photoKey))!.body.length }]);
   });
 
+  it("doesn't cut out an item someone is wearing, and embeds the photo as it is", async () => {
+    const cut = createStubRemover();
+    const worn = createStubTagger(undefined, undefined, { onPerson: true });
+    const server = await setup({ tagger: worn.tagger, remover: cut.remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+
+    await runWorker();
+    expect(cut.calls).toEqual([]);
+    const photo = await jobDeps.photos.get(photoKey);
+    expect(photo).toMatchObject({ cutoutKey: null, tags: shirtTags });
+    expect(embedding.calls).toEqual([{ bytes: (await storage.get(photoKey))!.body.length }]);
+  });
+
   it("deletes the cut-out together with the item", async () => {
     const server = await setup({ remover: createStubRemover().remover });
     const cookie = await signUp(server, "anna@example.com");

@@ -62,9 +62,23 @@ export async function processUploadedPhoto(
   if (photo.tagStatus === "pending") await queue.enqueueTagging(photo.key, lang);
   // A look is only read for its items: the items picked from it get their own photos.
   if (photo.kind === "look") return;
-  // The embedding is better made from the cut-out, so with a remover it waits for it.
-  if (remover) await queue.enqueueCutout(photo.key);
-  else if (embedder) await queue.enqueueEmbedding(photo.key);
+  // The cut-out waits for the tags: an item someone is wearing isn't cut out (see tagPhoto).
+  // Untagged photos (tagging off) go straight on.
+  if (photo.tagStatus !== "pending")
+    await queueAfterTagging({ queue, embedder, remover }, photo.key);
+}
+
+// What comes after an item photo is tagged (or tagging gave up): the cut-out, then the
+// embedding, which is better made from the cut-out, so with a remover it waits for it.
+export async function queueAfterTagging(
+  { queue, embedder, remover }: Pick<PhotoJobDeps, "queue" | "embedder" | "remover">,
+  key: string,
+  { onPerson = false } = {},
+) {
+  // Cut out of a selfie, a worn item loses the head and arms around it and looks odd;
+  // it keeps its photo instead (making it look nice is Premium).
+  if (remover && !onPerson) await queue.enqueueCutout(key);
+  else if (embedder) await queue.enqueueEmbedding(key);
 }
 
 // Job "cutout": cuts the item out of its background, then queues the embedding, which is made
@@ -112,13 +126,11 @@ export async function embedPhoto({ photos, storage, embedder }: PhotoJobDeps, ke
   await photos.setEmbedding(photo.key, await embedder.embedImage(file.body));
 }
 
-// Job "tag": asks the vision model what the item is, or for a look photo, which items it shows.
+// Job "tag": asks the vision model what the item is, then queues the cut-out, or for a look
+// photo, which items it shows.
 // Safe to run twice: only a ready photo still waiting for tags is tagged.
-export async function tagPhoto(
-  { photos, storage, tagger }: PhotoJobDeps,
-  key: string,
-  lang: AppLanguage,
-) {
+export async function tagPhoto(deps: PhotoJobDeps, key: string, lang: AppLanguage) {
+  const { photos, storage, tagger } = deps;
   const photo = await photos.get(key);
   if (!photo || photo.status !== "ready" || photo.tagStatus !== "pending") return;
   if (!tagger) throw new PermanentPhotoError("tagging is not configured");
@@ -127,9 +139,13 @@ export async function tagPhoto(
   if (!file) throw new PermanentPhotoError("processed photo is missing from storage");
 
   try {
-    if (photo.kind === "look")
+    if (photo.kind === "look") {
       await photos.setLookItems(photo.key, await tagger.findItems(file.body, lang));
-    else await photos.setTags(photo.key, await tagger.tag(file.body, lang));
+      return;
+    }
+    const { onPerson, ...tags } = await tagger.tag(file.body, lang);
+    await photos.setTags(photo.key, tags);
+    await queueAfterTagging(deps, photo.key, { onPerson });
   } catch (error) {
     if (error instanceof TaggingRefusedError) throw new PermanentPhotoError(error.message);
     throw error;
