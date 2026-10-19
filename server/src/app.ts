@@ -10,7 +10,9 @@ import { authRoutes } from "./auth/auth.routes";
 import type { Env } from "./config/env";
 import type { ItemsRepository } from "./modules/items/items.repository";
 import { itemsRoutes } from "./modules/items/items.routes";
+import type { PhotosRepository } from "./modules/photos/photos.repository";
 import { photosRoutes } from "./modules/photos/photos.routes";
+import type { PhotoQueue } from "./queue/photo-queue";
 import { healthRoutes } from "./routes/health";
 import type { Storage } from "./storage/storage";
 
@@ -20,14 +22,23 @@ export interface AppDeps {
   env: Env;
   auth: Auth;
   itemsRepository: ItemsRepository;
+  photosRepository: PhotosRepository;
+  photoQueue: PhotoQueue;
   storage: Storage;
 }
 
 // The app sends a photo already shrunk to ~1600 px JPEG (well under 1 MB); the limit only
-// stops abuse. Everything is re-encoded to a small WebP before it is stored.
+// stops abuse. The worker re-encodes every upload to a small WebP and deletes the original.
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-export async function buildApp({ env, auth, itemsRepository, storage }: AppDeps) {
+export async function buildApp({
+  env,
+  auth,
+  itemsRepository,
+  photosRepository,
+  photoQueue,
+  storage,
+}: AppDeps) {
   const app = Fastify({
     logger:
       env.NODE_ENV === "development"
@@ -56,8 +67,12 @@ export async function buildApp({ env, auth, itemsRepository, storage }: AppDeps)
 
   await app.register(healthRoutes);
   await app.register(authRoutes(auth), { prefix: "/api" });
-  await app.register(itemsRoutes(itemsRepository, storage, auth), { prefix: "/api" });
-  await app.register(photosRoutes(storage, auth), { prefix: "/api" });
+  await app.register(itemsRoutes(itemsRepository, photosRepository, storage, auth), {
+    prefix: "/api",
+  });
+  await app.register(photosRoutes(storage, photosRepository, photoQueue, auth), {
+    prefix: "/api",
+  });
 
   return app;
 }

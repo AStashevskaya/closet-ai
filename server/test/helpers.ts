@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { Item } from "@closet-ai/shared";
+import type { CreateItemInput } from "@closet-ai/shared";
 import type { Env } from "../src/config/env";
-import { photoPath, type ItemsRepository } from "../src/modules/items/items.repository";
+import { toItem, type ItemsRepository } from "../src/modules/items/items.repository";
+import { processUploadedPhoto, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
+import type { Photo, PhotosRepository } from "../src/modules/photos/photos.repository";
+import type { PhotoQueue } from "../src/queue/photo-queue";
 
 // Shared by the test files. Not a test file itself (no .test.ts), so Vitest doesn't run it.
 export const testEnv: Env = {
@@ -17,32 +20,82 @@ export const testEnv: Env = {
   S3_BUCKET: "unused",
   S3_ACCESS_KEY_ID: "unused",
   S3_SECRET_ACCESS_KEY: "unused",
+  REDIS_URL: "redis://localhost:6379",
 };
 
-export function createInMemoryItemsRepository(): ItemsRepository {
-  const store: { item: Item; ownerId: string; photoKey?: string }[] = [];
-  return {
-    list: async (ownerId) => store.filter((row) => row.ownerId === ownerId).map((row) => row.item),
-    create: async (ownerId, { photoKey, ...input }) => {
-      const id = randomUUID();
-      const item: Item = {
-        ...input,
-        id,
-        createdAt: new Date().toISOString(),
-        photoUrl: photoKey ? photoPath(id) : undefined,
-      };
-      store.push({ item, ownerId, photoKey });
-      return item;
+// In-memory stand-ins for the Drizzle repositories. They share state the way the tables do:
+// an item's photo status comes from the photos store, and a photo is unattached when no item points to it.
+export function createInMemoryRepositories() {
+  type ItemRow = { id: string; ownerId: string; input: CreateItemInput; createdAt: Date };
+  const itemRows: ItemRow[] = [];
+  const photoRows = new Map<string, Photo & { createdAt: Date }>();
+
+  const toApiItem = ({ id, ownerId, input, createdAt }: ItemRow) => {
+    const { photoKey = null, seasons = [], ...rest } = input;
+    const status = photoKey ? (photoRows.get(photoKey)?.status ?? null) : null;
+    return toItem({ ...rest, seasons, id, ownerId, photoKey, createdAt }, status);
+  };
+
+  const itemsRepository: ItemsRepository = {
+    list: async (ownerId) => itemRows.filter((row) => row.ownerId === ownerId).map(toApiItem),
+    create: async (ownerId, input) => {
+      const row = { id: randomUUID(), ownerId, input, createdAt: new Date() };
+      itemRows.push(row);
+      return toApiItem(row);
     },
     get: async (ownerId, itemId) =>
       store.find((row) => row.ownerId === ownerId && row.item.id === itemId)?.item ?? null,
     photoKey: async (ownerId, itemId) =>
-      store.find((row) => row.ownerId === ownerId && row.item.id === itemId)?.photoKey ?? null,
+      itemRows.find((row) => row.ownerId === ownerId && row.id === itemId)?.input.photoKey ?? null,
     delete: async (ownerId, itemId) => {
-      const index = store.findIndex((row) => row.ownerId === ownerId && row.item.id === itemId);
+      const index = itemRows.findIndex((row) => row.ownerId === ownerId && row.id === itemId);
       if (index === -1) return null;
-      const [row] = store.splice(index, 1);
-      return { photoKey: row?.photoKey ?? null };
+      const [row] = itemRows.splice(index, 1);
+      return { photoKey: row?.input.photoKey ?? null };
     },
   };
+
+  const photosRepository: PhotosRepository = {
+    create: async (photo) => {
+      photoRows.set(photo.key, { ...photo, status: "processing", createdAt: new Date() });
+    },
+    get: async (key) => {
+      const row = photoRows.get(key);
+      return row
+        ? { key: row.key, ownerId: row.ownerId, uploadKey: row.uploadKey, status: row.status }
+        : null;
+    },
+    markReady: async (key) => {
+      const row = photoRows.get(key);
+      if (row) Object.assign(row, { status: "ready", uploadKey: null });
+    },
+    markFailed: async (key) => {
+      const row = photoRows.get(key);
+      if (row) row.status = "failed";
+    },
+    listUnattached: async (before) =>
+      [...photoRows.values()].filter(
+        (row) =>
+          row.createdAt < before && !itemRows.some((item) => item.input.photoKey === row.key),
+      ),
+    delete: async (key) => {
+      photoRows.delete(key);
+    },
+  };
+
+  return { itemsRepository, photosRepository };
+}
+
+// Records queued photos instead of sending them to Redis; runAll plays the worker's part.
+export function createManualPhotoQueue() {
+  const queued: string[] = [];
+  const photoQueue: PhotoQueue = {
+    enqueueProcessing: async (key) => {
+      queued.push(key);
+    },
+  };
+  async function runAll(deps: PhotoJobDeps) {
+    for (let key = queued.shift(); key; key = queued.shift()) await processUploadedPhoto(deps, key);
+  }
+  return { photoQueue, queued, runAll };
 }

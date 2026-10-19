@@ -26,6 +26,11 @@ export type ItemCategory = z.infer<typeof itemCategory>;
 export const season = z.enum(SEASONS);
 export type Season = z.infer<typeof season>;
 
+// processing: uploaded, waiting for the worker; ready: shrunk WebP stored; failed: could not be processed.
+export const PHOTO_STATUSES = ["processing", "ready", "failed"] as const;
+export const photoStatus = z.enum(PHOTO_STATUSES);
+export type PhotoStatus = z.infer<typeof photoStatus>;
+
 export const itemColor = z.enum(ITEM_COLORS);
 export type ItemColor = z.infer<typeof itemColor>;
 
@@ -42,14 +47,16 @@ export type CreateItemInput = z.infer<typeof createItemInput>;
 export const item = createItemInput.omit({ photoKey: true }).extend({
   id: z.string().uuid(),
   createdAt: z.string().datetime(),
-  // API path of the photo, relative to the server (needs the session cookie).
+  // API path of the photo, relative to the server (needs the session cookie). Set once the photo is ready.
   photoUrl: z.string().optional(),
+  photoStatus: photoStatus.optional(),
 });
 export type Item = z.infer<typeof item>;
 
 // Response of GET /api/items.
 export const itemList = z.array(item);
 
-// Response of POST /api/photos: pass photoKey on to POST /api/items.
-export const uploadedPhoto = z.object({ photoKey: z.string() });
+// Response of POST /api/photos: pass photoKey on to POST /api/items. The photo is shrunk in
+// the background, so it starts out "processing".
+export const uploadedPhoto = z.object({ photoKey: z.string(), status: photoStatus });
 export type UploadedPhoto = z.infer<typeof uploadedPhoto>;

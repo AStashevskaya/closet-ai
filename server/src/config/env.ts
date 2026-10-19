@@ -28,6 +28,8 @@ const envSchema = z
     S3_BUCKET: z.string().min(1),
     S3_ACCESS_KEY_ID: z.string().min(1),
     S3_SECRET_ACCESS_KEY: z.string().min(1),
+    // Redis for the BullMQ job queue (photo processing).
+    REDIS_URL: z.string().url().default("redis://localhost:6379"),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== "production") return;

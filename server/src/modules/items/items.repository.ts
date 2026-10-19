@@ -1,7 +1,7 @@
-import type { CreateItemInput, Item } from "@closet-ai/shared";
+import type { CreateItemInput, Item, PhotoStatus } from "@closet-ai/shared";
 import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { items } from "../../db/schema";
+import { items, photos } from "../../db/schema";
 
 // Every method takes the owner, so one user can never read or write another user's items.
 export interface ItemsRepository {
@@ -21,14 +21,17 @@ export const photoPath = (itemId: string) => `/api/items/${itemId}/photo`;
 
 type ItemRow = typeof items.$inferSelect;
 
-function toItem(row: ItemRow): Item {
+// The photo URL only appears once the worker has stored the WebP; until then the app
+// shows a placeholder and polls while photoStatus is "processing".
+export function toItem(row: ItemRow, photoStatus: PhotoStatus | null): Item {
   return {
     id: row.id,
     name: row.name,
     category: row.category,
     colors: row.colors,
     seasons: row.seasons,
-    photoUrl: row.photoKey ? photoPath(row.id) : undefined,
+    photoUrl: photoStatus === "ready" ? photoPath(row.id) : undefined,
+    photoStatus: photoStatus ?? undefined,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -37,11 +40,12 @@ export function createItemsRepository(db: Db): ItemsRepository {
   return {
     async list(ownerId) {
       const rows = await db
-        .select()
+        .select({ item: items, photoStatus: photos.status })
         .from(items)
+        .leftJoin(photos, eq(photos.key, items.photoKey))
         .where(eq(items.ownerId, ownerId))
         .orderBy(desc(items.createdAt));
-      return rows.map(toItem);
+      return rows.map((row) => toItem(row.item, row.photoStatus));
     },
 
     async get(ownerId, itemId) {
@@ -58,7 +62,13 @@ export function createItemsRepository(db: Db): ItemsRepository {
         .values({ ...input, ownerId })
         .returning();
       if (!row) throw new Error("Insert returned no rows");
-      return toItem(row);
+      const [photo] = row.photoKey
+        ? await db
+            .select({ status: photos.status })
+            .from(photos)
+            .where(eq(photos.key, row.photoKey))
+        : [];
+      return toItem(row, photo?.status ?? null);
     },
 
     async photoKey(ownerId, itemId) {
