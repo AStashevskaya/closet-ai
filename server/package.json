@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "embeddings:backfill": "tsx --env-file=.env src/scripts/backfill-embeddings.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
@@ -21,6 +22,7 @@
     "@better-auth/expo": "^1.7.10",
     "@closet-ai/shared": "workspace:*",
     "@fastify/multipart": "^10.1.4",
+    "@huggingface/transformers": "^4.3.1",
     "better-auth": "^1.7.10",
     "bullmq": "^6.3.16",
     "drizzle-orm": "^0.45.4",

@@ -12,7 +12,7 @@ import * as schema from "../src/db/schema";
 import { createItemsRepository } from "../src/modules/items/items.repository";
 import { createPhotosRepository } from "../src/modules/photos/photos.repository";
 import { createMemoryStorage } from "../src/storage/storage";
-import { createManualPhotoQueue, shirtTags } from "./helpers";
+import { createManualPhotoQueue, shirtTags, unitVector } from "./helpers";
 
 // The same app as in production, on a real Postgres: Drizzle queries, the Better Auth
 // Drizzle adapter and the committed migrations. Runs only when TEST_DATABASE_URL is set
@@ -59,6 +59,7 @@ describe.skipIf(!url)("on Postgres", () => {
       S3_ACCESS_KEY_ID: "unused",
       S3_SECRET_ACCESS_KEY: "unused",
       REDIS_URL: "redis://localhost:6379",
+      MODEL_CACHE_DIR: ".models",
     };
     const auth = createAuth(env, drizzleAdapter(db.db, { provider: "pg", schema }));
     // Photo processing is covered in photos.test.ts; here storage is only a stand-in.
@@ -238,6 +239,48 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(own.statusCode).toBe(204);
     const left = await db.db.select().from(schema.items).where(eq(schema.items.id, id));
     expect(left).toEqual([]);
+  });
+
+  it("finds similar items with pgvector, same category, closest first", async () => {
+    const cookie = await signUp("similar@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "similar@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const add = async (name: string, category: string, vector: number[]) => {
+      const key = `photos/${user!.id}/${name}.webp`;
+      await photos.create({
+        key,
+        ownerId: user!.id,
+        uploadKey: `uploads/${user!.id}/${name}`,
+        tagStatus: null,
+      });
+      await photos.markReady(key);
+      await photos.setEmbedding(key, vector);
+      return (
+        await app.inject({
+          method: "POST",
+          url: "/api/items",
+          headers: { cookie },
+          payload: { name, category, colors: ["white"], photoKey: key },
+        })
+      ).json<Item>().id;
+    };
+    const shirt = await add("shirt", "top", unitVector(1, 0));
+    await add("close", "top", unitVector(1, 0.2));
+    await add("far", "top", unitVector(0.2, 1));
+    await add("shorts", "bottom", unitVector(1, 0));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/items/${shirt}/similar`,
+      headers: { cookie },
+    });
+    const found = res.json<(Item & { similarity: number })[]>();
+    expect(found.map((item) => item.name)).toEqual(["close", "far"]);
+    expect(found[0]!.similarity).toBeCloseTo(0.98, 2);
+    expect(await photos.listWithoutEmbedding()).not.toContain(`photos/${user!.id}/shirt.webp`);
   });
 
   it("lists only photos no item points to, created before the cutoff", async () => {

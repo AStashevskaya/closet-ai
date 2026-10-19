@@ -119,3 +119,9 @@ export const updateItemInput = z
   })
   .partial();
 export type UpdateItemInput = z.infer<typeof updateItemInput>;
+
+// Response of GET /api/items/:id/similar: the closest items of the same category in the
+// user's wardrobe, most similar first. similarity is the cosine of the photo embeddings (-1..1).
+export const similarItem = item.extend({ similarity: z.number() });
+export type SimilarItem = z.infer<typeof similarItem>;
+export const similarItems = z.array(similarItem);

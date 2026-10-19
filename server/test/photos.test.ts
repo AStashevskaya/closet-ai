@@ -1,4 +1,4 @@
-import type { Item, ItemDetail, PhotoState, UploadedPhoto } from "@closet-ai/shared";
+import type { Item, ItemDetail, PhotoState, SimilarItem, UploadedPhoto } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -15,9 +15,11 @@ import { createMemoryStorage, type Storage } from "../src/storage/storage";
 import {
   createInMemoryRepositories,
   createManualPhotoQueue,
+  createStubEmbedder,
   createStubTagger,
   shirtTags,
   testEnv as env,
+  unitVector,
 } from "./helpers";
 
 type App = Awaited<ReturnType<typeof buildApp>>;
@@ -28,18 +30,21 @@ let queue: ReturnType<typeof createManualPhotoQueue>;
 let jobDeps: PhotoJobDeps;
 
 let stub: ReturnType<typeof createStubTagger>;
+let embedding: ReturnType<typeof createStubEmbedder>;
 
 // Tagging is on by default, with a stub instead of Claude; pass tagger: null to turn it off.
 async function setup({ tagger }: { tagger?: ItemTagger | null } = {}) {
   storage = createMemoryStorage();
   queue = createManualPhotoQueue();
   stub = createStubTagger();
+  embedding = createStubEmbedder();
   const activeTagger = tagger === undefined ? stub.tagger : tagger;
   const repositories = createInMemoryRepositories();
   jobDeps = {
     photos: repositories.photosRepository,
     storage,
     tagger: activeTagger,
+    embedder: embedding.embedder,
     queue: queue.photoQueue,
   };
   const auth = createAuth(
@@ -441,8 +446,77 @@ describe("tagging", () => {
     const other = await signUp(flaky, "maya@example.com");
     const { photoKey } = (await upload(flaky, other, await cameraPhoto())).json<UploadedPhoto>();
     await expect(runWorker()).rejects.toThrow("overloaded");
-    expect(queue.queued).toEqual([]);
+    expect(queue.queued.some((job) => job.name === "tag")).toBe(false);
     // Still pending: BullMQ retries the job.
     expect((await status(flaky, other, photoKey)).json<PhotoState>().tagStatus).toBe("pending");
+  });
+});
+
+describe("embeddings and similar items", () => {
+  // Uploads a photo, lets the worker process it, and saves an item with it.
+  async function addItem(server: App, cookie: string, name: string, category = "top") {
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+    await runWorker();
+    const { id } = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name, category, colors: ["white"], photoKey },
+      })
+    ).json<Item>();
+    return { id, photoKey };
+  }
+
+  const similar = (server: App, cookie: string, id: string) =>
+    server.inject({ method: "GET", url: `/api/items/${id}/similar`, headers: { cookie } });
+
+  it("embeds the processed photo", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const { photoKey } = (await upload(server, cookie, await cameraPhoto())).json<UploadedPhoto>();
+
+    await runWorker();
+    // Once, on the small WebP rather than the original.
+    expect(embedding.calls).toEqual([{ bytes: (await storage.get(photoKey))!.body.length }]);
+    expect(await jobDeps.photos.listWithoutEmbedding()).toEqual([]);
+  });
+
+  it("finds the closest items of the same category, closest first", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const shirt = await addItem(server, cookie, "White shirt");
+    const closeShirt = await addItem(server, cookie, "Cream shirt");
+    const farShirt = await addItem(server, cookie, "Striped shirt");
+    const shorts = await addItem(server, cookie, "White shorts", "bottom");
+    await jobDeps.photos.setEmbedding(shirt.photoKey, unitVector(1, 0));
+    await jobDeps.photos.setEmbedding(closeShirt.photoKey, unitVector(1, 0.2));
+    await jobDeps.photos.setEmbedding(farShirt.photoKey, unitVector(0.2, 1));
+    // Looks the same as the shirt, but another category.
+    await jobDeps.photos.setEmbedding(shorts.photoKey, unitVector(1, 0));
+
+    const res = await similar(server, cookie, shirt.id);
+    expect(res.statusCode).toBe(200);
+    const found = res.json<SimilarItem[]>();
+    expect(found.map((item) => item.name)).toEqual(["Cream shirt", "Striped shirt"]);
+    expect(found[0]!.similarity).toBeGreaterThan(0.9);
+    expect(found[1]!.similarity).toBeLessThan(0.5);
+  });
+
+  it("is empty for an item whose photo has no embedding yet, 404 for someone else's", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const { id } = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: anna },
+        payload: { name: "No photo", category: "top", colors: ["white"] },
+      })
+    ).json<Item>();
+
+    expect((await similar(server, anna, id)).json()).toEqual([]);
+    expect((await similar(server, maya, id)).statusCode).toBe(404);
   });
 });

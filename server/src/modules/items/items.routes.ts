@@ -1,4 +1,11 @@
-import { createItemInput, item, itemDetail, itemList, updateItemInput } from "@closet-ai/shared";
+import {
+  createItemInput,
+  item,
+  itemDetail,
+  itemList,
+  similarItems,
+  updateItemInput,
+} from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
@@ -8,6 +15,9 @@ import type { Storage } from "../../storage/storage";
 import { deletePhoto } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import type { ItemsRepository } from "./items.repository";
+
+// One row on the item screen.
+const SIMILAR_LIMIT = 6;
 
 export const itemsRoutes =
   (
@@ -31,6 +41,19 @@ export const itemsRoutes =
       { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: itemDetail } } },
       async (request) => {
         const found = await repo.get(userOf(request).id, request.params.id);
+        if (!found) throw httpError(404, "item not found");
+        return found;
+      },
+    );
+
+    // "Similar in your wardrobe" on the item screen.
+    app.get(
+      "/items/:id/similar",
+      {
+        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: similarItems } },
+      },
+      async (request) => {
+        const found = await repo.similar(userOf(request).id, request.params.id, SIMILAR_LIMIT);
         if (!found) throw httpError(404, "item not found");
         return found;
       },

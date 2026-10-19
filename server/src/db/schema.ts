@@ -7,7 +7,8 @@ import {
   type ItemTags,
 } from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, jsonb, pgEnum, pgTable, text, timestamp, uuid, vector } from "drizzle-orm/pg-core";
+import { EMBEDDING_DIMENSIONS } from "../ai/embedding-model";
 import { user } from "./auth-schema";
 
 export * from "./auth-schema";
@@ -35,9 +36,17 @@ export const photos = pgTable(
     // (no API key), so the app knows not to wait for tags.
     tagStatus: tagStatusEnum("tag_status"),
     tags: jsonb("tags").$type<ItemTags>(),
+    // The photo's image embedding (Marqo-FashionSigLIP, normalized), for "find similar".
+    // Null until the worker has computed it.
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("photos_owner_id_idx").on(table.ownerId)],
+  (table) => [
+    index("photos_owner_id_idx").on(table.ownerId),
+    // Cosine distance, as the embeddings are compared by angle. HNSW keeps nearest-neighbour
+    // queries fast as wardrobes grow; with a few hundred items Postgres may simply scan.
+    index("photos_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+  ],
 );
 
 export const items = pgTable(
