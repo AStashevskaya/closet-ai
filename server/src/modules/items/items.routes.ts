@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   createItemInput,
   item,
@@ -12,7 +13,10 @@ import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { Storage } from "../../storage/storage";
-import { deletePhoto } from "../photos/photo-jobs";
+import type { PhotoQueue } from "../../queue/photo-queue";
+import { cutoutKeyFor, deletePhoto } from "../photos/photo-jobs";
+import { photoPrefix } from "../photos/photos.routes";
+import { rotateQuarter } from "../photos/process-photo";
 import type { PhotosRepository } from "../photos/photos.repository";
 import type { ItemsRepository } from "./items.repository";
 
@@ -24,6 +28,7 @@ export const itemsRoutes =
     repo: ItemsRepository,
     photos: PhotosRepository,
     storage: Storage,
+    photoQueue: PhotoQueue,
     auth: Auth,
   ): FastifyPluginAsyncZod =>
   async (app) => {
@@ -76,6 +81,49 @@ export const itemsRoutes =
       },
     );
 
+    // The item screen's "rotate": the photo and its cut-out turned a quarter clockwise, stored
+    // under new keys (so the new URLs miss the phone's cache) in place of the old ones.
+    app.post(
+      "/items/:id/rotate",
+      { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: itemDetail } } },
+      async (request) => {
+        const user = userOf(request);
+        const { id } = request.params;
+        const key = await repo.photoKey(user.id, id, "photo");
+        if (!key) throw httpError(404, "no photo");
+        const photo = await photos.get(key);
+        const file = photo?.status === "ready" ? await storage.get(key) : null;
+        if (!photo || !file) throw httpError(409, "photo not ready");
+
+        const turnedKey = `${photoPrefix(user.id)}${randomUUID()}.webp`;
+        await storage.put(turnedKey, await rotateQuarter(file.body), "image/webp");
+        const cutout = photo.cutoutKey ? await storage.get(photo.cutoutKey) : null;
+        const turnedCutoutKey = cutout ? cutoutKeyFor(turnedKey) : null;
+        if (cutout && turnedCutoutKey) {
+          await storage.put(turnedCutoutKey, await rotateQuarter(cutout.body), "image/webp");
+        }
+        await photos.copyAs(key, { key: turnedKey, cutoutKey: turnedCutoutKey });
+        if (!(await repo.setPhotoKey(user.id, id, turnedKey)))
+          throw httpError(404, "item not found");
+
+        try {
+          await deletePhoto({ photos, storage }, key);
+        } catch (error) {
+          // Unattached now, so the hourly cleanup tries again.
+          request.log.warn({ err: error, key }, "failed to delete the unturned photo");
+        }
+        // The copied embedding is of the photo as it was; "similar" compares upright items better.
+        try {
+          await photoQueue.enqueueEmbedding(turnedKey);
+        } catch (error) {
+          request.log.warn({ err: error, key: turnedKey }, "failed to queue the embedding");
+        }
+        const turned = await repo.get(user.id, id);
+        if (!turned) throw httpError(404, "item not found");
+        return turned;
+      },
+    );
+
     app.post(
       "/items",
       { schema: { body: createItemInput, response: { 201: item } } },
@@ -100,8 +148,12 @@ export const itemsRoutes =
       {
         schema: {
           params: z.object({ id: z.string().uuid() }),
-          // The cut-out has its own URL, so the phone's cache of the photo stays valid.
-          querystring: z.object({ variant: z.enum(["photo", "cutout"]).default("photo") }),
+          // The cut-out has its own URL, so the phone's cache of the photo stays valid. `v` only
+          // makes the URL change with the stored key (see photoPath).
+          querystring: z.object({
+            variant: z.enum(["photo", "cutout"]).default("photo"),
+            v: z.string().max(40).optional(),
+          }),
         },
       },
       async (request, reply) => {

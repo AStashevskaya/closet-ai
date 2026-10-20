@@ -44,6 +44,16 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="add-items"
+          options={{
+            presentation: 'modal',
+            title: t('addItems.title'),
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+          }}
+        />
+        <Stack.Screen
           name="add-look"
           options={{
             presentation: 'modal',

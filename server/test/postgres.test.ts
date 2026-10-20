@@ -344,7 +344,47 @@ describe.skipIf(!url)("on Postgres", () => {
     const item = (
       await app.inject({ method: "GET", url: `/api/items/${id}`, headers: { cookie } })
     ).json<Item>();
-    expect(item.cutoutUrl).toBe(`/api/items/${id}/photo?variant=cutout`);
+    expect(item.cutoutUrl).toMatch(new RegExp(`^/api/items/${id}/photo\\?variant=cutout&v=`));
+  });
+
+  it("copies a photo under new keys and points the item at the copy", async () => {
+    const cookie = await signUp("turn@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "turn@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const key = `photos/${user!.id}/before.webp`;
+    await photos.create({
+      key,
+      ownerId: user!.id,
+      uploadKey: `uploads/${user!.id}/b`,
+      tagStatus: "pending",
+    });
+    await photos.markReady(key);
+    await photos.setTags(key, shirtTags);
+    const { id } = (
+      await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "turn", category: "top", colors: ["white"], photoKey: key },
+      })
+    ).json<Item>();
+
+    const turned = `photos/${user!.id}/after.webp`;
+    await photos.copyAs(key, { key: turned, cutoutKey: `photos/${user!.id}/after-cutout.webp` });
+    const items = createItemsRepository(db.db);
+    expect(await items.setPhotoKey(user!.id, id, turned)).toBe(true);
+    expect(await items.setPhotoKey("someone-else", id, key)).toBe(false);
+    await photos.delete(key);
+
+    expect(await photos.get(turned)).toMatchObject({
+      status: "ready",
+      tags: shirtTags,
+      cutoutKey: `photos/${user!.id}/after-cutout.webp`,
+    });
+    expect(await items.photoKey(user!.id, id, "photo")).toBe(turned);
   });
 
   it("lists only photos no item points to, created before the cutoff", async () => {

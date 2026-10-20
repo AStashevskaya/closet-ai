@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import i18n from '@/i18n';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
-import { shrinkPhoto } from '@/lib/shrink-photo';
+import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 
 import { AddItem } from '.';
 
@@ -18,7 +18,11 @@ jest.mock('expo-image-picker', () => ({
   launchCameraAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
 }));
-jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn() }));
+// Leaving needs a real navigator; the screens' own navigations go straight through here.
+jest.mock('@/lib/use-confirm-leave', () => ({
+  useConfirmLeave: () => (navigate: () => void) => navigate(),
+}));
+jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   uploadPhoto: jest.fn(),
   createItem: jest.fn(),
@@ -42,15 +46,13 @@ beforeEach(async () => {
   jest.mocked(uploadPhoto).mockResolvedValue('photos/u1/p1.webp');
   jest.mocked(createItem).mockResolvedValue({} as never);
   // Tagging off unless a test turns it on, so the form stays as the test fills it.
-  jest
-    .mocked(getPhotoState)
-    .mockResolvedValue({
-      status: 'ready',
-      tagStatus: null,
-      tags: null,
-      lookItems: null,
-      matches: null,
-    });
+  jest.mocked(getPhotoState).mockResolvedValue({
+    status: 'ready',
+    tagStatus: null,
+    tags: null,
+    lookItems: null,
+    matches: null,
+  });
 });
 
 const tags: ItemTags = {
@@ -242,5 +244,39 @@ describe('<AddItem />', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/^Couldn't save the item/);
     expect(mockBack).not.toHaveBeenCalled();
+  });
+  test('sends several gallery photos to the screen that adds them all', async () => {
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+      canceled: false,
+      assets: [
+        { uri: 'file:///a.heic', width: 4032, height: 3024 },
+        { uri: 'file:///b.heic', width: 3024, height: 4032 },
+      ],
+    } as never);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ allowsMultipleSelection: true }),
+    );
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/add-items',
+      params: {
+        photos: JSON.stringify([
+          { uri: 'file:///a.heic', width: 4032, height: 3024 },
+          { uri: 'file:///b.heic', width: 3024, height: 4032 },
+        ]),
+      },
+    });
+    expect(uploadPhoto).not.toHaveBeenCalled();
+  });
+  test('turns the photo and uploads the turned copy', async () => {
+    jest.mocked(rotatePhoto).mockResolvedValue('file:///turned.jpg');
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.press(await screen.findByLabelText('Rotate photo'));
+
+    await waitFor(() => expect(uploadPhoto).toHaveBeenLastCalledWith('file:///turned.jpg', 'en'));
+    expect(rotatePhoto).toHaveBeenCalledWith('file:///small.jpg');
   });
 });

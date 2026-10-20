@@ -30,7 +30,15 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Chip } from '@/components/chip';
 import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
-import { deleteItem, getItem, getSimilarItems, sessionHeaders, updateItem } from '@/lib/api';
+import { RotateButton } from '@/components/rotate-button';
+import {
+  deleteItem,
+  getItem,
+  getSimilarItems,
+  rotateItem,
+  sessionHeaders,
+  updateItem,
+} from '@/lib/api';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -144,6 +152,21 @@ export function ItemScreen({ id }: { id: string }) {
     }
   }
 
+  // Saved on the server at once, apart from the fields: unsaved corrections stay in the draft.
+  async function rotate() {
+    setBusy(true);
+    try {
+      const turned = await rotateItem(id);
+      setState({ status: 'ready', item: turned });
+      void Haptics.selectionAsync();
+    } catch (cause) {
+      if (__DEV__) console.warn('Turning the photo failed', cause);
+      Alert.alert(t('item.rotateError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function confirmDelete() {
     Alert.alert(t('closet.deleteTitle', { name: item.name }), t('closet.deleteMessage'), [
       { text: t('closet.cancel'), style: 'cancel' },
@@ -178,7 +201,10 @@ export function ItemScreen({ id }: { id: string }) {
         automaticallyAdjustKeyboardInsets
         keyboardDismissMode="interactive"
       >
-        <ItemPhoto item={item} headers={headers} style={styles.photo} />
+        <View style={styles.photo}>
+          <ItemPhoto item={item} headers={headers} style={styles.photoImage} />
+          {item.photoUrl && <RotateButton onPress={rotate} disabled={busy} style={styles.rotate} />}
+        </View>
 
         <Text style={styles.label}>{t('addItem.name')}</Text>
         <TextInput
@@ -353,7 +379,15 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '80%',
     aspectRatio: 3 / 4,
+  },
+  photoImage: {
+    flex: 1,
     borderRadius: 20,
+  },
+  rotate: {
+    position: 'absolute',
+    bottom: 10,
+    end: 10,
   },
   label: {
     marginTop: 12,

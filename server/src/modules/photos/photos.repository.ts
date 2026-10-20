@@ -47,6 +47,9 @@ export interface PhotosRepository {
   // already, so it starts out ready, with the tags it was made with.
   createReady(photo: { key: string; ownerId: string; tags: ItemTags }): Promise<void>;
   get(key: string): Promise<Photo | null>;
+  // A copy of a ready photo stored under new keys (the photo turned by the user): same owner,
+  // kind, tags and embedding.
+  copyAs(key: string, copy: { key: string; cutoutKey: string | null }): Promise<void>;
   // The processed WebP is stored and the original deleted.
   markReady(key: string): Promise<void>;
   markFailed(key: string): Promise<void>;
@@ -98,6 +101,17 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     async get(key) {
       const [row] = await db.select(columns).from(photos).where(eq(photos.key, key));
       return row ?? null;
+    },
+
+    async copyAs(key, copy) {
+      const [row] = await db.select().from(photos).where(eq(photos.key, key));
+      if (!row) throw new Error(`no photo ${key}`);
+      await db.insert(photos).values({
+        ...row,
+        ...copy,
+        uploadKey: null,
+        createdAt: new Date(),
+      });
     },
 
     async markReady(key) {

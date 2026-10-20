@@ -35,6 +35,7 @@
     "tagging": "Recognising the item from the photo…",
     "tagged": "Filled in from the photo — check it",
     "changePhoto": "Change photo",
+    "rotate": "Rotate photo",
     "name": "Name",
     "namePlaceholder": "e.g. White linen shirt",
     "category": "Category",
@@ -153,7 +154,8 @@
     "save": "Save changes",
     "delete": "Delete item",
     "loadError": "Couldn't load the item.",
-    "saveError": "Couldn't save the changes. Try again."
+    "saveError": "Couldn't save the changes. Try again.",
+    "rotateError": "Couldn't turn the photo. Try again."
   },
   "addLook": {
     "title": "Outfit from a selfie",
@@ -170,6 +172,27 @@
       "save": "Couldn’t add the items. Try again.",
       "empty": "Tick at least one item"
     }
+  },
+  "addItems": {
+    "title": "New items",
+    "progress": "Recognising {{done}} of {{count}}…",
+    "ready": "Untick what you don't need",
+    "uploading": "Uploading…",
+    "tagging": "Recognising…",
+    "unknown": "Couldn't recognise it — add it on its own",
+    "failed": "Couldn't upload this photo",
+    "added": "Added",
+    "edit": "Edit {{name}}",
+    "errors": {
+      "save": "Couldn't add some of the items. Try again.",
+      "incomplete": "Fill in a name and at least one color for each ticked item"
+    }
+  },
+  "discard": {
+    "title": "Leave without saving?",
+    "message": "Anything not saved here will be lost.",
+    "stay": "Keep editing",
+    "leave": "Leave"
   },
   "want": {
     "title": "Want / Can",

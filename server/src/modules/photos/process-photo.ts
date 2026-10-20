@@ -66,6 +66,14 @@ export async function processCutout(png: Uint8Array): Promise<Uint8Array> {
     .toBuffer();
 }
 
+// A stored photo or cut-out turned a quarter clockwise, when the user asks: transparency kept.
+export async function rotateQuarter(webp: Uint8Array): Promise<Uint8Array> {
+  return sharp(webp)
+    .rotate(90)
+    .webp({ quality: WEBP_QUALITY, alphaQuality: 90, effort: 6 })
+    .toBuffer();
+}
+
 // The cut-out on white, for models that read colour pixels only: transparent pixels would
 // otherwise come through as whatever colour they happen to hold.
 export async function flattenOnWhite(image: Uint8Array): Promise<Uint8Array> {

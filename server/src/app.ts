@@ -70,7 +70,7 @@ export async function buildApp({
 
   await app.register(healthRoutes);
   await app.register(authRoutes(auth), { prefix: "/api" });
-  await app.register(itemsRoutes(itemsRepository, photosRepository, storage, auth), {
+  await app.register(itemsRoutes(itemsRepository, photosRepository, storage, photoQueue, auth), {
     prefix: "/api",
   });
   await app.register(
