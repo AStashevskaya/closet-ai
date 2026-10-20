@@ -23,6 +23,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
+import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { durations } from '@/motion';
 import type { PickedPhoto } from '@/screens/add-items';
 import { colors, fonts } from '@/theme';
@@ -63,6 +64,8 @@ export function AddItem() {
   const [itemColors, setItemColors] = useState<ItemColor[]>([]);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
+  // A picked photo or a typed name is worth asking about before the sheet closes.
+  const leave = useConfirmLeave(photoUri !== null || name.trim() !== '');
 
   async function pick(source: 'camera' | 'library') {
     if (source === 'camera') {
@@ -86,7 +89,9 @@ export function AddItem() {
         width,
         height,
       }));
-      router.replace({ pathname: '/add-items', params: { photos: JSON.stringify(photos) } });
+      leave(() =>
+        router.replace({ pathname: '/add-items', params: { photos: JSON.stringify(photos) } }),
+      );
       return;
     }
     const asset = result.canceled ? undefined : result.assets[0];
@@ -204,7 +209,7 @@ export function AddItem() {
         photoKey: uploaded,
       });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      leave(() => router.back());
     } catch (cause) {
       // The user sees a generic message; the real error goes to the Metro terminal.
       if (__DEV__) console.warn('Saving the item failed', cause);
@@ -265,7 +270,7 @@ export function AddItem() {
         {!photoUri && (
           <PressableScale
             style={styles.lookLink}
-            onPress={() => router.replace('/add-look')}
+            onPress={() => leave(() => router.replace('/add-look'))}
             accessibilityRole="link"
           >
             <Icon name="look" color={colors.accent} size={18} strokeWidth={1.5} />

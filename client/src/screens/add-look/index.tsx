@@ -13,6 +13,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { addLookItems, getPhotoState, uploadPhoto } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { shrinkPhoto } from '@/lib/shrink-photo';
+import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { CSS_EASE_OUT, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -41,6 +42,7 @@ export function AddLook() {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
+  const leave = useConfirmLeave(look.status === 'finding' || look.status === 'found');
 
   async function pick(source: 'camera' | 'library') {
     if (source === 'camera') {
@@ -137,7 +139,7 @@ export function AddLook() {
           }),
       });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      leave(() => router.back());
     } catch (cause) {
       if (__DEV__) console.warn('Adding the look items failed', cause);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

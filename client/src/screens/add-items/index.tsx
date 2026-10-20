@@ -14,6 +14,7 @@ import { RotateButton } from '@/components/rotate-button';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
+import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { CSS_EASE_OUT, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -79,6 +80,10 @@ export function AddItems() {
   const [open, setOpen] = useState<number | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
+  const pending = entries.filter(isPending).length;
+  const done = entries.length - pending;
+  // Recognised or still on their way: what a swipe down would throw away.
+  const leave = useConfirmLeave(entries.some((e) => isPending(e) || e.status === 'ready'));
   // Uploads and polls outlive renders; they stop touching state once the screen is gone.
   const closed = useRef(false);
 
@@ -230,7 +235,7 @@ export function AddItems() {
     const failed = new Set(indexes.filter((_, i) => results[i]!.status === 'rejected'));
     if (failed.size === 0) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      leave(() => router.back());
       return;
     }
     // The ones that were added leave the selection, so "try again" only sends the rest.
@@ -245,9 +250,6 @@ export function AddItems() {
     fail('addItems.errors.save');
     setBusy(false);
   }
-
-  const pending = entries.filter(isPending).length;
-  const done = entries.length - pending;
 
   return (
     <ScrollView

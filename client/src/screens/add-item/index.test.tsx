@@ -18,6 +18,10 @@ jest.mock('expo-image-picker', () => ({
   launchCameraAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
 }));
+// Leaving needs a real navigator; the screens' own navigations go straight through here.
+jest.mock('@/lib/use-confirm-leave', () => ({
+  useConfirmLeave: () => (navigate: () => void) => navigate(),
+}));
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   uploadPhoto: jest.fn(),

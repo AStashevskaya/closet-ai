@@ -17,6 +17,10 @@ jest.mock('expo-image-picker', () => ({
   launchCameraAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
 }));
+// Leaving needs a real navigator; the screens' own navigations go straight through here.
+jest.mock('@/lib/use-confirm-leave', () => ({
+  useConfirmLeave: () => (navigate: () => void) => navigate(),
+}));
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   uploadPhoto: jest.fn(),
@@ -140,15 +144,13 @@ describe('<AddLook />', () => {
   });
 
   test('says so when the photo can’t be read', async () => {
-    jest
-      .mocked(getPhotoState)
-      .mockResolvedValue({
-        status: 'ready',
-        tagStatus: 'failed',
-        tags: null,
-        lookItems: null,
-        matches: null,
-      });
+    jest.mocked(getPhotoState).mockResolvedValue({
+      status: 'ready',
+      tagStatus: 'failed',
+      tags: null,
+      lookItems: null,
+      matches: null,
+    });
     await render(<AddLook />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
 

@@ -187,6 +187,12 @@
       "incomplete": "Fill in a name and at least one color for each ticked item"
     }
   },
+  "discard": {
+    "title": "Leave without saving?",
+    "message": "Anything not saved here will be lost.",
+    "stay": "Keep editing",
+    "leave": "Leave"
+  },
   "want": {
     "title": "Want / Can",
     "intro": "Add a screenshot of a look from Pinterest or Instagram: the app finds its items and shows which of them you already have.",
