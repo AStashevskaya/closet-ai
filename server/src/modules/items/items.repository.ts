@@ -25,14 +25,22 @@ export interface ItemsRepository {
   // Storage key of the item's photo, or of its cut-out. null when the item doesn't exist,
   // belongs to someone else, or has no such file.
   photoKey(ownerId: string, itemId: string, variant: PhotoVariant): Promise<string | null>;
+  // Points the item at another photo of the owner's. false when the item doesn't exist or
+  // belongs to someone else.
+  setPhotoKey(ownerId: string, itemId: string, photoKey: string): Promise<boolean>;
   // null when there was nothing to delete (no such item, or someone else's).
   // Otherwise the deleted item's photo key, so the caller can remove the file too.
   delete(ownerId: string, itemId: string): Promise<{ photoKey: string | null } | null>;
 }
 
 // Photos are served by the API (it checks the session), so items carry a path, not a storage URL.
-export const photoPath = (itemId: string) => `/api/items/${itemId}/photo`;
-export const cutoutPath = (itemId: string) => `/api/items/${itemId}/photo?variant=cutout`;
+// `v` comes from the storage key: a turned photo gets a new key, hence a new URL, so the phone
+// doesn't keep showing the cached old one (photos are served as immutable).
+const version = (photoKey: string) => photoKey.split("/").pop()!.slice(0, 8);
+export const photoPath = (itemId: string, photoKey: string) =>
+  `/api/items/${itemId}/photo?v=${version(photoKey)}`;
+export const cutoutPath = (itemId: string, photoKey: string) =>
+  `/api/items/${itemId}/photo?variant=cutout&v=${version(photoKey)}`;
 
 export type PhotoVariant = "photo" | "cutout";
 
@@ -51,8 +59,11 @@ export function toItem(row: ItemRow, { photoStatus, cutoutKey }: PhotoFields): I
     category: row.category,
     colors: row.colors,
     seasons: row.seasons,
-    photoUrl: photoStatus === "ready" ? photoPath(row.id) : undefined,
-    cutoutUrl: photoStatus === "ready" && cutoutKey ? cutoutPath(row.id) : undefined,
+    photoUrl: photoStatus === "ready" && row.photoKey ? photoPath(row.id, row.photoKey) : undefined,
+    cutoutUrl:
+      photoStatus === "ready" && row.photoKey && cutoutKey
+        ? cutoutPath(row.id, row.photoKey)
+        : undefined,
     photoStatus: photoStatus ?? undefined,
     createdAt: row.createdAt.toISOString(),
   };
@@ -146,6 +157,15 @@ export function createItemsRepository(db: Db): ItemsRepository {
         .leftJoin(photos, eq(photos.key, items.photoKey))
         .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
       return (variant === "cutout" ? row?.cutoutKey : row?.photoKey) ?? null;
+    },
+
+    async setPhotoKey(ownerId, itemId, photoKey) {
+      const updated = await db
+        .update(items)
+        .set({ photoKey })
+        .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)))
+        .returning({ id: items.id });
+      return updated.length > 0;
     },
 
     async delete(ownerId, itemId) {

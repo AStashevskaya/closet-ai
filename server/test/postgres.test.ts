@@ -344,7 +344,7 @@ describe.skipIf(!url)("on Postgres", () => {
     const item = (
       await app.inject({ method: "GET", url: `/api/items/${id}`, headers: { cookie } })
     ).json<Item>();
-    expect(item.cutoutUrl).toBe(`/api/items/${id}/photo?variant=cutout`);
+    expect(item.cutoutUrl).toMatch(new RegExp(`^/api/items/${id}/photo\\?variant=cutout&v=`));
   });
 
   it("lists only photos no item points to, created before the cutoff", async () => {

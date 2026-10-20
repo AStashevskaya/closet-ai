@@ -199,7 +199,7 @@ describe("item photos", () => {
     ).json<Item[]>();
     expect(listed!.photoStatus).toBe("ready");
     const photoUrl = listed!.photoUrl;
-    expect(photoUrl).toBe(`/api/items/${id}/photo`);
+    expect(photoUrl).toMatch(new RegExp(`^/api/items/${id}/photo\\?v=[0-9a-f]{8}$`));
 
     const own = await server.inject({ method: "GET", url: photoUrl!, headers: { cookie: anna } });
     expect(own.statusCode).toBe(200);
@@ -558,8 +558,10 @@ describe("background removal", () => {
 
     // The remover gets the small WebP, once.
     expect(cut.calls).toEqual([{ bytes: (await storage.get(photoKey))!.body.length }]);
-    expect(photoUrl).toBe(`/api/items/${id}/photo`);
-    expect(cutoutUrl).toBe(`/api/items/${id}/photo?variant=cutout`);
+    // Versioned by the stored key, so a turned photo gets a URL of its own.
+    const version = photoKey.split("/").pop()!.slice(0, 8);
+    expect(photoUrl).toBe(`/api/items/${id}/photo?v=${version}`);
+    expect(cutoutUrl).toBe(`/api/items/${id}/photo?variant=cutout&v=${version}`);
 
     const own = await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: anna } });
     expect(own.statusCode).toBe(200);
@@ -581,6 +583,75 @@ describe("background removal", () => {
       headers: { cookie: maya },
     });
     expect(other.statusCode).toBe(404);
+  });
+
+  it("turns the photo and its cut-out a quarter, under new URLs", async () => {
+    const cut = createStubRemover();
+    const server = await setup({ remover: cut.remover });
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const before = await addItem(server, anna);
+    queue.queued.length = 0;
+
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: `/api/items/${before.id}/rotate`,
+          headers: { cookie: maya },
+        })
+      ).statusCode,
+    ).toBe(404);
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/items/${before.id}/rotate`,
+      headers: { cookie: anna },
+    });
+    expect(res.statusCode).toBe(200);
+    const after = res.json<ItemDetail>();
+    expect(after.name).toBe("Shirt");
+    expect(after.photoUrl).not.toBe(before.photoUrl);
+    expect(after.cutoutUrl).not.toBe(before.cutoutUrl);
+
+    // 1024 × 683 before, so 683 × 1024 now; the cut-out is turned too and keeps its transparency.
+    const photo = await server.inject({
+      method: "GET",
+      url: after.photoUrl!,
+      headers: { cookie: anna },
+    });
+    expect(await sharp(photo.rawPayload).metadata()).toMatchObject({ width: 683, height: 1024 });
+    const cutout = await server.inject({
+      method: "GET",
+      url: after.cutoutUrl!,
+      headers: { cookie: anna },
+    });
+    expect(cutout.statusCode).toBe(200);
+    expect((await sharp(cutout.rawPayload).metadata()).hasAlpha).toBe(true);
+
+    // The old files are gone, and the turned photo is embedded again.
+    expect(await storage.get(before.photoKey)).toBeNull();
+    expect(queue.queued.map((job) => job.name)).toEqual(["embed"]);
+    expect(queue.queued[0]!.key).not.toBe(before.photoKey);
+  });
+
+  it("can't turn an item without a photo", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const { id } = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "No photo", category: "top", colors: ["white"] },
+      })
+    ).json<Item>();
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/items/${id}/rotate`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(404);
   });
 
   it("embeds the cut-out on white instead of the photo with its background", async () => {

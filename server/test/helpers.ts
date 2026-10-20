@@ -99,6 +99,12 @@ export function createInMemoryRepositories() {
       if (!photoKey) return null;
       return variant === "cutout" ? (photoRows.get(photoKey)?.cutoutKey ?? null) : photoKey;
     },
+    setPhotoKey: async (ownerId, itemId, photoKey) => {
+      const row = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
+      if (!row) return false;
+      row.input = { ...row.input, photoKey };
+      return true;
+    },
     delete: async (ownerId, itemId) => {
       const index = itemRows.findIndex((row) => row.ownerId === ownerId && row.id === itemId);
       if (index === -1) return null;
@@ -160,6 +166,11 @@ export function createInMemoryRepositories() {
       if (!row) return null;
       const { createdAt: _createdAt, embedding: _embedding, ...photo } = row;
       return photo;
+    },
+    copyAs: async (key, copy) => {
+      const row = photoRows.get(key);
+      if (!row) throw new Error(`no photo ${key}`);
+      photoRows.set(copy.key, { ...row, ...copy, uploadKey: null, createdAt: new Date() });
     },
     markReady: async (key) => {
       const row = photoRows.get(key);
