@@ -178,6 +178,7 @@
     "pickAnother": "Choose another screenshot",
     "finding": "Finding the items and checking your closet…",
     "summary": "You have {{owned}} of {{count}}",
+    "collage": "From your closet",
     "none": "Couldn't find clothes in this screenshot. Try another one.",
     "match": {
       "same": "You have it",

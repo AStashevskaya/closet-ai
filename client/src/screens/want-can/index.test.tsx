@@ -96,6 +96,23 @@ describe('<WantCan />', () => {
     expect(screen.getByText('Dusty pink tank')).toBeOnTheScreen();
     expect(screen.getByText('Black leather skirt')).toBeOnTheScreen();
     expect(screen.getByText('Not in your closet')).toBeOnTheScreen();
+    // The owned pieces, laid out as a collage.
+    expect(screen.getByLabelText('From your closet')).toBeOnTheScreen();
+  });
+
+  test('leaves the collage out when nothing in the look is owned', async () => {
+    jest.mocked(getPhotoState).mockResolvedValue({
+      ...matched,
+      matches: [
+        { how: 'none', item: null },
+        { how: 'none', item: null },
+      ],
+    });
+    await render(<WantCan />);
+    await fireEvent.press(screen.getByText('Choose a screenshot'));
+
+    expect(await screen.findByText('You have 0 of 2')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('From your closet')).not.toBeOnTheScreen();
   });
 
   test('opens the matched wardrobe item', async () => {
