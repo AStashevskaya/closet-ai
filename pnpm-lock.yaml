@@ -38,12 +38,18 @@ importers:
       '@expo-google-fonts/frank-ruhl-libre':
         specifier: ^0.4.1
         version: 0.4.1
+      '@expo-google-fonts/gveret-levin':
+        specifier: ^0.4.0
+        version: 0.4.0
       '@expo-google-fonts/heebo':
         specifier: ^0.4.2
         version: 0.4.2
       '@expo-google-fonts/manrope':
         specifier: ^0.4.2
         version: 0.4.2
+      '@expo-google-fonts/marck-script':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@expo/ui':
         specifier: ~57.0.25
         version: 57.0.25(@babel/core@7.29.7)(@types/react@19.2.18)(expo@57.0.30)(react-dom@19.2.3(react@19.2.3))(react-native-worklets@0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
@@ -1704,11 +1710,17 @@ packages:
   '@expo-google-fonts/frank-ruhl-libre@0.4.1':
     resolution: {integrity: sha512-ajgjj4hKpRNI+bt9uKu9gv0DBSU/oGIqr22iuN4LxAb44+Y2dFcU/05wXEwAgKsoypyFaE6GVOBArLOEkdwzog==}
 
+  '@expo-google-fonts/gveret-levin@0.4.0':
+    resolution: {integrity: sha512-sB6tSAj5SclRpLfvOqE5NI3v5PYzoYfzUNJSraF8oGlnFU+2TpD2Uy4JFe/VLu0pYcZNuSPZOTgSh1YAAo1MYA==}
+
   '@expo-google-fonts/heebo@0.4.2':
     resolution: {integrity: sha512-mNSjLv9kikSexvdNteFElzeYEOrOPXHQctAJOGEfnUZPU9PgiEaSMcKM6K50Geahy2Aiq/xlbMD0OwhGRhSBiQ==}
 
   '@expo-google-fonts/manrope@0.4.2':
     resolution: {integrity: sha512-BZsKe8d9BJrVnIQIZcTS7/Kac0TbXnqs/+8EBSiQxrmK6GoCO6eTkmr50D1weIk/EoF20pTmAkpWICnovATr/g==}
+
+  '@expo-google-fonts/marck-script@0.4.1':
+    resolution: {integrity: sha512-XviOmsArWFWb4gjTH12r80hGcQEK++KKH2hSW/j4YvvfRavpce+jZA0Q9m0E2XBsWpDH5gwKDjfDOk5xbJXEfQ==}
 
   '@expo-google-fonts/material-symbols@0.4.50':
     resolution: {integrity: sha512-XNSgSfd+1p6wqRAzzhrckGngHJQ1/z+oCMdI5FN+x/VnDeMMFGkXsuRNPYcZTYYff1GwVwx4u6Gqnb30aALysw==}
@@ -8515,9 +8527,13 @@ snapshots:
 
   '@expo-google-fonts/frank-ruhl-libre@0.4.1': {}
 
+  '@expo-google-fonts/gveret-levin@0.4.0': {}
+
   '@expo-google-fonts/heebo@0.4.2': {}
 
   '@expo-google-fonts/manrope@0.4.2': {}
+
+  '@expo-google-fonts/marck-script@0.4.1': {}
 
   '@expo-google-fonts/material-symbols@0.4.50': {}
 

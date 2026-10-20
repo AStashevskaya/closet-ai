@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
+import { LookCollage } from '@/components/look-collage';
 import { PressableScale } from '@/components/pressable-scale';
 import { getPhotoState, sessionHeaders, uploadPhoto } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
@@ -112,7 +113,13 @@ export function WantCan() {
     };
   }, [photoKey]);
 
-  const owned = look.status === 'found' ? look.found.filter(({ match }) => match.item).length : 0;
+  // Wardrobe items that rebuild the look, each once (two pieces can match the same item).
+  const mine =
+    look.status === 'found'
+      ? look.found.flatMap(({ match }) => (match.item ? [match.item] : []))
+      : [];
+  const owned = mine.length;
+  const collage = [...new Map(mine.map((item) => [item.id, item])).values()];
 
   const pickButton = (label: string, primary: boolean) => (
     <PressableScale
@@ -168,6 +175,12 @@ export function WantCan() {
                 ? t('want.summary', { owned, count: look.found.length })
                 : t('want.none'))}
           </Text>
+        </Animated.View>
+      )}
+
+      {collage.length > 0 && (
+        <Animated.View entering={FadeIn.duration(durations.enter)}>
+          <LookCollage items={collage} headers={headers} caption={t('want.collage')} />
         </Animated.View>
       )}
 
