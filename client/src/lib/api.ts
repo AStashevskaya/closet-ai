@@ -93,6 +93,11 @@ export function updateItem(id: string, patch: UpdateItemInput): Promise<ItemDeta
   });
 }
 
+// Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.
+export function rotateItem(id: string): Promise<ItemDetail> {
+  return request(`/api/items/${id}/rotate`, itemDetail, { method: 'POST' });
+}
+
 // The server answers 204 with no body, so there is nothing to parse.
 export async function deleteItem(id: string): Promise<void> {
   await send(`/api/items/${id}`, { method: 'DELETE' });

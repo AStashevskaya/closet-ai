@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert, type AlertButton } from 'react-native';
 
 import i18n from '@/i18n';
-import { deleteItem, getItem, getSimilarItems, updateItem } from '@/lib/api';
+import { deleteItem, getItem, getSimilarItems, rotateItem, updateItem } from '@/lib/api';
 
 import { ItemScreen } from '.';
 
@@ -25,6 +25,7 @@ jest.mock('@/lib/api', () => ({
   getSimilarItems: jest.fn(),
   updateItem: jest.fn(),
   deleteItem: jest.fn(),
+  rotateItem: jest.fn(),
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
   absoluteUrl: (path: string) => `http://api.test${path}`,
 }));
@@ -111,16 +112,14 @@ describe('<ItemScreen />', () => {
 
   test('shows similar items from the wardrobe and opens them', async () => {
     const { tags: _tags, ...base } = shirt;
-    jest
-      .mocked(getSimilarItems)
-      .mockResolvedValue([
-        {
-          ...base,
-          id: '6b1f7c3e-0000-4000-8000-000000000002',
-          name: 'Cream shirt',
-          similarity: 0.9,
-        },
-      ]);
+    jest.mocked(getSimilarItems).mockResolvedValue([
+      {
+        ...base,
+        id: '6b1f7c3e-0000-4000-8000-000000000002',
+        name: 'Cream shirt',
+        similarity: 0.9,
+      },
+    ]);
     await render(<ItemScreen id={shirt.id} />);
 
     expect(await screen.findByText('Similar in your wardrobe')).toBeOnTheScreen();
@@ -162,5 +161,20 @@ describe('<ItemScreen />', () => {
 
     await fireEvent.press(await screen.findByText('Try again'));
     expect(await screen.findByDisplayValue('White linen shirt')).toBeOnTheScreen();
+  });
+  test('turns the photo and keeps unsaved corrections', async () => {
+    const turnedUrl = `/api/items/${shirt.id}/photo?v=turned`;
+    jest.mocked(rotateItem).mockResolvedValue({ ...shirt, photoUrl: turnedUrl });
+    await render(<ItemScreen id={shirt.id} />);
+    await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
+    await fireEvent.press(screen.getByLabelText('Rotate photo'));
+
+    expect(rotateItem).toHaveBeenCalledWith(shirt.id);
+    expect(await screen.findByDisplayValue('Linen shirt')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+    expect(screen.getByTestId('item-photo')).toHaveProp(
+      'source',
+      [expect.objectContaining({ uri: `http://api.test${turnedUrl}` })],
+    );
   });
 });

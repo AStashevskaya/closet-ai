@@ -154,7 +154,8 @@
     "save": "Save changes",
     "delete": "Delete item",
     "loadError": "Couldn't load the item.",
-    "saveError": "Couldn't save the changes. Try again."
+    "saveError": "Couldn't save the changes. Try again.",
+    "rotateError": "Couldn't turn the photo. Try again."
   },
   "addLook": {
     "title": "Outfit from a selfie",
