@@ -42,15 +42,13 @@ beforeEach(async () => {
   jest.mocked(uploadPhoto).mockResolvedValue('photos/u1/p1.webp');
   jest.mocked(createItem).mockResolvedValue({} as never);
   // Tagging off unless a test turns it on, so the form stays as the test fills it.
-  jest
-    .mocked(getPhotoState)
-    .mockResolvedValue({
-      status: 'ready',
-      tagStatus: null,
-      tags: null,
-      lookItems: null,
-      matches: null,
-    });
+  jest.mocked(getPhotoState).mockResolvedValue({
+    status: 'ready',
+    tagStatus: null,
+    tags: null,
+    lookItems: null,
+    matches: null,
+  });
 });
 
 const tags: ItemTags = {
@@ -242,5 +240,30 @@ describe('<AddItem />', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/^Couldn't save the item/);
     expect(mockBack).not.toHaveBeenCalled();
+  });
+  test('sends several gallery photos to the screen that adds them all', async () => {
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+      canceled: false,
+      assets: [
+        { uri: 'file:///a.heic', width: 4032, height: 3024 },
+        { uri: 'file:///b.heic', width: 3024, height: 4032 },
+      ],
+    } as never);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ allowsMultipleSelection: true }),
+    );
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/add-items',
+      params: {
+        photos: JSON.stringify([
+          { uri: 'file:///a.heic', width: 4032, height: 3024 },
+          { uri: 'file:///b.heic', width: 3024, height: 4032 },
+        ]),
+      },
+    });
+    expect(uploadPhoto).not.toHaveBeenCalled();
   });
 });

@@ -29,11 +29,14 @@ import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { durations } from '@/motion';
+import type { PickedPhoto } from '@/screens/add-items';
 import { colors, fonts } from '@/theme';
 
 import { Chip } from '@/components/chip';
 
 const MAX_COLORS = 5;
+// Photos picked at once from the gallery.
+const MAX_PHOTOS = 20;
 // How often the form asks whether the photo has been tagged, and for how long. The model
 // usually answers in 4–6 s; after half a minute the form simply stays as the user typed it.
 const POLL_MS = 1500;
@@ -77,7 +80,23 @@ export function AddItem() {
     // The gallery opens the system photo picker, which needs no permission.
     const launch =
       source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
-    const result = await launch({ mediaTypes: ['images'] });
+    // Before a photo is in the form, the gallery takes several: one item each, on their own screen.
+    const several = source === 'library' && !photoUri;
+    const result = await launch({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: several,
+      selectionLimit: several ? MAX_PHOTOS : 1,
+      orderedSelection: several,
+    });
+    if (!result.canceled && result.assets.length > 1) {
+      const photos: PickedPhoto[] = result.assets.map(({ uri, width, height }) => ({
+        uri,
+        width,
+        height,
+      }));
+      router.replace({ pathname: '/add-items', params: { photos: JSON.stringify(photos) } });
+      return;
+    }
     const asset = result.canceled ? undefined : result.assets[0];
     if (!asset) return;
 

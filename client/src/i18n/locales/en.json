@@ -171,6 +171,19 @@
       "empty": "Tick at least one item"
     }
   },
+  "addItems": {
+    "title": "New items",
+    "progress": "Recognising {{done}} of {{count}}…",
+    "ready": "Untick what you don't need",
+    "uploading": "Uploading…",
+    "tagging": "Recognising…",
+    "unknown": "Couldn't recognise it — add it on its own",
+    "failed": "Couldn't upload this photo",
+    "added": "Added",
+    "errors": {
+      "save": "Couldn't add some of the items. Try again."
+    }
+  },
   "want": {
     "title": "Want / Can",
     "intro": "Add a screenshot of a look from Pinterest or Instagram: the app finds its items and shows which of them you already have.",
