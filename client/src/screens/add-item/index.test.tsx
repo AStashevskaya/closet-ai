@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import i18n from '@/i18n';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
-import { shrinkPhoto } from '@/lib/shrink-photo';
+import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 
 import { AddItem } from '.';
 
@@ -18,7 +18,7 @@ jest.mock('expo-image-picker', () => ({
   launchCameraAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
 }));
-jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn() }));
+jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   uploadPhoto: jest.fn(),
   createItem: jest.fn(),
@@ -265,5 +265,14 @@ describe('<AddItem />', () => {
       },
     });
     expect(uploadPhoto).not.toHaveBeenCalled();
+  });
+  test('turns the photo and uploads the turned copy', async () => {
+    jest.mocked(rotatePhoto).mockResolvedValue('file:///turned.jpg');
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.press(await screen.findByLabelText('Rotate photo'));
+
+    await waitFor(() => expect(uploadPhoto).toHaveBeenLastCalledWith('file:///turned.jpg', 'en'));
+    expect(rotatePhoto).toHaveBeenCalledWith('file:///small.jpg');
   });
 });

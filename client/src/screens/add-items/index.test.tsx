@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import i18n from '@/i18n';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
-import { shrinkPhoto } from '@/lib/shrink-photo';
+import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 
 import { AddItems, type PickedPhoto } from '.';
 
@@ -15,7 +15,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ back: mockBack }),
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn() }));
+jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   uploadPhoto: jest.fn(),
   createItem: jest.fn(),
@@ -61,6 +61,7 @@ beforeEach(async () => {
     if (key.includes('jeans')) return state(tags('Blue jeans', 'bottom'));
     return state({ ...tags('', 'top'), recognized: false });
   });
+  jest.mocked(rotatePhoto).mockImplementation(async (uri) => uri.replace('.jpg', '-turned.jpg'));
   jest.mocked(createItem).mockResolvedValue({} as never);
 });
 
@@ -89,7 +90,8 @@ describe('<AddItems />', () => {
 
   test('leaves out an unticked photo', async () => {
     await render(<AddItems />);
-    await fireEvent.press(await screen.findByText('Blue jeans'));
+    await screen.findByText('Blue jeans');
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Blue jeans' }));
     await screen.findByText("Couldn't recognise it — add it on its own");
     await fireEvent.press(screen.getByText('Add 1 item'));
 
@@ -113,5 +115,64 @@ describe('<AddItems />', () => {
     expect(screen.getByText('Added')).toBeOnTheScreen();
     expect(screen.getByText('Add 1 item')).toBeOnTheScreen();
     expect(mockBack).not.toHaveBeenCalled();
+  });
+  test('saves what was corrected in the list', async () => {
+    await render(<AddItems />);
+    await screen.findByText("Couldn't recognise it — add it on its own");
+    await fireEvent.press(await screen.findByLabelText('Edit Blue jeans'));
+    await fireEvent.changeText(screen.getByDisplayValue('Blue jeans'), 'Wide-leg jeans');
+    await fireEvent.press(screen.getByText('Blue'));
+    await fireEvent.press(screen.getByText('Add 2 items'));
+
+    await waitFor(() => expect(mockBack).toHaveBeenCalled());
+    expect(createItem).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Wide-leg jeans', colors: ['white', 'blue'] }),
+    );
+  });
+
+  test('asks for a name before saving an item whose name was cleared', async () => {
+    await render(<AddItems />);
+    await screen.findByText("Couldn't recognise it — add it on its own");
+    await fireEvent.press(await screen.findByLabelText('Edit White shirt'));
+    await fireEvent.changeText(screen.getByDisplayValue('White shirt'), ' ');
+    await fireEvent.press(screen.getByText('Add 2 items'));
+
+    expect(
+      screen.getByText('Fill in a name and at least one color for each ticked item'),
+    ).toBeOnTheScreen();
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  test('uploads a turned copy of a recognised photo and keeps its fields', async () => {
+    await render(<AddItems />);
+    await screen.findByText("Couldn't recognise it — add it on its own");
+    await screen.findByText('White shirt');
+    await fireEvent.press(screen.getAllByLabelText('Rotate photo')[0]!);
+
+    await waitFor(() => expect(uploadPhoto).toHaveBeenCalledWith('file:///shirt-turned.jpg', 'en'));
+    await waitFor(() => expect(screen.getByText('Add 2 items')).toBeEnabled());
+    await fireEvent.press(screen.getByText('Add 2 items'));
+
+    await waitFor(() => expect(mockBack).toHaveBeenCalled());
+    expect(createItem).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'White shirt', photoKey: 'photos/u1/shirt-turned.jpg' }),
+    );
+  });
+
+  test('tags an unrecognised photo again once it is turned', async () => {
+    jest.mocked(getPhotoState).mockImplementation(async (key) => {
+      if (key.includes('blur-turned')) return state(tags('Grey cardigan', 'outerwear'));
+      if (key.includes('shirt')) return state(tags('White shirt', 'top'));
+      if (key.includes('jeans')) return state(tags('Blue jeans', 'bottom'));
+      return state({ ...tags('', 'top'), recognized: false });
+    });
+    await render(<AddItems />);
+    await screen.findByText("Couldn't recognise it — add it on its own");
+    await screen.findByText('Blue jeans');
+    const buttons = screen.getAllByLabelText('Rotate photo');
+    await fireEvent.press(buttons[buttons.length - 1]!);
+
+    expect(await screen.findByText('Grey cardigan')).toBeOnTheScreen();
+    expect(screen.getByText('Add 3 items')).toBeOnTheScreen();
   });
 });

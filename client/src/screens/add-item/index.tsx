@@ -1,10 +1,4 @@
-import {
-  ITEM_CATEGORIES,
-  ITEM_COLORS,
-  type ItemCategory,
-  type ItemColor,
-  type Season,
-} from '@closet-ai/shared';
+import type { ItemCategory, ItemColor, Season } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,23 +12,21 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { ItemFields, MAX_COLORS } from '@/components/item-fields';
+import { RotateButton } from '@/components/rotate-button';
 import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
-import { shrinkPhoto } from '@/lib/shrink-photo';
+import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 import { durations } from '@/motion';
 import type { PickedPhoto } from '@/screens/add-items';
 import { colors, fonts } from '@/theme';
 
-import { Chip } from '@/components/chip';
-
-const MAX_COLORS = 5;
 // Photos picked at once from the gallery.
 const MAX_PHOTOS = 20;
 // How often the form asks whether the photo has been tagged, and for how long. The model
@@ -112,6 +104,24 @@ export function AddItem() {
     await startUpload(uri);
   }
 
+  // A quarter turn clockwise, then the turned photo goes up in place of the old one (which the
+  // server's cleanup removes). Fields already filled in stay as they are.
+  async function rotate() {
+    if (!photoUri) return;
+    setBusy(true);
+    let uri: string;
+    try {
+      uri = await rotatePhoto(photoUri);
+      setPhotoUri(uri);
+    } catch (cause) {
+      if (__DEV__) console.warn('Rotating the photo failed', cause);
+      return;
+    } finally {
+      setBusy(false);
+    }
+    await startUpload(uri);
+  }
+
   async function startUpload(uri: string) {
     setPhotoKey(null);
     setTagging('idle');
@@ -168,16 +178,6 @@ export function AddItem() {
     };
   }, [photoKey]);
 
-  function toggleColor(color: ItemColor) {
-    setItemColors((current) =>
-      current.includes(color)
-        ? current.filter((c) => c !== color)
-        : current.length < MAX_COLORS
-          ? [...current, color]
-          : current,
-    );
-  }
-
   function fail(key: ErrorKey) {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setError(key);
@@ -227,12 +227,15 @@ export function AddItem() {
         keyboardDismissMode="interactive"
       >
         {photoUri ? (
-          <Image
-            source={{ uri: photoUri }}
-            style={styles.photo}
-            contentFit="cover"
-            transition={250}
-          />
+          <View style={styles.photo}>
+            <Image
+              source={{ uri: photoUri }}
+              style={styles.photoImage}
+              contentFit="cover"
+              transition={250}
+            />
+            <RotateButton onPress={rotate} disabled={busy} style={styles.rotate} />
+          </View>
         ) : (
           <View style={[styles.photo, styles.photoEmpty]} />
         )}
@@ -286,43 +289,14 @@ export function AddItem() {
           </Animated.View>
         )}
 
-        <Text style={styles.label}>{t('addItem.name')}</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder={t('addItem.namePlaceholder')}
-          placeholderTextColor={colors.textMuted}
-          maxLength={120}
-          accessibilityLabel={t('addItem.name')}
+        <ItemFields
+          name={name}
+          onNameChange={setName}
+          category={category}
+          onCategoryChange={setCategory}
+          itemColors={itemColors}
+          onColorsChange={setItemColors}
         />
-
-        <Text style={styles.label}>{t('addItem.category')}</Text>
-        <View style={styles.chips}>
-          {ITEM_CATEGORIES.map((c) => (
-            <Chip
-              key={c}
-              label={t(`categories.${c}`)}
-              selected={category === c}
-              onPress={() => setCategory(c)}
-            />
-          ))}
-        </View>
-
-        <Text style={styles.label}>
-          {t('addItem.colors')} <Text style={styles.hint}>· {t('addItem.colorsHint')}</Text>
-        </Text>
-        <View style={styles.chips}>
-          {ITEM_COLORS.map((c) => (
-            <Chip
-              key={c}
-              label={t(`colors.${c}`)}
-              color={c}
-              selected={itemColors.includes(c)}
-              onPress={() => toggleColor(c)}
-            />
-          ))}
-        </View>
 
         {/* Keyed by the message, so a new error fades in again instead of swapping in place. */}
         {error && (
@@ -371,8 +345,17 @@ const styles = StyleSheet.create({
     aspectRatio: 3 / 4,
     borderRadius: 20,
   },
+  photoImage: {
+    flex: 1,
+    borderRadius: 20,
+  },
   photoEmpty: {
     backgroundColor: colors.hero,
+  },
+  rotate: {
+    position: 'absolute',
+    bottom: 10,
+    end: 10,
   },
   photoButtons: {
     marginTop: 6,
@@ -424,34 +407,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     textAlign: 'center',
-  },
-  label: {
-    marginTop: 12,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  hint: {
-    fontFamily: fonts.body,
-    color: colors.textMuted,
-  },
-  input: {
-    height: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   error: {
     marginTop: 8,

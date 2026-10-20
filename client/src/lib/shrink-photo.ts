@@ -17,3 +17,10 @@ export async function shrinkPhoto({ uri, width, height }: Photo): Promise<string
   const result = await image.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
   return result.uri;
 }
+
+// Turns an already shrunk photo a quarter turn clockwise and saves it as a new JPEG.
+export async function rotatePhoto(uri: string): Promise<string> {
+  const image = await ImageManipulator.manipulate(uri).rotate(90).renderAsync();
+  const result = await image.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
+  return result.uri;
+}
