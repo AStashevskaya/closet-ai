@@ -1,4 +1,4 @@
-import type { ItemCategory, ItemColor, Season } from '@closet-ai/shared';
+import type { ItemCategory, ItemColor, LimitCode, Season } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -12,7 +12,9 @@ import { ItemFields, MAX_COLORS } from '@/components/item-fields';
 import { PressableScale } from '@/components/pressable-scale';
 import { RotateButton } from '@/components/rotate-button';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
+import { limitText } from '@/lib/limits';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { CSS_EASE_OUT, durations } from '@/motion';
@@ -80,6 +82,8 @@ export function AddItems() {
   const [open, setOpen] = useState<number | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
+  // A limit an upload or a save ran into: shown instead of the generic error.
+  const [limit, setLimit] = useState<LimitCode | null>(null);
   const pending = entries.filter(isPending).length;
   const done = entries.length - pending;
   // Recognised or still on their way: what a swipe down would throw away.
@@ -127,7 +131,9 @@ export function AddItems() {
       update(index, () => ({ status: 'tagging', uri, photoKey }));
       void tag(index, uri, photoKey);
     } catch (cause) {
-      if (__DEV__) console.warn('Uploading a photo failed', cause);
+      const code = limitReached(cause);
+      if (code) setLimit(code);
+      else if (__DEV__) console.warn('Uploading a photo failed', cause);
       update(index, () => ({ status: 'failed', uri }));
     }
   }
@@ -233,6 +239,10 @@ export function AddItems() {
       }),
     );
     const failed = new Set(indexes.filter((_, i) => results[i]!.status === 'rejected'));
+    const limited = results.flatMap((r) =>
+      r.status === 'rejected' ? [limitReached(r.reason)] : [],
+    );
+    const code = limited.find((c) => c !== null) ?? null;
     if (failed.size === 0) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       leave(() => router.back());
@@ -247,7 +257,10 @@ export function AddItems() {
         indexes.includes(index) && !failed.has(index) ? { status: 'added', uri: entry.uri } : entry,
       ),
     );
-    fail('addItems.errors.save');
+    if (code) {
+      setLimit(code);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } else fail('addItems.errors.save');
     setBusy(false);
   }
 
@@ -367,6 +380,12 @@ export function AddItems() {
           </View>
         );
       })}
+
+      {limit && (
+        <Text style={styles.error} accessibilityRole="alert">
+          {limitText(t, i18n.language, limit)}
+        </Text>
+      )}
 
       {error && (
         <Animated.Text

@@ -34,6 +34,9 @@ const envSchema = z
     ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional(),
     // fal.ai key for removing photo backgrounds (BiRefNet). Without it photos keep their background.
     FAL_KEY: z.string().min(1).optional(),
+    // The server's daily safety stop on AI spend, in dollars, estimated from counted actions
+    // (src/modules/usage/limits.ts). Past it every counted action answers 429 until midnight UTC.
+    AI_DAILY_BUDGET_USD: z.coerce.number().positive().default(3),
     // Where the embedding model's weights (~100 MB) are downloaded on first use. Outside git.
     MODEL_CACHE_DIR: z.string().default(".models"),
   })

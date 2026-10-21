@@ -211,5 +211,12 @@
     "errors": {
       "find": "Couldn't read the screenshot. Try again."
     }
+  },
+  "limits": {
+    "left": "{{left}} of {{limit}} left this month",
+    "want": "You've used this month's {{limit}} screenshots. New ones from {{date}}.",
+    "look": "You've used this month's {{limit}} selfies. New ones from {{date}}.",
+    "item_photo": "That's enough photos for today. Try again tomorrow.",
+    "budget": "The AI is resting for today. Try again tomorrow."
   }
 }

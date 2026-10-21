@@ -1,4 +1,4 @@
-import type { LookItem } from '@closet-ai/shared';
+import type { LimitCode, LookItem } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,7 +11,9 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { addLookItems, getPhotoState, uploadPhoto } from '@/lib/api';
+import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
+import { limitText, useUsage } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { CSS_EASE_OUT, durations } from '@/motion';
@@ -42,6 +44,10 @@ export function AddLook() {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
+  const { usage, refresh: refreshUsage } = useUsage();
+  // A limit the last pick ran into: the month's selfies, or the server's daily stop.
+  const [limit, setLimit] = useState<LimitCode | null>(null);
+  const left = usage ? Math.max(0, usage.look.limit - usage.look.used) : null;
   const leave = useConfirmLeave(look.status === 'finding' || look.status === 'found');
 
   async function pick(source: 'camera' | 'library') {
@@ -56,6 +62,7 @@ export function AddLook() {
     if (!asset) return;
 
     setError(null);
+    setLimit(null);
     setPhotoKey(null);
     const aspect = asset.width / asset.height;
     let uri = asset.uri;
@@ -63,7 +70,15 @@ export function AddLook() {
       uri = await shrinkPhoto(asset);
       setLook({ status: 'finding', uri, aspect });
       setPhotoKey(await uploadPhoto(uri, lang, 'look'));
+      void refreshUsage();
     } catch (cause) {
+      const code = limitReached(cause);
+      if (code) {
+        setLimit(code);
+        setLook({ status: 'empty' });
+        void refreshUsage();
+        return;
+      }
       if (__DEV__) console.warn('Uploading the look failed', cause);
       setLook({ status: 'failed', uri, aspect });
     }
@@ -148,7 +163,16 @@ export function AddLook() {
     }
   }
 
-  const photoButtons = (
+  // Out of selfies this month: the buttons give way to when they come back.
+  const outOfSelfies = left === 0 || limit !== null;
+  const leftNote = left !== null && left > 0 && (
+    <Text style={styles.left}>{t('limits.left', { left, limit: usage!.look.limit })}</Text>
+  );
+  const photoButtons = outOfSelfies ? (
+    <Text style={styles.limit} accessibilityRole="alert">
+      {limitText(t, i18n.language, limit ?? 'look', usage)}
+    </Text>
+  ) : (
     <View style={styles.photoButtons}>
       <PressableScale
         style={styles.secondaryButton}
@@ -178,6 +202,7 @@ export function AddLook() {
           </View>
           <Text style={styles.intro}>{t('addLook.intro')}</Text>
           {photoButtons}
+          {leftNote}
         </>
       ) : (
         <Image
@@ -279,6 +304,7 @@ export function AddLook() {
         <View style={styles.again}>
           <Text style={styles.againLabel}>{t('addLook.pickAnother')}</Text>
           {photoButtons}
+          {leftNote}
         </View>
       )}
     </ScrollView>
@@ -425,6 +451,21 @@ const styles = StyleSheet.create({
   again: {
     marginTop: 18,
     gap: 4,
+  },
+  left: {
+    marginTop: 4,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  limit: {
+    marginTop: 12,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   againLabel: {
     fontFamily: fonts.bodyMedium,

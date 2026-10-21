@@ -41,7 +41,10 @@ describe('<AuthForm mode="sign-in" />', () => {
     await fill('Password', 'correct-horse-battery');
     await fireEvent.press(screen.getByRole('button'));
 
-    expect(signIn).toHaveBeenCalledWith({ email: 'anna@example.com', password: 'correct-horse-battery' });
+    expect(signIn).toHaveBeenCalledWith({
+      email: 'anna@example.com',
+      password: 'correct-horse-battery',
+    });
   });
 
   test('shows a translated error for wrong credentials', async () => {

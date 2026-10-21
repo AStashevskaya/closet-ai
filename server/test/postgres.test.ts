@@ -10,6 +10,7 @@ import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createItemsRepository } from "../src/modules/items/items.repository";
+import { createUsageRepository } from "../src/modules/usage/usage.repository";
 import { createPhotosRepository } from "../src/modules/photos/photos.repository";
 import { createMemoryStorage } from "../src/storage/storage";
 import { createManualPhotoQueue, shirtTags, unitVector } from "./helpers";
@@ -59,6 +60,7 @@ describe.skipIf(!url)("on Postgres", () => {
       S3_ACCESS_KEY_ID: "unused",
       S3_SECRET_ACCESS_KEY: "unused",
       REDIS_URL: "redis://localhost:6379",
+      AI_DAILY_BUDGET_USD: 3,
       MODEL_CACHE_DIR: ".models",
     };
     const auth = createAuth(env, drizzleAdapter(db.db, { provider: "pg", schema }));
@@ -68,6 +70,7 @@ describe.skipIf(!url)("on Postgres", () => {
       auth,
       itemsRepository: createItemsRepository(db.db),
       photosRepository: createPhotosRepository(db.db),
+      usageRepository: createUsageRepository(db.db),
       photoQueue: createManualPhotoQueue().photoQueue,
       taggingEnabled: false,
       storage,
@@ -385,6 +388,25 @@ describe.skipIf(!url)("on Postgres", () => {
       cutoutKey: `photos/${user!.id}/after-cutout.webp`,
     });
     expect(await items.photoKey(user!.id, id, "photo")).toBe(turned);
+  });
+
+  it("counts usage per user and action, and sums the spend", async () => {
+    await signUp("usage@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "usage@example.com"));
+    const usage = createUsageRepository(db.db);
+    const before = new Date(Date.now() - 1000);
+    const spentBefore = await usage.spentSince(before);
+    await usage.record(user!.id, "want", 10_000);
+    await usage.record(user!.id, "want", 10_000);
+    await usage.record(user!.id, "item_photo", 6_000);
+
+    expect(await usage.count(user!.id, "want", before)).toBe(2);
+    expect(await usage.count(user!.id, "look", before)).toBe(0);
+    expect(await usage.count(user!.id, "want", new Date(Date.now() + 60_000))).toBe(0);
+    expect((await usage.spentSince(before)) - spentBefore).toBe(26_000);
   });
 
   it("lists only photos no item points to, created before the cutoff", async () => {

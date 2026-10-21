@@ -18,7 +18,7 @@ Status: early development. The API (Fastify, Postgres) and the Expo app are in p
 
 ## How it works for people
 
-- **Free, forever:** wardrobe up to 30 items, a few outfits a week, 3 listings a month.
+- **Free, forever:** a wardrobe of any size, a few outfits a week, 5 "Want / Can" a month, 3 listings a month.
 - **Pro, 7-day free trial:** no limits, price suggestions, photo clean-up, full "Want / Can".
 - When Pro ends, you drop back to the free tier. Nothing in your wardrobe is lost.
 

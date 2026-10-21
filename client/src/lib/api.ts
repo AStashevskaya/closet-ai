@@ -14,20 +14,16 @@ import {
   similarItems,
   type UpdateItemInput,
   uploadedPhoto,
+  usage,
+  type Usage,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
+import { ApiError } from './api-error';
 import { apiUrl } from './api-url';
 import { authClient } from './auth-client';
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { ApiError };
 
 // The session cookie from SecureStore. Native fetch has no cookie jar, so every call
 // (and every photo the app loads) sends it explicitly.
@@ -91,6 +87,11 @@ export function updateItem(id: string, patch: UpdateItemInput): Promise<ItemDeta
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(patch),
   });
+}
+
+// How much of the free tier is used: the wardrobe size and this month's screenshots and selfies.
+export function getUsage(): Promise<Usage> {
+  return request('/api/usage', usage);
 }
 
 // Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.

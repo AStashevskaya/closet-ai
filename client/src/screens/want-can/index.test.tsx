@@ -1,9 +1,10 @@
-import type { Item, LookItem, PhotoState } from '@closet-ai/shared';
+import type { Item, LookItem, PhotoState, Usage } from '@closet-ai/shared';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import i18n from '@/i18n';
-import { getPhotoState, uploadPhoto } from '@/lib/api';
+import { getPhotoState, getUsage, uploadPhoto } from '@/lib/api';
+import { ApiError } from '@/lib/api-error';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 
 import { WantCan } from '.';
@@ -19,6 +20,8 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
+  // No usage unless a test gives one: the screens then show no counts.
+  getUsage: jest.fn().mockRejectedValue(new Error('offline')),
   uploadPhoto: jest.fn(),
   getPhotoState: jest.fn(),
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
@@ -80,6 +83,8 @@ beforeEach(async () => {
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue(screenshot as never);
   jest.mocked(shrinkPhoto).mockResolvedValue('file:///small.jpg');
   jest.mocked(uploadPhoto).mockResolvedValue('photos/u1/want.webp');
+  // clearAllMocks keeps implementations, so a test's usage would leak into the next one.
+  jest.mocked(getUsage).mockRejectedValue(new Error('offline'));
 });
 
 describe('<WantCan />', () => {
@@ -131,5 +136,33 @@ describe('<WantCan />', () => {
 
     expect(await screen.findByText("Couldn't read the screenshot. Try again.")).toBeOnTheScreen();
     expect(screen.getByText('Choose another screenshot')).toBeOnTheScreen();
+  });
+  describe('free-tier limit', () => {
+    const usage = (used: number): Usage => ({
+      want: { used, limit: 5, resetsAt: '2026-11-01T00:00:00.000Z' },
+      look: { used: 0, limit: 3, resetsAt: '2026-11-01T00:00:00.000Z' },
+    });
+
+    test('shows how many screenshots are left this month', async () => {
+      jest.mocked(getUsage).mockResolvedValue(usage(1));
+      await render(<WantCan />);
+      expect(await screen.findByText('4 of 5 left this month')).toBeOnTheScreen();
+    });
+
+    test('says when they come back instead of offering a pick once they are used', async () => {
+      jest.mocked(getUsage).mockResolvedValue(usage(5));
+      await render(<WantCan />);
+      expect(await screen.findByText(/You've used this month's 5 screenshots/)).toBeOnTheScreen();
+      expect(screen.queryByText('Choose a screenshot')).not.toBeOnTheScreen();
+    });
+
+    test('explains a limit the server reports', async () => {
+      jest.mocked(uploadPhoto).mockRejectedValue(new ApiError(429, 'limit:budget'));
+      await render(<WantCan />);
+      await fireEvent.press(screen.getByText('Choose a screenshot'));
+      expect(
+        await screen.findByText('The AI is resting for today. Try again tomorrow.'),
+      ).toBeOnTheScreen();
+    });
   });
 });
