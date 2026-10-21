@@ -26,11 +26,11 @@ import {
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
-import { ApiError } from './api-error';
+import { ApiError, OfflineError } from './api-error';
 import { apiUrl } from './api-url';
 import { authClient } from './auth-client';
 
-export { ApiError };
+export { ApiError, OfflineError };
 
 // The session cookie from SecureStore. Native fetch has no cookie jar, so every call
 // (and every photo the app loads) sends it explicitly.
@@ -44,10 +44,14 @@ export const absoluteUrl = (path: string) => `${apiUrl()}${path}`;
 
 // Sends the request with the session cookie and turns a non-2xx status into an ApiError.
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(absoluteUrl(path), {
-    ...init,
-    headers: { ...(await sessionHeaders()), ...init.headers },
-  });
+  const headers = { ...(await sessionHeaders()), ...init.headers };
+  let res: Response;
+  try {
+    res = await fetch(absoluteUrl(path), { ...init, headers });
+  } catch (cause) {
+    // fetch only rejects when no answer came back at all.
+    throw new OfflineError(cause instanceof Error ? cause.message : 'unreachable');
+  }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(res.status, body?.message ?? res.statusText);

@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import i18n from '@/i18n';
 import { getPhotoState, getUsage, uploadPhoto } from '@/lib/api';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, OfflineError } from '@/lib/api-error';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 
 import { WantCan } from '.';
@@ -137,6 +137,15 @@ describe('<WantCan />', () => {
 
     expect(await screen.findByText("Couldn't read the screenshot. Try again.")).toBeOnTheScreen();
     expect(screen.getByText('Choose another screenshot')).toBeOnTheScreen();
+  });
+  test('blames the connection, not the screenshot, when the server is unreachable', async () => {
+    jest.mocked(uploadPhoto).mockRejectedValue(new OfflineError('Network request failed'));
+    await render(<WantCan />);
+    await fireEvent.press(screen.getByText('Choose a screenshot'));
+
+    expect(
+      await screen.findByText('No connection to the server. Check the internet and try again.'),
+    ).toBeOnTheScreen();
   });
   describe('free-tier limit', () => {
     const usage = (used: number): Usage => ({
