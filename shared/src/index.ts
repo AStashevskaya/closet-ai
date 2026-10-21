@@ -263,6 +263,20 @@ export const wearWithRequest = z.object({
 });
 export type WearWithRequest = z.infer<typeof wearWithRequest>;
 
+// GET /api/wear-with: the user's styled items, newest first, to open their outfits again.
+export const styledEntry = z.object({
+  // The request, for GET /api/wear-with/:id.
+  id: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  mood: outfitMood.nullable(),
+  // The item the outfits are built around: a wardrobe item or one from a photo.
+  name: z.string(),
+  photoUrl: z.string().nullable(),
+  cutoutUrl: z.string().nullable(),
+});
+export type StyledEntry = z.infer<typeof styledEntry>;
+export const styledList = z.array(styledEntry);
+
 export const outfitReactionInput = z.object({ reaction: outfitReaction });
 
 // A saved look on the Inspiration tab. `url` is served by the API to its owner.

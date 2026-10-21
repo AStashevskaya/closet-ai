@@ -314,6 +314,11 @@ export function createInMemoryRepositories() {
       return id;
     },
     getRequest: async (id) => requests.find((r) => r.id === id) ?? null,
+    history: async (userId, limit) =>
+      requests
+        .filter((r) => r.userId === userId && r.status === "done")
+        .reverse()
+        .slice(0, limit),
     latestDone: async (userId, itemId, mood) =>
       requests
         .filter(

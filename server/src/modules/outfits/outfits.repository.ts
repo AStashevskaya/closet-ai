@@ -84,6 +84,8 @@ export interface OutfitsRepository {
     mood?: OutfitMood | null,
   ): Promise<string>;
   getRequest(id: string): Promise<OutfitRequestRow | null>;
+  // The user's composed requests, newest first.
+  history(userId: string, limit: number): Promise<OutfitRequestRow[]>;
   // The latest finished request for this item in this mood, to reuse while nothing changed.
   latestDone(
     userId: string,
@@ -190,6 +192,15 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .from(outfitRequests)
         .where(eq(outfitRequests.id, id));
       return row ?? null;
+    },
+
+    async history(userId, limit) {
+      return db
+        .select(requestColumns)
+        .from(outfitRequests)
+        .where(and(eq(outfitRequests.userId, userId), eq(outfitRequests.status, "done")))
+        .orderBy(desc(outfitRequests.createdAt))
+        .limit(limit);
     },
 
     async latestDone(userId, itemId, mood) {
