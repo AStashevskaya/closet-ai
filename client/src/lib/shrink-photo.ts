@@ -24,3 +24,15 @@ export async function rotatePhoto(uri: string): Promise<string> {
   const result = await image.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
   return result.uri;
 }
+
+// Cuts the part of a photo inside `box` (photo pixels) and saves it as a new JPEG.
+export async function cropPhoto(
+  uri: string,
+  box: { x: number; y: number; width: number; height: number },
+): Promise<string> {
+  const image = await ImageManipulator.manipulate(uri)
+    .crop({ originX: box.x, originY: box.y, width: box.width, height: box.height })
+    .renderAsync();
+  const result = await image.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
+  return result.uri;
+}

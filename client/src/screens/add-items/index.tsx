@@ -11,7 +11,8 @@ import { Icon } from '@/components/icon';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
 import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
-import { RotateButton } from '@/components/rotate-button';
+import { PhotoCropper } from '@/components/photo-cropper';
+import { CropButton, RotateButton } from '@/components/rotate-button';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
@@ -81,6 +82,8 @@ export function AddItems() {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   // The row open for editing, if any.
   const [open, setOpen] = useState<number | null>(null);
+  // The row whose photo is in the cropper.
+  const [cropping, setCropping] = useState<number | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
   // A limit an upload or a save ran into: shown instead of the generic error.
@@ -198,6 +201,14 @@ export function AddItems() {
     }
   }
 
+  // A crop shows which item is meant, so the cropped photo is uploaded and tagged afresh: its
+  // tags replace the row's, as they were read off the whole photo.
+  async function cropped(index: number, uri: string) {
+    setCropping(null);
+    update(index, () => ({ status: 'uploading', uri }));
+    await send(index, uri);
+  }
+
   function edit(index: number, change: Partial<Draft>) {
     update(index, (e) => (e.status === 'ready' ? { ...e, draft: { ...e.draft, ...change } } : e));
   }
@@ -304,12 +315,18 @@ export function AddItems() {
               <View>
                 <Image source={{ uri: entry.uri }} style={styles.thumb} contentFit="cover" />
                 {(canRotate || (ready && entry.rotating)) && (
-                  <RotateButton
-                    size="small"
-                    onPress={() => rotate(index)}
-                    disabled={!canRotate || busy}
-                    style={styles.rotate}
-                  />
+                  <View style={styles.photoActions}>
+                    <CropButton
+                      size="small"
+                      onPress={() => setCropping(index)}
+                      disabled={!canRotate || busy}
+                    />
+                    <RotateButton
+                      size="small"
+                      onPress={() => rotate(index)}
+                      disabled={!canRotate || busy}
+                    />
+                  </View>
                 )}
               </View>
 
@@ -413,6 +430,12 @@ export function AddItems() {
           <Text style={styles.buttonText}>{t('addLook.add', { count: picked.size })}</Text>
         )}
       </PressableScale>
+
+      <PhotoCropper
+        uri={cropping === null ? null : (entries[cropping]?.uri ?? null)}
+        onCancel={() => setCropping(null)}
+        onDone={(uri) => cropping !== null && cropped(cropping, uri)}
+      />
     </ScrollView>
   );
 }
@@ -468,10 +491,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.hero,
   },
-  rotate: {
+  photoActions: {
     position: 'absolute',
     bottom: 4,
     end: 4,
+    flexDirection: 'row',
+    gap: 4,
   },
   rowText: {
     flex: 1,

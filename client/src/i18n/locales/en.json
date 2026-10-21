@@ -2,6 +2,12 @@
   "common": {
     "loading": "Loading"
   },
+  "crop": {
+    "button": "Crop photo",
+    "title": "Crop to the item",
+    "hint": "Drag the corners around the one item you're adding, so the app looks only at it",
+    "done": "Done"
+  },
   "app": {
     "name": "CLOSET",
     "tagline": "your closet · your mood"
