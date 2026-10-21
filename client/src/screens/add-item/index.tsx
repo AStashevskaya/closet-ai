@@ -419,11 +419,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '70%',
     aspectRatio: 3 / 4,
-    borderRadius: 20,
   },
   photoImage: {
     flex: 1,
-    borderRadius: 20,
   },
   photoEmpty: {
     backgroundColor: colors.hero,

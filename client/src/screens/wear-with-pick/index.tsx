@@ -276,7 +276,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '55%',
     aspectRatio: 3 / 4,
-    borderRadius: 20,
   },
   photoEmpty: {
     backgroundColor: colors.hero,
@@ -346,16 +345,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
   },
   crop: {
     width: 64,
     height: 84,
-    borderRadius: 12,
   },
   rowText: {
     flex: 1,

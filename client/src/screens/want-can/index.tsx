@@ -294,9 +294,9 @@ const styles = StyleSheet.create({
   },
   title: {
     marginBottom: 10,
-    fontFamily: fonts.display,
-    fontSize: 34,
-    lineHeight: 38,
+    fontFamily: fonts.displayLight,
+    fontSize: 44,
+    lineHeight: 48,
     color: colors.text,
     textAlign: 'left',
   },
@@ -304,7 +304,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '55%',
     aspectRatio: 3 / 4,
-    borderRadius: 20,
   },
   photoEmpty: {
     backgroundColor: colors.hero,
@@ -335,19 +334,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   summary: {
-    fontFamily: fonts.display,
-    fontSize: 24,
-    lineHeight: 28,
+    fontFamily: fonts.displayLight,
+    fontSize: 28,
+    lineHeight: 32,
     color: colors.text,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
     backgroundColor: colors.background,
   },
   rowOwned: {
@@ -357,7 +355,6 @@ const styles = StyleSheet.create({
   crop: {
     width: 64,
     height: 84,
-    borderRadius: 12,
   },
   missing: {
     backgroundColor: colors.hero,

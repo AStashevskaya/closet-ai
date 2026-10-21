@@ -467,15 +467,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   card: {
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
     backgroundColor: colors.background,
   },
   cardSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.surface,
+    // Picked rows sit on the studio grey.
+    backgroundColor: colors.hero,
   },
   cardIdle: {
     borderStyle: 'dashed',
@@ -488,7 +487,6 @@ const styles = StyleSheet.create({
   thumb: {
     width: 64,
     height: 84,
-    borderRadius: 12,
     backgroundColor: colors.hero,
   },
   photoActions: {
