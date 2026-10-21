@@ -9,7 +9,7 @@ import type {
 } from "@closet-ai/shared";
 import { and, cosineDistance, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { items, photos } from "../../db/schema";
+import { items, outfitRequests, photos } from "../../db/schema";
 
 export interface Photo {
   key: string;
@@ -186,11 +186,15 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     },
 
     listUnattached(before) {
-      return db
-        .select(columns)
-        .from(photos)
-        .leftJoin(items, eq(items.photoKey, photos.key))
-        .where(and(isNull(items.id), lt(photos.createdAt, before)));
+      return (
+        db
+          .select(columns)
+          .from(photos)
+          .leftJoin(items, eq(items.photoKey, photos.key))
+          // An item from a photo the user asked "what do I wear this with?" about keeps its crop.
+          .leftJoin(outfitRequests, eq(outfitRequests.heroPhotoKey, photos.key))
+          .where(and(isNull(items.id), isNull(outfitRequests.id), lt(photos.createdAt, before)))
+      );
     },
 
     async delete(key) {

@@ -2,13 +2,14 @@ import type { Item, WearWithRequest } from '@closet-ai/shared';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import i18n from '@/i18n';
-import { getWearWith, reactToOutfit } from '@/lib/api';
+import { createItem, getWearWith, reactToOutfit } from '@/lib/api';
 
 import { WearWith } from '.';
 
 jest.mock('@/lib/api', () => ({
   getWearWith: jest.fn(),
   reactToOutfit: jest.fn(),
+  createItem: jest.fn(),
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
   absoluteUrl: (path: string) => `http://api${path}`,
 }));
@@ -30,6 +31,7 @@ const tee = item('6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a82', 'Grey tee', 'top');
 const done: WearWithRequest = {
   id: 'req-1',
   status: 'done',
+  addable: null,
   outfits: [
     {
       id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a90',
@@ -59,7 +61,7 @@ describe('<WearWith />', () => {
   test('waits for the outfits, then shows each with what is missing', async () => {
     jest
       .mocked(getWearWith)
-      .mockResolvedValueOnce({ id: 'req-1', status: 'pending', outfits: [] })
+      .mockResolvedValueOnce({ id: 'req-1', status: 'pending', outfits: [], addable: null })
       .mockResolvedValue(done);
     await render(<WearWith id="req-1" />);
     expect(screen.getByText('Putting looks together from your closet…')).toBeOnTheScreen();
@@ -89,8 +91,26 @@ describe('<WearWith />', () => {
   });
 
   test('says so when the outfits could not be put together', async () => {
-    jest.mocked(getWearWith).mockResolvedValue({ id: 'req-1', status: 'failed', outfits: [] });
+    jest
+      .mocked(getWearWith)
+      .mockResolvedValue({ id: 'req-1', status: 'failed', outfits: [], addable: null });
     await render(<WearWith id="req-1" />);
     expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
+  });
+  test('adds an item from a photo to the closet', async () => {
+    const addable = {
+      name: 'Red leather skirt',
+      category: 'bottom' as const,
+      colors: ['red' as const],
+      seasons: ['autumn' as const],
+      photoKey: 'photos/u1/crop.webp',
+    };
+    jest.mocked(getWearWith).mockResolvedValue({ ...done, addable });
+    jest.mocked(createItem).mockResolvedValue({} as never);
+    await render(<WearWith id="req-1" />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add to my closet' }));
+
+    expect(createItem).toHaveBeenCalledWith(addable);
+    expect(await screen.findByText('In your closet')).toBeOnTheScreen();
   });
 });

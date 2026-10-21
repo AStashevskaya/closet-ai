@@ -20,6 +20,7 @@ import {
   wearWithRequest,
   type WearWithRequest,
   wearWithStarted,
+  type WearWithInput,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
@@ -98,13 +99,14 @@ export function getUsage(): Promise<Usage> {
   return request('/api/usage', usage);
 }
 
-// "What do I wear this with?" for a wardrobe item: the request to poll (an earlier one, done
-// already, when the closet hasn't changed since).
-export function askWearWith(itemId: string, lang: AppLanguage): Promise<{ id: string }> {
+// "What do I wear this with?" for a wardrobe item, or an item found on an uploaded "wear" photo:
+// the request to poll (for a wardrobe item, an earlier one, done already, when the closet
+// hasn't changed since).
+export function askWearWith(input: WearWithInput, lang: AppLanguage): Promise<{ id: string }> {
   return request(`/api/wear-with?lang=${lang}`, wearWithStarted, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ itemId }),
+    body: JSON.stringify(input),
   });
 }
 

@@ -161,7 +161,7 @@ export function ItemScreen({ id }: { id: string }) {
   async function wearWith() {
     setBusy(true);
     try {
-      const { id: requestId } = await askWearWith(id, appLanguage(i18n.language));
+      const { id: requestId } = await askWearWith({ itemId: id }, appLanguage(i18n.language));
       void refreshUsage();
       router.push({ pathname: '/wear-with/[id]', params: { id: requestId } });
     } catch (cause) {

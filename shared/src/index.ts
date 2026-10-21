@@ -108,7 +108,9 @@ export type TagStatus = z.infer<typeof tagStatus>;
 // then lists every item it sees, and the user picks which to add to the wardrobe. "want" is a
 // look someone else wears (a Pinterest or Instagram screenshot): its items are matched against
 // the wardrobe instead ("Want / Can").
-export const PHOTO_KINDS = ["item", "look", "want"] as const;
+// item: one wardrobe item; look: a selfie to add items from; want: someone else's look to
+// match against the wardrobe; wear: a screenshot or photo of an item to style ("what do I wear this with?").
+export const PHOTO_KINDS = ["item", "look", "want", "wear"] as const;
 export const photoKind = z.enum(PHOTO_KINDS);
 export type PhotoKind = z.infer<typeof photoKind>;
 
@@ -122,7 +124,12 @@ export const itemBox = z.object({
 export type ItemBox = z.infer<typeof itemBox>;
 
 // One item found on a look photo: its tags and its box.
-export const lookItem = itemTags.omit({ recognized: true }).extend({ box: itemBox });
+export const lookItem = itemTags.omit({ recognized: true }).extend({
+  box: itemBox,
+  // The item's type in English ("leather midi skirt"): what the cut-out model is asked for, so
+  // it cuts out the skirt and not the shirt over it. null on looks found before it existed.
+  noun: z.string().max(60).nullable().default(null),
+});
 export type LookItem = z.infer<typeof lookItem>;
 
 // How close the wardrobe comes to an item on a "want" look: the same item, one that can stand
@@ -227,7 +234,11 @@ export const outfit = z.object({
 });
 export type Outfit = z.infer<typeof outfit>;
 
-export const wearWithInput = z.object({ itemId: z.string().uuid() });
+// A wardrobe item, or one item found on an uploaded "wear" photo (its index in lookItems).
+export const wearWithInput = z.union([
+  z.object({ itemId: z.string().uuid() }),
+  z.object({ photoKey: z.string().max(200), index: z.number().int().min(0) }),
+]);
 export type WearWithInput = z.infer<typeof wearWithInput>;
 
 // The answer to POST /api/wear-with: the request to poll (an earlier one when it is reused).
@@ -237,6 +248,8 @@ export const wearWithRequest = z.object({
   id: z.string().uuid(),
   status: outfitRequestStatus,
   outfits: z.array(outfit),
+  // For an item from a photo: what adding it to the wardrobe takes (POST /api/items).
+  addable: createItemInput.extend({ photoKey: z.string() }).nullable(),
 });
 export type WearWithRequest = z.infer<typeof wearWithRequest>;
 

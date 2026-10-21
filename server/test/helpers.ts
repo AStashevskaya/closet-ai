@@ -231,7 +231,9 @@ export function createInMemoryRepositories() {
     listUnattached: async (before) =>
       [...photoRows.values()].filter(
         (row) =>
-          row.createdAt < before && !itemRows.some((item) => item.input.photoKey === row.key),
+          row.createdAt < before &&
+          !itemRows.some((item) => item.input.photoKey === row.key) &&
+          !requests.some((request) => request.heroPhotoKey === row.key),
       ),
     delete: async (key) => {
       photoRows.delete(key);
@@ -288,9 +290,19 @@ export function createInMemoryRepositories() {
         };
       }),
     wardrobeSize: async (userId) => readyItems(userId).length,
-    createRequest: async (userId, itemId, wardrobeSize) => {
+    createRequest: async (userId, hero, wardrobeSize) => {
       const id = randomUUID();
-      requests.push({ id, userId, itemId, status: "pending", wardrobeSize, createdAt: now() });
+      requests.push({
+        id,
+        userId,
+        itemId: null,
+        heroPhotoKey: null,
+        heroNoun: null,
+        ...hero,
+        status: "pending",
+        wardrobeSize,
+        createdAt: now(),
+      });
       return id;
     },
     getRequest: async (id) => requests.find((r) => r.id === id) ?? null,
@@ -314,6 +326,7 @@ export function createInMemoryRepositories() {
       return {
         id: request.id,
         status: request.status,
+        addable: null,
         outfits: storedOutfits
           .filter((o) => o.requestId === requestId)
           .map((o) => ({
@@ -349,6 +362,7 @@ export function createInMemoryRepositories() {
         .filter((p) => p.ownerId === userId && p.kind === "want" && p.status === "ready")
         .slice(0, limit)
         .map((p) => p.key),
+    isAttached: async (photoKey) => itemRows.some((row) => row.input.photoKey === photoKey),
     brief: async (userId) => briefs.get(userId) ?? null,
     setBriefBatch: async (userId, batchId) => {
       const current = briefs.get(userId) ?? {
@@ -430,6 +444,7 @@ export const lookItems: LookItem[] = [
     name: "Pink mesh top",
     colors: ["pink"],
     box: { xMin: 0.25, yMin: 0.1, xMax: 0.75, yMax: 0.45 },
+    noun: "mesh top",
   },
   {
     ...withoutRecognized(shirtTags),
@@ -438,6 +453,7 @@ export const lookItems: LookItem[] = [
     colors: ["blue"],
     fabric: "denim",
     box: { xMin: 0.2, yMin: 0.45, xMax: 0.8, yMax: 0.95 },
+    noun: "wide-leg jeans",
   },
 ];
 
@@ -499,10 +515,10 @@ export function createStubEmbedder(vector: number[] = unitVector(1)) {
 // square in the middle (the "item"), and records the calls. answer can make it fail, or find
 // nothing (null), instead.
 export function createStubRemover(answer?: () => Promise<Uint8Array | null>) {
-  const calls: { bytes: number }[] = [];
+  const calls: { bytes: number; name?: string }[] = [];
   const remover: BackgroundRemover = {
-    removeBackground: async (image) => {
-      calls.push({ bytes: image.length });
+    removeBackground: async (image, name) => {
+      calls.push({ bytes: image.length, ...(name ? { name } : {}) });
       if (answer) return answer();
       const { width = 100, height = 100 } = await sharp(image).metadata();
       const side = Math.round(Math.min(width, height) / 2);

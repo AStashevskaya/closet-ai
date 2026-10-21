@@ -150,8 +150,12 @@ export const outfitRequests = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // The wardrobe item asked about (a screenshot's item comes later).
+    // The wardrobe item asked about, or (for an item from a photo) its crop, stored as a photo
+    // of its own that the hourly cleanup leaves alone while a request points to it.
     itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
+    heroPhotoKey: text("hero_photo_key").references(() => photos.key, { onDelete: "set null" }),
+    // What the cut-out model is asked for ("leather skirt"), from the photo's look items.
+    heroNoun: text("hero_noun"),
     status: outfitRequestStatusEnum("status").notNull().default("pending"),
     // The wardrobe size when asked: a repeat for the same item reuses the outfits until it changes.
     wardrobeSize: integer("wardrobe_size").notNull(),

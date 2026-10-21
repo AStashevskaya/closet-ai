@@ -58,8 +58,11 @@ export const photosRoutes =
       async (request, reply) => {
         const user = request.user as SessionUser;
         const { kind } = request.query;
-        // Every kind is an AI action counted against the free tier.
-        const action = kind === "item" ? "item_photo" : kind;
+        // Every kind is an AI action counted against the free tier. A photo of an item to style
+        // counts as a photo (finding its items is cheap); the outfits count when asked for, and
+        // the day's limit is checked now so nobody uploads for nothing.
+        const action = kind === "item" || kind === "wear" ? "item_photo" : kind;
+        if (kind === "wear") await limits.check(user.id, "wear_with");
         await limits.check(user.id, action);
         const file = await request.file();
         if (!file) throw httpError(400, "no file in the request");
