@@ -5,13 +5,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { LookCollage } from '@/components/look-collage';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { getPhotoState, sessionHeaders, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -191,7 +192,7 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
           exiting={FadeOut.duration(durations.press)}
           accessibilityLiveRegion="polite"
         >
-          {look.status === 'finding' && <ActivityIndicator size="small" color={colors.accent} />}
+          {look.status === 'finding' && <HangerLoader size="small" />}
           <Text style={[styles.statusText, look.status === 'found' && styles.summary]}>
             {look.status === 'finding' && t('want.finding')}
             {look.status === 'failed' && t('want.errors.find')}

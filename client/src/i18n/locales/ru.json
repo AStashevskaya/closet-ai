@@ -1,4 +1,7 @@
 {
+  "common": {
+    "loading": "Загрузка"
+  },
   "app": {
     "name": "CLOSET",
     "tagline": "твой шкаф · твоё настроение"

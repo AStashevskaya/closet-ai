@@ -6,6 +6,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { FlatLay } from '@/components/flat-lay';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getWearWith, reactToOutfit, sessionHeaders } from '@/lib/api';
 import { durations } from '@/motion';
@@ -103,7 +104,7 @@ export function WearWith({ id }: { id: string }) {
   if (state.status === 'pending') {
     return (
       <View style={styles.center} accessibilityLiveRegion="polite">
-        <ActivityIndicator color={colors.accent} />
+        <HangerLoader />
         <Text style={styles.message}>{t('wearWith.composing')}</Text>
       </View>
     );

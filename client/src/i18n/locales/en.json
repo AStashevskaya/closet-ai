@@ -1,4 +1,7 @@
 {
+  "common": {
+    "loading": "Loading"
+  },
   "app": {
     "name": "CLOSET",
     "tagline": "your closet · your mood"

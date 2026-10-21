@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { HangerLoader } from '@/components/hanger-loader';
 import { Chip } from '@/components/chip';
 import { Icon } from '@/components/icon';
 import { MoodChips } from '@/components/mood-chips';
@@ -115,7 +116,11 @@ export function ItemScreen({ id }: { id: string }) {
   }, []);
 
   if (state.status === 'loading' || (state.status === 'ready' && !draft)) {
-    return <ActivityIndicator style={styles.center} color={colors.accent} />;
+    return (
+      <View style={styles.center}>
+        <HangerLoader />
+      </View>
+    );
   }
 
   if (state.status === 'error' || !draft) {

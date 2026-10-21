@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
   Extrapolation,
@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HangerLoader } from '@/components/hanger-loader';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
 import { durations } from '@/motion';
@@ -209,7 +210,7 @@ export function Closet() {
     <View style={styles.screen}>
       {state.status === 'loading' && (
         <View style={[styles.center, { paddingTop: insets.top }]}>
-          <ActivityIndicator color={colors.accent} />
+          <HangerLoader />
         </View>
       )}
 

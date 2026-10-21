@@ -10,6 +10,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import {
   absoluteUrl,
@@ -148,7 +149,9 @@ export function Inspiration() {
       <Text style={styles.note}>{message ?? t('inspiration.taste')}</Text>
 
       {looks === null ? (
-        <ActivityIndicator color={colors.accent} style={styles.loading} />
+        <View style={styles.loading}>
+          <HangerLoader />
+        </View>
       ) : (
         <View style={styles.grid}>
           {saving.map((uri) => (

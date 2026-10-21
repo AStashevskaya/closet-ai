@@ -5,11 +5,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
 import { MoodChips } from '@/components/mood-chips';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { askWearWith, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -201,9 +202,7 @@ export function WearWithPick() {
           exiting={FadeOut.duration(durations.press)}
           accessibilityLiveRegion="polite"
         >
-          {(shot.status === 'finding' || busy) && (
-            <ActivityIndicator size="small" color={colors.accent} />
-          )}
+          {(shot.status === 'finding' || busy) && <HangerLoader size="small" />}
           <Text style={styles.statusText}>
             {busy && t('wearWith.composing')}
             {!busy && shot.status === 'finding' && t('wearWith.finding')}

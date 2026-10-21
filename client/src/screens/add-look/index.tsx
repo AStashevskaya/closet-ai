@@ -9,6 +9,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { addLookItems, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -222,7 +223,7 @@ export function AddLook() {
           exiting={FadeOut.duration(durations.press)}
           accessibilityLiveRegion="polite"
         >
-          {look.status === 'finding' && <ActivityIndicator size="small" color={colors.accent} />}
+          {look.status === 'finding' && <HangerLoader size="small" />}
           <Text style={styles.statusText}>
             {look.status === 'finding' && t('addLook.finding')}
             {look.status === 'failed' && t('addLook.errors.find')}

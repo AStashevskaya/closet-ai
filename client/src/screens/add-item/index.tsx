@@ -20,6 +20,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Icon } from '@/components/icon';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
 import { RotateButton } from '@/components/rotate-button';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -312,7 +313,7 @@ export function AddItem() {
             exiting={FadeOut.duration(durations.press)}
             accessibilityLiveRegion="polite"
           >
-            {tagging === 'waiting' && <ActivityIndicator size="small" color={colors.accent} />}
+            {tagging === 'waiting' && <HangerLoader size="small" />}
             <Text style={styles.taggingText}>
               {t(tagging === 'waiting' ? 'addItem.tagging' : 'addItem.tagged')}
             </Text>

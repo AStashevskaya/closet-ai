@@ -9,6 +9,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { RotateButton } from '@/components/rotate-button';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
@@ -280,7 +281,7 @@ export function AddItems() {
         exiting={FadeOut.duration(durations.press)}
         accessibilityLiveRegion="polite"
       >
-        {pending > 0 && <ActivityIndicator size="small" color={colors.accent} />}
+        {pending > 0 && <HangerLoader size="small" />}
         <Text style={styles.statusText}>
           {pending > 0
             ? t('addItems.progress', { done, count: entries.length })

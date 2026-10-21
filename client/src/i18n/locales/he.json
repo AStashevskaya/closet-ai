@@ -1,4 +1,7 @@
 {
+  "common": {
+    "loading": "טוען"
+  },
   "app": {
     "name": "CLOSET",
     "tagline": "הארון שלך · מצב הרוח שלך"
