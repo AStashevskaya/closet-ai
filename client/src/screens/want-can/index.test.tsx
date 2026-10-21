@@ -45,6 +45,7 @@ const lookItem = (name: string, category: LookItem['category']): LookItem => ({
   brand: null,
   condition: null,
   box: { xMin: 0.2, yMin: 0.2, xMax: 0.8, yMax: 0.6 },
+  noun: null,
 });
 
 const myTop: Item = {

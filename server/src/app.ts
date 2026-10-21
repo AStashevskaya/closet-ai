@@ -103,7 +103,16 @@ export async function buildApp({
   );
   await app.register(usageRoutes(limits, auth), { prefix: "/api" });
   await app.register(
-    outfitsRoutes(outfitsRepository, itemsRepository, outfitQueue, limits, auth, stylistEnabled),
+    outfitsRoutes(
+      outfitsRepository,
+      itemsRepository,
+      photosRepository,
+      storage,
+      outfitQueue,
+      limits,
+      auth,
+      stylistEnabled,
+    ),
     { prefix: "/api" },
   );
 

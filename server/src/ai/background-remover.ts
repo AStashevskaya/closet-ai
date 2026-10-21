@@ -7,8 +7,9 @@
 // never spend money.
 export interface BackgroundRemover {
   // The item on a transparent background, as a PNG the size of the input; null when the model
-  // found no item in the photo.
-  removeBackground(image: Uint8Array): Promise<Uint8Array | null>;
+  // found no item in the photo. `name` asks for a particular item ("leather skirt") when the
+  // photo shows several, as a worn look does.
+  removeBackground(image: Uint8Array, name?: string): Promise<Uint8Array | null>;
 }
 
 const ENDPOINT = "https://fal.run/fal-ai/sam-3/image";
@@ -20,14 +21,14 @@ const TIMEOUT_MS = 60_000;
 
 export function createFalBackgroundRemover(apiKey: string): BackgroundRemover {
   return {
-    async removeBackground(image) {
+    async removeBackground(image, name = PROMPT) {
       const response = await fetch(ENDPOINT, {
         method: "POST",
         headers: { Authorization: `Key ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           // A data URI, so the photo is never uploaded to fal's public file storage.
           image_url: `data:image/webp;base64,${Buffer.from(image).toString("base64")}`,
-          prompt: PROMPT,
+          prompt: name,
           // The photo with everything but the mask made transparent.
           apply_mask: true,
           output_format: "png",

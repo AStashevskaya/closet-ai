@@ -28,13 +28,15 @@ const tagger = env.ANTHROPIC_API_KEY ? createClaudeItemTagger(env.ANTHROPIC_API_
 // The worker runs in the API process for now: one process to deploy and run locally.
 // It only needs Redis, the database and storage, so it can move to its own process when
 // photo processing starts competing with requests.
+// The model loads on the first embed job; the first run downloads it into MODEL_CACHE_DIR.
+const embedder = createFashionSiglipEmbedder(env.MODEL_CACHE_DIR);
+const remover = env.FAL_KEY ? createFalBackgroundRemover(env.FAL_KEY) : null;
 const worker = createPhotoWorker(env.REDIS_URL, {
   photos: photosRepository,
   storage: s3.storage,
   tagger,
-  // The model loads on the first embed job; the first run downloads it into MODEL_CACHE_DIR.
-  embedder: createFashionSiglipEmbedder(env.MODEL_CACHE_DIR),
-  remover: env.FAL_KEY ? createFalBackgroundRemover(env.FAL_KEY) : null,
+  embedder,
+  remover,
   queue: queue.photoQueue,
 });
 await queue.scheduleCleanup();
@@ -43,7 +45,10 @@ const outfitQueue = createOutfitQueue(env.REDIS_URL);
 const stylist = env.ANTHROPIC_API_KEY ? createClaudeStylist(env.ANTHROPIC_API_KEY) : null;
 const outfitWorker = createOutfitWorker(env.REDIS_URL, {
   outfits: outfitsRepository,
+  photos: photosRepository,
   storage: s3.storage,
+  remover,
+  embedder,
   stylist,
   queue: outfitQueue.outfitQueue,
 });

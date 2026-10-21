@@ -29,7 +29,9 @@ export async function matchLookItems(
       const crop = await cropToBox(look, item.box);
       // Without the cut-out the crop still matches, only less well: fal being down is no
       // reason to fail the look.
-      const cut = remover ? await remover.removeBackground(crop).catch(() => null) : null;
+      const cut = remover
+        ? await remover.removeBackground(crop, item.noun ?? undefined).catch(() => null)
+        : null;
       const query = cut ? await flattenOnWhite(await processCutout(cut)) : crop;
       const closest = await photos.closestItems(
         ownerId,

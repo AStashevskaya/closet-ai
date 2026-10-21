@@ -75,6 +75,16 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="wear-with-pick"
+          options={{
+            presentation: 'modal',
+            title: t('wearWith.title'),
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+          }}
+        />
+        <Stack.Screen
           name="wear-with/[id]"
           options={{
             title: t('wearWith.title'),

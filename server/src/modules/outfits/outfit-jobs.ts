@@ -1,7 +1,12 @@
 import type { AppLanguage } from "@closet-ai/shared";
+import type { BackgroundRemover } from "../../ai/background-remover";
+import type { ItemEmbedder } from "../../ai/item-embedder";
 import type { Stylist } from "../../ai/stylist";
 import type { Storage } from "../../storage/storage";
-import type { OutfitsRepository } from "./outfits.repository";
+import { cutoutKeyFor } from "../photos/photo-jobs";
+import type { PhotosRepository } from "../photos/photos.repository";
+import { flattenOnWhite, processCutout } from "../photos/process-photo";
+import type { OutfitRequestRow, OutfitsRepository, StylingItem } from "./outfits.repository";
 import { asJpeg, contactSheet, pickCandidates, seasonOf, toStylistPiece } from "./wardrobe-sheet";
 
 export interface OutfitQueue {
@@ -13,7 +18,12 @@ export interface OutfitQueue {
 
 export interface OutfitJobDeps {
   outfits: OutfitsRepository;
+  photos: PhotosRepository;
   storage: Storage;
+  // For an item from a photo: cuts it out (null: the crop is used as it is) and embeds it
+  // (null: the contact sheet isn't ordered by closeness).
+  remover: BackgroundRemover | null;
+  embedder: ItemEmbedder | null;
   // null when no API key is configured: outfits are off.
   stylist: Stylist | null;
   queue: OutfitQueue;
@@ -34,14 +44,18 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   if (!stylist) throw new PermanentOutfitError("no stylist configured");
 
   const wardrobe = await outfits.wardrobe(request.userId);
-  const hero = wardrobe.find((item) => item.id === request.itemId);
+  const hero = request.heroPhotoKey
+    ? await heroFromPhoto(deps, request)
+    : wardrobe.find((item) => item.id === request.itemId);
   if (!hero) throw new PermanentOutfitError("the item is gone or has no ready photo");
   const heroFile = await storage.get(hero.imageKey);
   if (!heroFile) throw new PermanentOutfitError("the item's picture is missing from storage");
 
-  // Numbers follow the wardrobe's order, so the list (the cached part) stays the same between requests.
+  // Numbers follow the wardrobe's order, so the list (the cached part) stays the same between
+  // requests. An item from a photo isn't in the wardrobe: it gets the number after the last.
   const numbered = wardrobe.map((item, i) => ({ item, n: i + 1 }));
   const nOf = new Map(numbered.map(({ item, n }) => [item.id, n]));
+  if (!nOf.has(hero.id)) nOf.set(hero.id, wardrobe.length + 1);
   const season = seasonOf(deps.clock?.() ?? new Date());
   const candidates = pickCandidates(hero, wardrobe, season);
   const sheet = await contactSheet(
@@ -72,7 +86,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       why: look.why,
       missing: look.missing,
       pieces: [
-        { hero: true, itemId: hero.id },
+        { hero: true, itemId: request.heroPhotoKey ? null : hero.id },
         ...[...new Set(look.items)].flatMap((n) => {
           const item = byN.get(n);
           return item ? [{ hero: false, itemId: item.id }] : [];
@@ -81,6 +95,46 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     })),
     costMicros,
   );
+}
+
+// The item from a photo, as styling sees it: cut out by its English name the first time (the
+// crop stays when the model finds nothing or fal is down), and embedded so the contact sheet
+// is ordered by closeness to it.
+async function heroFromPhoto(
+  { photos, storage, remover, embedder }: OutfitJobDeps,
+  request: OutfitRequestRow,
+): Promise<StylingItem | undefined> {
+  const photo = await photos.get(request.heroPhotoKey!);
+  const crop = photo ? await storage.get(photo.key) : null;
+  if (!photo?.tags || !crop) return undefined;
+
+  let cutoutKey = photo.cutoutKey;
+  if (!cutoutKey && remover) {
+    const png = await remover
+      .removeBackground(crop.body, request.heroNoun ?? undefined)
+      .catch(() => null);
+    if (png) {
+      cutoutKey = cutoutKeyFor(photo.key);
+      await storage.put(cutoutKey, await processCutout(png), "image/webp");
+      await photos.setCutout(photo.key, cutoutKey);
+    }
+  }
+  const image = cutoutKey ? await storage.get(cutoutKey) : crop;
+  const embedding =
+    embedder && image
+      ? await embedder.embedImage(cutoutKey ? await flattenOnWhite(image.body) : image.body)
+      : null;
+  return {
+    // Not a wardrobe item; the request's id keeps it apart from them.
+    id: request.id,
+    name: photo.tags.name,
+    category: photo.tags.category,
+    colors: photo.tags.colors,
+    seasons: photo.tags.seasons,
+    tags: photo.tags,
+    imageKey: cutoutKey ?? photo.key,
+    embedding,
+  };
 }
 
 // A brief needs something to read; below this the stylist works from the wardrobe directly.

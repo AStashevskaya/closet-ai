@@ -35,6 +35,8 @@ export interface OutfitRequestRow {
   id: string;
   userId: string;
   itemId: string | null;
+  heroPhotoKey: string | null;
+  heroNoun: string | null;
   status: WearWithRequest["status"];
   wardrobeSize: number;
 }
@@ -44,7 +46,8 @@ export interface NewOutfit {
   occasion: string;
   why: string;
   missing: MissingPiece | null;
-  pieces: { hero: boolean; itemId: string }[];
+  // itemId is null for the hero when it is an item from a photo.
+  pieces: { hero: boolean; itemId: string | null }[];
 }
 
 export interface StyleBrief {
@@ -69,7 +72,12 @@ export interface OutfitsRepository {
   wardrobe(userId: string): Promise<StylingItem[]>;
   // How many of them there are, cheaply.
   wardrobeSize(userId: string): Promise<number>;
-  createRequest(userId: string, itemId: string, wardrobeSize: number): Promise<string>;
+  // About a wardrobe item, or an item from a photo (its crop's key and English name).
+  createRequest(
+    userId: string,
+    hero: { itemId: string } | { heroPhotoKey: string; heroNoun: string | null },
+    wardrobeSize: number,
+  ): Promise<string>;
   getRequest(id: string): Promise<OutfitRequestRow | null>;
   // The latest finished request for this item, to reuse while the wardrobe is the same size.
   latestDone(userId: string, itemId: string): Promise<OutfitRequestRow | null>;
@@ -89,6 +97,8 @@ export interface OutfitsRepository {
   reactedOutfits(userId: string, limit: number): Promise<ReactedOutfit[]>;
   // Storage keys of the "want" screenshots the user saved, newest first.
   inspirationKeys(userId: string, limit: number): Promise<string[]>;
+  // Whether a wardrobe item uses this photo (an item from a photo, added to the wardrobe).
+  isAttached(photoKey: string): Promise<boolean>;
   brief(userId: string): Promise<StyleBrief | null>;
   setBriefBatch(userId: string, batchId: string | null): Promise<void>;
   saveBrief(userId: string, brief: string, itemCount: number, reactionCount: number): Promise<void>;
@@ -110,6 +120,8 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     id: outfitRequests.id,
     userId: outfitRequests.userId,
     itemId: outfitRequests.itemId,
+    heroPhotoKey: outfitRequests.heroPhotoKey,
+    heroNoun: outfitRequests.heroNoun,
     status: outfitRequests.status,
     wardrobeSize: outfitRequests.wardrobeSize,
   };
@@ -149,10 +161,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return row?.n ?? 0;
     },
 
-    async createRequest(userId, itemId, wardrobeSize) {
+    async createRequest(userId, hero, wardrobeSize) {
       const [row] = await db
         .insert(outfitRequests)
-        .values({ userId, itemId, wardrobeSize })
+        .values({ userId, ...hero, wardrobeSize })
         .returning({ id: outfitRequests.id });
       return row!.id;
     },
@@ -246,6 +258,8 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return {
         id: request.id,
         status: request.status,
+        // Filled in by the route, which knows the photo.
+        addable: null,
         outfits: looks.map((look) => ({
           id: look.id,
           caption: look.caption,
@@ -321,6 +335,14 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .orderBy(desc(photos.createdAt))
         .limit(limit);
       return rows.map((row) => row.key);
+    },
+
+    async isAttached(photoKey) {
+      const [row] = await db
+        .select({ id: items.id })
+        .from(items)
+        .where(eq(items.photoKey, photoKey));
+      return row !== undefined;
     },
 
     async brief(userId) {

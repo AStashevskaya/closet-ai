@@ -140,7 +140,8 @@ export async function tagPhoto(deps: PhotoJobDeps, key: string, lang: AppLanguag
   if (!file) throw new PermanentPhotoError("processed photo is missing from storage");
 
   try {
-    if (photo.kind === "look") {
+    // A selfie, or a photo of an item to style: its items, with boxes, for the user to pick.
+    if (photo.kind === "look" || photo.kind === "wear") {
       await photos.setLookItems(photo.key, await tagger.findItems(file.body, lang));
       return;
     }

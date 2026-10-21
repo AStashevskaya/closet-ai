@@ -225,7 +225,17 @@
     "dislike": "Not me",
     "wore": "Wore it",
     "woreCount": "Wore it · {{count}}",
-    "empty": "Nothing in your closet goes with it yet."
+    "empty": "Nothing in your closet goes with it yet.",
+    "homeTitle": "What do I wear this with?",
+    "homeText": "Add a screenshot or a photo of one item, from a shop, Instagram, anywhere: I'll put looks together with it from your closet.",
+    "pick": "Choose a photo of the item",
+    "intro": "A screenshot or a photo of one item: a shop page, Instagram, a fitting room.",
+    "finding": "Finding the item on the photo…",
+    "pickOne": "There are a few things here: tap the one you mean",
+    "none": "Couldn't find an item on this photo. Try another one.",
+    "notRead": "Couldn't read this photo. Try again.",
+    "add": "Add to my closet",
+    "added": "In your closet"
   },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",

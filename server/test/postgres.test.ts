@@ -313,7 +313,7 @@ describe.skipIf(!url)("on Postgres", () => {
     });
     const box = { xMin: 0, yMin: 0, xMax: 1, yMax: 1 };
     const { recognized: _recognized, ...tags } = shirtTags;
-    await photos.setLookItems(key, [{ ...tags, box }], [{ how: "none", itemId: null }]);
+    await photos.setLookItems(key, [{ ...tags, box, noun: null }], [{ how: "none", itemId: null }]);
     expect(await photos.get(key)).toMatchObject({
       kind: "want",
       tagStatus: "done",
@@ -437,7 +437,7 @@ describe.skipIf(!url)("on Postgres", () => {
 
     expect((await outfits.wardrobe(user!.id)).map((i) => i.id)).toEqual([skirt, top]);
     expect(await outfits.wardrobeSize(user!.id)).toBe(2);
-    const requestId = await outfits.createRequest(user!.id, skirt, 2);
+    const requestId = await outfits.createRequest(user!.id, { itemId: skirt }, 2);
     expect(await outfits.latestDone(user!.id, skirt)).toBeNull();
     await outfits.saveOutfits(
       requestId,
@@ -485,6 +485,19 @@ describe.skipIf(!url)("on Postgres", () => {
     // A deleted item leaves the outfit, without that piece.
     await app.inject({ method: "DELETE", url: `/api/items/${top}`, headers: { cookie } });
     expect((await outfits.view(requestId, user!.id))!.outfits[0]!.pieces[1]!.item).toBeNull();
+
+    // A crop an outfit request points to is kept by the cleanup.
+    const crop = `photos/${user!.id}/crop.webp`;
+    await photos.createReady({ key: crop, ownerId: user!.id, tags: shirtTags });
+    const loose = `photos/${user!.id}/loose.webp`;
+    await photos.createReady({ key: loose, ownerId: user!.id, tags: shirtTags });
+    await outfits.createRequest(user!.id, { heroPhotoKey: crop, heroNoun: "linen shirt" }, 2);
+    const unattached = (await photos.listUnattached(new Date(Date.now() + 60_000))).map(
+      (p) => p.key,
+    );
+    expect(unattached).toContain(loose);
+    expect(unattached).not.toContain(crop);
+    expect(await outfits.isAttached(crop)).toBe(false);
 
     await outfits.setBriefBatch(user!.id, "batch-1");
     expect(await outfits.brief(user!.id)).toMatchObject({ brief: null, batchId: "batch-1" });

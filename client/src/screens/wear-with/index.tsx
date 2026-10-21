@@ -7,7 +7,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { FlatLay } from '@/components/flat-lay';
 import { PressableScale } from '@/components/pressable-scale';
-import { getWearWith, reactToOutfit, sessionHeaders } from '@/lib/api';
+import { createItem, getWearWith, reactToOutfit, sessionHeaders } from '@/lib/api';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -15,7 +15,10 @@ import { colors, fonts } from '@/theme';
 const POLL_MS = 2000;
 const MAX_POLLS = 45;
 
-type State = { status: 'pending' } | { status: 'failed' } | { status: 'done'; outfits: Outfit[] };
+type State =
+  | { status: 'pending' }
+  | { status: 'failed' }
+  | { status: 'done'; outfits: Outfit[]; addable: WearWithRequest['addable'] };
 
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
@@ -44,7 +47,7 @@ export function WearWith({ id }: { id: string }) {
           const request: WearWithRequest = await getWearWith(id);
           if (cancelled) return;
           if (request.status === 'done') {
-            setState({ status: 'done', outfits: request.outfits });
+            setState({ status: 'done', outfits: request.outfits, addable: request.addable });
             void Haptics.selectionAsync();
             return;
           }
@@ -72,14 +75,28 @@ export function WearWith({ id }: { id: string }) {
         ? { ...o, woreCount: o.woreCount + 1 }
         : { ...o, opinion: reaction === 'none' ? null : reaction };
     const before = state.outfits;
-    setState({
-      status: 'done',
-      outfits: before.map((o) => (o.id === outfit.id ? change(o) : o)),
-    });
+    setState({ ...state, outfits: before.map((o) => (o.id === outfit.id ? change(o) : o)) });
     try {
       await reactToOutfit(outfit.id, reaction);
     } catch {
-      setState({ status: 'done', outfits: before });
+      setState((current) =>
+        current.status === 'done' ? { ...current, outfits: before } : current,
+      );
+    }
+  }
+
+  // An item from a photo, bought or already owned: into the wardrobe with its crop.
+  const [adding, setAdding] = useState<'idle' | 'busy' | 'added'>('idle');
+  async function addToCloset() {
+    if (state.status !== 'done' || !state.addable) return;
+    setAdding('busy');
+    try {
+      await createItem(state.addable);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setAdding('added');
+    } catch (cause) {
+      if (__DEV__) console.warn('Adding the item failed', cause);
+      setAdding('idle');
     }
   }
 
@@ -101,6 +118,22 @@ export function WearWith({ id }: { id: string }) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      {state.addable && (
+        <PressableScale
+          style={[styles.add, adding === 'added' && styles.addDone]}
+          onPress={addToCloset}
+          disabled={adding !== 'idle'}
+          accessibilityRole="button"
+        >
+          {adding === 'busy' ? (
+            <ActivityIndicator color={colors.accent} />
+          ) : (
+            <Text style={styles.addText}>
+              {t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
+            </Text>
+          )}
+        </PressableScale>
+      )}
       {state.outfits.length === 0 && <Text style={styles.message}>{t('wearWith.empty')}</Text>}
       {state.outfits.map((outfit, index) => {
         const pieces = outfit.pieces.flatMap((p) => (p.item ? [p.item] : []));
@@ -190,6 +223,23 @@ const styles = StyleSheet.create({
   },
   card: {
     gap: 6,
+  },
+  add: {
+    minHeight: 44,
+    marginBottom: -16,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addDone: {
+    borderColor: colors.border,
+  },
+  addText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.accent,
   },
   occasion: {
     marginTop: 14,

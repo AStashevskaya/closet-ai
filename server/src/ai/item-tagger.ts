@@ -67,6 +67,7 @@ const modelLook = z.object({
   items: z.array(
     modelTags.omit({ recognized: true, onPerson: true }).extend({
       box: z.object({ xMin: z.number(), yMin: z.number(), xMax: z.number(), yMax: z.number() }),
+      noun: z.string().max(60).nullable(),
     }),
   ),
 });
@@ -114,6 +115,7 @@ const LOOK_PROMPT = `You read outfit photos for a wardrobe app, usually a mirror
 For each item fill in:
 ${TAG_RULES}
 - box: the item's bounding box relative to the image, from 0 to 1: xMin and xMax from the left edge, yMin and yMax from the top edge. It covers the whole visible item and little else. A pair of shoes is one item with one box around both.
+- noun: the item's type in English, 1–3 words, as a shop would call it ("leather midi skirt", "corduroy jacket", "ankle boots"), for a model that cuts the item out of the photo by name.
 
 Seasons come from the item, not from the rest of the outfit. When a field can't be read from the photo, use null rather than guessing.`;
 

@@ -1,8 +1,5 @@
-import { useTranslation } from 'react-i18next';
-
-import { ComingSoon } from '@/screens/coming-soon';
+import { Home } from '@/screens/home';
 
 export default function HomeScreen() {
-  const { t } = useTranslation();
-  return <ComingSoon title={t('tabs.home')} />;
+  return <Home />;
 }

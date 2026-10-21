@@ -198,7 +198,7 @@ describe('<ItemScreen />', () => {
     expect(await screen.findByText('3 of 5 left today')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'What do I wear this with?' }));
 
-    expect(askWearWith).toHaveBeenCalledWith(shirt.id, 'en');
+    expect(askWearWith).toHaveBeenCalledWith({ itemId: shirt.id }, 'en');
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/wear-with/[id]', params: { id: 'req-1' } });
   });
 
