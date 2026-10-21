@@ -62,35 +62,32 @@ export function CategoryFilter({ categories, value, onChange }: Props) {
   );
 }
 
+// Words with an underline under the chosen one, as a brand's catalogue filters read.
 const styles = StyleSheet.create({
   // The row scrolls edge to edge; only its content is inset.
   scroll: {
     flexGrow: 0,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   row: {
-    paddingHorizontal: 22,
-    gap: 8,
+    paddingHorizontal: 16,
+    gap: 20,
   },
   chip: {
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 18,
+    height: 32,
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: 'transparent',
   },
   selected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
+    borderBottomColor: colors.text,
   },
   label: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: fonts.body,
     fontSize: 13,
-    color: colors.textSecondary,
+    color: colors.textMuted,
   },
   labelSelected: {
-    color: colors.onAccent,
+    color: colors.text,
   },
 });

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { colors, fonts } from '@/theme';
@@ -44,7 +45,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 22,
-    paddingBottom: 40,
+    paddingBottom: TAB_BAR_CLEARANCE,
     gap: 18,
   },
   title: {

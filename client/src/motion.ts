@@ -5,9 +5,12 @@ import { cubicBezier, Easing } from 'react-native-reanimated';
 export const CSS_EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
 export const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
+// Touch feedback stays quick; everything that appears is deliberately slow, as on Dior's site.
 export const durations = {
   press: 120,
-  state: 160,
-  leave: 220,
-  enter: 320,
+  state: 240,
+  leave: 360,
+  enter: 900,
+  // Screens and big pictures settling in.
+  settle: 1400,
 } as const;

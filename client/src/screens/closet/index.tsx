@@ -1,6 +1,6 @@
 import { ITEM_CATEGORIES, type Item } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -15,8 +15,7 @@ import {
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Icon } from '@/components/icon';
-import { PressableScale } from '@/components/pressable-scale';
+import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -176,15 +175,6 @@ export function Closet() {
             </Text>
           </Pressable>
         )}
-        <Link href="/add-item" asChild>
-          <PressableScale
-            style={styles.addButton}
-            accessibilityRole="button"
-            accessibilityLabel={t('closet.add')}
-          >
-            <Icon name="plus" color={colors.onAccent} size={20} strokeWidth={1.6} />
-          </PressableScale>
-        </Link>
       </View>
 
       {state.status === 'loading' && (
@@ -229,7 +219,6 @@ export function Closet() {
             data={visible}
             keyExtractor={(item) => item.id}
             numColumns={2}
-            columnWrapperStyle={styles.row}
             contentContainerStyle={styles.grid}
             extraData={{ isEditing, leaving, headers }}
             renderItem={({ item, index }) => (
@@ -238,6 +227,7 @@ export function Closet() {
                 headers={headers}
                 editing={isEditing}
                 leaving={leaving.has(item.id)}
+                column={index % 2 === 0 ? 'start' : 'end'}
                 enterDelay={!entered && index < STAGGERED ? index * STAGGER_STEP : undefined}
                 onPress={
                   isEditing
@@ -262,28 +252,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 22,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 16,
   },
   heading: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   title: {
-    fontFamily: fonts.display,
-    fontSize: 34,
-    lineHeight: 38,
+    fontFamily: fonts.displayLight,
+    fontSize: 44,
+    lineHeight: 46,
     color: colors.text,
     textAlign: 'left',
   },
   count: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    fontFamily: fonts.body,
+    fontSize: 12,
     color: colors.textMuted,
     textAlign: 'left',
   },
@@ -292,17 +280,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButtonText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: colors.accent,
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text,
+    textDecorationLine: 'underline',
   },
   center: {
     flex: 1,
@@ -326,12 +307,10 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
+  // Edge to edge, cells a hairline apart (the cards draw the lines).
   grid: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-    gap: 22,
-  },
-  row: {
-    gap: 14,
+    paddingBottom: TAB_BAR_CLEARANCE,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.divider,
   },
 });

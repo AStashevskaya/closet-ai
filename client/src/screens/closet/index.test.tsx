@@ -82,7 +82,6 @@ describe('<Closet />', () => {
     await render(<Closet />);
 
     expect(await screen.findByText(/Your closet is empty/)).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Add item' })).toBeOnTheScreen();
   });
 
   test('offers to retry after a failed load', async () => {

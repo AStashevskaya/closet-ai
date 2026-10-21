@@ -1,6 +1,6 @@
 import type { Item } from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
@@ -28,6 +28,8 @@ type Props = {
   leaving: boolean;
   // Only set on the first load, so cards don't replay their entrance when the list re-renders.
   enterDelay?: number;
+  // Which column the card is in: the start one draws the hairline between the two.
+  column: 'start' | 'end';
   // Opens the item screen; not set in edit mode, where the badge is the action.
   onPress?: () => void;
   onLongPress: () => void;
@@ -40,6 +42,7 @@ export function ClosetCard({
   editing,
   leaving,
   enterDelay,
+  column,
   onPress,
   onLongPress,
   onDelete,
@@ -54,6 +57,7 @@ export function ClosetCard({
       entering={enterDelay === undefined ? undefined : rise.delay(enterDelay)}
       style={[
         styles.cell,
+        column === 'start' && styles.startColumn,
         {
           opacity: leaving ? 0 : 1,
           transform: [{ scale }],
@@ -74,10 +78,12 @@ export function ClosetCard({
         }}
       >
         <ItemPhoto item={item} headers={headers} style={styles.photo} />
-        <Text style={styles.name} numberOfLines={2}>
-          {item.name}
-        </Text>
-        <Text style={styles.category}>{t(`categories.${item.category}`)}</Text>
+        <View style={styles.caption}>
+          <Text style={styles.name} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={styles.category}>{t(`categories.${item.category}`)}</Text>
+        </View>
       </PressableScale>
 
       {editing && (
@@ -103,28 +109,36 @@ export function ClosetCard({
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
+  // Half the row; cells are a hairline apart, like a brand's product grid.
   cell: {
-    flex: 1,
+    width: '50%',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
   },
-  card: {
-    gap: 4,
+  startColumn: {
+    borderEndWidth: StyleSheet.hairlineWidth,
+    borderEndColor: colors.divider,
   },
+  card: {},
   photo: {
     width: '100%',
     aspectRatio: 3 / 4,
-    borderRadius: 18,
+  },
+  caption: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 16,
+    gap: 2,
   },
   name: {
-    marginTop: 6,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
+    fontFamily: fonts.body,
+    fontSize: 13,
     color: colors.text,
     textAlign: 'left',
   },
   category: {
     fontFamily: fonts.body,
     fontSize: 12,
-    letterSpacing: 0.4,
     color: colors.textMuted,
     textAlign: 'left',
   },

@@ -9,6 +9,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 're
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { PressableScale } from '@/components/pressable-scale';
 import {
   absoluteUrl,
@@ -200,7 +201,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 22,
-    paddingBottom: 40,
+    paddingBottom: TAB_BAR_CLEARANCE,
     gap: 12,
   },
   title: {
