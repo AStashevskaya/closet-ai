@@ -28,10 +28,12 @@ import {
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Chip } from '@/components/chip';
+import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
 import { RotateButton } from '@/components/rotate-button';
 import {
+  askWearWith,
   deleteItem,
   getItem,
   getSimilarItems,
@@ -39,6 +41,9 @@ import {
   sessionHeaders,
   updateItem,
 } from '@/lib/api';
+import { ApiError, limitReached } from '@/lib/api-error';
+import { appLanguage } from '@/lib/app-language';
+import { limitText, useUsage } from '@/lib/limits';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -59,8 +64,9 @@ const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; item: ItemDetail };
 
 export function ItemScreen({ id }: { id: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
+  const { usage, refresh: refreshUsage } = useUsage();
   const [state, setState] = useState<State>({ status: 'loading' });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [headers, setHeaders] = useState<Record<string, string>>();
@@ -152,6 +158,25 @@ export function ItemScreen({ id }: { id: string }) {
     }
   }
 
+  async function wearWith() {
+    setBusy(true);
+    try {
+      const { id: requestId } = await askWearWith(id, appLanguage(i18n.language));
+      void refreshUsage();
+      router.push({ pathname: '/wear-with/[id]', params: { id: requestId } });
+    } catch (cause) {
+      const code = limitReached(cause);
+      if (code) Alert.alert(limitText(t, i18n.language, code, usage));
+      else if (cause instanceof ApiError && cause.status === 503) Alert.alert(t('wearWith.off'));
+      else {
+        if (__DEV__) console.warn('Asking for outfits failed', cause);
+        Alert.alert(t('wearWith.failed'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // Saved on the server at once, apart from the fields: unsaved corrections stay in the draft.
   async function rotate() {
     setBusy(true);
@@ -205,6 +230,28 @@ export function ItemScreen({ id }: { id: string }) {
           <ItemPhoto item={item} headers={headers} style={styles.photoImage} />
           {item.photoUrl && <RotateButton onPress={rotate} disabled={busy} style={styles.rotate} />}
         </View>
+
+        {item.photoUrl && (
+          <View style={styles.wearWith}>
+            <PressableScale
+              style={[styles.wearWithButton, busy && styles.buttonDisabled]}
+              onPress={wearWith}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              <Icon name="spark" color={colors.onAccent} size={16} strokeWidth={1.6} />
+              <Text style={styles.wearWithText}>{t('wearWith.button')}</Text>
+            </PressableScale>
+            {usage && (
+              <Text style={styles.wearWithLeft}>
+                {t('wearWith.left', {
+                  left: Math.max(0, usage.wear_with.limit - usage.wear_with.used),
+                  limit: usage.wear_with.limit,
+                })}
+              </Text>
+            )}
+          </View>
+        )}
 
         <Text style={styles.label}>{t('addItem.name')}</Text>
         <TextInput
@@ -383,6 +430,29 @@ const styles = StyleSheet.create({
   photoImage: {
     flex: 1,
     borderRadius: 20,
+  },
+  wearWith: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  wearWithButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 48,
+    paddingHorizontal: 22,
+    borderRadius: 24,
+    backgroundColor: colors.accent,
+  },
+  wearWithText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    color: colors.onAccent,
+  },
+  wearWithLeft: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   rotate: {
     position: 'absolute',
