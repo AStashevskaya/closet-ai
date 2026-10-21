@@ -260,7 +260,7 @@ export function createInMemoryRepositories() {
   };
 
   // Outfits keep their own rows and read items and photos from the stores above.
-  type Request = OutfitRequestRow & { createdAt: Date };
+  type Request = OutfitRequestRow;
   type StoredOutfit = NewOutfit & { id: string; requestId: string; userId: string };
   const requests: Request[] = [];
   const storedOutfits: StoredOutfit[] = [];

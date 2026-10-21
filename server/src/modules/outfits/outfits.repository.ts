@@ -39,6 +39,7 @@ export interface OutfitRequestRow {
   heroNoun: string | null;
   status: WearWithRequest["status"];
   wardrobeSize: number;
+  createdAt: Date;
 }
 
 export interface NewOutfit {
@@ -129,6 +130,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     heroNoun: outfitRequests.heroNoun,
     status: outfitRequests.status,
     wardrobeSize: outfitRequests.wardrobeSize,
+    createdAt: outfitRequests.createdAt,
   };
 
   return {

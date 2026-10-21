@@ -62,8 +62,12 @@ export const outfitsRoutes =
         if ("itemId" in request.body) {
           const { itemId } = request.body;
           if (!(await items.get(user.id, itemId))) throw httpError(404, "item not found");
+          // Reused while neither the wardrobe nor the user's taste (the brief) has changed since.
           const last = await outfits.latestDone(user.id, itemId);
-          if (last && last.wardrobeSize === size) return reply.code(200).send({ id: last.id });
+          const writtenAt = (await outfits.brief(user.id))?.writtenAt;
+          if (last && last.wardrobeSize === size && (!writtenAt || last.createdAt > writtenAt)) {
+            return reply.code(200).send({ id: last.id });
+          }
           await limits.check(user.id, "wear_with");
           hero = { itemId };
         } else {

@@ -193,6 +193,15 @@ describe("POST /api/wear-with", () => {
     ).json<Usage>();
     expect(usage.wear_with).toMatchObject({ used: 1, limit: 5 });
 
+    // A new brief (her taste changed) composes again too.
+    await s.repositories.outfitsRepository.saveBrief(anna.userId, "New taste", {
+      itemCount: 2,
+      reactionCount: 0,
+      inspirationCount: 3,
+    });
+    expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
+    await s.runJobs();
+
     await addItem(s, anna, "top");
     expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
   });
