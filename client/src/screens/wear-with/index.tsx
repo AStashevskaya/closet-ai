@@ -2,14 +2,15 @@ import type { Outfit, OutfitReaction, WearWithRequest } from '@closet-ai/shared'
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { FlatLay } from '@/components/flat-lay';
 import { HangerLoader } from '@/components/hanger-loader';
+import { Button } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getWearWith, reactToOutfit, sessionHeaders } from '@/lib/api';
-import { durations } from '@/motion';
+import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // The model takes about 10 s; after a minute and a half the screen gives up.
@@ -109,7 +110,7 @@ export function WearWith({ id }: { id: string }) {
     return (
       <View style={styles.center} accessibilityLiveRegion="polite">
         <HangerLoader />
-        <Text style={styles.message}>{t('wearWith.composing')}</Text>
+        <Text style={styles.composing}>{t('wearWith.composing')}</Text>
       </View>
     );
   }
@@ -124,20 +125,13 @@ export function WearWith({ id }: { id: string }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {state.addable && (
-        <PressableScale
-          style={[styles.add, adding === 'added' && styles.addDone]}
+        <Button
+          kind="outline"
+          label={t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
           onPress={addToCloset}
-          disabled={adding !== 'idle'}
-          accessibilityRole="button"
-        >
-          {adding === 'busy' ? (
-            <ActivityIndicator color={colors.accent} />
-          ) : (
-            <Text style={styles.addText}>
-              {t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
-            </Text>
-          )}
-        </PressableScale>
+          disabled={adding === 'added'}
+          busy={adding === 'busy'}
+        />
       )}
       {state.outfits.length === 0 && <Text style={styles.message}>{t('wearWith.empty')}</Text>}
       {state.outfits.map((outfit, index) => {
@@ -145,9 +139,13 @@ export function WearWith({ id }: { id: string }) {
         return (
           <Animated.View
             key={outfit.id}
-            style={styles.card}
-            entering={FadeIn.duration(durations.enter).delay(index * 60)}
+            style={[styles.card, index > 0 && styles.cardDivider]}
+            entering={rise.delay(index * STAGGER_STEP)}
           >
+            {/* Numbered like the pages of a lookbook. */}
+            <Text style={styles.number}>
+              {String(index + 1).padStart(2, '0')} / {String(state.outfits.length).padStart(2, '0')}
+            </Text>
             <FlatLay pieces={pieces} headers={headers} caption={outfit.caption} />
             <Text style={styles.occasion}>{outfit.occasion}</Text>
             <Text style={styles.why}>{outfit.why}</Text>
@@ -207,9 +205,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: 22,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 48,
-    gap: 40,
+    gap: 32,
   },
   center: {
     flex: 1,
@@ -226,39 +225,38 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
+  composing: {
+    fontFamily: fonts.displayLight,
+    fontSize: 24,
+    lineHeight: 30,
+    color: colors.text,
+    textAlign: 'center',
+  },
   card: {
-    gap: 6,
+    gap: 8,
   },
-  add: {
-    minHeight: 44,
-    marginBottom: -16,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardDivider: {
+    paddingTop: 32,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.divider,
   },
-  addDone: {
-    borderColor: colors.border,
-  },
-  addText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: colors.accent,
+  number: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'left',
   },
   occasion: {
     marginTop: 14,
     fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: colors.textMuted,
+    fontSize: 13,
+    color: colors.text,
     textAlign: 'left',
   },
   why: {
-    fontFamily: fonts.display,
-    fontSize: 20,
-    lineHeight: 26,
+    fontFamily: fonts.displayLight,
+    fontSize: 24,
+    lineHeight: 30,
     color: colors.text,
     textAlign: 'left',
   },
@@ -271,10 +269,10 @@ const styles = StyleSheet.create({
   },
   missing: {
     marginTop: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: colors.hero,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.divider,
   },
   missingText: {
     fontFamily: fonts.body,
@@ -291,22 +289,22 @@ const styles = StyleSheet.create({
   },
   reaction: {
     minHeight: 36,
-    paddingHorizontal: 14,
+    paddingHorizontal: 15,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.textMuted,
     justifyContent: 'center',
   },
   reactionOn: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
+    borderColor: colors.highlight,
+    backgroundColor: colors.highlight,
   },
   reactionText: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: fonts.body,
     fontSize: 13,
-    color: colors.text,
+    color: colors.textSecondary,
   },
   reactionTextOn: {
-    color: colors.onAccent,
+    color: colors.text,
   },
 });
