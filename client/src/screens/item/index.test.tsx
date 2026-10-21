@@ -3,7 +3,16 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert, type AlertButton } from 'react-native';
 
 import i18n from '@/i18n';
-import { deleteItem, getItem, getSimilarItems, rotateItem, updateItem } from '@/lib/api';
+import {
+  askWearWith,
+  deleteItem,
+  getItem,
+  getSimilarItems,
+  getUsage,
+  rotateItem,
+  updateItem,
+} from '@/lib/api';
+import { ApiError } from '@/lib/api-error';
 
 import { ItemScreen } from '.';
 
@@ -26,6 +35,8 @@ jest.mock('@/lib/api', () => ({
   updateItem: jest.fn(),
   deleteItem: jest.fn(),
   rotateItem: jest.fn(),
+  askWearWith: jest.fn(),
+  getUsage: jest.fn(),
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
   absoluteUrl: (path: string) => `http://api.test${path}`,
 }));
@@ -73,6 +84,11 @@ beforeEach(async () => {
   jest.mocked(updateItem).mockImplementation(async (_id, patch) => ({ ...shirt, ...patch }));
   jest.mocked(deleteItem).mockResolvedValue();
   jest.mocked(getSimilarItems).mockResolvedValue([]);
+  jest.mocked(getUsage).mockResolvedValue({
+    want: { used: 0, limit: 5, resetsAt: '2026-11-01T00:00:00.000Z' },
+    look: { used: 0, limit: 3, resetsAt: '2026-11-01T00:00:00.000Z' },
+    wear_with: { used: 2, limit: 5, resetsAt: '2026-10-22T00:00:00.000Z' },
+  });
 });
 
 describe('<ItemScreen />', () => {
@@ -175,5 +191,23 @@ describe('<ItemScreen />', () => {
     expect(screen.getByTestId('item-photo')).toHaveProp('source', [
       expect.objectContaining({ uri: `http://api.test${turnedUrl}` }),
     ]);
+  });
+  test('asks what to wear the item with and opens the outfits', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    await render(<ItemScreen id={shirt.id} />);
+    expect(await screen.findByText('3 of 5 left today')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'What do I wear this with?' }));
+
+    expect(askWearWith).toHaveBeenCalledWith(shirt.id, 'en');
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/wear-with/[id]', params: { id: 'req-1' } });
+  });
+
+  test("says so when today's outfits are used up", async () => {
+    jest.mocked(askWearWith).mockRejectedValue(new ApiError(429, 'limit:wear_with'));
+    await render(<ItemScreen id={shirt.id} />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'What do I wear this with?' }));
+
+    expect(alert).toHaveBeenCalledWith("That's 5 for today. Ask again tomorrow.");
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

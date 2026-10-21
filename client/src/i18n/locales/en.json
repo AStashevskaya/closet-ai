@@ -212,11 +212,27 @@
       "find": "Couldn't read the screenshot. Try again."
     }
   },
+  "wearWith": {
+    "button": "What do I wear this with?",
+    "title": "What to wear it with",
+    "left": "{{left}} of {{limit}} left today",
+    "composing": "Putting looks together from your closet…",
+    "failed": "Couldn't put looks together. Try again.",
+    "retry": "Try again",
+    "off": "Looks aren't available right now.",
+    "missing": "Missing: {{what}}",
+    "like": "Like",
+    "dislike": "Not me",
+    "wore": "Wore it",
+    "woreCount": "Wore it · {{count}}",
+    "empty": "Nothing in your closet goes with it yet."
+  },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",
     "want": "You've used this month's {{limit}} screenshots. New ones from {{date}}.",
     "look": "You've used this month's {{limit}} selfies. New ones from {{date}}.",
     "item_photo": "That's enough photos for today. Try again tomorrow.",
-    "budget": "The AI is resting for today. Try again tomorrow."
+    "budget": "The AI is resting for today. Try again tomorrow.",
+    "wear_with": "That's {{limit}} for today. Ask again tomorrow."
   }
 }

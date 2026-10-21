@@ -2,6 +2,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { createFalBackgroundRemover } from "./ai/background-remover";
 import { createFashionSiglipEmbedder } from "./ai/item-embedder";
 import { createClaudeItemTagger } from "./ai/item-tagger";
+import { createClaudeStylist } from "./ai/stylist";
 import { buildApp } from "./app";
 import { createAuth } from "./auth/auth";
 import { loadEnv } from "./config/env";
@@ -9,7 +10,9 @@ import { createDb } from "./db/client";
 import * as schema from "./db/schema";
 import { createUsageRepository } from "./modules/usage/usage.repository";
 import { createItemsRepository } from "./modules/items/items.repository";
+import { createOutfitsRepository } from "./modules/outfits/outfits.repository";
 import { createPhotosRepository } from "./modules/photos/photos.repository";
+import { createOutfitQueue, createOutfitWorker } from "./queue/outfit-queue";
 import { createPhotoQueue, createPhotoWorker } from "./queue/photo-queue";
 import { createS3Storage } from "./storage/storage";
 
@@ -35,15 +38,27 @@ const worker = createPhotoWorker(env.REDIS_URL, {
   queue: queue.photoQueue,
 });
 await queue.scheduleCleanup();
+const outfitsRepository = createOutfitsRepository(db);
+const outfitQueue = createOutfitQueue(env.REDIS_URL);
+const stylist = env.ANTHROPIC_API_KEY ? createClaudeStylist(env.ANTHROPIC_API_KEY) : null;
+const outfitWorker = createOutfitWorker(env.REDIS_URL, {
+  outfits: outfitsRepository,
+  storage: s3.storage,
+  stylist,
+  queue: outfitQueue.outfitQueue,
+});
 const app = await buildApp({
   env,
   auth,
   itemsRepository: createItemsRepository(db),
   photosRepository,
   usageRepository: createUsageRepository(db),
+  outfitsRepository,
   photoQueue: queue.photoQueue,
+  outfitQueue: outfitQueue.outfitQueue,
   storage: s3.storage,
   taggingEnabled: tagger !== null,
+  stylistEnabled: stylist !== null,
 });
 if (!tagger) app.log.warn("ANTHROPIC_API_KEY is not set: photos will not be tagged");
 if (!env.FAL_KEY) app.log.warn("FAL_KEY is not set: photo backgrounds will not be removed");
@@ -53,7 +68,9 @@ async function shutdown(signal: string) {
   await app.close();
   // Lets a job in progress finish before the connections go away.
   await worker.close();
+  await outfitWorker.close();
   await queue.close();
+  await outfitQueue.close();
   await close();
   s3.close();
   process.exit(0);

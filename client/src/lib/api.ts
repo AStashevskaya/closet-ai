@@ -16,6 +16,10 @@ import {
   uploadedPhoto,
   usage,
   type Usage,
+  type OutfitReaction,
+  wearWithRequest,
+  type WearWithRequest,
+  wearWithStarted,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
@@ -92,6 +96,28 @@ export function updateItem(id: string, patch: UpdateItemInput): Promise<ItemDeta
 // How much of the free tier is used: the wardrobe size and this month's screenshots and selfies.
 export function getUsage(): Promise<Usage> {
   return request('/api/usage', usage);
+}
+
+// "What do I wear this with?" for a wardrobe item: the request to poll (an earlier one, done
+// already, when the closet hasn't changed since).
+export function askWearWith(itemId: string, lang: AppLanguage): Promise<{ id: string }> {
+  return request(`/api/wear-with?lang=${lang}`, wearWithStarted, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ itemId }),
+  });
+}
+
+export function getWearWith(id: string): Promise<WearWithRequest> {
+  return request(`/api/wear-with/${id}`, wearWithRequest);
+}
+
+export async function reactToOutfit(id: string, reaction: OutfitReaction): Promise<void> {
+  await send(`/api/outfits/${id}/reactions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reaction }),
+  });
 }
 
 // Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.

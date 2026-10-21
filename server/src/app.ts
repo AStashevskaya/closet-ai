@@ -15,6 +15,9 @@ import { photosRoutes } from "./modules/photos/photos.routes";
 import { createLimits } from "./modules/usage/limits";
 import type { UsageRepository } from "./modules/usage/usage.repository";
 import { usageRoutes } from "./modules/usage/usage.routes";
+import type { OutfitQueue } from "./modules/outfits/outfit-jobs";
+import type { OutfitsRepository } from "./modules/outfits/outfits.repository";
+import { outfitsRoutes } from "./modules/outfits/outfits.routes";
 import type { PhotoQueue } from "./queue/photo-queue";
 import { healthRoutes } from "./routes/health";
 import type { Storage } from "./storage/storage";
@@ -27,10 +30,14 @@ export interface AppDeps {
   itemsRepository: ItemsRepository;
   photosRepository: PhotosRepository;
   usageRepository: UsageRepository;
+  outfitsRepository: OutfitsRepository;
   photoQueue: PhotoQueue;
+  outfitQueue: OutfitQueue;
   storage: Storage;
   // Whether a tagger is configured (ANTHROPIC_API_KEY); the worker does the tagging.
   taggingEnabled: boolean;
+  // Whether a stylist is configured (ANTHROPIC_API_KEY); the outfit worker asks it.
+  stylistEnabled: boolean;
 }
 
 // The app sends a photo already shrunk to ~1600 px JPEG (well under 1 MB); the limit only
@@ -43,9 +50,12 @@ export async function buildApp({
   itemsRepository,
   photosRepository,
   usageRepository,
+  outfitsRepository,
   photoQueue,
+  outfitQueue,
   storage,
   taggingEnabled,
+  stylistEnabled,
 }: AppDeps) {
   const app = Fastify({
     logger:
@@ -92,6 +102,10 @@ export async function buildApp({
     { prefix: "/api" },
   );
   await app.register(usageRoutes(limits, auth), { prefix: "/api" });
+  await app.register(
+    outfitsRoutes(outfitsRepository, itemsRepository, outfitQueue, limits, auth, stylistEnabled),
+    { prefix: "/api" },
+  );
 
   return app;
 }

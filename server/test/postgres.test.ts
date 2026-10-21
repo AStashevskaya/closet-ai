@@ -10,10 +10,11 @@ import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createItemsRepository } from "../src/modules/items/items.repository";
+import { createOutfitsRepository } from "../src/modules/outfits/outfits.repository";
 import { createUsageRepository } from "../src/modules/usage/usage.repository";
 import { createPhotosRepository } from "../src/modules/photos/photos.repository";
 import { createMemoryStorage } from "../src/storage/storage";
-import { createManualPhotoQueue, shirtTags, unitVector } from "./helpers";
+import { createManualOutfitQueue, createManualPhotoQueue, shirtTags, unitVector } from "./helpers";
 
 // The same app as in production, on a real Postgres: Drizzle queries, the Better Auth
 // Drizzle adapter and the committed migrations. Runs only when TEST_DATABASE_URL is set
@@ -71,7 +72,10 @@ describe.skipIf(!url)("on Postgres", () => {
       itemsRepository: createItemsRepository(db.db),
       photosRepository: createPhotosRepository(db.db),
       usageRepository: createUsageRepository(db.db),
+      outfitsRepository: createOutfitsRepository(db.db),
       photoQueue: createManualPhotoQueue().photoQueue,
+      outfitQueue: createManualOutfitQueue().outfitQueue,
+      stylistEnabled: false,
       taggingEnabled: false,
       storage,
     });
@@ -407,6 +411,89 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await usage.count(user!.id, "look", before)).toBe(0);
     expect(await usage.count(user!.id, "want", new Date(Date.now() + 60_000))).toBe(0);
     expect((await usage.spentSince(before)) - spentBefore).toBe(26_000);
+  });
+
+  it("stores outfits with their pieces and reactions, and the user's brief", async () => {
+    const cookie = await signUp("outfits@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "outfits@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const ids: string[] = [];
+    for (const [i, category] of (["bottom", "top"] as const).entries()) {
+      const key = `photos/${user!.id}/outfit-${i}.webp`;
+      await photos.createReady({ key, ownerId: user!.id, tags: { ...shirtTags, category } });
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: category, category, colors: ["white"], photoKey: key },
+      });
+      ids.push(res.json<Item>().id);
+    }
+    const [skirt, top] = ids as [string, string];
+    const outfits = createOutfitsRepository(db.db);
+
+    expect((await outfits.wardrobe(user!.id)).map((i) => i.id)).toEqual([skirt, top]);
+    expect(await outfits.wardrobeSize(user!.id)).toBe(2);
+    const requestId = await outfits.createRequest(user!.id, skirt, 2);
+    expect(await outfits.latestDone(user!.id, skirt)).toBeNull();
+    await outfits.saveOutfits(
+      requestId,
+      user!.id,
+      [
+        {
+          caption: "Tee and satin",
+          occasion: "coffee",
+          why: "high-low",
+          missing: { category: "shoes", description: "black boots" },
+          pieces: [
+            { hero: true, itemId: skirt },
+            { hero: false, itemId: top },
+          ],
+        },
+      ],
+      7_000,
+    );
+    expect(await outfits.latestDone(user!.id, skirt)).toMatchObject({
+      id: requestId,
+      wardrobeSize: 2,
+    });
+
+    const viewed = await outfits.view(requestId, user!.id);
+    expect(await outfits.view(requestId, "someone-else")).toBeNull();
+    const outfitId = viewed!.outfits[0]!.id;
+    expect(await outfits.react(outfitId, user!.id, "like")).toBe(true);
+    expect(await outfits.react(outfitId, "someone-else", "like")).toBe(false);
+    await outfits.react(outfitId, user!.id, "wore");
+    expect((await outfits.view(requestId, user!.id))!.outfits[0]).toMatchObject({
+      caption: "Tee and satin",
+      missing: { category: "shoes" },
+      pieces: [
+        { hero: true, item: { id: skirt } },
+        { hero: false, item: { id: top } },
+      ],
+      opinion: "like",
+      woreCount: 1,
+    });
+    expect(await outfits.reactionCount(user!.id)).toBe(2);
+    expect(await outfits.reactedOutfits(user!.id, 5)).toEqual([
+      { opinion: "like", wore: true, description: '"Tee and satin": bottom + top' },
+    ]);
+
+    // A deleted item leaves the outfit, without that piece.
+    await app.inject({ method: "DELETE", url: `/api/items/${top}`, headers: { cookie } });
+    expect((await outfits.view(requestId, user!.id))!.outfits[0]!.pieces[1]!.item).toBeNull();
+
+    await outfits.setBriefBatch(user!.id, "batch-1");
+    expect(await outfits.brief(user!.id)).toMatchObject({ brief: null, batchId: "batch-1" });
+    await outfits.saveBrief(user!.id, "High-low", 2, 2);
+    expect(await outfits.brief(user!.id)).toMatchObject({
+      brief: "High-low",
+      itemCount: 2,
+      batchId: null,
+    });
   });
 
   it("lists only photos no item points to, created before the cutoff", async () => {

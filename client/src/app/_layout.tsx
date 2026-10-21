@@ -74,6 +74,16 @@ export default function RootLayout() {
             headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
           }}
         />
+        <Stack.Screen
+          name="wear-with/[id]"
+          options={{
+            title: t('wearWith.title'),
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+          }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         {/* The auth screens draw their own full-bleed header. */}

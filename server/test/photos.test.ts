@@ -15,6 +15,7 @@ import {
 import { createMemoryStorage, type Storage } from "../src/storage/storage";
 import {
   createInMemoryRepositories,
+  createManualOutfitQueue,
   createManualPhotoQueue,
   createStubEmbedder,
   createStubRemover,
@@ -63,6 +64,8 @@ async function setup({
     auth,
     ...repositories,
     photoQueue: queue.photoQueue,
+    outfitQueue: createManualOutfitQueue().outfitQueue,
+    stylistEnabled: false,
     storage,
     taggingEnabled: activeTagger !== null,
   });

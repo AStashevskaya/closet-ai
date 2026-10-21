@@ -6,7 +6,12 @@ import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import { nextPeriodStart, periodStart } from "../src/modules/usage/limits";
 import { createMemoryStorage } from "../src/storage/storage";
-import { createInMemoryRepositories, createManualPhotoQueue, testEnv } from "./helpers";
+import {
+  createInMemoryRepositories,
+  createManualOutfitQueue,
+  createManualPhotoQueue,
+  testEnv,
+} from "./helpers";
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
@@ -21,6 +26,8 @@ async function setup(budgetUsd = testEnv.AI_DAILY_BUDGET_USD) {
     auth,
     ...createInMemoryRepositories(),
     photoQueue: createManualPhotoQueue().photoQueue,
+    outfitQueue: createManualOutfitQueue().outfitQueue,
+    stylistEnabled: false,
     storage: createMemoryStorage(),
     taggingEnabled: true,
   });

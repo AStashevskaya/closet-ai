@@ -4,7 +4,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import { createMemoryStorage } from "../src/storage/storage";
-import { createInMemoryRepositories, createManualPhotoQueue, testEnv as env } from "./helpers";
+import {
+  createInMemoryRepositories,
+  createManualOutfitQueue,
+  createManualPhotoQueue,
+  testEnv as env,
+} from "./helpers";
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
@@ -20,6 +25,8 @@ async function setup() {
     auth,
     ...createInMemoryRepositories(),
     photoQueue: createManualPhotoQueue().photoQueue,
+    outfitQueue: createManualOutfitQueue().outfitQueue,
+    stylistEnabled: false,
     taggingEnabled: false,
     storage: createMemoryStorage(),
   });

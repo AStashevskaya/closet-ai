@@ -10,7 +10,7 @@ export const USAGE_PERIODS = ["day", "week", "month"] as const;
 export type UsagePeriod = (typeof USAGE_PERIODS)[number];
 
 // Counted AI actions, as stored in usage_events.
-export const USAGE_ACTIONS = ["item_photo", "want", "look"] as const;
+export const USAGE_ACTIONS = ["item_photo", "want", "look", "wear_with"] as const;
 export type UsageAction = (typeof USAGE_ACTIONS)[number];
 
 export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeriod }> = {
@@ -18,10 +18,15 @@ export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeri
   item_photo: { count: 100, period: "day" },
   want: { count: 5, period: "month" },
   look: { count: 3, period: "month" },
+  // "What do I wear this with?" is meant to be opened every day, so it's generous.
+  wear_with: { count: 5, period: "day" },
 };
 
-// Not built yet: outfits 3 a week (4 looks each), "what to wear it with" 5 a month,
-// "make it nice" 3 to try, listings 3 a month.
+// Hidden monthly caps on top, so one account can't cost more than it could ever be worth.
+export const MONTHLY_SAFETY_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 80 };
+
+// Not built yet: daily outfits 3 a week (4 looks each), "make it nice" 3 to try, listings 3 a
+// month.
 
 // GET /api/usage: what the app shows next to the counted actions.
 const counted = z.object({
@@ -33,6 +38,7 @@ const counted = z.object({
 export const usage = z.object({
   want: counted,
   look: counted,
+  wear_with: counted,
 });
 export type Usage = z.infer<typeof usage>;
 

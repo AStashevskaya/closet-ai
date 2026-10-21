@@ -5,12 +5,14 @@ import type {
   CreateItemInput,
   ItemTags,
   LookItem,
+  OutfitReaction,
   UsageAction,
 } from "@closet-ai/shared";
 import type { BackgroundRemover } from "../src/ai/background-remover";
 import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
 import type { ItemTagger, MatchVerdict } from "../src/ai/item-tagger";
+import type { BriefInput, ComposeInput, Stylist } from "../src/ai/stylist";
 import type { Env } from "../src/config/env";
 import { toItem, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
@@ -21,6 +23,20 @@ import {
   type PhotoJobDeps,
 } from "../src/modules/photos/photo-jobs";
 import type { Photo, PhotosRepository } from "../src/modules/photos/photos.repository";
+import {
+  checkBrief,
+  composeOutfits,
+  refreshBrief,
+  type OutfitJobDeps,
+  type OutfitQueue,
+} from "../src/modules/outfits/outfit-jobs";
+import {
+  summarize,
+  type NewOutfit,
+  type OutfitRequestRow,
+  type OutfitsRepository,
+  type StyleBrief,
+} from "../src/modules/outfits/outfits.repository";
 import type { UsageRepository } from "../src/modules/usage/usage.repository";
 import type { PhotoQueue } from "../src/queue/photo-queue";
 
@@ -235,7 +251,129 @@ export function createInMemoryRepositories() {
       usageRows.filter((r) => r.createdAt >= since).reduce((sum, r) => sum + r.costMicros, 0),
   };
 
-  return { itemsRepository, photosRepository, usageRepository };
+  // Outfits keep their own rows and read items and photos from the stores above.
+  type Request = OutfitRequestRow & { createdAt: Date };
+  type StoredOutfit = NewOutfit & { id: string; requestId: string; userId: string };
+  const requests: Request[] = [];
+  const storedOutfits: StoredOutfit[] = [];
+  const reactions: {
+    outfitId: string;
+    userId: string;
+    reaction: OutfitReaction;
+    createdAt: Date;
+  }[] = [];
+  const briefs = new Map<string, StyleBrief>();
+  const readyItems = (userId: string) =>
+    itemRows.filter((row) => {
+      const key = row.input.photoKey;
+      return row.ownerId === userId && key && photoRows.get(key)?.status === "ready";
+    });
+  // Reactions within one test can share a millisecond; a counter keeps their order.
+  let tick = 0;
+  const now = () => new Date(Date.now() + tick++);
+
+  const outfitsRepository: OutfitsRepository = {
+    wardrobe: async (userId) =>
+      readyItems(userId).map((row) => {
+        const photo = photoRows.get(row.input.photoKey!)!;
+        return {
+          id: row.id,
+          name: row.input.name,
+          category: row.input.category,
+          colors: row.input.colors,
+          seasons: row.input.seasons ?? [],
+          tags: photo.tags,
+          imageKey: photo.cutoutKey ?? photo.key,
+          embedding: photo.embedding ?? null,
+        };
+      }),
+    wardrobeSize: async (userId) => readyItems(userId).length,
+    createRequest: async (userId, itemId, wardrobeSize) => {
+      const id = randomUUID();
+      requests.push({ id, userId, itemId, status: "pending", wardrobeSize, createdAt: now() });
+      return id;
+    },
+    getRequest: async (id) => requests.find((r) => r.id === id) ?? null,
+    latestDone: async (userId, itemId) =>
+      requests
+        .filter((r) => r.userId === userId && r.itemId === itemId && r.status === "done")
+        .at(-1) ?? null,
+    saveOutfits: async (requestId, userId, looks) => {
+      for (const look of looks)
+        storedOutfits.push({ ...look, id: randomUUID(), requestId, userId });
+      const request = requests.find((r) => r.id === requestId);
+      if (request) request.status = "done";
+    },
+    markFailed: async (requestId) => {
+      const request = requests.find((r) => r.id === requestId);
+      if (request) request.status = "failed";
+    },
+    view: async (requestId, userId) => {
+      const request = requests.find((r) => r.id === requestId && r.userId === userId);
+      if (!request) return null;
+      return {
+        id: request.id,
+        status: request.status,
+        outfits: storedOutfits
+          .filter((o) => o.requestId === requestId)
+          .map((o) => ({
+            id: o.id,
+            caption: o.caption,
+            occasion: o.occasion,
+            why: o.why,
+            missing: o.missing,
+            pieces: o.pieces.map((p) => {
+              const row = itemRows.find((r) => r.id === p.itemId);
+              return { hero: p.hero, item: row ? toApiItem(row) : null };
+            }),
+            ...summarize(reactions.filter((r) => r.outfitId === o.id)),
+          })),
+      };
+    },
+    react: async (outfitId, userId, reaction) => {
+      if (!storedOutfits.some((o) => o.id === outfitId && o.userId === userId)) return false;
+      reactions.push({ outfitId, userId, reaction, createdAt: now() });
+      return true;
+    },
+    reactionCount: async (userId) => reactions.filter((r) => r.userId === userId).length,
+    reactedOutfits: async (userId, limit) =>
+      [...new Set(reactions.filter((r) => r.userId === userId).map((r) => r.outfitId))]
+        .slice(0, limit)
+        .map((id) => {
+          const o = storedOutfits.find((s) => s.id === id)!;
+          const { opinion, woreCount } = summarize(reactions.filter((r) => r.outfitId === id));
+          return { opinion, wore: woreCount > 0, description: o.caption };
+        }),
+    inspirationKeys: async (userId, limit) =>
+      [...photoRows.values()]
+        .filter((p) => p.ownerId === userId && p.kind === "want" && p.status === "ready")
+        .slice(0, limit)
+        .map((p) => p.key),
+    brief: async (userId) => briefs.get(userId) ?? null,
+    setBriefBatch: async (userId, batchId) => {
+      const current = briefs.get(userId) ?? {
+        brief: null,
+        itemCount: 0,
+        reactionCount: 0,
+        writtenAt: null,
+        batchId: null,
+        requestedAt: null,
+      };
+      briefs.set(userId, { ...current, batchId, requestedAt: batchId ? new Date() : null });
+    },
+    saveBrief: async (userId, brief, itemCount, reactionCount) => {
+      briefs.set(userId, {
+        brief,
+        itemCount,
+        reactionCount,
+        writtenAt: new Date(),
+        batchId: null,
+        requestedAt: null,
+      });
+    },
+  };
+
+  return { itemsRepository, photosRepository, usageRepository, outfitsRepository };
 }
 
 type QueuedJob =
@@ -387,4 +525,63 @@ export function createStubRemover(answer?: () => Promise<Uint8Array | null>) {
     },
   };
   return { remover, calls };
+}
+
+// Records outfit jobs instead of sending them to Redis; runAll plays the worker. A brief check
+// queued while running is run too, as if its delay had passed.
+export function createManualOutfitQueue() {
+  type Job =
+    | { name: "compose"; requestId: string; lang: AppLanguage }
+    | { name: "brief" | "brief-check"; userId: string };
+  const queued: Job[] = [];
+  const outfitQueue: OutfitQueue = {
+    enqueueComposing: async (requestId, lang) =>
+      void queued.push({ name: "compose", requestId, lang }),
+    enqueueBrief: async (userId) => {
+      // Deduped like the real queue's job id.
+      if (!queued.some((j) => j.name === "brief" && j.userId === userId))
+        queued.push({ name: "brief", userId });
+    },
+    enqueueBriefCheck: async (userId) => void queued.push({ name: "brief-check", userId }),
+  };
+  async function runAll(deps: OutfitJobDeps) {
+    for (let job = queued.shift(); job; job = queued.shift()) {
+      if (job.name === "compose") await composeOutfits(deps, job.requestId, job.lang);
+      else if (job.name === "brief") await refreshBrief(deps, job.userId);
+      else await checkBrief(deps, job.userId);
+    }
+  }
+  return { outfitQueue, queued, runAll };
+}
+
+// Stands in for Claude: composes looks from the first pieces on offer, writes a fixed brief.
+export function createStubStylist() {
+  const composeCalls: ComposeInput[] = [];
+  const briefCalls: BriefInput[] = [];
+  const stylist: Stylist = {
+    async compose(input) {
+      composeCalls.push(input);
+      const others = input.wardrobe.map((p) => p.n);
+      return {
+        looks: Array.from({ length: input.looks }, (_, i) => ({
+          // A number the model made up (999) is dropped by the job.
+          items: [others[i % others.length]!, 999].filter((n) => n !== undefined),
+          missing:
+            i === 0 ? { category: "shoes" as const, description: "black leather boots" } : null,
+          caption: `Look ${i + 1}`,
+          occasion: "coffee",
+          why: "because",
+        })),
+        costMicros: 6_000,
+      };
+    },
+    async submitBrief(input) {
+      briefCalls.push(input);
+      return `batch-${briefCalls.length}`;
+    },
+    async briefResult() {
+      return { status: "done", brief: "High-low with a wink.", costMicros: 50_000 };
+    },
+  };
+  return { stylist, composeCalls, briefCalls };
 }

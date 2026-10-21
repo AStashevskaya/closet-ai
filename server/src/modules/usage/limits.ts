@@ -1,5 +1,6 @@
 import {
   FREE_LIMITS,
+  MONTHLY_SAFETY_LIMITS,
   limitMessage,
   type Usage,
   type UsageAction,
@@ -10,11 +11,13 @@ import type { UsageRepository } from "./usage.repository";
 
 // What one counted action roughly costs us, in millionths of a dollar (October 2026 prices):
 // an item photo is tagged (Haiku) and cut out (SAM 3); a "want" screenshot is also cut out
-// and compared item by item; a selfie is only read.
+// and compared item by item; a selfie is only read; outfits around an item are one Haiku call
+// with the stable part of the prompt cached. The outfit job records the real cost on its request.
 export const ESTIMATED_COST_MICROS: Record<UsageAction, number> = {
   item_photo: 6_000,
   want: 10_000,
   look: 2_000,
+  wear_with: 13_000,
 };
 
 // Periods are calendar ones in UTC: a day from midnight, a week from Monday, a month from the 1st.
@@ -54,6 +57,13 @@ export function createLimits(
       if ((await usage.count(userId, action, periodStart(period, now))) >= count) {
         throw httpError(429, limitMessage(action));
       }
+      const monthly = MONTHLY_SAFETY_LIMITS[action];
+      if (
+        monthly !== undefined &&
+        (await usage.count(userId, action, periodStart("month", now))) >= monthly
+      ) {
+        throw httpError(429, limitMessage(action));
+      }
       const spent = await usage.spentSince(periodStart("day", now));
       if (spent + ESTIMATED_COST_MICROS[action] > budgetMicros) {
         throw httpError(429, limitMessage("budget"));
@@ -67,7 +77,7 @@ export function createLimits(
 
     async summary(userId: string): Promise<Usage> {
       const now = clock();
-      const counted = async (action: "want" | "look") => {
+      const counted = async (action: "want" | "look" | "wear_with") => {
         const { count, period } = FREE_LIMITS[action];
         return {
           used: await usage.count(userId, action, periodStart(period, now)),
@@ -78,6 +88,7 @@ export function createLimits(
       return {
         want: await counted("want"),
         look: await counted("look"),
+        wear_with: await counted("wear_with"),
       };
     },
   };
