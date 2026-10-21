@@ -71,19 +71,20 @@ export function Chip({ label, selected, onPress, color }: Props) {
 
 const styles = StyleSheet.create({
   chip: {
-    minHeight: 40,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+    minHeight: 38,
+    paddingHorizontal: 15,
+    borderRadius: 19,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.textMuted,
     backgroundColor: colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  // The Maison accent, as on the closet's filters.
   selected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
+    borderColor: colors.highlight,
+    backgroundColor: colors.highlight,
   },
   dot: {
     width: 14,
@@ -100,11 +101,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: fonts.body,
     fontSize: 14,
-    color: colors.text,
+    color: colors.textSecondary,
   },
   labelSelected: {
-    color: colors.accent,
+    color: colors.text,
   },
 });

@@ -125,7 +125,7 @@ export function StyleIt() {
             {left !== null && ` · ${t('wearWith.left', { left, limit: usage!.wear_with.limit })}`}
           </Text>
         </View>
-        <MoodChips mood={mood} onChange={setMood} />
+        <MoodChips mood={mood} onChange={setMood} inset={20} />
 
         {items === null ? (
           <View style={styles.loading}>

@@ -12,3 +12,9 @@ jest.mock('react-native-reanimated', () => {
     cubicBezier: () => 'ease-out',
   };
 });
+
+// Safe-area insets come from a provider at the app's root; tests render screens without it.
+jest.mock(
+  'react-native-safe-area-context',
+  () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
+);
