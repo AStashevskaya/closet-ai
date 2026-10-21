@@ -141,6 +141,7 @@ describe('<WantCan />', () => {
     const usage = (used: number): Usage => ({
       want: { used, limit: 5, resetsAt: '2026-11-01T00:00:00.000Z' },
       look: { used: 0, limit: 3, resetsAt: '2026-11-01T00:00:00.000Z' },
+      wear_with: { used: 0, limit: 5, resetsAt: '2026-10-22T00:00:00.000Z' },
     });
 
     test('shows how many screenshots are left this month', async () => {

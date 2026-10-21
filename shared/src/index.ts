@@ -191,4 +191,55 @@ export const addLookItemsInput = z.object({
     .max(12),
 });
 export type AddLookItemsInput = z.infer<typeof addLookItemsInput>;
+
+// "What do I wear this with?": outfits built around one item, from the user's wardrobe.
+
+export const OUTFIT_REQUEST_STATUSES = ["pending", "done", "failed"] as const;
+export const outfitRequestStatus = z.enum(OUTFIT_REQUEST_STATUSES);
+
+// like / dislike are one opinion (the latest wins, "none" takes it back); "wore" is counted
+// every time: it is the strongest signal of taste.
+export const OUTFIT_REACTIONS = ["like", "dislike", "none", "wore"] as const;
+export const outfitReaction = z.enum(OUTFIT_REACTIONS);
+export type OutfitReaction = z.infer<typeof outfitReaction>;
+
+// A piece the stylist thinks the look lacks and the user doesn't own, in words a shop search
+// can use. Later partner catalog items are found by it.
+export const missingPiece = z.object({ category: itemCategory, description: z.string() });
+export type MissingPiece = z.infer<typeof missingPiece>;
+
+export const outfitPiece = z.object({
+  // The item the outfit is built around.
+  hero: z.boolean(),
+  // A wardrobe item; null when it was deleted since (or for a partner item, later).
+  item: item.nullable(),
+});
+
+export const outfit = z.object({
+  id: z.string().uuid(),
+  caption: z.string(),
+  occasion: z.string(),
+  why: z.string(),
+  missing: missingPiece.nullable(),
+  pieces: z.array(outfitPiece),
+  opinion: z.enum(["like", "dislike"]).nullable(),
+  woreCount: z.number().int(),
+});
+export type Outfit = z.infer<typeof outfit>;
+
+export const wearWithInput = z.object({ itemId: z.string().uuid() });
+export type WearWithInput = z.infer<typeof wearWithInput>;
+
+// The answer to POST /api/wear-with: the request to poll (an earlier one when it is reused).
+export const wearWithStarted = z.object({ id: z.string().uuid() });
+
+export const wearWithRequest = z.object({
+  id: z.string().uuid(),
+  status: outfitRequestStatus,
+  outfits: z.array(outfit),
+});
+export type WearWithRequest = z.infer<typeof wearWithRequest>;
+
+export const outfitReactionInput = z.object({ reaction: outfitReaction });
+
 export * from "./limits";

@@ -1,6 +1,8 @@
 import {
   ITEM_CATEGORIES,
   ITEM_COLORS,
+  OUTFIT_REQUEST_STATUSES,
+  OUTFIT_REACTIONS,
   PHOTO_KINDS,
   PHOTO_STATUSES,
   SEASONS,
@@ -9,9 +11,11 @@ import {
   type ItemTags,
   type LookItem,
   type LookMatch,
+  type MissingPiece,
 } from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -115,4 +119,102 @@ export const usageEvents = pgTable(
     index("usage_events_user_action_idx").on(table.userId, table.action, table.createdAt),
     index("usage_events_created_at_idx").on(table.createdAt),
   ],
+);
+
+export const outfitRequestStatusEnum = pgEnum("outfit_request_status", OUTFIT_REQUEST_STATUSES);
+export const outfitReactionEnum = pgEnum("outfit_reaction", OUTFIT_REACTIONS);
+
+// The user's taste in words, written by a strong model from their wardrobe, the looks they
+// saved and the outfits they liked; every outfit request reads it. One per user, rewritten when
+// it goes stale (see outfit-jobs.ts). Written through the Batch API, so it can be pending.
+export const styleBriefs = pgTable("style_briefs", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  // null until the first brief is back.
+  brief: text("brief"),
+  // What it was written from, to tell when it is stale.
+  itemCount: integer("item_count").notNull().default(0),
+  reactionCount: integer("reaction_count").notNull().default(0),
+  writtenAt: timestamp("written_at", { withTimezone: true }),
+  // The batch writing the next one; null when none is running.
+  batchId: text("batch_id"),
+  requestedAt: timestamp("requested_at", { withTimezone: true }),
+});
+
+// One "what do I wear this with?": the item it was asked about and how it went.
+export const outfitRequests = pgTable(
+  "outfit_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The wardrobe item asked about (a screenshot's item comes later).
+    itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
+    status: outfitRequestStatusEnum("status").notNull().default("pending"),
+    // The wardrobe size when asked: a repeat for the same item reuses the outfits until it changes.
+    wardrobeSize: integer("wardrobe_size").notNull(),
+    // What the model call really cost, in millionths of a dollar.
+    costMicros: integer("cost_micros"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("outfit_requests_user_item_idx").on(table.userId, table.itemId)],
+);
+
+export const outfits = pgTable(
+  "outfits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => outfitRequests.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    caption: text("caption").notNull(),
+    occasion: text("occasion").notNull(),
+    why: text("why").notNull(),
+    missing: jsonb("missing").$type<MissingPiece>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("outfits_request_idx").on(table.requestId)],
+);
+
+// A piece of an outfit: the item asked about, a wardrobe item, or (once partners exist) a
+// partner catalog item, which is always marked sponsored.
+export const outfitPieces = pgTable(
+  "outfit_pieces",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outfitId: uuid("outfit_id")
+      .notNull()
+      .references(() => outfits.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    hero: boolean("hero").notNull().default(false),
+    // Null when the item was deleted since: the outfit and its reactions stay.
+    itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
+    // No catalog table yet; gets its foreign key with it.
+    catalogItemId: uuid("catalog_item_id"),
+    sponsored: boolean("sponsored").notNull().default(false),
+  },
+  (table) => [index("outfit_pieces_outfit_idx").on(table.outfitId)],
+);
+
+// Every reaction, kept as history: the taste data outfits learn from.
+export const outfitReactions = pgTable(
+  "outfit_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outfitId: uuid("outfit_id")
+      .notNull()
+      .references(() => outfits.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reaction: outfitReactionEnum("reaction").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("outfit_reactions_outfit_idx").on(table.outfitId)],
 );

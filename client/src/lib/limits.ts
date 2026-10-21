@@ -14,6 +14,7 @@ export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: U
       : '';
     return t(`limits.${code}`, { limit: FREE_LIMITS[code].count, date });
   }
+  if (code === 'wear_with') return t('limits.wear_with', { limit: FREE_LIMITS.wear_with.count });
   return t(`limits.${code}`);
 }
 
