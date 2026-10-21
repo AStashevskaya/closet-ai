@@ -177,6 +177,38 @@ describe("POST /api/wear-with", () => {
     expect(call!).toMatchObject({ lang: "ru", season: "autumn", looks: 4, brief: null });
   });
 
+  it("waits for an item saved a moment ago whose photo is still processing", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const key = `photos/${anna.userId}/fresh.webp`;
+    await s.repositories.photosRepository.create({
+      key,
+      ownerId: anna.userId,
+      uploadKey: "uploads/x",
+      tagStatus: null,
+    });
+    const fresh = (
+      await s.server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: anna.cookie },
+        payload: { name: "Fresh skirt", category: "bottom", colors: ["white"], photoKey: key },
+      })
+    ).json<Item>();
+    const { id } = (await ask(s, anna.cookie, fresh.id)).json<{ id: string }>();
+
+    // The queue retries a plain error; a permanent one would mark the request failed.
+    await expect(s.runJobs()).rejects.toThrow("not ready yet");
+    expect((await view(s, anna.cookie, id)).status).toBe("pending");
+
+    await s.storage.put(key, await picture, "image/webp");
+    await s.repositories.photosRepository.markReady(key);
+    await s.queue.outfitQueue.enqueueComposing(id, "en");
+    await s.runJobs();
+    expect((await view(s, anna.cookie, id)).status).toBe("done");
+  });
+
   it("shows the same outfits again for free while the wardrobe is the same size", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
@@ -193,8 +225,42 @@ describe("POST /api/wear-with", () => {
     ).json<Usage>();
     expect(usage.wear_with).toMatchObject({ used: 1, limit: 5 });
 
+    // A new brief (her taste changed) composes again too.
+    await s.repositories.outfitsRepository.saveBrief(anna.userId, "New taste", {
+      itemCount: 2,
+      reactionCount: 0,
+      inspirationCount: 3,
+    });
+    expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
+    await s.runJobs();
+
     await addItem(s, anna, "top");
     expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
+  });
+
+  it("composes in the mood asked for, and reuses only the same mood", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top");
+    const askIn = (mood?: string) =>
+      s.server.inject({
+        method: "POST",
+        url: "/api/wear-with",
+        headers: { cookie: anna.cookie },
+        payload: mood ? { itemId: skirt.id, mood } : { itemId: skirt.id },
+      });
+
+    const evening = (await askIn("evening")).json<{ id: string }>().id;
+    await s.runJobs();
+    expect(s.stub.composeCalls.at(-1)!.mood).toBe("evening");
+    expect((await askIn("evening")).json<{ id: string }>().id).toBe(evening);
+    // Another mood, or none, is a new request.
+    expect((await askIn("office")).statusCode).toBe(202);
+    expect((await askIn()).statusCode).toBe(202);
+    await s.runJobs();
+    expect(s.stub.composeCalls.at(-1)!.mood).toBeNull();
+    expect((await askIn("rave")).statusCode).toBe(400);
   });
 
   it("is limited to five a day", async () => {

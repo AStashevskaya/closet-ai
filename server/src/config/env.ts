@@ -37,6 +37,16 @@ const envSchema = z
     // The server's daily safety stop on AI spend, in dollars, estimated from counted actions
     // (src/modules/usage/limits.ts). Past it every counted action answers 429 until midnight UTC.
     AI_DAILY_BUDGET_USD: z.coerce.number().positive().default(3),
+    // User ids (comma-separated) with roomier limits for testing, see TESTER_LIMITS.
+    TESTER_USER_IDS: z
+      .string()
+      .default("")
+      .transform((ids) =>
+        ids
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
     // Where the embedding model's weights (~100 MB) are downloaded on first use. Outside git.
     MODEL_CACHE_DIR: z.string().default(".models"),
   })

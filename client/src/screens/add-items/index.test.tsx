@@ -46,6 +46,7 @@ const tags = (name: string, category: ItemTags['category']): ItemTags => ({
   style: null,
   brand: null,
   condition: null,
+  noun: null,
 });
 
 const state = (result: ItemTags): PhotoState => ({

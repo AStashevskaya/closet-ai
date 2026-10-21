@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import * as ImagePicker from 'expo-image-picker';
 
 import i18n from '@/i18n';
-import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 
 import { AddItem } from '.';
@@ -28,6 +28,7 @@ jest.mock('@/lib/api', () => ({
   getUsage: jest.fn().mockRejectedValue(new Error('offline')),
   uploadPhoto: jest.fn(),
   createItem: jest.fn(),
+  askWearWith: jest.fn(),
   getPhotoState: jest.fn(),
 }));
 
@@ -69,6 +70,7 @@ const tags: ItemTags = {
   style: 'casual',
   brand: null,
   condition: 'good',
+  noun: null,
 };
 
 // The server answers "still tagging" once, then with the tags.
@@ -280,5 +282,24 @@ describe('<AddItem />', () => {
 
     await waitFor(() => expect(uploadPhoto).toHaveBeenLastCalledWith('file:///turned.jpg', 'en'));
     expect(rotatePhoto).toHaveBeenCalledWith('file:///small.jpg');
+  });
+  test('saves the item and goes on to the outfits for it', async () => {
+    jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
+    await fireEvent.press(screen.getByText('Top'));
+    await fireEvent.press(screen.getByText('White'));
+    await fireEvent.press(screen.getByText('Save and style it'));
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith({
+        pathname: '/wear-with/[id]',
+        params: { id: 'req-1' },
+      }),
+    );
+    expect(askWearWith).toHaveBeenCalledWith({ itemId: 'new-item' }, 'en');
+    expect(mockBack).not.toHaveBeenCalled();
   });
 });

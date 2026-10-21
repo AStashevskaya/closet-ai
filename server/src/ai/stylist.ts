@@ -4,6 +4,7 @@ import {
   ITEM_CATEGORIES,
   type AppLanguage,
   type MissingPiece,
+  type OutfitMood,
   type Season,
 } from "@closet-ai/shared";
 import * as z from "zod/v4";
@@ -21,9 +22,11 @@ export const BRIEF_MODEL = "claude-opus-5-5";
 // $ per million tokens, October 2026 list prices; check before quoting. Cache writes cost
 // 1.25× the input price, cache reads 0.1×; the Batch API halves everything.
 const PRICES = {
-  [COMPOSING_MODEL]: { input: 1, output: 5 },
-  [BRIEF_MODEL]: { input: 5, output: 25 },
+  "claude-haiku-5-5": { input: 1, output: 5 },
+  "claude-sonnet-5-5": { input: 3, output: 15 },
+  "claude-opus-5-5": { input: 5, output: 25 },
 } as const;
+type Model = keyof typeof PRICES;
 
 export interface StylistPiece {
   // The item's number on the contact sheet and in the wardrobe list.
@@ -45,9 +48,21 @@ export interface ComposeInput {
   sheet: Uint8Array;
   brief: string | null;
   season: Season;
+  // What the user asked the looks to be for; null for any.
+  mood: OutfitMood | null;
   lang: AppLanguage;
   looks: number;
 }
+
+// What each mood asks of the looks, for the model.
+const MOODS: Record<OutfitMood, string> = {
+  everyday: "an ordinary day: errands, coffee, a walk; easy to move in, no fuss",
+  office:
+    "a day at work in a creative office: put together, covered enough, comfortable from morning to evening",
+  evening: "an evening out: dinner, drinks, a date; more polish, shine or an edge",
+  sporty: "sporty-chic: sneakers or flats, relaxed shapes, an athletic touch, still styled",
+  surprise: "surprise her: combinations she wouldn't think of herself, bold but wearable",
+};
 
 export interface ComposedLook {
   // Wardrobe numbers that go with the hero.
@@ -102,13 +117,15 @@ You get her whole wardrobe in words, a contact sheet of the numbered pieces wort
 Compose the asked number of looks built around the item:
 - The item is in every look; list only the wardrobe numbers that go with it, from the contact sheet.
 - A complete look: with a dress, nothing else is required; otherwise a top and a bottom (the item counts as its category). A shirt, vest or jacket may be layered over a top or a dress when it helps. Shoes when a pair truly suits.
-- Each look has its own idea (a colour story, a play of proportions, a mix of moods or textures), true to her taste. Different occasions across the looks. No look that a stylist would call obvious or shapeless.
+- The looks go in different directions, in this order: (1) her core style; (2) one of the looks she saved, recreated: take a recipe from the brief's "recreating her saves" that works with the item, or build the closest one, and say in why which saved look it echoes; (3) a step out of her comfort zone that still flatters her; (4) an unexpected mix of moods or textures. With fewer looks asked, take them from the start of this list. Each look has its own idea (a colour story, a play of proportions), different occasions across the looks, and none a stylist would call obvious or shapeless.
+- why speaks only of the item and the pieces listed in the look; a piece she doesn't own belongs in missing, never in why.
+- Don't lean on the same pieces: no wardrobe piece in more than two looks, and if the sheet has an alternative, use it. Four looks that share their top, jacket or shoes read as one look.
 - Without a brief, read her taste from the wardrobe itself.
 - missing: if one more piece she doesn't own would clearly make the look (often shoes or a bag), describe it as a shop search would need it (type, colour, material, shape), with its category; otherwise null. At most one per look, and not in every look.
 - caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces. All three, and missing.description, in the language asked.`;
 
 const BRIEF_PROMPT = `You are a sought-after personal stylist. Write a working brief for a junior stylist who will put together this client's outfits every day from her wardrobe (numbered contact sheets and the list below). In English, compact, under 500 words:
-1. Her taste, read from the looks she saved (if any; how she wants to look), her wardrobe and the outfits she liked or rejected: what she gravitates to, what makes a look "hers". Where a saved look asks for something the wardrobe can get close to, say how, by number.
+1. Her taste, read first from the looks she saved (if any; how she wants to look, newest first: weigh the newest most and say where her taste is moving), then her wardrobe and the outfits she liked or rejected: what she gravitates to, what makes a look "hers". Where a saved look asks for something the wardrobe can get close to, say how, by number. Her taste can be wider than her wardrobe: don't shrink it to what she owns.
 2. Hero pieces (by number) and what each one wants next to it.
 3. Pairings and colour stories that work in this wardrobe, with numbers.
 4. Traps: combinations that look obvious, dated or shapeless here, and anything she rejected.
@@ -122,7 +139,7 @@ const jpegBlock = (image: Uint8Array): Anthropic.ImageBlockParam => ({
   source: { type: "base64", media_type: "image/jpeg", data: Buffer.from(image).toString("base64") },
 });
 
-function costOf(model: keyof typeof PRICES, usage: Anthropic.Usage, batch = false): number {
+function costOf(model: Model, usage: Anthropic.Usage, batch = false): number {
   const { input, output } = PRICES[model];
   const tokens =
     (usage.input_tokens +
@@ -133,13 +150,17 @@ function costOf(model: keyof typeof PRICES, usage: Anthropic.Usage, batch = fals
   return Math.round(tokens * (batch ? 0.5 : 1));
 }
 
-export function createClaudeStylist(apiKey: string): Stylist {
+export function createClaudeStylist(
+  apiKey: string,
+  // Which model composes: Haiku by default; others are compared in experiments.
+  composingModel: Model = COMPOSING_MODEL,
+): Stylist {
   const client = new Anthropic({ apiKey });
 
   return {
     async compose(input) {
       const response = await client.messages.parse({
-        model: COMPOSING_MODEL,
+        model: composingModel,
         max_tokens: 4000,
         system: COMPOSE_PROMPT,
         // Low effort: the hard thinking is in the brief.
@@ -160,7 +181,7 @@ export function createClaudeStylist(apiKey: string): Stylist {
               jpegBlock(input.sheet),
               {
                 type: "text",
-                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.\nSeason: ${input.season}. Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
+                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
               },
             ],
           },
@@ -171,7 +192,7 @@ export function createClaudeStylist(apiKey: string): Stylist {
       }
       return {
         looks: response.parsed_output.looks,
-        costMicros: costOf(COMPOSING_MODEL, response.usage),
+        costMicros: costOf(composingModel, response.usage),
       };
     },
 

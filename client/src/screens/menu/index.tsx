@@ -10,13 +10,13 @@ import { colors, fonts } from '@/theme';
 type SectionKey =
   'closet' | 'looks' | 'wantCan' | 'trends' | 'sell' | 'votes' | 'showroom' | 'favorites';
 
-type Section = { key: SectionKey; icon: IconName; href?: '/closet' | '/want' };
+type Section = { key: SectionKey; icon: IconName; href?: '/closet' | '/want-can' };
 
 // Order and icons from the design. Sections without an href are not built yet and show "soon".
 const SECTIONS: Section[] = [
   { key: 'closet', icon: 'hanger', href: '/closet' },
   { key: 'looks', icon: 'look' },
-  { key: 'wantCan', icon: 'spark', href: '/want' },
+  { key: 'wantCan', icon: 'spark', href: '/want-can' },
   { key: 'trends', icon: 'trend' },
   { key: 'sell', icon: 'tag' },
   { key: 'votes', icon: 'chat' },

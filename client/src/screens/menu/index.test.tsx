@@ -31,12 +31,12 @@ describe('<Menu />', () => {
     expect(screen.getByText('Anna')).toBeOnTheScreen();
   });
 
-  test('opens the closet and want tabs', async () => {
+  test('opens the closet tab and the want screen', async () => {
     await render(<Menu />);
     await fireEvent.press(screen.getByText('My closet'));
     expect(mockNavigate).toHaveBeenCalledWith('/closet');
     await fireEvent.press(screen.getByText('Want / Can'));
-    expect(mockNavigate).toHaveBeenCalledWith('/want');
+    expect(mockNavigate).toHaveBeenCalledWith('/want-can');
   });
 
   test('marks unbuilt sections as coming soon and disables them', async () => {

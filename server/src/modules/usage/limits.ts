@@ -18,6 +18,8 @@ export const ESTIMATED_COST_MICROS: Record<UsageAction, number> = {
   want: 10_000,
   look: 2_000,
   wear_with: 13_000,
+  // Stored only; the brief that reads it is paid for separately.
+  inspiration: 0,
 };
 
 // Periods are calendar ones in UTC: a day from midnight, a week from Monday, a month from the 1st.
@@ -40,24 +42,39 @@ export function nextPeriodStart(period: UsagePeriod, now: Date): Date {
 
 export type Limits = ReturnType<typeof createLimits>;
 
+// People testing the app (TESTER_USER_IDS) get roomier limits, so a test session doesn't stop
+// halfway; the server's daily budget still applies to them.
+export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
+  wear_with: 30,
+  want: 30,
+  look: 30,
+};
+
 // The free tier for everyone (no Pro yet). Checks answer 429 with a limit:<code> message, which
 // the app turns into its own words.
 export function createLimits(
   usage: UsageRepository,
   dailyBudgetUsd: number,
+  testers: ReadonlySet<string> = new Set(),
   clock: () => Date = () => new Date(),
 ) {
   const budgetMicros = Math.round(dailyBudgetUsd * 1_000_000);
+  // The count allowed per period: the free tier's, or a tester's.
+  const allowed = (userId: string, action: UsageAction) =>
+    (testers.has(userId) ? TESTER_LIMITS[action] : undefined) ?? FREE_LIMITS[action].count;
 
   return {
     // Before the action: throws when the user's limit or the server's daily budget is used up.
     async check(userId: string, action: UsageAction) {
       const now = clock();
-      const { count, period } = FREE_LIMITS[action];
-      if ((await usage.count(userId, action, periodStart(period, now))) >= count) {
+      const { period } = FREE_LIMITS[action];
+      if (
+        (await usage.count(userId, action, periodStart(period, now))) >= allowed(userId, action)
+      ) {
         throw httpError(429, limitMessage(action));
       }
-      const monthly = MONTHLY_SAFETY_LIMITS[action];
+      // Testers have no hidden monthly cap.
+      const monthly = testers.has(userId) ? undefined : MONTHLY_SAFETY_LIMITS[action];
       if (
         monthly !== undefined &&
         (await usage.count(userId, action, periodStart("month", now))) >= monthly
@@ -78,10 +95,10 @@ export function createLimits(
     async summary(userId: string): Promise<Usage> {
       const now = clock();
       const counted = async (action: "want" | "look" | "wear_with") => {
-        const { count, period } = FREE_LIMITS[action];
+        const { period } = FREE_LIMITS[action];
         return {
           used: await usage.count(userId, action, periodStart(period, now)),
-          limit: count,
+          limit: allowed(userId, action),
           resetsAt: nextPeriodStart(period, now).toISOString(),
         };
       };

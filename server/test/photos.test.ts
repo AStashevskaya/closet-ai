@@ -7,11 +7,13 @@ import { TaggingRefusedError, type ItemTagger } from "../src/ai/item-tagger";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import {
+  cutOutPhoto,
   deleteUnattachedPhotos,
   PermanentPhotoError,
   type PhotoJobDeps,
   UNATTACHED_PHOTO_TTL_MS,
 } from "../src/modules/photos/photo-jobs";
+import { keyVersion } from "../src/modules/items/items.repository";
 import { createMemoryStorage, type Storage } from "../src/storage/storage";
 import {
   createInMemoryRepositories,
@@ -562,9 +564,10 @@ describe("background removal", () => {
     // The remover gets the small WebP, once.
     expect(cut.calls).toEqual([{ bytes: (await storage.get(photoKey))!.body.length }]);
     // Versioned by the stored key, so a turned photo gets a URL of its own.
-    const version = photoKey.split("/").pop()!.slice(0, 8);
-    expect(photoUrl).toBe(`/api/items/${id}/photo?v=${version}`);
-    expect(cutoutUrl).toBe(`/api/items/${id}/photo?variant=cutout&v=${version}`);
+    expect(photoUrl).toBe(`/api/items/${id}/photo?v=${keyVersion(photoKey)}`);
+    expect(cutoutUrl).toBe(
+      `/api/items/${id}/photo?variant=cutout&v=${keyVersion(photoKey.replace(/\.webp$/, "-cutout.webp"))}`,
+    );
 
     const own = await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: anna } });
     expect(own.statusCode).toBe(200);
@@ -586,6 +589,26 @@ describe("background removal", () => {
       headers: { cookie: maya },
     });
     expect(other.statusCode).toBe(404);
+  });
+
+  it("gives a redone cut-out a URL of its own and deletes the old one", async () => {
+    const cut = createStubRemover();
+    const server = await setup({ remover: cut.remover });
+    const anna = await signUp(server, "anna@example.com");
+    const before = await addItem(server, anna);
+    const old = (await jobDeps.photos.get(before.photoKey))!.cutoutKey!;
+
+    await cutOutPhoto(jobDeps, before.photoKey);
+    const after = (
+      await server.inject({
+        method: "GET",
+        url: `/api/items/${before.id}`,
+        headers: { cookie: anna },
+      })
+    ).json<Item>();
+    expect(after.cutoutUrl).not.toBe(before.cutoutUrl);
+    expect(after.photoUrl).toBe(before.photoUrl);
+    expect(await storage.get(old)).toBeNull();
   });
 
   it("turns the photo and its cut-out a quarter, under new URLs", async () => {

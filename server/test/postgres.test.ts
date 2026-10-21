@@ -62,6 +62,7 @@ describe.skipIf(!url)("on Postgres", () => {
       S3_SECRET_ACCESS_KEY: "unused",
       REDIS_URL: "redis://localhost:6379",
       AI_DAILY_BUDGET_USD: 3,
+      TESTER_USER_IDS: [],
       MODEL_CACHE_DIR: ".models",
     };
     const auth = createAuth(env, drizzleAdapter(db.db, { provider: "pg", schema }));
@@ -438,7 +439,7 @@ describe.skipIf(!url)("on Postgres", () => {
     expect((await outfits.wardrobe(user!.id)).map((i) => i.id)).toEqual([skirt, top]);
     expect(await outfits.wardrobeSize(user!.id)).toBe(2);
     const requestId = await outfits.createRequest(user!.id, { itemId: skirt }, 2);
-    expect(await outfits.latestDone(user!.id, skirt)).toBeNull();
+    expect(await outfits.latestDone(user!.id, skirt, null)).toBeNull();
     await outfits.saveOutfits(
       requestId,
       user!.id,
@@ -456,7 +457,8 @@ describe.skipIf(!url)("on Postgres", () => {
       ],
       7_000,
     );
-    expect(await outfits.latestDone(user!.id, skirt)).toMatchObject({
+    expect(await outfits.latestDone(user!.id, skirt, "evening")).toBeNull();
+    expect(await outfits.latestDone(user!.id, skirt, null)).toMatchObject({
       id: requestId,
       wardrobeSize: 2,
     });
@@ -499,9 +501,29 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(unattached).not.toContain(crop);
     expect(await outfits.isAttached(crop)).toBe(false);
 
+    // A saved look is listed and kept by the cleanup too.
+    const look = `photos/${user!.id}/look.webp`;
+    await photos.create({
+      key: look,
+      ownerId: user!.id,
+      uploadKey: `uploads/${user!.id}/look`,
+      kind: "inspiration",
+      tagStatus: null,
+    });
+    await photos.markReady(look);
+    expect((await photos.listInspiration(user!.id)).map((p) => p.key)).toEqual([look]);
+    expect(
+      (await photos.listUnattached(new Date(Date.now() + 60_000))).map((p) => p.key),
+    ).not.toContain(look);
+    expect(await outfits.inspirationKeys(user!.id, 5)).toContain(look);
+
     await outfits.setBriefBatch(user!.id, "batch-1");
     expect(await outfits.brief(user!.id)).toMatchObject({ brief: null, batchId: "batch-1" });
-    await outfits.saveBrief(user!.id, "High-low", 2, 2);
+    await outfits.saveBrief(user!.id, "High-low", {
+      itemCount: 2,
+      reactionCount: 2,
+      inspirationCount: 0,
+    });
     expect(await outfits.brief(user!.id)).toMatchObject({
       brief: "High-low",
       itemCount: 2,

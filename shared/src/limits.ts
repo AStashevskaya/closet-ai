@@ -10,7 +10,7 @@ export const USAGE_PERIODS = ["day", "week", "month"] as const;
 export type UsagePeriod = (typeof USAGE_PERIODS)[number];
 
 // Counted AI actions, as stored in usage_events.
-export const USAGE_ACTIONS = ["item_photo", "want", "look", "wear_with"] as const;
+export const USAGE_ACTIONS = ["item_photo", "want", "look", "wear_with", "inspiration"] as const;
 export type UsageAction = (typeof USAGE_ACTIONS)[number];
 
 export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeriod }> = {
@@ -20,6 +20,8 @@ export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeri
   look: { count: 3, period: "month" },
   // "What do I wear this with?" is meant to be opened every day, so it's generous.
   wear_with: { count: 5, period: "day" },
+  // Saving a look costs nothing (no model reads it until the brief does): a cap against abuse.
+  inspiration: { count: 50, period: "day" },
 };
 
 // Hidden monthly caps on top, so one account can't cost more than it could ever be worth.

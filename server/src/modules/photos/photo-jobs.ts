@@ -1,4 +1,5 @@
-import type { AppLanguage } from "@closet-ai/shared";
+import { randomBytes } from "node:crypto";
+import type { AppLanguage, ItemTags } from "@closet-ai/shared";
 import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import { TaggingRefusedError, type ItemTagger } from "../../ai/item-tagger";
@@ -27,6 +28,9 @@ export interface PhotoJobDeps {
 
 // The cut-out sits next to the photo: photos/<owner id>/<uuid>-cutout.webp
 export const cutoutKeyFor = (photoKey: string) => photoKey.replace(/\.webp$/, "-cutout.webp");
+// A redone cut-out gets a key (and so a URL) of its own, or phones keep the cached old one.
+const redoneCutoutKey = (photoKey: string) =>
+  photoKey.replace(/\.webp$/, `-cutout-${randomBytes(3).toString("hex")}.webp`);
 
 // A photo that can never be processed (not an image after all, original gone).
 // The worker marks it failed straight away instead of retrying.
@@ -82,10 +86,38 @@ export async function queueAfterTagging(
   else if (embedder) await queue.enqueueEmbedding(key);
 }
 
+// Clothes cut out well asked for as "garment"; shoes and bags need a name.
+const isClothing = (category: string) => category !== "shoes" && category !== "accessory";
+const FALLBACK_NOUNS: Record<string, string> = { shoes: "shoes", accessory: "bag" };
+
+// Asks for the item a few ways until one finds it: "garment" first for clothes, then its English
+// type ("sequin mini skirt"), then the type's last word ("skirt"). Each try is a fal call
+// (~$0.005), and most photos stop at the first. Shoes come back as a pair. A crop from a look
+// (fromLook) asks by type first: "garment" there may find the shirt over the skirt.
+export async function cutOutByName(
+  remover: BackgroundRemover,
+  image: Uint8Array,
+  tags: Pick<ItemTags, "category" | "noun"> | null,
+  { fromLook = false } = {},
+): Promise<Uint8Array | null> {
+  const clothing = !tags || isClothing(tags.category);
+  const noun = tags?.noun?.trim() || null;
+  // undefined asks for the remover's default, "garment".
+  const names: (string | undefined)[] = clothing && !fromLook ? [undefined] : [];
+  if (noun) names.push(noun, noun.split(/\s+/).at(-1));
+  if (clothing && fromLook) names.push(undefined);
+  if (tags && !clothing) names.push(FALLBACK_NOUNS[tags.category]);
+  for (const name of new Set(names)) {
+    const png = await remover.removeBackground(image, name, { pair: tags?.category === "shoes" });
+    if (png) return png;
+  }
+  return null;
+}
+
 // Job "cutout": cuts the item out of its background, then queues the embedding, which is made
 // from the cut-out. Running it twice makes the same cut-out again.
 export async function cutOutPhoto(
-  { photos, storage, remover, embedder, queue }: PhotoJobDeps,
+  { photos, storage, remover, embedder, queue, tagger }: PhotoJobDeps,
   key: string,
 ) {
   if (!remover) return;
@@ -95,12 +127,27 @@ export async function cutOutPhoto(
   const file = await storage.get(photo.key);
   if (!file) throw new PermanentPhotoError("processed photo is missing from storage");
 
-  const png = await remover.removeBackground(file.body);
+  // Shoes and bags have to be asked for by name ("garment" finds nothing on them), and a
+  // garment it misses may still be found by its type. A photo tagged before tags had a noun is
+  // tagged again for it (a fraction of a cent).
+  let tags = photo.tags;
+  if (tagger && !tags?.noun) {
+    try {
+      const { onPerson: _onPerson, ...fresh } = await tagger.tag(file.body, "en");
+      // The name stays in the user's language: only the noun (and a category if there was none) is taken.
+      tags = tags ? { ...tags, noun: fresh.noun } : fresh;
+      await photos.setTags(photo.key, tags);
+    } catch {
+      // Cut out as before, as a garment.
+    }
+  }
+  const png = await cutOutByName(remover, file.body, tags);
   // No item found: the photo keeps its background, and is embedded as it is.
   if (png) {
-    const cutoutKey = cutoutKeyFor(photo.key);
+    const cutoutKey = photo.cutoutKey ? redoneCutoutKey(photo.key) : cutoutKeyFor(photo.key);
     await storage.put(cutoutKey, await processCutout(png), "image/webp");
     await photos.setCutout(photo.key, cutoutKey);
+    if (photo.cutoutKey) await storage.delete(photo.cutoutKey);
   }
   if (embedder) await queue.enqueueEmbedding(photo.key);
 }

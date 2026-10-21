@@ -74,6 +74,7 @@ const shirt: ItemDetail = {
     style: 'casual',
     brand: null,
     condition: 'good',
+    noun: null,
   },
 };
 
@@ -200,6 +201,18 @@ describe('<ItemScreen />', () => {
 
     expect(askWearWith).toHaveBeenCalledWith({ itemId: shirt.id }, 'en');
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/wear-with/[id]', params: { id: 'req-1' } });
+  });
+
+  test('asks in the mood picked, and in any mood once it is taken back', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    await render(<ItemScreen id={shirt.id} />);
+    await fireEvent.press(await screen.findByRole('checkbox', { name: 'Evening' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'What do I wear this with?' }));
+    expect(askWearWith).toHaveBeenLastCalledWith({ itemId: shirt.id, mood: 'evening' }, 'en');
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Evening' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'What do I wear this with?' }));
+    expect(askWearWith).toHaveBeenLastCalledWith({ itemId: shirt.id }, 'en');
   });
 
   test("says so when today's outfits are used up", async () => {

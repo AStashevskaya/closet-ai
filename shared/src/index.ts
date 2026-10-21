@@ -96,6 +96,10 @@ export const itemTags = z.object({
   // Only from a visible logo or label.
   brand: z.string().max(60).nullable(),
   condition: z.enum(ITEM_CONDITIONS).nullable(),
+  // The item's type in English, no colour ("ankle boots", "leather midi skirt"): what the
+  // cut-out model is asked for, so it finds shoes and bags (which "garment" misses) and the
+  // skirt rather than the shirt over it. null on photos tagged before it existed.
+  noun: z.string().max(60).nullable().default(null),
 });
 export type ItemTags = z.infer<typeof itemTags>;
 
@@ -109,8 +113,10 @@ export type TagStatus = z.infer<typeof tagStatus>;
 // look someone else wears (a Pinterest or Instagram screenshot): its items are matched against
 // the wardrobe instead ("Want / Can").
 // item: one wardrobe item; look: a selfie to add items from; want: someone else's look to
-// match against the wardrobe; wear: a screenshot or photo of an item to style ("what do I wear this with?").
-export const PHOTO_KINDS = ["item", "look", "want", "wear"] as const;
+// match against the wardrobe; wear: a screenshot or photo of an item to style ("what do I wear
+// this with?"); inspiration: a look the user saved because they like it, kept until they delete
+// it and read by their style brief.
+export const PHOTO_KINDS = ["item", "look", "want", "wear", "inspiration"] as const;
 export const photoKind = z.enum(PHOTO_KINDS);
 export type PhotoKind = z.infer<typeof photoKind>;
 
@@ -124,12 +130,7 @@ export const itemBox = z.object({
 export type ItemBox = z.infer<typeof itemBox>;
 
 // One item found on a look photo: its tags and its box.
-export const lookItem = itemTags.omit({ recognized: true }).extend({
-  box: itemBox,
-  // The item's type in English ("leather midi skirt"): what the cut-out model is asked for, so
-  // it cuts out the skirt and not the shirt over it. null on looks found before it existed.
-  noun: z.string().max(60).nullable().default(null),
-});
+export const lookItem = itemTags.omit({ recognized: true }).extend({ box: itemBox });
 export type LookItem = z.infer<typeof lookItem>;
 
 // How close the wardrobe comes to an item on a "want" look: the same item, one that can stand
@@ -234,10 +235,19 @@ export const outfit = z.object({
 });
 export type Outfit = z.infer<typeof outfit>;
 
+// The mood the user can ask the outfits to be in; none means any.
+export const OUTFIT_MOODS = ["everyday", "office", "evening", "sporty", "surprise"] as const;
+export const outfitMood = z.enum(OUTFIT_MOODS);
+export type OutfitMood = z.infer<typeof outfitMood>;
+
 // A wardrobe item, or one item found on an uploaded "wear" photo (its index in lookItems).
 export const wearWithInput = z.union([
-  z.object({ itemId: z.string().uuid() }),
-  z.object({ photoKey: z.string().max(200), index: z.number().int().min(0) }),
+  z.object({ itemId: z.string().uuid(), mood: outfitMood.optional() }),
+  z.object({
+    photoKey: z.string().max(200),
+    index: z.number().int().min(0),
+    mood: outfitMood.optional(),
+  }),
 ]);
 export type WearWithInput = z.infer<typeof wearWithInput>;
 
@@ -254,5 +264,14 @@ export const wearWithRequest = z.object({
 export type WearWithRequest = z.infer<typeof wearWithRequest>;
 
 export const outfitReactionInput = z.object({ reaction: outfitReaction });
+
+// A saved look on the Inspiration tab. `url` is served by the API to its owner.
+export const inspiration = z.object({
+  key: z.string(),
+  url: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type Inspiration = z.infer<typeof inspiration>;
+export const inspirationList = z.array(inspiration);
 
 export * from "./limits";

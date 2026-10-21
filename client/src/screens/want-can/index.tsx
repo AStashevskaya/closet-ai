@@ -39,7 +39,8 @@ type Look =
 
 // "Want / Can": a screenshot of a look someone else wears, split into items, each shown with
 // the wardrobe item that is the same or could stand in for it.
-export function WantCan() {
+// underHeader: opened as a pushed screen, below the navigation header, not as a tab.
+export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -149,7 +150,7 @@ export function WantCan() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}
+      contentContainerStyle={[styles.content, { paddingTop: underHeader ? 8 : insets.top + 24 }]}
     >
       <Text style={styles.title} accessibilityRole="header">
         {t('want.title')}

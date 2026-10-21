@@ -7,7 +7,7 @@ import type {
   PhotoStatus,
   TagStatus,
 } from "@closet-ai/shared";
-import { and, cosineDistance, eq, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, cosineDistance, desc, eq, isNotNull, isNull, lt, ne } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { items, outfitRequests, photos } from "../../db/schema";
 
@@ -73,6 +73,8 @@ export interface PhotosRepository {
   // Photos created before `before` that no item points to.
   listUnattached(before: Date): Promise<Photo[]>;
   delete(key: string): Promise<void>;
+  // The user's saved looks that are ready, newest first.
+  listInspiration(ownerId: string): Promise<{ key: string; createdAt: Date }[]>;
 }
 
 export function createPhotosRepository(db: Db): PhotosRepository {
@@ -193,12 +195,34 @@ export function createPhotosRepository(db: Db): PhotosRepository {
           .leftJoin(items, eq(items.photoKey, photos.key))
           // An item from a photo the user asked "what do I wear this with?" about keeps its crop.
           .leftJoin(outfitRequests, eq(outfitRequests.heroPhotoKey, photos.key))
-          .where(and(isNull(items.id), isNull(outfitRequests.id), lt(photos.createdAt, before)))
+          .where(
+            and(
+              isNull(items.id),
+              isNull(outfitRequests.id),
+              // Saved looks stay until the user deletes them.
+              ne(photos.kind, "inspiration"),
+              lt(photos.createdAt, before),
+            ),
+          )
       );
     },
 
     async delete(key) {
       await db.delete(photos).where(eq(photos.key, key));
+    },
+
+    listInspiration(ownerId) {
+      return db
+        .select({ key: photos.key, createdAt: photos.createdAt })
+        .from(photos)
+        .where(
+          and(
+            eq(photos.ownerId, ownerId),
+            eq(photos.kind, "inspiration"),
+            eq(photos.status, "ready"),
+          ),
+        )
+        .orderBy(desc(photos.createdAt));
     },
   };
 }

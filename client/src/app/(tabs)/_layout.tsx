@@ -9,11 +9,11 @@ import { colors, fonts } from '@/theme';
 const TABS: {
   name: string;
   icon: IconName;
-  label: 'home' | 'closet' | 'want' | 'trends' | 'profile';
+  label: 'home' | 'closet' | 'inspiration' | 'trends' | 'profile';
 }[] = [
   { name: 'index', icon: 'home', label: 'home' },
   { name: 'closet', icon: 'hanger', label: 'closet' },
-  { name: 'want', icon: 'spark', label: 'want' },
+  { name: 'inspiration', icon: 'heart', label: 'inspiration' },
   { name: 'trends', icon: 'trend', label: 'trends' },
   { name: 'profile', icon: 'user', label: 'profile' },
 ];

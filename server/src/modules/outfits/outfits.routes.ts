@@ -57,13 +57,18 @@ export const outfitsRoutes =
         if (!enabled) throw httpError(503, "outfits are off");
         const user = request.user as SessionUser;
         const size = await outfits.wardrobeSize(user.id);
+        const mood = request.body.mood ?? null;
         let hero: Parameters<OutfitsRepository["createRequest"]>[1];
 
         if ("itemId" in request.body) {
           const { itemId } = request.body;
           if (!(await items.get(user.id, itemId))) throw httpError(404, "item not found");
-          const last = await outfits.latestDone(user.id, itemId);
-          if (last && last.wardrobeSize === size) return reply.code(200).send({ id: last.id });
+          // Reused while neither the wardrobe nor the user's taste (the brief) has changed since.
+          const last = await outfits.latestDone(user.id, itemId, mood);
+          const writtenAt = (await outfits.brief(user.id))?.writtenAt;
+          if (last && last.wardrobeSize === size && (!writtenAt || last.createdAt > writtenAt)) {
+            return reply.code(200).send({ id: last.id });
+          }
           await limits.check(user.id, "wear_with");
           hero = { itemId };
         } else {
@@ -82,12 +87,12 @@ export const outfitsRoutes =
 
           const key = `${photoPrefix(user.id)}${randomUUID()}.webp`;
           await storage.put(key, await cropToBox(file.body, found.box), "image/webp");
-          const { box: _box, noun, ...tags } = found;
+          const { box: _box, ...tags } = found;
           await photos.createReady({ key, ownerId: user.id, tags: { ...tags, recognized: true } });
-          hero = { heroPhotoKey: key, heroNoun: noun };
+          hero = { heroPhotoKey: key, heroNoun: found.noun };
         }
 
-        const id = await outfits.createRequest(user.id, hero, size);
+        const id = await outfits.createRequest(user.id, hero, size, mood);
         await queue.enqueueComposing(id, request.query.lang);
         await limits.record(user.id, "wear_with");
         // A new brief is written in the background when the old one is stale; the job decides.

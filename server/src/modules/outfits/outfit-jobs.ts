@@ -3,7 +3,7 @@ import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import type { Stylist } from "../../ai/stylist";
 import type { Storage } from "../../storage/storage";
-import { cutoutKeyFor } from "../photos/photo-jobs";
+import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { flattenOnWhite, processCutout } from "../photos/process-photo";
 import type { OutfitRequestRow, OutfitsRepository, StylingItem } from "./outfits.repository";
@@ -11,8 +11,9 @@ import { asJpeg, contactSheet, pickCandidates, seasonOf, toStylistPiece } from "
 
 export interface OutfitQueue {
   enqueueComposing(requestId: string, lang: AppLanguage): Promise<void>;
-  // Checks whether the user's brief is stale and, if so, starts writing a new one.
-  enqueueBrief(userId: string): Promise<void>;
+  // Checks whether the user's brief is stale and, if so, starts writing a new one. A delay
+  // lets a few saved looks in a row go into one brief.
+  enqueueBrief(userId: string, delayMs?: number): Promise<void>;
   enqueueBriefCheck(userId: string, delayMs: number): Promise<void>;
 }
 
@@ -47,7 +48,10 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const hero = request.heroPhotoKey
     ? await heroFromPhoto(deps, request)
     : wardrobe.find((item) => item.id === request.itemId);
-  if (!hero) throw new PermanentOutfitError("the item is gone or has no ready photo");
+  // A wardrobe item saved a moment ago may still have its photo processing ("save and style it"):
+  // a plain error, so the queue tries again in a few seconds. Gone for good after the retries.
+  if (!hero && request.itemId) throw new Error("the item's photo is not ready yet");
+  if (!hero) throw new PermanentOutfitError("the item from the photo is gone");
   const heroFile = await storage.get(hero.imageKey);
   if (!heroFile) throw new PermanentOutfitError("the item's picture is missing from storage");
 
@@ -71,6 +75,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     sheet,
     brief: (await outfits.brief(request.userId))?.brief ?? null,
     season,
+    mood: request.mood,
     lang,
     looks: LOOKS_PER_REQUEST,
   });
@@ -110,9 +115,12 @@ async function heroFromPhoto(
 
   let cutoutKey = photo.cutoutKey;
   if (!cutoutKey && remover) {
-    const png = await remover
-      .removeBackground(crop.body, request.heroNoun ?? undefined)
-      .catch(() => null);
+    const png = await cutOutByName(
+      remover,
+      crop.body,
+      { category: photo.tags.category, noun: request.heroNoun ?? photo.tags.noun },
+      { fromLook: true },
+    ).catch(() => null);
     if (png) {
       cutoutKey = cutoutKeyFor(photo.key);
       await storage.put(cutoutKey, await processCutout(png), "image/webp");
@@ -147,7 +155,10 @@ const BATCH_GIVE_UP_MS = 24 * 60 * 60 * 1000;
 export const BRIEF_CHECK_EVERY_MS = 2 * 60 * 1000;
 // Kept small: images are the expensive part of the brief's prompt.
 const BRIEF_SHEET_ITEMS = 48;
-const BRIEF_INSPIRATION = 6;
+// The newest saved looks: they say most about where her taste is going.
+const BRIEF_INSPIRATION = 12;
+// A few new saved looks are enough to rewrite it: they are the strongest signal of taste.
+const STALE_AFTER_INSPIRATIONS = 3;
 const BRIEF_REACTED = 20;
 
 // Job "brief": starts a new brief through the Batch API when there is none or it's stale.
@@ -167,10 +178,12 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   const wardrobe = await outfits.wardrobe(userId);
   if (wardrobe.length < MIN_ITEMS_FOR_BRIEF) return;
   const reactions = await outfits.reactionCount(userId);
+  const saved = (await deps.photos.listInspiration(userId)).length;
   const stale =
     !current?.brief ||
     Math.abs(wardrobe.length - current.itemCount) >= STALE_AFTER_CHANGES ||
     reactions - current.reactionCount >= STALE_AFTER_CHANGES ||
+    Math.abs(saved - current.inspirationCount) >= STALE_AFTER_INSPIRATIONS ||
     !current.writtenAt ||
     now.getTime() - current.writtenAt.getTime() > STALE_AFTER_MS;
   if (!stale) return;
@@ -225,10 +238,9 @@ export async function checkBrief(deps: OutfitJobDeps, userId: string) {
     await outfits.setBriefBatch(userId, null);
     return;
   }
-  await outfits.saveBrief(
-    userId,
-    result.brief,
-    await outfits.wardrobeSize(userId),
-    await outfits.reactionCount(userId),
-  );
+  await outfits.saveBrief(userId, result.brief, {
+    itemCount: await outfits.wardrobeSize(userId),
+    reactionCount: await outfits.reactionCount(userId),
+    inspirationCount: (await deps.photos.listInspiration(userId)).length,
+  });
 }

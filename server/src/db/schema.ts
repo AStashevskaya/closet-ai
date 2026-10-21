@@ -2,6 +2,7 @@ import {
   ITEM_CATEGORIES,
   ITEM_COLORS,
   OUTFIT_REQUEST_STATUSES,
+  OUTFIT_MOODS,
   OUTFIT_REACTIONS,
   PHOTO_KINDS,
   PHOTO_STATUSES,
@@ -123,6 +124,7 @@ export const usageEvents = pgTable(
 
 export const outfitRequestStatusEnum = pgEnum("outfit_request_status", OUTFIT_REQUEST_STATUSES);
 export const outfitReactionEnum = pgEnum("outfit_reaction", OUTFIT_REACTIONS);
+export const outfitMoodEnum = pgEnum("outfit_mood", OUTFIT_MOODS);
 
 // The user's taste in words, written by a strong model from their wardrobe, the looks they
 // saved and the outfits they liked; every outfit request reads it. One per user, rewritten when
@@ -136,6 +138,7 @@ export const styleBriefs = pgTable("style_briefs", {
   // What it was written from, to tell when it is stale.
   itemCount: integer("item_count").notNull().default(0),
   reactionCount: integer("reaction_count").notNull().default(0),
+  inspirationCount: integer("inspiration_count").notNull().default(0),
   writtenAt: timestamp("written_at", { withTimezone: true }),
   // The batch writing the next one; null when none is running.
   batchId: text("batch_id"),
@@ -156,6 +159,8 @@ export const outfitRequests = pgTable(
     heroPhotoKey: text("hero_photo_key").references(() => photos.key, { onDelete: "set null" }),
     // What the cut-out model is asked for ("leather skirt"), from the photo's look items.
     heroNoun: text("hero_noun"),
+    // The mood asked for; null for any.
+    mood: outfitMoodEnum("mood"),
     status: outfitRequestStatusEnum("status").notNull().default("pending"),
     // The wardrobe size when asked: a repeat for the same item reuses the outfits until it changes.
     wardrobeSize: integer("wardrobe_size").notNull(),

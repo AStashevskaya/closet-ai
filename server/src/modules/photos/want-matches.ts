@@ -1,6 +1,6 @@
 import type { LookItem, LookMatch } from "@closet-ai/shared";
 import { TaggingRefusedError } from "../../ai/item-tagger";
-import type { PhotoJobDeps } from "./photo-jobs";
+import { cutOutByName, type PhotoJobDeps } from "./photo-jobs";
 import { cropToBox, flattenOnWhite, processCutout, thumbnail } from "./process-photo";
 
 // Wardrobe items the model compares each look item with: the closest by embedding. The
@@ -30,7 +30,7 @@ export async function matchLookItems(
       // Without the cut-out the crop still matches, only less well: fal being down is no
       // reason to fail the look.
       const cut = remover
-        ? await remover.removeBackground(crop, item.noun ?? undefined).catch(() => null)
+        ? await cutOutByName(remover, crop, item, { fromLook: true }).catch(() => null)
         : null;
       const query = cut ? await flattenOnWhite(await processCutout(cut)) : crop;
       const closest = await photos.closestItems(

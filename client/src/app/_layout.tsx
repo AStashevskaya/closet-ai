@@ -75,6 +75,16 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="want-can"
+          options={{
+            title: '',
+            headerBackButtonDisplayMode: 'minimal',
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+          }}
+        />
+        <Stack.Screen
           name="wear-with-pick"
           options={{
             presentation: 'modal',

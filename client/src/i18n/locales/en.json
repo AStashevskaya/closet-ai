@@ -42,6 +42,7 @@
     "colors": "Colors",
     "colorsHint": "Up to 5",
     "save": "Save",
+    "saveAndStyle": "Save and style it",
     "errors": {
       "photo": "Add a photo of the item",
       "name": "Give the item a name",
@@ -54,7 +55,7 @@
   "tabs": {
     "home": "Home",
     "closet": "Closet",
-    "want": "Want",
+    "inspiration": "Inspiration",
     "trends": "Trends",
     "profile": "Profile"
   },
@@ -194,6 +195,16 @@
     "stay": "Keep editing",
     "leave": "Leave"
   },
+  "inspiration": {
+    "title": "Inspiration",
+    "intro": "Save looks you like: screenshots from Instagram, Pinterest, shops. The app learns your taste from them and puts your outfits together bolder and closer to you.",
+    "add": "Add looks",
+    "saving": "Saving…",
+    "taste": "Every 3 new looks update your style",
+    "deleteTitle": "Delete this look?",
+    "delete": "Delete",
+    "whatIHave": "What of a look do I already have?"
+  },
   "want": {
     "title": "Want / Can",
     "intro": "Add a screenshot of a look from Pinterest or Instagram: the app finds its items and shows which of them you already have.",
@@ -235,7 +246,14 @@
     "none": "Couldn't find an item on this photo. Try another one.",
     "notRead": "Couldn't read this photo. Try again.",
     "add": "Add to my closet",
-    "added": "In your closet"
+    "added": "In your closet",
+    "moods": {
+      "everyday": "Everyday",
+      "office": "Office",
+      "evening": "Evening",
+      "sporty": "Sporty-chic",
+      "surprise": "Surprise me"
+    }
   },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",
@@ -243,6 +261,7 @@
     "look": "You've used this month's {{limit}} selfies. New ones from {{date}}.",
     "item_photo": "That's enough photos for today. Try again tomorrow.",
     "budget": "The AI is resting for today. Try again tomorrow.",
-    "wear_with": "That's {{limit}} for today. Ask again tomorrow."
+    "wear_with": "That's {{limit}} for today. Ask again tomorrow.",
+    "inspiration": "That's enough looks for today. Save more tomorrow."
   }
 }
