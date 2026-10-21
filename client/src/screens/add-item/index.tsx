@@ -1,4 +1,4 @@
-import type { ItemCategory, ItemColor, Season } from '@closet-ai/shared';
+import type { ItemCategory, ItemColor, LimitCode, Season } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,7 +21,9 @@ import { ItemFields, MAX_COLORS } from '@/components/item-fields';
 import { RotateButton } from '@/components/rotate-button';
 import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
+import { limitText } from '@/lib/limits';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { durations } from '@/motion';
@@ -64,6 +66,8 @@ export function AddItem() {
   const [itemColors, setItemColors] = useState<ItemColor[]>([]);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
+  // A limit the save ran into (the day's photos, or the server's daily stop).
+  const [limit, setLimit] = useState<LimitCode | null>(null);
   // A picked photo or a typed name is worth asking about before the sheet closes.
   const leave = useConfirmLeave(photoUri !== null || name.trim() !== '');
 
@@ -211,6 +215,13 @@ export function AddItem() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       leave(() => router.back());
     } catch (cause) {
+      setBusy(false);
+      const code = limitReached(cause);
+      if (code) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setLimit(code);
+        return;
+      }
       // The user sees a generic message; the real error goes to the Metro terminal.
       if (__DEV__) console.warn('Saving the item failed', cause);
       fail('addItem.errors.save');
@@ -302,6 +313,12 @@ export function AddItem() {
           itemColors={itemColors}
           onColorsChange={setItemColors}
         />
+
+        {limit && (
+          <Text style={styles.error} accessibilityRole="alert">
+            {limitText(t, i18n.language, limit)}
+          </Text>
+        )}
 
         {/* Keyed by the message, so a new error fades in again instead of swapping in place. */}
         {error && (

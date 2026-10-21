@@ -16,6 +16,7 @@ import type { PhotoQueue } from "../../queue/photo-queue";
 import type { ItemsRepository } from "../items/items.repository";
 import { addItemsFromLook } from "./look-items";
 import type { Storage } from "../../storage/storage";
+import type { Limits } from "../usage/limits";
 import type { PhotosRepository } from "./photos.repository";
 import { checkPhoto, UnsupportedPhotoError } from "./process-photo";
 
@@ -30,6 +31,7 @@ export const photosRoutes =
     photos: PhotosRepository,
     items: ItemsRepository,
     queue: PhotoQueue,
+    limits: Limits,
     auth: Auth,
     // false when no API key is configured: photos are processed but not tagged.
     taggingEnabled: boolean,
@@ -55,6 +57,10 @@ export const photosRoutes =
       },
       async (request, reply) => {
         const user = request.user as SessionUser;
+        const { kind } = request.query;
+        // Every kind is an AI action counted against the free tier.
+        const action = kind === "item" ? "item_photo" : kind;
+        await limits.check(user.id, action);
         const file = await request.file();
         if (!file) throw httpError(400, "no file in the request");
         // Throws a 413 when the file is over the multipart fileSize limit.
@@ -76,11 +82,12 @@ export const photosRoutes =
           key: photoKey,
           ownerId: user.id,
           uploadKey,
-          kind: request.query.kind,
+          kind,
           tagStatus: taggingEnabled ? "pending" : null,
         });
         // If queueing fails the request fails too; the row is never attached and the cleanup job removes it.
         await queue.enqueueProcessing(photoKey, request.query.lang);
+        await limits.record(user.id, action);
         return reply.code(201).send({ photoKey, status: "processing" as const });
       },
     );

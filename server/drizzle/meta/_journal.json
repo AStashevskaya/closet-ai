@@ -64,6 +64,13 @@
       "when": 1792439423908,
       "tag": "0008_photo_wants",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792570645061,
+      "tag": "0009_usage_events",
+      "breakpoints": true
     }
   ]
 }

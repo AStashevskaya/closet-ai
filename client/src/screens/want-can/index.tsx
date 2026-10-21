@@ -1,4 +1,4 @@
-import type { Item, LookItem, MatchKind } from '@closet-ai/shared';
+import type { Item, LimitCode, LookItem, MatchKind } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -14,7 +14,9 @@ import { ItemPhoto } from '@/components/item-photo';
 import { LookCollage } from '@/components/look-collage';
 import { PressableScale } from '@/components/pressable-scale';
 import { getPhotoState, sessionHeaders, uploadPhoto } from '@/lib/api';
+import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
+import { limitText, useUsage } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { durations } from '@/motion';
 import { LookCrop } from '@/screens/add-look/look-crop';
@@ -46,6 +48,10 @@ export function WantCan() {
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   // Photos are served by the API to their owner only, so the image requests carry the cookie.
   const [headers, setHeaders] = useState<Record<string, string>>();
+  const { usage, refresh: refreshUsage } = useUsage();
+  // A limit the last pick ran into (the month's screenshots, or the server's daily stop).
+  const [limit, setLimit] = useState<LimitCode | null>(null);
+  const left = usage ? Math.max(0, usage.want.limit - usage.want.used) : null;
 
   useEffect(() => {
     void sessionHeaders().then(setHeaders);
@@ -57,13 +63,22 @@ export function WantCan() {
     if (!asset) return;
 
     setPhotoKey(null);
+    setLimit(null);
     const aspect = asset.width / asset.height;
     let uri = asset.uri;
     try {
       uri = await shrinkPhoto(asset);
       setLook({ status: 'finding', uri, aspect });
       setPhotoKey(await uploadPhoto(uri, lang, 'want'));
+      void refreshUsage();
     } catch (cause) {
+      const code = limitReached(cause);
+      if (code) {
+        setLimit(code);
+        setLook({ status: 'empty' });
+        void refreshUsage();
+        return;
+      }
       if (__DEV__) console.warn('Uploading the screenshot failed', cause);
       setLook({ status: 'failed', uri, aspect });
     }
@@ -146,7 +161,16 @@ export function WantCan() {
             <Icon name="spark" color={colors.iconMuted} size={34} strokeWidth={1.2} />
           </View>
           <Text style={styles.intro}>{t('want.intro')}</Text>
-          {pickButton(t('want.pick'), true)}
+          {left === 0 || limit ? (
+            <Text style={styles.limit} accessibilityRole="alert">
+              {limitText(t, i18n.language, limit ?? 'want', usage)}
+            </Text>
+          ) : (
+            pickButton(t('want.pick'), true)
+          )}
+          {left !== null && left > 0 && !limit && (
+            <Text style={styles.left}>{t('limits.left', { left, limit: usage!.want.limit })}</Text>
+          )}
         </>
       ) : (
         <Image
@@ -226,7 +250,16 @@ export function WantCan() {
         })}
 
       {(look.status === 'found' || look.status === 'failed') && (
-        <View style={styles.again}>{pickButton(t('want.pickAnother'), false)}</View>
+        <View style={styles.again}>
+          {left === 0 ? (
+            <Text style={styles.limit}>{limitText(t, i18n.language, 'want', usage)}</Text>
+          ) : (
+            pickButton(t('want.pickAnother'), false)
+          )}
+          {left !== null && left > 0 && (
+            <Text style={styles.left}>{t('limits.left', { left, limit: usage!.want.limit })}</Text>
+          )}
+        </View>
       )}
     </ScrollView>
   );
@@ -372,5 +405,20 @@ const styles = StyleSheet.create({
   },
   again: {
     marginTop: 18,
+    gap: 8,
+  },
+  left: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  limit: {
+    marginTop: 12,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

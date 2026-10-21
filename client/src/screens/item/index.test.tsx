@@ -172,9 +172,8 @@ describe('<ItemScreen />', () => {
     expect(rotateItem).toHaveBeenCalledWith(shirt.id);
     expect(await screen.findByDisplayValue('Linen shirt')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
-    expect(screen.getByTestId('item-photo')).toHaveProp(
-      'source',
-      [expect.objectContaining({ uri: `http://api.test${turnedUrl}` })],
-    );
+    expect(screen.getByTestId('item-photo')).toHaveProp('source', [
+      expect.objectContaining({ uri: `http://api.test${turnedUrl}` }),
+    ]);
   });
 });

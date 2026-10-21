@@ -12,6 +12,9 @@ import type { ItemsRepository } from "./modules/items/items.repository";
 import { itemsRoutes } from "./modules/items/items.routes";
 import type { PhotosRepository } from "./modules/photos/photos.repository";
 import { photosRoutes } from "./modules/photos/photos.routes";
+import { createLimits } from "./modules/usage/limits";
+import type { UsageRepository } from "./modules/usage/usage.repository";
+import { usageRoutes } from "./modules/usage/usage.routes";
 import type { PhotoQueue } from "./queue/photo-queue";
 import { healthRoutes } from "./routes/health";
 import type { Storage } from "./storage/storage";
@@ -23,6 +26,7 @@ export interface AppDeps {
   auth: Auth;
   itemsRepository: ItemsRepository;
   photosRepository: PhotosRepository;
+  usageRepository: UsageRepository;
   photoQueue: PhotoQueue;
   storage: Storage;
   // Whether a tagger is configured (ANTHROPIC_API_KEY); the worker does the tagging.
@@ -38,6 +42,7 @@ export async function buildApp({
   auth,
   itemsRepository,
   photosRepository,
+  usageRepository,
   photoQueue,
   storage,
   taggingEnabled,
@@ -70,15 +75,23 @@ export async function buildApp({
 
   await app.register(healthRoutes);
   await app.register(authRoutes(auth), { prefix: "/api" });
+  const limits = createLimits(usageRepository, env.AI_DAILY_BUDGET_USD);
   await app.register(itemsRoutes(itemsRepository, photosRepository, storage, photoQueue, auth), {
     prefix: "/api",
   });
   await app.register(
-    photosRoutes(storage, photosRepository, itemsRepository, photoQueue, auth, taggingEnabled),
-    {
-      prefix: "/api",
-    },
+    photosRoutes(
+      storage,
+      photosRepository,
+      itemsRepository,
+      photoQueue,
+      limits,
+      auth,
+      taggingEnabled,
+    ),
+    { prefix: "/api" },
   );
+  await app.register(usageRoutes(limits, auth), { prefix: "/api" });
 
   return app;
 }

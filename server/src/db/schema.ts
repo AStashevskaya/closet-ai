@@ -5,12 +5,23 @@ import {
   PHOTO_STATUSES,
   SEASONS,
   TAG_STATUSES,
+  USAGE_ACTIONS,
   type ItemTags,
   type LookItem,
   type LookMatch,
 } from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgEnum, pgTable, text, timestamp, uuid, vector } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  vector,
+} from "drizzle-orm/pg-core";
 import { EMBEDDING_DIMENSIONS } from "../ai/embedding-model";
 import { user } from "./auth-schema";
 
@@ -22,6 +33,7 @@ export const itemColorEnum = pgEnum("item_color", ITEM_COLORS);
 export const photoStatusEnum = pgEnum("photo_status", PHOTO_STATUSES);
 export const tagStatusEnum = pgEnum("tag_status", TAG_STATUSES);
 export const photoKindEnum = pgEnum("photo_kind", PHOTO_KINDS);
+export const usageActionEnum = pgEnum("usage_action", USAGE_ACTIONS);
 
 // One row per uploaded photo. The worker turns the original (uploadKey) into the shrunk WebP
 // at key; photos never attached to an item are cleaned up after a day.
@@ -83,4 +95,24 @@ export const items = pgTable(
   },
   // Every items query filters by owner.
   (table) => [index("items_owner_id_idx").on(table.ownerId)],
+);
+
+// One row per counted AI action (an item photo, a "want" screenshot, a selfie): the free-tier
+// limits count these, and the estimated cost adds up to the server's daily safety stop.
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    action: usageActionEnum("action").notNull(),
+    // Estimated, in millionths of a dollar (0.6 ¢ = 6000).
+    costMicros: integer("cost_micros").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("usage_events_user_action_idx").on(table.userId, table.action, table.createdAt),
+    index("usage_events_created_at_idx").on(table.createdAt),
+  ],
 );

@@ -6,14 +6,17 @@ import { colors, fonts } from '@/theme';
 
 // JS tabs rather than NativeTabs: the design's bar uses our own fonts and icons,
 // which the native tab bar doesn't allow.
-const TABS: { name: string; icon: IconName; label: 'home' | 'closet' | 'want' | 'trends' | 'profile' }[] =
-  [
-    { name: 'index', icon: 'home', label: 'home' },
-    { name: 'closet', icon: 'hanger', label: 'closet' },
-    { name: 'want', icon: 'spark', label: 'want' },
-    { name: 'trends', icon: 'trend', label: 'trends' },
-    { name: 'profile', icon: 'user', label: 'profile' },
-  ];
+const TABS: {
+  name: string;
+  icon: IconName;
+  label: 'home' | 'closet' | 'want' | 'trends' | 'profile';
+}[] = [
+  { name: 'index', icon: 'home', label: 'home' },
+  { name: 'closet', icon: 'hanger', label: 'closet' },
+  { name: 'want', icon: 'spark', label: 'want' },
+  { name: 'trends', icon: 'trend', label: 'trends' },
+  { name: 'profile', icon: 'user', label: 'profile' },
+];
 
 export default function TabsLayout() {
   const { t } = useTranslation();

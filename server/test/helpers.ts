@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import type { AppLanguage, CreateItemInput, ItemTags, LookItem } from "@closet-ai/shared";
+import type {
+  AppLanguage,
+  CreateItemInput,
+  ItemTags,
+  LookItem,
+  UsageAction,
+} from "@closet-ai/shared";
 import type { BackgroundRemover } from "../src/ai/background-remover";
 import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
@@ -15,6 +21,7 @@ import {
   type PhotoJobDeps,
 } from "../src/modules/photos/photo-jobs";
 import type { Photo, PhotosRepository } from "../src/modules/photos/photos.repository";
+import type { UsageRepository } from "../src/modules/usage/usage.repository";
 import type { PhotoQueue } from "../src/queue/photo-queue";
 
 // Shared by the test files. Not a test file itself (no .test.ts), so Vitest doesn't run it.
@@ -32,6 +39,7 @@ export const testEnv: Env = {
   S3_ACCESS_KEY_ID: "unused",
   S3_SECRET_ACCESS_KEY: "unused",
   REDIS_URL: "redis://localhost:6379",
+  AI_DAILY_BUDGET_USD: 3,
   MODEL_CACHE_DIR: ".models",
 };
 
@@ -214,7 +222,20 @@ export function createInMemoryRepositories() {
     },
   };
 
-  return { itemsRepository, photosRepository };
+  const usageRows: { userId: string; action: UsageAction; costMicros: number; createdAt: Date }[] =
+    [];
+  const usageRepository: UsageRepository = {
+    record: async (userId, action, costMicros) => {
+      usageRows.push({ userId, action, costMicros, createdAt: new Date() });
+    },
+    count: async (userId, action, since) =>
+      usageRows.filter((r) => r.userId === userId && r.action === action && r.createdAt >= since)
+        .length,
+    spentSince: async (since) =>
+      usageRows.filter((r) => r.createdAt >= since).reduce((sum, r) => sum + r.costMicros, 0),
+  };
+
+  return { itemsRepository, photosRepository, usageRepository };
 }
 
 type QueuedJob =

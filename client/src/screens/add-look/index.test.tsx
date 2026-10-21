@@ -23,6 +23,8 @@ jest.mock('@/lib/use-confirm-leave', () => ({
 }));
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
+  // No usage unless a test gives one: the screens then show no counts.
+  getUsage: jest.fn().mockRejectedValue(new Error('offline')),
   uploadPhoto: jest.fn(),
   getPhotoState: jest.fn(),
   addLookItems: jest.fn(),
