@@ -80,8 +80,12 @@ export function WearWith({ id }: { id: string }) {
     try {
       await reactToOutfit(outfit.id, reaction);
     } catch {
+      // Only this outfit goes back: reactions to the others since then stay.
+      const was = before.find((o) => o.id === outfit.id) ?? outfit;
       setState((current) =>
-        current.status === 'done' ? { ...current, outfits: before } : current,
+        current.status === 'done'
+          ? { ...current, outfits: current.outfits.map((o) => (o.id === outfit.id ? was : o)) }
+          : current,
       );
     }
   }

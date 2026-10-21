@@ -57,7 +57,8 @@ export function Closet() {
       const items = await listItems();
       setState({ status: 'ready', items });
     } catch {
-      setState({ status: 'error' });
+      // A failed reload keeps the closet already shown; only a first load shows the error.
+      setState((current) => (current.status === 'ready' ? current : { status: 'error' }));
     }
   }, []);
 

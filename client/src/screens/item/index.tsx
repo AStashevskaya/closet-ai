@@ -12,7 +12,7 @@ import {
 } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -77,14 +77,22 @@ export function ItemScreen({ id }: { id: string }) {
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [busy, setBusy] = useState(false);
   const [similar, setSimilar] = useState<SimilarItem[]>([]);
+  // The item as last loaded, to tell unsaved corrections from what the server has.
+  const loaded = useRef<ItemDetail | null>(null);
 
   const load = useCallback(async () => {
     try {
       const item = await getItem(id);
+      const previous = loaded.current;
+      loaded.current = item;
       setState({ status: 'ready', item });
-      setDraft(draftOf(item));
+      // Coming back from the outfits reloads the item: corrections not saved yet stay.
+      setDraft((current) =>
+        current && previous && !sameDraft(current, draftOf(previous)) ? current : draftOf(item),
+      );
     } catch {
-      setState({ status: 'error' });
+      // A failed reload keeps the item already shown; only a first load shows the error.
+      setState((current) => (current.status === 'ready' ? current : { status: 'error' }));
       return;
     }
     // A nice-to-have: if it fails, the row just stays hidden.
