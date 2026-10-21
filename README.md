@@ -2,11 +2,15 @@
 
 A wardrobe app that helps you get more out of the clothes you already have. Take a photo of an item and the app tells you what to wear it with, or helps you sell it if it's time to let it go. The wardrobe fills up as a side effect: every item you photograph, sell or ask about is saved.
 
-The core feature is **"Want / Can"**. Drop in a screenshot of something you want, say a ₪2,000 coat from Instagram, and the app shows three ways to get there:
+The core feature is **"Want / Can"**. Drop in one thing you want, say a ₪2,000 Balenciaga jacket from Instagram, and the app shows three ways to get there:
 
-1. Build a similar look from your own wardrobe, without buying anything.
-2. Find something similar for less, from smaller brands or secondhand.
+1. The closest piece you already own.
+2. Something similar for less, from smaller brands or secondhand.
 3. Sell a few things you don't wear and buy the original. The app shows which items and roughly how much they'd bring.
+
+Next to it, **Inspiration**: save looks you like (screenshots, Pinterest through the share sheet, style cards when you sign up). The app learns your taste from them and rebuilds each look from your wardrobe, so outfits it suggests feel like yours, not anyone's.
+
+Brands can pay to have their items suggested, always marked as partner items and only where they fit: a cheaper alternative in Want / Can, the missing piece of a saved look, or the one thing an outfit lacks.
 
 First markets: Israel (Hebrew and Russian, Yad2 and Facebook groups), then Ukraine and Belarus.
 
@@ -91,7 +95,8 @@ pnpm test
 - [ ] "What do I wear this with?" from a single item, with missing pieces shown as optional buys
 - [ ] Declutter flow: swipe keep / sell / not sure
 - [ ] Listing generator in Hebrew and Russian with a price range; share to Yad2 / Facebook Marketplace / Vinted via the share sheet
-- [ ] "Want / Can", part 1: similar look from your own wardrobe (embeddings + pgvector)
+- [x] Look screenshot → the same look from your own wardrobe (embeddings + pgvector); becomes Inspiration
+- [ ] "Want / Can" for one item: the closest piece you own, then similar for less
 - [ ] Expo app: wardrobe, outfits, sell; RTL support for Hebrew from day one
 - [ ] Free tier limits and Pro trial via RevenueCat
 - [ ] Evals: a few test wardrobes, scored by hand, rerun after every prompt change
@@ -100,7 +105,9 @@ pnpm test
 ### v2
 
 - [ ] Outfit generation: rules in code first (season, weather, occasion), then the LLM picks from what's left, then a final check on the actual photos
-- [ ] Personalisation from likes, dislikes and "wore it"
+- [ ] Personalisation: a taste profile per person from Inspiration, likes, dislikes and "wore it"
+- [ ] Onboarding style cards (generated once, the same for everyone)
+- [ ] Partner items in recommendations: catalog, labelling, impressions and clicks for the brand dashboard
 - [ ] Photo clean-up (wrinkle-free, catalogue-style) for the wardrobe only, never for listings, with an original / improved toggle
 - [ ] Add items from a product link or a mirror selfie
 - [ ] "Your wardrobe is worth ₪X" stat for sharing
@@ -108,7 +115,7 @@ pnpm test
 
 ### v3 and later
 
-- [ ] "Want / Can", part 2: find similar for less through affiliate catalogues
+- [ ] "Want / Can", part 2: similar for less through partner and affiliate catalogues
 - [ ] "Want / Can", part 3: which of your items to sell to afford it
 - [ ] Stylist dashboard (Next.js): clients, shared wardrobes, lookbooks, shopping lists
 - [ ] Book a stylist from inside the app

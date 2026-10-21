@@ -4,7 +4,7 @@
 
 A wardrobe app, mobile-first. You photograph an item and the app tells you what to wear it with, or helps you sell it. Everything you photograph ends up in your digital wardrobe, so it fills up as a side effect instead of a chore.
 
-The core feature is "Want / Can": the user drops in a screenshot of a whole look (from Pinterest, Instagram, anywhere), the app finds each item in it and, piece by piece, shows what the user already has in their wardrobe and what they can get from partner brands. See the "Want / Can" section below.
+The core feature is "Want / Can": the user drops in one item they want (a Balenciaga jacket from Instagram) and the app finds something similar for less from partner brands and resale, plus what close to it they already own. Its sibling is "Inspiration" (Вдохновение / השראה): looks the user likes, saved from screenshots, shared from Pinterest or picked in onboarding, which teach the app their taste and are rebuilt from their wardrobe. See "Feature boundaries" below (decided 2026-10-21).
 
 First market is Israel (Hebrew + Russian, Yad2 and Facebook groups), then Ukraine and Belarus. Free tier forever, 7-day Pro trial, then subscription via RevenueCat. Stylists will later get access to clients' wardrobes, so sharing is part of the data model from the start. See README.md for the full roadmap.
 
@@ -70,7 +70,7 @@ Reason: server and client use different test runners and environments (Node vs R
 4. ~~Item tagging with a vision model~~ (done: tags on the photo, form pre-fill, seasons editable and the photo's details shown on the item screen; the details are read-only and stay on the photo): structured output validated with Zod. Tags: type, colour, fit, length, fabric, style, brand guess, condition, seasons. Seasons are filled by the model, not asked in the add-item form (an extra step people skip or guess at; type and fabric give it away); the user can correct them on the item. An all-season item gets all four, so an empty list only ever means "not tagged yet".
 5. ~~Item embeddings + pgvector~~ (done for images: similar items on the item screen; text search still to come, it needs query translation), the base for every "find similar" feature.
 6. Item `source` field: `own` / `resale` / `brand_partner`.
-7. **"Want / Can" from a look screenshot** (see the section below; the wardrobe part is done, brand options are next). Priority feature: one of the first things a new user tries, works even with an empty wardrobe.
+7. **Look screenshot → what you have** (built as the "Want" tab; becomes Inspiration, see "Feature boundaries"), then **"Want / Can" for one item** → similar for less. Priority feature: one of the first things a new user tries, works even with an empty wardrobe.
 8. ~~Background removal~~ (done: SAM 3 on fal.ai, free for everyone; see "Photo polish: free and Premium" below).
 9. Wardrobe sharing table (owner, grantee, permissions) for stylists later.
 10. "What do I wear this with?" from a single item. From its first version, store every suggested outfit with the user's reaction (liked, saved, wore it, skipped, friends' votes): the data for "Outfit taste" below.
@@ -109,7 +109,36 @@ No model training to start with: the taste comes from the prompt, from examples 
 4. **Evals.** The owner scores the first 30–50 AI outfits on the questionnaire's 1–5 scale with a line on what is off; that set is rerun after every prompt change (step 14), and the "what is off" lines feed new rules and taboos.
 5. **Fine-tuning** an open vision model only if 1–4 stop being enough, and only once thousands of rated outfits exist.
 
+## Feature boundaries (decided 2026-10-21)
+
+| | Input | What the user gets |
+|---|---|---|
+| **Want / Can** (Хочу / Могу) | One item they want: a screenshot or a link (a Balenciaga jacket) | Similar for less from partner brands and resale; the closest piece they already own; later, what to sell to afford the original |
+| **Inspiration** (Вдохновение) | Whole looks they like: screenshots, Pinterest via the share sheet, onboarding style cards | The look rebuilt from their wardrobe, what's missing for it, and their taste profile |
+| **My style** (Мой стиль) | Everything above plus reactions to outfits | A readable taste summary (the Opus brief), used by outfits and every recommendation |
+| **Outfits** (Образы) | The wardrobe + My style | Outfits to wear, with like / not mine / wore it |
+
+- What is built today as the Want tab (look screenshot → items → wardrobe matches) is the first version of Inspiration; it moves there when Want / Can is rebuilt for a single item.
+- Taste is per person, never global: one user's likes never shape another user's outfits.
+- Onboarding style cards are images we generate once (an image model) and store as static assets shown to every user; never Pinterest or other people's photos (copyright, Pinterest's terms). A user's own screenshots are fine: they are for their private use only and never shown to anyone else.
+
+Outfit prototype (owner's wardrobe, `~/Desktop/closet/wrinkle-lab/outfits`): a plain prompt gives correct but dull outfits; a stylist prompt (hero piece, colour story, proportions, draft many, keep the best) with Opus is much better. The design to build: Opus writes the user's brief (taste from Inspiration, liked outfits and the wardrobe; hero pieces, pairings, traps, wardrobe gaps) when those change (~10 ¢), Haiku composes outfits from the brief per request (a few cents; keep its effort low).
+
+## Partner items in recommendations (decided 2026-10-21)
+
+Brands will pay to have their items shown. Every feature that recommends is built so a partner item can appear in it from the start, with these rules:
+
+- **Separate catalog.** Partner items live in their own catalog (brand = organization from the brand portal, price, link, photos, embedding, status), never in anyone's wardrobe. A user's item only becomes "theirs" if they buy it and add it.
+- **Where they can appear:** Want / Can results (the main place); "what's missing" for an Inspiration look; one optional slot in an outfit ("finish it with…"), only when the wardrobe has no good piece for that slot; wardrobe gaps from My style ("black straight trousers would unlock 5 of your saved looks").
+- **Relevance first.** Candidates are ranked by fit to the item, look or taste; payment only boosts among items that already fit, and never outranks a clearly better match or a piece the user owns. At most one partner item per outfit, and not in every outfit.
+- **Always labelled** as a partner item / ad in the UI, in every language.
+- **Data model:** a stored outfit's pieces reference either a wardrobe item or a catalog item (one of two nullable columns plus the slot), with a `sponsored` flag, so outfits with partner pieces need no rewrite later.
+- **Measured per impression:** shown, opened, clicked through, saved, bought (when the brand reports it), for the brand dashboard. Brands see aggregates only, never who the user is or their wardrobe and taste profile.
+- Free and Premium both see partner items (partners pay for reach); Premium may later get fewer.
+
 ## "Want / Can": look screenshot → what you have, what you can buy
+
+> Written before the 2026-10-21 split: the look-screenshot flow below is now Inspiration, and Want / Can takes a single item (see "Feature boundaries"). The steps and rules still hold for Inspiration.
 
 The user drops in a screenshot of a look they like (Pinterest, Instagram, a photo). The app splits it into items and rebuilds the look from the user's wardrobe and partner brands.
 
