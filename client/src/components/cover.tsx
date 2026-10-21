@@ -1,4 +1,3 @@
-import type { Inspiration } from '@closet-ai/shared';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
@@ -6,19 +5,10 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { absoluteUrl, listInspiration, sessionHeaders } from '@/lib/api';
+import { pickCover } from '@/lib/pick-cover';
 import { colors, fonts } from '@/theme';
 
 type Cover = { url: string; headers: Record<string, string> };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// One of the user's saved looks, a different one each day, so every screen's cover is her own
-// taste; null while loading and when nothing is saved (the cover then falls back to the bright
-// block).
-export function pickCover(looks: Inspiration[], now = Date.now()): Inspiration | null {
-  if (looks.length === 0) return null;
-  return looks[Math.floor(now / DAY_MS) % looks.length]!;
-}
 
 function useCover(): Cover | null {
   const [cover, setCover] = useState<Cover | null>(null);

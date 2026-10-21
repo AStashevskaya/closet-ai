@@ -1,4 +1,4 @@
-import { pickCover } from './cover';
+import { pickCover } from './pick-cover';
 
 const look = (key: string) => ({ key, url: `/api/inspiration/photo?key=${key}`, createdAt: '' });
 const DAY = 24 * 60 * 60 * 1000;
