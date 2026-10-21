@@ -13,13 +13,13 @@ jest.mock(
 );
 jest.mock('expo-router', () => ({ Tabs: () => null, useRouter: () => ({ push: mockPush }) }));
 
-const routes = ['index', 'closet', 'inspiration', 'profile'].map((name) => ({
+const routes = ['index', 'style', 'inspiration', 'profile'].map((name) => ({
   key: `${name}-key`,
   name,
 }));
 const titles: Record<string, string> = {
-  index: 'Home',
-  closet: 'Closet',
+  index: 'Closet',
+  style: 'Style it',
   inspiration: 'Inspiration',
   profile: 'Profile',
 };
@@ -44,8 +44,8 @@ describe('<TabBar />', () => {
   test('shows the tabs by their titles to screen readers, the current one selected', async () => {
     const { props } = setup(1);
     await render(<TabBar {...props} />);
-    expect(screen.getByRole('tab', { name: 'Closet', selected: true })).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: 'Home', selected: false })).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: 'Style it', selected: true })).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: 'Closet', selected: false })).toBeOnTheScreen();
     expect(screen.getAllByRole('tab')).toHaveLength(4);
   });
 

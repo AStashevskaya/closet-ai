@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HangerLoader } from '@/components/hanger-loader';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
-import { durations } from '@/motion';
+import { durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { ClosetCard } from './card';
@@ -35,7 +35,6 @@ type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; it
 // The first screenful staggers in on the first load, one after another, slowly; later cards and
 // reloads just appear.
 const STAGGERED = 8;
-const STAGGER_STEP = 110;
 // From this many items the newest gets the bright block above the grid.
 const NEW_IN_FROM = 6;
 

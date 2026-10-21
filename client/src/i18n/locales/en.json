@@ -64,10 +64,9 @@
     }
   },
   "tabs": {
-    "home": "Home",
     "closet": "Closet",
+    "style": "Style it",
     "inspiration": "Inspiration",
-    "trends": "Trends",
     "profile": "Profile"
   },
   "menu": {
@@ -274,5 +273,21 @@
     "budget": "The AI is resting for today. Try again tomorrow.",
     "wear_with": "That's {{limit}} for today. Ask again tomorrow.",
     "inspiration": "That's enough looks for today. Save more tomorrow."
+  },
+  "styleIt": {
+    "title": "Style it",
+    "subtitle": "What to wear it with",
+    "photoEyebrow": "From a photo",
+    "photoTitle": "Seen a piece you love?",
+    "photoText": "A screenshot from a shop or Instagram: I'll put outfits together with it from your closet.",
+    "photoButton": "Choose a photo",
+    "closet": "From your closet",
+    "closetHint": "Tap a piece and I'll build four outfits around it",
+    "emptyCloset": "Add a few pieces to your closet and I'll start styling them.",
+    "addFirst": "Add an item",
+    "history": "Already styled",
+    "historyEmpty": "Outfits you ask for are kept here.",
+    "open": "Outfits with {{name}}",
+    "styling": "Styling {{name}}…"
   }
 }

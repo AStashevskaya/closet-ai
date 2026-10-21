@@ -5,8 +5,8 @@ import { TabBar } from '@/components/tab-bar';
 
 // JS tabs rather than NativeTabs, so the bar can be our own frosted capsule (src/components/tab-bar.tsx).
 const TABS = [
-  { name: 'index', label: 'home' },
-  { name: 'closet', label: 'closet' },
+  { name: 'index', label: 'closet' },
+  { name: 'style', label: 'style' },
   { name: 'inspiration', label: 'inspiration' },
   { name: 'profile', label: 'profile' },
 ] as const;

@@ -16,8 +16,8 @@ type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tab
 export const TAB_BAR_CLEARANCE = 104;
 
 const ICONS: Record<string, IconName> = {
-  index: 'home',
-  closet: 'hanger',
+  index: 'hanger',
+  style: 'spark',
   inspiration: 'heart',
   profile: 'user',
 };

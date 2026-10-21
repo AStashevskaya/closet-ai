@@ -23,6 +23,8 @@ import {
   type WearWithInput,
   inspirationList,
   type Inspiration,
+  styledList,
+  type StyledEntry,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
@@ -114,6 +116,11 @@ export function askWearWith(input: WearWithInput, lang: AppLanguage): Promise<{ 
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
+}
+
+// The styled items, newest first, for the Style it tab.
+export function listStyled(): Promise<StyledEntry[]> {
+  return request('/api/wear-with', styledList);
 }
 
 export function getWearWith(id: string): Promise<WearWithRequest> {

@@ -34,7 +34,7 @@ describe('<Menu />', () => {
   test('opens the closet tab and the want screen', async () => {
     await render(<Menu />);
     await fireEvent.press(screen.getByText('My closet'));
-    expect(mockNavigate).toHaveBeenCalledWith('/closet');
+    expect(mockNavigate).toHaveBeenCalledWith('/');
     await fireEvent.press(screen.getByText('Want / Can'));
     expect(mockNavigate).toHaveBeenCalledWith('/want-can');
   });
