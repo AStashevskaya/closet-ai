@@ -27,24 +27,38 @@ function slotsAround(heroCategory: string): Record<string, number> {
 
 const dot = (a: number[], b: number[]) => a.reduce((sum, x, i) => sum + x * b[i]!, 0);
 
-// The pieces worth showing the model: in season, then per category the ones whose photos are
-// closest to the item's (the embedding model also sees colour and style, so this keeps pieces
-// that plausibly belong with it). Uses our own embeddings: free, unlike a bigger prompt.
+// How much the pick favours closeness to the item over being unlike the pieces already picked.
+// Closeness alone gave a sheet of look-alikes, and every outfit in one aesthetic (owner's
+// test, 2026-10-21).
+const RELEVANCE = 0.5;
+
+// The pieces worth showing the model: in season, then per category a mix of pieces close to
+// the item (the embedding also sees colour and style) and pieces unlike each other, picked one
+// by one (maximal marginal relevance). Uses our own embeddings: free, unlike a bigger prompt.
 export function pickCandidates(hero: StylingItem, wardrobe: StylingItem[], season: Season) {
   const slots = slotsAround(hero.category);
-  const closeness = (item: StylingItem) =>
-    hero.embedding && item.embedding ? dot(hero.embedding, item.embedding) : 0;
-  return Object.entries(slots).flatMap(([category, take]) =>
-    wardrobe
-      .filter(
-        (item) =>
-          item.id !== hero.id &&
-          item.category === category &&
-          (item.seasons.length === 0 || item.seasons.includes(season)),
-      )
-      .sort((a, b) => closeness(b) - closeness(a))
-      .slice(0, take),
-  );
+  const similarity = (a: StylingItem, b: StylingItem) =>
+    a.embedding && b.embedding ? dot(a.embedding, b.embedding) : 0;
+  return Object.entries(slots).flatMap(([category, take]) => {
+    const pool = wardrobe.filter(
+      (item) =>
+        item.id !== hero.id &&
+        item.category === category &&
+        (item.seasons.length === 0 || item.seasons.includes(season)),
+    );
+    const picked: StylingItem[] = [];
+    while (picked.length < take && pool.length > 0) {
+      let best = 0;
+      let bestScore = -Infinity;
+      for (const [i, item] of pool.entries()) {
+        const sameness = Math.max(0, ...picked.map((p) => similarity(item, p)));
+        const score = RELEVANCE * similarity(hero, item) - (1 - RELEVANCE) * sameness;
+        if (score > bestScore) [best, bestScore] = [i, score];
+      }
+      picked.push(pool.splice(best, 1)[0]!);
+    }
+    return picked;
+  });
 }
 
 // Northern hemisphere, by month: the first markets are Israel and Eastern Europe.
