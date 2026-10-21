@@ -1,8 +1,9 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
-// Big enough for the server's 1024 px WebP, small enough to upload quickly on mobile data.
-export const UPLOAD_MAX_SIDE = 1600;
-const JPEG_QUALITY = 0.8;
+// Above the server's 1600 px, so a photo cropped to one item still has pixels to spare;
+// about 1 MB, still quick to upload on mobile data.
+export const UPLOAD_MAX_SIDE = 2048;
+const JPEG_QUALITY = 0.9;
 
 type Photo = { uri: string; width: number; height: number };
 

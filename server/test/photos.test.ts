@@ -154,7 +154,7 @@ describe("POST /api/photos", () => {
     const meta = await sharp(stored!.body).metadata();
     expect(stored!.contentType).toBe("image/webp");
     expect(meta.format).toBe("webp");
-    expect(Math.max(meta.width, meta.height)).toBe(1024);
+    expect(Math.max(meta.width, meta.height)).toBe(1600);
     expect(meta.exif).toBeUndefined();
     expect(stored!.body.length).toBeLessThan(original.length);
     expect(await storage.exists(uploadKey!)).toBe(false);
@@ -572,16 +572,16 @@ describe("background removal", () => {
     const own = await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: anna } });
     expect(own.statusCode).toBe(200);
     expect(own.headers["content-type"]).toBe("image/webp");
-    // Transparent, with the empty margins trimmed: the stub's item is a 512 px square in a
-    // 1024 × 683 photo, plus 6% padding on each side.
+    // Transparent, with the empty margins trimmed: the stub's item is a square in the middle of
+    // a 1600 × 1067 photo, plus 6% padding on each side.
     const meta = await sharp(own.rawPayload).metadata();
     expect(meta.hasAlpha).toBe(true);
-    expect(meta.width).toBeLessThan(450);
+    expect(meta.width).toBeLessThan(700);
     expect(meta.width).toBe(meta.height);
 
     // The photo itself is still the original one.
     const photo = await server.inject({ method: "GET", url: photoUrl!, headers: { cookie: anna } });
-    expect((await sharp(photo.rawPayload).metadata()).width).toBe(1024);
+    expect((await sharp(photo.rawPayload).metadata()).width).toBe(1600);
 
     const other = await server.inject({
       method: "GET",
@@ -640,13 +640,13 @@ describe("background removal", () => {
     expect(after.photoUrl).not.toBe(before.photoUrl);
     expect(after.cutoutUrl).not.toBe(before.cutoutUrl);
 
-    // 1024 × 683 before, so 683 × 1024 now; the cut-out is turned too and keeps its transparency.
+    // 1600 × 1067 before, so 1067 × 1600 now; the cut-out is turned too and keeps its transparency.
     const photo = await server.inject({
       method: "GET",
       url: after.photoUrl!,
       headers: { cookie: anna },
     });
-    expect(await sharp(photo.rawPayload).metadata()).toMatchObject({ width: 683, height: 1024 });
+    expect(await sharp(photo.rawPayload).metadata()).toMatchObject({ width: 1067, height: 1600 });
     const cutout = await server.inject({
       method: "GET",
       url: after.cutoutUrl!,
@@ -804,17 +804,17 @@ describe("items from a look photo", () => {
       photoStatus: "ready",
     });
 
-    // The crop is the jeans' box (60% × 50% of the 1024 × 683 look) plus a small margin.
+    // The crop is the jeans' box (60% × 50% of the 1600 × 1067 look) plus a small margin.
     const photo = await server.inject({
       method: "GET",
       url: jeans!.photoUrl!,
       headers: { cookie },
     });
     const { width = 0, height = 0 } = await sharp(photo.rawPayload).metadata();
-    expect(width).toBeGreaterThan(600);
-    expect(width).toBeLessThan(700);
-    expect(height).toBeGreaterThan(330);
-    expect(height).toBeLessThan(390);
+    expect(width).toBeGreaterThan(960);
+    expect(width).toBeLessThan(1100);
+    expect(height).toBeGreaterThan(530);
+    expect(height).toBeLessThan(620);
 
     // The model's details stay on the item; the user's name and colours win.
     const detail = (

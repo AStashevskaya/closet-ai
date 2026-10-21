@@ -32,7 +32,7 @@ describe('shrinkPhoto', () => {
   test('leaves a small photo at its size but still re-encodes it as JPEG', async () => {
     const uri = await shrinkPhoto({ uri: 'file:///in.png', width: 800, height: 600 });
     expect(resize).not.toHaveBeenCalled();
-    expect(saveAsync).toHaveBeenCalledWith({ compress: 0.8, format: SaveFormat.JPEG });
+    expect(saveAsync).toHaveBeenCalledWith({ compress: 0.9, format: SaveFormat.JPEG });
     expect(uri).toBe('file:///out.jpg');
   });
 });

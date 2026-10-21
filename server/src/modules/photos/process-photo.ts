@@ -1,9 +1,11 @@
 import sharp from "sharp";
 
-// Photos are stored small on purpose: free storage tiers are measured in gigabytes.
-// 1024 px on the long side is enough for the phone, for listings and for vision models.
-export const PHOTO_MAX_SIDE = 1024;
-const WEBP_QUALITY = 70;
+// Sharp enough for a full-screen photo on a phone and for cropping into it (1024 px at quality
+// 70 looked soft, 2026-10-21); about 250 KB a photo, so free storage tiers still last.
+export const PHOTO_MAX_SIDE = 1600;
+const WEBP_QUALITY = 85;
+// Vision models get a smaller copy: they read items as well at 1024 px, for fewer tokens.
+const MODEL_MAX_SIDE = 1024;
 // Refuse absurd resolutions before decoding them (a 100 MB "image" can be a few KB of PNG).
 const MAX_INPUT_PIXELS = 50_000_000;
 // HEIC is not here: sharp's prebuilt binaries can't decode it, so the app converts to JPEG first.
@@ -46,6 +48,19 @@ export async function processPhoto(input: Uint8Array): Promise<Uint8Array> {
       withoutEnlargement: true,
     })
     .webp({ quality: WEBP_QUALITY, effort: 6 })
+    .toBuffer();
+}
+
+// A stored photo as sent to a vision model: at most MODEL_MAX_SIDE on the long side.
+export async function modelCopy(image: Uint8Array): Promise<Uint8Array> {
+  return sharp(image)
+    .resize({
+      width: MODEL_MAX_SIDE,
+      height: MODEL_MAX_SIDE,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 80 })
     .toBuffer();
 }
 
