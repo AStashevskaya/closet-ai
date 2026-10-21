@@ -13,9 +13,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authClient } from '@/lib/auth-client';
+import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // Same limit as Better Auth's default; checked here so the user gets the message without a round trip.
@@ -93,12 +95,14 @@ export function AuthForm({ mode }: { mode: Mode }) {
         keyboardDismissMode="interactive"
         bounces={false}
       >
-        <View style={[styles.hero, { paddingTop: insets.top + 40 }]}>
-          <Text style={styles.wordmark}>{t('app.name')}</Text>
+        <View style={[styles.hero, { paddingTop: insets.top + 56 }]}>
+          <Animated.Text entering={rise} style={styles.wordmark}>
+            {t('app.name')}
+          </Animated.Text>
           <Text style={styles.tagline}>{t('app.tagline')}</Text>
         </View>
 
-        <View style={styles.body}>
+        <Animated.View entering={rise.delay(STAGGER_STEP)} style={styles.body}>
           <Text style={styles.title} accessibilityRole="header">
             {t(isSignUp ? 'auth.signUpTitle' : 'auth.welcomeTitle')}
           </Text>
@@ -161,7 +165,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
               {t(isSignUp ? 'auth.toSignIn' : 'auth.toSignUp')}
             </Link>
           </View>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -177,39 +181,36 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 32,
   },
+  // The one bright block of the app's first screen, edge to edge, with the wordmark on it.
   hero: {
-    paddingHorizontal: 26,
-    paddingBottom: 40,
+    paddingHorizontal: 24,
+    paddingBottom: 36,
     gap: 6,
-    backgroundColor: colors.hero,
-    borderBottomStartRadius: 40,
-    borderBottomEndRadius: 40,
+    backgroundColor: colors.highlight,
   },
   wordmark: {
     fontFamily: fonts.displayLight,
-    fontSize: 56,
-    lineHeight: 60,
-    letterSpacing: 2,
-    color: colors.accentDark,
+    fontSize: 72,
+    lineHeight: 76,
+    letterSpacing: 3,
+    color: colors.text,
     textAlign: 'left',
   },
   tagline: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 10,
-    letterSpacing: 2.4,
-    textTransform: 'uppercase',
-    color: colors.accent,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
     textAlign: 'left',
   },
   body: {
-    paddingHorizontal: 26,
+    paddingHorizontal: 24,
     paddingTop: 30,
     gap: 8,
   },
   title: {
-    fontFamily: fonts.display,
-    fontSize: 34,
-    lineHeight: 38,
+    fontFamily: fonts.displayLight,
+    fontSize: 40,
+    lineHeight: 44,
     color: colors.text,
     textAlign: 'left',
   },
@@ -226,13 +227,11 @@ const styles = StyleSheet.create({
     marginTop: 18,
     gap: 10,
   },
+  // Underlined, as on a brand's checkout, instead of boxed.
   input: {
     height: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.textMuted,
     fontFamily: fonts.body,
     fontSize: 15,
     color: colors.text,
@@ -244,7 +243,7 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 52,
-    marginTop: 4,
+    marginTop: 18,
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
@@ -254,7 +253,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   buttonText: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: fonts.bodyMedium,
     fontSize: 15,
     color: colors.onAccent,
   },
@@ -262,7 +261,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
-    color: colors.accent,
+    color: colors.text,
+    textDecorationLine: 'underline',
     textAlign: 'center',
   },
 });
