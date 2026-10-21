@@ -233,11 +233,17 @@ export function createInMemoryRepositories() {
         (row) =>
           row.createdAt < before &&
           !itemRows.some((item) => item.input.photoKey === row.key) &&
-          !requests.some((request) => request.heroPhotoKey === row.key),
+          !requests.some((request) => request.heroPhotoKey === row.key) &&
+          row.kind !== "inspiration",
       ),
     delete: async (key) => {
       photoRows.delete(key);
     },
+    listInspiration: async (ownerId) =>
+      [...photoRows.values()]
+        .filter((p) => p.ownerId === ownerId && p.kind === "inspiration" && p.status === "ready")
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map(({ key, createdAt }) => ({ key, createdAt })),
   };
 
   const usageRows: { userId: string; action: UsageAction; costMicros: number; createdAt: Date }[] =
@@ -359,7 +365,13 @@ export function createInMemoryRepositories() {
         }),
     inspirationKeys: async (userId, limit) =>
       [...photoRows.values()]
-        .filter((p) => p.ownerId === userId && p.kind === "want" && p.status === "ready")
+        .filter(
+          (p) =>
+            p.ownerId === userId &&
+            (p.kind === "want" || p.kind === "inspiration") &&
+            p.status === "ready",
+        )
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .slice(0, limit)
         .map((p) => p.key),
     isAttached: async (photoKey) => itemRows.some((row) => row.input.photoKey === photoKey),
@@ -369,17 +381,17 @@ export function createInMemoryRepositories() {
         brief: null,
         itemCount: 0,
         reactionCount: 0,
+        inspirationCount: 0,
         writtenAt: null,
         batchId: null,
         requestedAt: null,
       };
       briefs.set(userId, { ...current, batchId, requestedAt: batchId ? new Date() : null });
     },
-    saveBrief: async (userId, brief, itemCount, reactionCount) => {
+    saveBrief: async (userId, brief, counts) => {
       briefs.set(userId, {
         brief,
-        itemCount,
-        reactionCount,
+        ...counts,
         writtenAt: new Date(),
         batchId: null,
         requestedAt: null,
@@ -553,7 +565,7 @@ export function createManualOutfitQueue() {
   const outfitQueue: OutfitQueue = {
     enqueueComposing: async (requestId, lang) =>
       void queued.push({ name: "compose", requestId, lang }),
-    enqueueBrief: async (userId) => {
+    enqueueBrief: async (userId, _delayMs) => {
       // Deduped like the real queue's job id.
       if (!queued.some((j) => j.name === "brief" && j.userId === userId))
         queued.push({ name: "brief", userId });

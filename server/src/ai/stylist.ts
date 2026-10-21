@@ -102,13 +102,13 @@ You get her whole wardrobe in words, a contact sheet of the numbered pieces wort
 Compose the asked number of looks built around the item:
 - The item is in every look; list only the wardrobe numbers that go with it, from the contact sheet.
 - A complete look: with a dress, nothing else is required; otherwise a top and a bottom (the item counts as its category). A shirt, vest or jacket may be layered over a top or a dress when it helps. Shoes when a pair truly suits.
-- Each look has its own idea (a colour story, a play of proportions, a mix of moods or textures), true to her taste. Different occasions across the looks. No look that a stylist would call obvious or shapeless.
+- The looks go in different directions, in this order: (1) her core style; (2) a look in the spirit of the looks she saved (the brief says which and how); (3) a step out of her comfort zone that still flatters her; (4) an unexpected mix of moods or textures. With fewer looks asked, take them from the start of this list. Each look has its own idea (a colour story, a play of proportions), different occasions across the looks, and none a stylist would call obvious or shapeless.
 - Without a brief, read her taste from the wardrobe itself.
 - missing: if one more piece she doesn't own would clearly make the look (often shoes or a bag), describe it as a shop search would need it (type, colour, material, shape), with its category; otherwise null. At most one per look, and not in every look.
 - caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces. All three, and missing.description, in the language asked.`;
 
 const BRIEF_PROMPT = `You are a sought-after personal stylist. Write a working brief for a junior stylist who will put together this client's outfits every day from her wardrobe (numbered contact sheets and the list below). In English, compact, under 500 words:
-1. Her taste, read from the looks she saved (if any; how she wants to look), her wardrobe and the outfits she liked or rejected: what she gravitates to, what makes a look "hers". Where a saved look asks for something the wardrobe can get close to, say how, by number.
+1. Her taste, read first from the looks she saved (if any; how she wants to look, newest first: weigh the newest most and say where her taste is moving), then her wardrobe and the outfits she liked or rejected: what she gravitates to, what makes a look "hers". Where a saved look asks for something the wardrobe can get close to, say how, by number. Her taste can be wider than her wardrobe: don't shrink it to what she owns.
 2. Hero pieces (by number) and what each one wants next to it.
 3. Pairings and colour stories that work in this wardrobe, with numbers.
 4. Traps: combinations that look obvious, dated or shapeless here, and anything she rejected.

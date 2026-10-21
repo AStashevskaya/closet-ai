@@ -499,9 +499,29 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(unattached).not.toContain(crop);
     expect(await outfits.isAttached(crop)).toBe(false);
 
+    // A saved look is listed and kept by the cleanup too.
+    const look = `photos/${user!.id}/look.webp`;
+    await photos.create({
+      key: look,
+      ownerId: user!.id,
+      uploadKey: `uploads/${user!.id}/look`,
+      kind: "inspiration",
+      tagStatus: null,
+    });
+    await photos.markReady(look);
+    expect((await photos.listInspiration(user!.id)).map((p) => p.key)).toEqual([look]);
+    expect(
+      (await photos.listUnattached(new Date(Date.now() + 60_000))).map((p) => p.key),
+    ).not.toContain(look);
+    expect(await outfits.inspirationKeys(user!.id, 5)).toContain(look);
+
     await outfits.setBriefBatch(user!.id, "batch-1");
     expect(await outfits.brief(user!.id)).toMatchObject({ brief: null, batchId: "batch-1" });
-    await outfits.saveBrief(user!.id, "High-low", 2, 2);
+    await outfits.saveBrief(user!.id, "High-low", {
+      itemCount: 2,
+      reactionCount: 2,
+      inspirationCount: 0,
+    });
     expect(await outfits.brief(user!.id)).toMatchObject({
       brief: "High-low",
       itemCount: 2,

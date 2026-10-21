@@ -16,6 +16,8 @@ import type { PhotoQueue } from "../../queue/photo-queue";
 import type { ItemsRepository } from "../items/items.repository";
 import { addItemsFromLook } from "./look-items";
 import type { Storage } from "../../storage/storage";
+import { BRIEF_AFTER_SAVE_MS } from "../inspiration/inspiration.routes";
+import type { OutfitQueue } from "../outfits/outfit-jobs";
 import type { Limits } from "../usage/limits";
 import type { PhotosRepository } from "./photos.repository";
 import { checkPhoto, UnsupportedPhotoError } from "./process-photo";
@@ -31,6 +33,7 @@ export const photosRoutes =
     photos: PhotosRepository,
     items: ItemsRepository,
     queue: PhotoQueue,
+    outfitQueue: OutfitQueue,
     limits: Limits,
     auth: Auth,
     // false when no API key is configured: photos are processed but not tagged.
@@ -86,11 +89,14 @@ export const photosRoutes =
           ownerId: user.id,
           uploadKey,
           kind,
-          tagStatus: taggingEnabled ? "pending" : null,
+          // A saved look isn't read on its own: the style brief reads the latest ones together.
+          tagStatus: taggingEnabled && kind !== "inspiration" ? "pending" : null,
         });
         // If queueing fails the request fails too; the row is never attached and the cleanup job removes it.
         await queue.enqueueProcessing(photoKey, request.query.lang);
         await limits.record(user.id, action);
+        // A saved look feeds the style brief, which is rewritten after a few new ones.
+        if (kind === "inspiration") await outfitQueue.enqueueBrief(user.id, BRIEF_AFTER_SAVE_MS);
         return reply.code(201).send({ photoKey, status: "processing" as const });
       },
     );

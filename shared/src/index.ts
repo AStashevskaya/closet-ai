@@ -109,8 +109,10 @@ export type TagStatus = z.infer<typeof tagStatus>;
 // look someone else wears (a Pinterest or Instagram screenshot): its items are matched against
 // the wardrobe instead ("Want / Can").
 // item: one wardrobe item; look: a selfie to add items from; want: someone else's look to
-// match against the wardrobe; wear: a screenshot or photo of an item to style ("what do I wear this with?").
-export const PHOTO_KINDS = ["item", "look", "want", "wear"] as const;
+// match against the wardrobe; wear: a screenshot or photo of an item to style ("what do I wear
+// this with?"); inspiration: a look the user saved because they like it, kept until they delete
+// it and read by their style brief.
+export const PHOTO_KINDS = ["item", "look", "want", "wear", "inspiration"] as const;
 export const photoKind = z.enum(PHOTO_KINDS);
 export type PhotoKind = z.infer<typeof photoKind>;
 
@@ -254,5 +256,14 @@ export const wearWithRequest = z.object({
 export type WearWithRequest = z.infer<typeof wearWithRequest>;
 
 export const outfitReactionInput = z.object({ reaction: outfitReaction });
+
+// A saved look on the Inspiration tab. `url` is served by the API to its owner.
+export const inspiration = z.object({
+  key: z.string(),
+  url: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type Inspiration = z.infer<typeof inspiration>;
+export const inspirationList = z.array(inspiration);
 
 export * from "./limits";

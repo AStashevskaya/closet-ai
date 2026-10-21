@@ -21,6 +21,8 @@ import {
   type WearWithRequest,
   wearWithStarted,
   type WearWithInput,
+  inspirationList,
+  type Inspiration,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
@@ -120,6 +122,15 @@ export async function reactToOutfit(id: string, reaction: OutfitReaction): Promi
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ reaction }),
   });
+}
+
+// The looks saved on the Inspiration tab, newest first.
+export function listInspiration(): Promise<Inspiration[]> {
+  return request('/api/inspiration', inspirationList);
+}
+
+export async function deleteInspiration(key: string): Promise<void> {
+  await send(`/api/inspiration?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
 }
 
 // Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.

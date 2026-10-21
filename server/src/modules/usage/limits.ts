@@ -18,6 +18,8 @@ export const ESTIMATED_COST_MICROS: Record<UsageAction, number> = {
   want: 10_000,
   look: 2_000,
   wear_with: 13_000,
+  // Stored only; the brief that reads it is paid for separately.
+  inspiration: 0,
 };
 
 // Periods are calendar ones in UTC: a day from midnight, a week from Monday, a month from the 1st.

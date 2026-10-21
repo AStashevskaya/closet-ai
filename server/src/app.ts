@@ -17,6 +17,7 @@ import type { UsageRepository } from "./modules/usage/usage.repository";
 import { usageRoutes } from "./modules/usage/usage.routes";
 import type { OutfitQueue } from "./modules/outfits/outfit-jobs";
 import type { OutfitsRepository } from "./modules/outfits/outfits.repository";
+import { inspirationRoutes } from "./modules/inspiration/inspiration.routes";
 import { outfitsRoutes } from "./modules/outfits/outfits.routes";
 import type { PhotoQueue } from "./queue/photo-queue";
 import { healthRoutes } from "./routes/health";
@@ -95,6 +96,7 @@ export async function buildApp({
       photosRepository,
       itemsRepository,
       photoQueue,
+      outfitQueue,
       limits,
       auth,
       taggingEnabled,
@@ -102,6 +104,9 @@ export async function buildApp({
     { prefix: "/api" },
   );
   await app.register(usageRoutes(limits, auth), { prefix: "/api" });
+  await app.register(inspirationRoutes(photosRepository, storage, outfitQueue, auth), {
+    prefix: "/api",
+  });
   await app.register(
     outfitsRoutes(
       outfitsRepository,

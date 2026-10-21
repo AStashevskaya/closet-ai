@@ -54,6 +54,7 @@ export interface StyleBrief {
   brief: string | null;
   itemCount: number;
   reactionCount: number;
+  inspirationCount: number;
   writtenAt: Date | null;
   batchId: string | null;
   requestedAt: Date | null;
@@ -95,13 +96,17 @@ export interface OutfitsRepository {
   react(outfitId: string, userId: string, reaction: OutfitReaction): Promise<boolean>;
   reactionCount(userId: string): Promise<number>;
   reactedOutfits(userId: string, limit: number): Promise<ReactedOutfit[]>;
-  // Storage keys of the "want" screenshots the user saved, newest first.
+  // Storage keys of the looks the user saved (and "want" screenshots still around), newest first.
   inspirationKeys(userId: string, limit: number): Promise<string[]>;
   // Whether a wardrobe item uses this photo (an item from a photo, added to the wardrobe).
   isAttached(photoKey: string): Promise<boolean>;
   brief(userId: string): Promise<StyleBrief | null>;
   setBriefBatch(userId: string, batchId: string | null): Promise<void>;
-  saveBrief(userId: string, brief: string, itemCount: number, reactionCount: number): Promise<void>;
+  saveBrief(
+    userId: string,
+    brief: string,
+    counts: { itemCount: number; reactionCount: number; inspirationCount: number },
+  ): Promise<void>;
 }
 
 // The current opinion is the latest like / dislike / none; "wore" is counted.
@@ -331,7 +336,13 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       const rows = await db
         .select({ key: photos.key })
         .from(photos)
-        .where(and(eq(photos.ownerId, userId), eq(photos.kind, "want"), eq(photos.status, "ready")))
+        .where(
+          and(
+            eq(photos.ownerId, userId),
+            inArray(photos.kind, ["inspiration", "want"]),
+            eq(photos.status, "ready"),
+          ),
+        )
         .orderBy(desc(photos.createdAt))
         .limit(limit);
       return rows.map((row) => row.key);
@@ -360,11 +371,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .onConflictDoUpdate({ target: styleBriefs.userId, set: { batchId, requestedAt } });
     },
 
-    async saveBrief(userId, brief, itemCount, reactionCount) {
+    async saveBrief(userId, brief, counts) {
       const set = {
         brief,
-        itemCount,
-        reactionCount,
+        ...counts,
         writtenAt: new Date(),
         batchId: null,
         requestedAt: null,

@@ -38,8 +38,12 @@ export function createOutfitQueue(redisUrl: string) {
       );
     },
     // One waiting brief job per user at a time: the job id dedupes repeated requests.
-    async enqueueBrief(userId) {
-      await queue.add("brief", { userId }, { ...JOB_OPTIONS, jobId: `brief-${userId}` });
+    async enqueueBrief(userId, delayMs = 0) {
+      await queue.add(
+        "brief",
+        { userId },
+        { ...JOB_OPTIONS, delay: delayMs, jobId: `brief-${userId}` },
+      );
     },
     async enqueueBriefCheck(userId, delayMs) {
       await queue.add(

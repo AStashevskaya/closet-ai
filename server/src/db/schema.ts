@@ -136,6 +136,7 @@ export const styleBriefs = pgTable("style_briefs", {
   // What it was written from, to tell when it is stale.
   itemCount: integer("item_count").notNull().default(0),
   reactionCount: integer("reaction_count").notNull().default(0),
+  inspirationCount: integer("inspiration_count").notNull().default(0),
   writtenAt: timestamp("written_at", { withTimezone: true }),
   // The batch writing the next one; null when none is running.
   batchId: text("batch_id"),

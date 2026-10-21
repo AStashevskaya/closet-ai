@@ -11,8 +11,9 @@ import { asJpeg, contactSheet, pickCandidates, seasonOf, toStylistPiece } from "
 
 export interface OutfitQueue {
   enqueueComposing(requestId: string, lang: AppLanguage): Promise<void>;
-  // Checks whether the user's brief is stale and, if so, starts writing a new one.
-  enqueueBrief(userId: string): Promise<void>;
+  // Checks whether the user's brief is stale and, if so, starts writing a new one. A delay
+  // lets a few saved looks in a row go into one brief.
+  enqueueBrief(userId: string, delayMs?: number): Promise<void>;
   enqueueBriefCheck(userId: string, delayMs: number): Promise<void>;
 }
 
@@ -147,7 +148,10 @@ const BATCH_GIVE_UP_MS = 24 * 60 * 60 * 1000;
 export const BRIEF_CHECK_EVERY_MS = 2 * 60 * 1000;
 // Kept small: images are the expensive part of the brief's prompt.
 const BRIEF_SHEET_ITEMS = 48;
-const BRIEF_INSPIRATION = 6;
+// The newest saved looks: they say most about where her taste is going.
+const BRIEF_INSPIRATION = 12;
+// A few new saved looks are enough to rewrite it: they are the strongest signal of taste.
+const STALE_AFTER_INSPIRATIONS = 3;
 const BRIEF_REACTED = 20;
 
 // Job "brief": starts a new brief through the Batch API when there is none or it's stale.
@@ -167,10 +171,12 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   const wardrobe = await outfits.wardrobe(userId);
   if (wardrobe.length < MIN_ITEMS_FOR_BRIEF) return;
   const reactions = await outfits.reactionCount(userId);
+  const saved = (await deps.photos.listInspiration(userId)).length;
   const stale =
     !current?.brief ||
     Math.abs(wardrobe.length - current.itemCount) >= STALE_AFTER_CHANGES ||
     reactions - current.reactionCount >= STALE_AFTER_CHANGES ||
+    Math.abs(saved - current.inspirationCount) >= STALE_AFTER_INSPIRATIONS ||
     !current.writtenAt ||
     now.getTime() - current.writtenAt.getTime() > STALE_AFTER_MS;
   if (!stale) return;
@@ -225,10 +231,9 @@ export async function checkBrief(deps: OutfitJobDeps, userId: string) {
     await outfits.setBriefBatch(userId, null);
     return;
   }
-  await outfits.saveBrief(
-    userId,
-    result.brief,
-    await outfits.wardrobeSize(userId),
-    await outfits.reactionCount(userId),
-  );
+  await outfits.saveBrief(userId, result.brief, {
+    itemCount: await outfits.wardrobeSize(userId),
+    reactionCount: await outfits.reactionCount(userId),
+    inspirationCount: (await deps.photos.listInspiration(userId)).length,
+  });
 }

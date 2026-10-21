@@ -85,6 +85,13 @@
       "when": 1792583988277,
       "tag": "0011_wear_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792584850296,
+      "tag": "0012_inspiration",
+      "breakpoints": true
     }
   ]
 }
