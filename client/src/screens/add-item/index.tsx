@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,7 +21,7 @@ import { Icon } from '@/components/icon';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
 import { RotateButton } from '@/components/rotate-button';
 import { PressableScale } from '@/components/pressable-scale';
-import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
@@ -192,7 +193,9 @@ export function AddItem() {
     setError(key);
   }
 
-  async function save() {
+  // andStyle: "save and style it" goes on to the outfits for the new item; it uses the same
+  // daily limit as the button on the item's screen, so it costs nothing extra.
+  async function save(andStyle = false) {
     if (!photoUri) return fail('addItem.errors.photo');
     if (!name.trim()) return fail('addItem.errors.name');
     if (!category) return fail('addItem.errors.category');
@@ -205,7 +208,7 @@ export function AddItem() {
       const uploaded = await (upload.current ?? Promise.reject(new Error('not uploaded'))).catch(
         () => uploadPhoto(photoUri, lang),
       );
-      await createItem({
+      const created = await createItem({
         name: name.trim(),
         category,
         colors: itemColors,
@@ -213,6 +216,17 @@ export function AddItem() {
         photoKey: uploaded,
       });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (andStyle) {
+        try {
+          const { id } = await askWearWith({ itemId: created.id }, lang);
+          leave(() => router.replace({ pathname: '/wear-with/[id]', params: { id } }));
+          return;
+        } catch (cause) {
+          // The item is saved either way; only the outfits didn't start.
+          const code = limitReached(cause);
+          Alert.alert(code ? limitText(t, i18n.language, code) : t('wearWith.failed'));
+        }
+      }
       leave(() => router.back());
     } catch (cause) {
       setBusy(false);
@@ -335,7 +349,7 @@ export function AddItem() {
 
         <PressableScale
           style={[styles.button, busy && styles.buttonBusy]}
-          onPress={save}
+          onPress={() => save()}
           disabled={busy}
           accessibilityRole="button"
         >
@@ -344,6 +358,15 @@ export function AddItem() {
           ) : (
             <Text style={styles.buttonText}>{t('addItem.save')}</Text>
           )}
+        </PressableScale>
+        <PressableScale
+          style={[styles.styleButton, busy && styles.buttonBusy]}
+          onPress={() => save(true)}
+          disabled={busy}
+          accessibilityRole="button"
+        >
+          <Icon name="spark" color={colors.accent} size={16} strokeWidth={1.6} />
+          <Text style={styles.styleButtonText}>{t('addItem.saveAndStyle')}</Text>
         </PressableScale>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -444,6 +467,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent,
+  },
+  styleButton: {
+    flexDirection: 'row',
+    gap: 8,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  styleButtonText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    color: colors.accent,
   },
   buttonBusy: {
     opacity: 0.8,

@@ -48,7 +48,10 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const hero = request.heroPhotoKey
     ? await heroFromPhoto(deps, request)
     : wardrobe.find((item) => item.id === request.itemId);
-  if (!hero) throw new PermanentOutfitError("the item is gone or has no ready photo");
+  // A wardrobe item saved a moment ago may still have its photo processing ("save and style it"):
+  // a plain error, so the queue tries again in a few seconds. Gone for good after the retries.
+  if (!hero && request.itemId) throw new Error("the item's photo is not ready yet");
+  if (!hero) throw new PermanentOutfitError("the item from the photo is gone");
   const heroFile = await storage.get(hero.imageKey);
   if (!heroFile) throw new PermanentOutfitError("the item's picture is missing from storage");
 

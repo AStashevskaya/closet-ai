@@ -177,6 +177,38 @@ describe("POST /api/wear-with", () => {
     expect(call!).toMatchObject({ lang: "ru", season: "autumn", looks: 4, brief: null });
   });
 
+  it("waits for an item saved a moment ago whose photo is still processing", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const key = `photos/${anna.userId}/fresh.webp`;
+    await s.repositories.photosRepository.create({
+      key,
+      ownerId: anna.userId,
+      uploadKey: "uploads/x",
+      tagStatus: null,
+    });
+    const fresh = (
+      await s.server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: anna.cookie },
+        payload: { name: "Fresh skirt", category: "bottom", colors: ["white"], photoKey: key },
+      })
+    ).json<Item>();
+    const { id } = (await ask(s, anna.cookie, fresh.id)).json<{ id: string }>();
+
+    // The queue retries a plain error; a permanent one would mark the request failed.
+    await expect(s.runJobs()).rejects.toThrow("not ready yet");
+    expect((await view(s, anna.cookie, id)).status).toBe("pending");
+
+    await s.storage.put(key, await picture, "image/webp");
+    await s.repositories.photosRepository.markReady(key);
+    await s.queue.outfitQueue.enqueueComposing(id, "en");
+    await s.runJobs();
+    expect((await view(s, anna.cookie, id)).status).toBe("done");
+  });
+
   it("shows the same outfits again for free while the wardrobe is the same size", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

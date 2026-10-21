@@ -31,10 +31,11 @@ export function createOutfitQueue(redisUrl: string) {
 
   const outfitQueue: OutfitQueue = {
     async enqueueComposing(requestId, lang) {
+      // Five tries (2 + 4 + 8 + 16 s apart): an item saved a moment ago may still have its photo processing.
       await queue.add(
         "compose",
         { requestId, lang },
-        { ...JOB_OPTIONS, jobId: `compose-${requestId}` },
+        { ...JOB_OPTIONS, attempts: 5, jobId: `compose-${requestId}` },
       );
     },
     // One waiting brief job per user at a time: the job id dedupes repeated requests.

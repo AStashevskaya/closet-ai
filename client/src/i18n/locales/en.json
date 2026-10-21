@@ -42,6 +42,7 @@
     "colors": "Colors",
     "colorsHint": "Up to 5",
     "save": "Save",
+    "saveAndStyle": "Save and style it",
     "errors": {
       "photo": "Add a photo of the item",
       "name": "Give the item a name",
