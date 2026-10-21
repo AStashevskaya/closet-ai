@@ -87,9 +87,9 @@ export const outfitsRoutes =
 
           const key = `${photoPrefix(user.id)}${randomUUID()}.webp`;
           await storage.put(key, await cropToBox(file.body, found.box), "image/webp");
-          const { box: _box, noun, ...tags } = found;
+          const { box: _box, ...tags } = found;
           await photos.createReady({ key, ownerId: user.id, tags: { ...tags, recognized: true } });
-          hero = { heroPhotoKey: key, heroNoun: noun };
+          hero = { heroPhotoKey: key, heroNoun: found.noun };
         }
 
         const id = await outfits.createRequest(user.id, hero, size, mood);

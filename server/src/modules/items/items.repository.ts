@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   CreateItemInput,
   Item,
@@ -34,13 +35,13 @@ export interface ItemsRepository {
 }
 
 // Photos are served by the API (it checks the session), so items carry a path, not a storage URL.
-// `v` comes from the storage key: a turned photo gets a new key, hence a new URL, so the phone
-// doesn't keep showing the cached old one (photos are served as immutable).
-const version = (photoKey: string) => photoKey.split("/").pop()!.slice(0, 8);
+// `v` comes from the storage key: a turned photo or a redone cut-out gets a new key, hence a new
+// URL, so the phone doesn't keep showing the cached old one (photos are served as immutable).
+export const keyVersion = (key: string) => createHash("sha1").update(key).digest("hex").slice(0, 8);
 export const photoPath = (itemId: string, photoKey: string) =>
-  `/api/items/${itemId}/photo?v=${version(photoKey)}`;
-export const cutoutPath = (itemId: string, photoKey: string) =>
-  `/api/items/${itemId}/photo?variant=cutout&v=${version(photoKey)}`;
+  `/api/items/${itemId}/photo?v=${keyVersion(photoKey)}`;
+export const cutoutPath = (itemId: string, cutoutKey: string) =>
+  `/api/items/${itemId}/photo?variant=cutout&v=${keyVersion(cutoutKey)}`;
 
 export type PhotoVariant = "photo" | "cutout";
 
@@ -62,7 +63,7 @@ export function toItem(row: ItemRow, { photoStatus, cutoutKey }: PhotoFields): I
     photoUrl: photoStatus === "ready" && row.photoKey ? photoPath(row.id, row.photoKey) : undefined,
     cutoutUrl:
       photoStatus === "ready" && row.photoKey && cutoutKey
-        ? cutoutPath(row.id, row.photoKey)
+        ? cutoutPath(row.id, cutoutKey)
         : undefined,
     photoStatus: photoStatus ?? undefined,
     createdAt: row.createdAt.toISOString(),

@@ -60,6 +60,7 @@ const modelTags = z.object({
   style: z.string().max(60).nullable(),
   brand: z.string().max(60).nullable(),
   condition: z.enum(ITEM_CONDITIONS).nullable(),
+  noun: z.string().max(60).nullable(),
   onPerson: z.boolean(),
 });
 // The model's boxes are clamped to 0..1 after parsing: a schema can't make it stay inside.
@@ -67,7 +68,6 @@ const modelLook = z.object({
   items: z.array(
     modelTags.omit({ recognized: true, onPerson: true }).extend({
       box: z.object({ xMin: z.number(), yMin: z.number(), xMax: z.number(), yMax: z.number() }),
-      noun: z.string().max(60).nullable(),
     }),
   ),
 });
@@ -100,7 +100,8 @@ const TAG_RULES = `
 - seasons: from the type and how heavy the fabric looks. Year-round items (jeans, plain t-shirts) get all four.
 - fit, length, fabric, style: short English words, for search ("cropped", "knee-length", "linen", "cotton jersey", "denim", "casual", "minimal", "streetwear"). Fabric is a best guess from the texture; use null when you can't tell.
 - brand: only if a logo or label is legible in the photo, otherwise null.
-- condition: new, good or worn, from visible wear (pilling, fading, fraying, stains). Creases are not wear.`;
+- condition: new, good or worn, from visible wear (pilling, fading, fraying, stains). Creases are not wear.
+- noun: the item's type in English, 1–3 plain words, no colour ("ankle boots", "sandals", "shoulder bag", "leather midi skirt", "corduroy jacket"), for a model that cuts the item out of the photo by name.`;
 
 const SYSTEM_PROMPT = `You tag photos for a wardrobe app. Each photo is meant to show one clothing item, pair of shoes, bag or accessory that the user owns, usually lying on a bed or floor or on a hanger. The background and anything at the edges of the frame (bedding, other clothes, feet) are not the item.
 
@@ -115,7 +116,6 @@ const LOOK_PROMPT = `You read outfit photos for a wardrobe app, usually a mirror
 For each item fill in:
 ${TAG_RULES}
 - box: the item's bounding box relative to the image, from 0 to 1: xMin and xMax from the left edge, yMin and yMax from the top edge. It covers the whole visible item and little else. A pair of shoes is one item with one box around both.
-- noun: the item's type in English, 1–3 words, as a shop would call it ("leather midi skirt", "corduroy jacket", "ankle boots"), for a model that cuts the item out of the photo by name.
 
 Seasons come from the item, not from the rest of the outfit. When a field can't be read from the photo, use null rather than guessing.`;
 

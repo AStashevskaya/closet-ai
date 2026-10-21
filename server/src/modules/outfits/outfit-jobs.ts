@@ -3,7 +3,7 @@ import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import type { Stylist } from "../../ai/stylist";
 import type { Storage } from "../../storage/storage";
-import { cutoutKeyFor } from "../photos/photo-jobs";
+import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { flattenOnWhite, processCutout } from "../photos/process-photo";
 import type { OutfitRequestRow, OutfitsRepository, StylingItem } from "./outfits.repository";
@@ -112,9 +112,12 @@ async function heroFromPhoto(
 
   let cutoutKey = photo.cutoutKey;
   if (!cutoutKey && remover) {
-    const png = await remover
-      .removeBackground(crop.body, request.heroNoun ?? undefined)
-      .catch(() => null);
+    const png = await cutOutByName(
+      remover,
+      crop.body,
+      { category: photo.tags.category, noun: request.heroNoun ?? photo.tags.noun },
+      { fromLook: true },
+    ).catch(() => null);
     if (png) {
       cutoutKey = cutoutKeyFor(photo.key);
       await storage.put(cutoutKey, await processCutout(png), "image/webp");

@@ -96,6 +96,10 @@ export const itemTags = z.object({
   // Only from a visible logo or label.
   brand: z.string().max(60).nullable(),
   condition: z.enum(ITEM_CONDITIONS).nullable(),
+  // The item's type in English, no colour ("ankle boots", "leather midi skirt"): what the
+  // cut-out model is asked for, so it finds shoes and bags (which "garment" misses) and the
+  // skirt rather than the shirt over it. null on photos tagged before it existed.
+  noun: z.string().max(60).nullable().default(null),
 });
 export type ItemTags = z.infer<typeof itemTags>;
 
@@ -126,12 +130,7 @@ export const itemBox = z.object({
 export type ItemBox = z.infer<typeof itemBox>;
 
 // One item found on a look photo: its tags and its box.
-export const lookItem = itemTags.omit({ recognized: true }).extend({
-  box: itemBox,
-  // The item's type in English ("leather midi skirt"): what the cut-out model is asked for, so
-  // it cuts out the skirt and not the shirt over it. null on looks found before it existed.
-  noun: z.string().max(60).nullable().default(null),
-});
+export const lookItem = itemTags.omit({ recognized: true }).extend({ box: itemBox });
 export type LookItem = z.infer<typeof lookItem>;
 
 // How close the wardrobe comes to an item on a "want" look: the same item, one that can stand

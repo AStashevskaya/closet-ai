@@ -74,6 +74,7 @@ const shirt: ItemDetail = {
     style: 'casual',
     brand: null,
     condition: 'good',
+    noun: null,
   },
 };
 

@@ -69,6 +69,7 @@ const tags: ItemTags = {
   style: 'casual',
   brand: null,
   condition: 'good',
+  noun: null,
 };
 
 // The server answers "still tagging" once, then with the tags.

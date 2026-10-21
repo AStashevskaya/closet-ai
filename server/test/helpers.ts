@@ -451,6 +451,7 @@ export const shirtTags: ItemTags = {
   style: "casual",
   brand: null,
   condition: "good",
+  noun: "linen shirt",
 };
 
 // What the stub finds on a look photo: a top in the upper half, jeans in the lower.
