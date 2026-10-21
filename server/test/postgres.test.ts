@@ -438,7 +438,7 @@ describe.skipIf(!url)("on Postgres", () => {
     expect((await outfits.wardrobe(user!.id)).map((i) => i.id)).toEqual([skirt, top]);
     expect(await outfits.wardrobeSize(user!.id)).toBe(2);
     const requestId = await outfits.createRequest(user!.id, { itemId: skirt }, 2);
-    expect(await outfits.latestDone(user!.id, skirt)).toBeNull();
+    expect(await outfits.latestDone(user!.id, skirt, null)).toBeNull();
     await outfits.saveOutfits(
       requestId,
       user!.id,
@@ -456,7 +456,8 @@ describe.skipIf(!url)("on Postgres", () => {
       ],
       7_000,
     );
-    expect(await outfits.latestDone(user!.id, skirt)).toMatchObject({
+    expect(await outfits.latestDone(user!.id, skirt, "evening")).toBeNull();
+    expect(await outfits.latestDone(user!.id, skirt, null)).toMatchObject({
       id: requestId,
       wardrobeSize: 2,
     });

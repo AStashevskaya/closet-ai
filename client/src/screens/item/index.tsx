@@ -8,6 +8,7 @@ import {
   type ItemTags,
   type Season,
   type SimilarItem,
+  type OutfitMood,
 } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -29,6 +30,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Chip } from '@/components/chip';
 import { Icon } from '@/components/icon';
+import { MoodChips } from '@/components/mood-chips';
 import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
 import { RotateButton } from '@/components/rotate-button';
@@ -67,6 +69,8 @@ export function ItemScreen({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { usage, refresh: refreshUsage } = useUsage();
+  // The mood asked of the outfits; null for any.
+  const [mood, setMood] = useState<OutfitMood | null>(null);
   const [state, setState] = useState<State>({ status: 'loading' });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [headers, setHeaders] = useState<Record<string, string>>();
@@ -161,7 +165,10 @@ export function ItemScreen({ id }: { id: string }) {
   async function wearWith() {
     setBusy(true);
     try {
-      const { id: requestId } = await askWearWith({ itemId: id }, appLanguage(i18n.language));
+      const { id: requestId } = await askWearWith(
+        mood ? { itemId: id, mood } : { itemId: id },
+        appLanguage(i18n.language),
+      );
       void refreshUsage();
       router.push({ pathname: '/wear-with/[id]', params: { id: requestId } });
     } catch (cause) {
@@ -233,6 +240,7 @@ export function ItemScreen({ id }: { id: string }) {
 
         {item.photoUrl && (
           <View style={styles.wearWith}>
+            <MoodChips mood={mood} onChange={setMood} />
             <PressableScale
               style={[styles.wearWithButton, busy && styles.buttonDisabled]}
               onPress={wearWith}
@@ -433,7 +441,7 @@ const styles = StyleSheet.create({
   },
   wearWith: {
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
   },
   wearWithButton: {
     flexDirection: 'row',

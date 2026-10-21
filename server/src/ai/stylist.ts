@@ -4,6 +4,7 @@ import {
   ITEM_CATEGORIES,
   type AppLanguage,
   type MissingPiece,
+  type OutfitMood,
   type Season,
 } from "@closet-ai/shared";
 import * as z from "zod/v4";
@@ -47,9 +48,21 @@ export interface ComposeInput {
   sheet: Uint8Array;
   brief: string | null;
   season: Season;
+  // What the user asked the looks to be for; null for any.
+  mood: OutfitMood | null;
   lang: AppLanguage;
   looks: number;
 }
+
+// What each mood asks of the looks, for the model.
+const MOODS: Record<OutfitMood, string> = {
+  everyday: "an ordinary day: errands, coffee, a walk; easy to move in, no fuss",
+  office:
+    "a day at work in a creative office: put together, covered enough, comfortable from morning to evening",
+  evening: "an evening out: dinner, drinks, a date; more polish, shine or an edge",
+  sporty: "sporty-chic: sneakers or flats, relaxed shapes, an athletic touch, still styled",
+  surprise: "surprise her: combinations she wouldn't think of herself, bold but wearable",
+};
 
 export interface ComposedLook {
   // Wardrobe numbers that go with the hero.
@@ -168,7 +181,7 @@ export function createClaudeStylist(
               jpegBlock(input.sheet),
               {
                 type: "text",
-                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.\nSeason: ${input.season}. Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
+                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
               },
             ],
           },

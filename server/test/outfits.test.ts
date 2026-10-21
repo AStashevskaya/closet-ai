@@ -206,6 +206,31 @@ describe("POST /api/wear-with", () => {
     expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
   });
 
+  it("composes in the mood asked for, and reuses only the same mood", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top");
+    const askIn = (mood?: string) =>
+      s.server.inject({
+        method: "POST",
+        url: "/api/wear-with",
+        headers: { cookie: anna.cookie },
+        payload: mood ? { itemId: skirt.id, mood } : { itemId: skirt.id },
+      });
+
+    const evening = (await askIn("evening")).json<{ id: string }>().id;
+    await s.runJobs();
+    expect(s.stub.composeCalls.at(-1)!.mood).toBe("evening");
+    expect((await askIn("evening")).json<{ id: string }>().id).toBe(evening);
+    // Another mood, or none, is a new request.
+    expect((await askIn("office")).statusCode).toBe(202);
+    expect((await askIn()).statusCode).toBe(202);
+    await s.runJobs();
+    expect(s.stub.composeCalls.at(-1)!.mood).toBeNull();
+    expect((await askIn("rave")).statusCode).toBe(400);
+  });
+
   it("is limited to five a day", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

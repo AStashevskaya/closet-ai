@@ -1,11 +1,12 @@
 import type {
   ItemTags,
+  OutfitMood,
   MissingPiece,
   Outfit,
   OutfitReaction,
   WearWithRequest,
 } from "@closet-ai/shared";
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import {
   items,
@@ -37,6 +38,7 @@ export interface OutfitRequestRow {
   itemId: string | null;
   heroPhotoKey: string | null;
   heroNoun: string | null;
+  mood: OutfitMood | null;
   status: WearWithRequest["status"];
   wardrobeSize: number;
   createdAt: Date;
@@ -79,10 +81,15 @@ export interface OutfitsRepository {
     userId: string,
     hero: { itemId: string } | { heroPhotoKey: string; heroNoun: string | null },
     wardrobeSize: number,
+    mood?: OutfitMood | null,
   ): Promise<string>;
   getRequest(id: string): Promise<OutfitRequestRow | null>;
-  // The latest finished request for this item, to reuse while the wardrobe is the same size.
-  latestDone(userId: string, itemId: string): Promise<OutfitRequestRow | null>;
+  // The latest finished request for this item in this mood, to reuse while nothing changed.
+  latestDone(
+    userId: string,
+    itemId: string,
+    mood: OutfitMood | null,
+  ): Promise<OutfitRequestRow | null>;
   // Stores the outfits and marks the request done.
   saveOutfits(
     requestId: string,
@@ -128,6 +135,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     itemId: outfitRequests.itemId,
     heroPhotoKey: outfitRequests.heroPhotoKey,
     heroNoun: outfitRequests.heroNoun,
+    mood: outfitRequests.mood,
     status: outfitRequests.status,
     wardrobeSize: outfitRequests.wardrobeSize,
     createdAt: outfitRequests.createdAt,
@@ -168,10 +176,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return row?.n ?? 0;
     },
 
-    async createRequest(userId, hero, wardrobeSize) {
+    async createRequest(userId, hero, wardrobeSize, mood = null) {
       const [row] = await db
         .insert(outfitRequests)
-        .values({ userId, ...hero, wardrobeSize })
+        .values({ userId, ...hero, wardrobeSize, mood })
         .returning({ id: outfitRequests.id });
       return row!.id;
     },
@@ -184,7 +192,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return row ?? null;
     },
 
-    async latestDone(userId, itemId) {
+    async latestDone(userId, itemId, mood) {
       const [row] = await db
         .select(requestColumns)
         .from(outfitRequests)
@@ -192,6 +200,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           and(
             eq(outfitRequests.userId, userId),
             eq(outfitRequests.itemId, itemId),
+            mood ? eq(outfitRequests.mood, mood) : isNull(outfitRequests.mood),
             eq(outfitRequests.status, "done"),
           ),
         )

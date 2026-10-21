@@ -296,7 +296,7 @@ export function createInMemoryRepositories() {
         };
       }),
     wardrobeSize: async (userId) => readyItems(userId).length,
-    createRequest: async (userId, hero, wardrobeSize) => {
+    createRequest: async (userId, hero, wardrobeSize, mood = null) => {
       const id = randomUUID();
       requests.push({
         id,
@@ -304,6 +304,7 @@ export function createInMemoryRepositories() {
         itemId: null,
         heroPhotoKey: null,
         heroNoun: null,
+        mood,
         ...hero,
         status: "pending",
         wardrobeSize,
@@ -312,9 +313,12 @@ export function createInMemoryRepositories() {
       return id;
     },
     getRequest: async (id) => requests.find((r) => r.id === id) ?? null,
-    latestDone: async (userId, itemId) =>
+    latestDone: async (userId, itemId, mood) =>
       requests
-        .filter((r) => r.userId === userId && r.itemId === itemId && r.status === "done")
+        .filter(
+          (r) =>
+            r.userId === userId && r.itemId === itemId && r.mood === mood && r.status === "done",
+        )
         .at(-1) ?? null,
     saveOutfits: async (requestId, userId, looks) => {
       for (const look of looks)

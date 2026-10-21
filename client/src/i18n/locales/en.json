@@ -245,7 +245,14 @@
     "none": "Couldn't find an item on this photo. Try another one.",
     "notRead": "Couldn't read this photo. Try again.",
     "add": "Add to my closet",
-    "added": "In your closet"
+    "added": "In your closet",
+    "moods": {
+      "everyday": "Everyday",
+      "office": "Office",
+      "evening": "Evening",
+      "sporty": "Sporty-chic",
+      "surprise": "Surprise me"
+    }
   },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",

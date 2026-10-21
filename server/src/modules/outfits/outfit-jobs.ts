@@ -72,6 +72,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     sheet,
     brief: (await outfits.brief(request.userId))?.brief ?? null,
     season,
+    mood: request.mood,
     lang,
     looks: LOOKS_PER_REQUEST,
   });

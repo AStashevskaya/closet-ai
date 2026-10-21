@@ -1,4 +1,4 @@
-import type { LimitCode, LookItem } from '@closet-ai/shared';
+import type { LimitCode, LookItem, OutfitMood } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,6 +9,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { MoodChips } from '@/components/mood-chips';
 import { PressableScale } from '@/components/pressable-scale';
 import { askWearWith, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -40,6 +41,8 @@ export function WearWithPick() {
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   const [limit, setLimit] = useState<LimitCode | null>(null);
   const [busy, setBusy] = useState(false);
+  // The mood asked of the outfits; null for any.
+  const [mood, setMood] = useState<OutfitMood | null>(null);
   const { usage } = useUsage();
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
 
@@ -77,7 +80,10 @@ export function WearWithPick() {
   async function choose(key: string, index: number) {
     setBusy(true);
     try {
-      const { id } = await askWearWith({ photoKey: key, index }, lang);
+      const { id } = await askWearWith(
+        mood ? { photoKey: key, index, mood } : { photoKey: key, index },
+        lang,
+      );
       void Haptics.selectionAsync();
       router.replace({ pathname: '/wear-with/[id]', params: { id } });
     } catch (cause) {
@@ -170,6 +176,7 @@ export function WearWithPick() {
             <Icon name="spark" color={colors.iconMuted} size={34} strokeWidth={1.2} />
           </View>
           <Text style={styles.intro}>{t('wearWith.intro')}</Text>
+          <MoodChips mood={mood} onChange={setMood} />
           {buttons}
           {left !== null && left > 0 && !limit && (
             <Text style={styles.left}>

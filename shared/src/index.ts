@@ -236,10 +236,19 @@ export const outfit = z.object({
 });
 export type Outfit = z.infer<typeof outfit>;
 
+// The mood the user can ask the outfits to be in; none means any.
+export const OUTFIT_MOODS = ["everyday", "office", "evening", "sporty", "surprise"] as const;
+export const outfitMood = z.enum(OUTFIT_MOODS);
+export type OutfitMood = z.infer<typeof outfitMood>;
+
 // A wardrobe item, or one item found on an uploaded "wear" photo (its index in lookItems).
 export const wearWithInput = z.union([
-  z.object({ itemId: z.string().uuid() }),
-  z.object({ photoKey: z.string().max(200), index: z.number().int().min(0) }),
+  z.object({ itemId: z.string().uuid(), mood: outfitMood.optional() }),
+  z.object({
+    photoKey: z.string().max(200),
+    index: z.number().int().min(0),
+    mood: outfitMood.optional(),
+  }),
 ]);
 export type WearWithInput = z.infer<typeof wearWithInput>;
 
