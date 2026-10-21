@@ -4,7 +4,7 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
-import { nextPeriodStart, periodStart } from "../src/modules/usage/limits";
+import { createLimits, nextPeriodStart, periodStart } from "../src/modules/usage/limits";
 import { createMemoryStorage } from "../src/storage/storage";
 import {
   createInMemoryRepositories,
@@ -108,6 +108,20 @@ describe("free-tier limits", () => {
     const second = await upload(server, cookie, "item");
     expect(second.statusCode).toBe(429);
     expect(second.json<{ message: string }>().message).toBe("limit:budget");
+  });
+});
+
+describe("testers", () => {
+  it("get 30 outfit requests a day and no monthly cap; others keep 5", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    const limits = createLimits(usageRepository, 3, new Set(["tester"]));
+    for (let i = 0; i < 30; i++) {
+      await limits.check("tester", "wear_with");
+      await limits.record("tester", "wear_with");
+    }
+    await expect(limits.check("tester", "wear_with")).rejects.toThrow("limit:wear_with");
+    expect((await limits.summary("tester")).wear_with).toMatchObject({ used: 30, limit: 30 });
+    expect((await limits.summary("someone")).wear_with.limit).toBe(5);
   });
 });
 

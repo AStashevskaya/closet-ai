@@ -86,7 +86,11 @@ export async function buildApp({
 
   await app.register(healthRoutes);
   await app.register(authRoutes(auth), { prefix: "/api" });
-  const limits = createLimits(usageRepository, env.AI_DAILY_BUDGET_USD);
+  const limits = createLimits(
+    usageRepository,
+    env.AI_DAILY_BUDGET_USD,
+    new Set(env.TESTER_USER_IDS),
+  );
   await app.register(itemsRoutes(itemsRepository, photosRepository, storage, photoQueue, auth), {
     prefix: "/api",
   });
