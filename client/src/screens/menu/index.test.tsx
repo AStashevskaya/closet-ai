@@ -13,6 +13,13 @@ jest.mock(
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
 jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) }));
+jest.mock('@/lib/api', () => ({
+  getUsage: jest.fn().mockResolvedValue({
+    want: { used: 2, limit: 5, resetsAt: '2026-11-01T00:00:00.000Z' },
+    look: { used: 0, limit: 3, resetsAt: '2026-11-01T00:00:00.000Z' },
+    wear_with: { used: 1, limit: 30, resetsAt: '2026-10-22T00:00:00.000Z' },
+  }),
+}));
 jest.mock('@/lib/auth-client', () => ({
   authClient: {
     useSession: () => ({ data: { user: { name: 'Anna' } } }),
@@ -42,8 +49,14 @@ describe('<Menu />', () => {
   test('marks unbuilt sections as coming soon and disables them', async () => {
     await render(<Menu />);
 
-    expect(screen.getAllByText('soon')).toHaveLength(6);
-    expect(screen.getByRole('menuitem', { name: /Outfits/ })).toBeDisabled();
+    expect(screen.getAllByText('soon')).toHaveLength(5);
+    expect(screen.getByRole('menuitem', { name: /Trends/ })).toBeDisabled();
+  });
+
+  test('shows what is left of the limits', async () => {
+    await render(<Menu />);
+    expect(await screen.findByText('2 / 5')).toBeOnTheScreen();
+    expect(screen.getByText('1 / 30')).toBeOnTheScreen();
   });
 
   test('signs out', async () => {

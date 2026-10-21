@@ -70,7 +70,7 @@
     "profile": "Profile"
   },
   "menu": {
-    "title": "Menu",
+    "title": "Profile",
     "soon": "soon",
     "sections": {
       "closet": "My closet",
@@ -81,6 +81,12 @@
       "votes": "Friends' votes",
       "showroom": "Brand showroom",
       "favorites": "Favorites"
+    },
+    "limits": "Your limits",
+    "usage": {
+      "want": "Want / Can screenshots this month",
+      "look": "Selfies this month",
+      "wear_with": "Style it today"
     }
   },
   "comingSoon": "This section is coming soon",
