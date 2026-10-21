@@ -7,6 +7,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EditorialCover } from '@/components/cover';
 import { HangerLoader } from '@/components/hanger-loader';
 import { ItemPhoto } from '@/components/item-photo';
 import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
@@ -105,16 +106,19 @@ export function StyleIt() {
         <ScreenTitle title={t('styleIt.title')} subtitle={t('styleIt.subtitle')} />
       </Animated.View>
 
-      {/* The bright block: a piece the user doesn't own yet, from a photo. */}
-      <Animated.View entering={rise.delay(STAGGER_STEP)} style={styles.block}>
-        <Text style={styles.eyebrow}>{t('styleIt.photoEyebrow')}</Text>
-        <Text style={styles.blockTitle}>{t('styleIt.photoTitle')}</Text>
-        <Text style={styles.blockText}>{t('styleIt.photoText')}</Text>
-        <Button
-          label={t('styleIt.photoButton')}
-          onPress={() => router.push('/wear-with-pick')}
-          style={styles.blockButton}
-        />
+      {/* The cover: a piece the user doesn't own yet, from a photo. */}
+      <Animated.View entering={rise.delay(STAGGER_STEP)}>
+        <EditorialCover
+          eyebrow={t('styleIt.photoEyebrow')}
+          title={t('styleIt.photoTitle')}
+          text={t('styleIt.photoText')}
+        >
+          <Button
+            label={t('styleIt.photoButton')}
+            onPress={() => router.push('/wear-with-pick')}
+            style={styles.blockButton}
+          />
+        </EditorialCover>
       </Animated.View>
 
       <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.section}>
@@ -224,34 +228,6 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: TAB_BAR_CLEARANCE,
     gap: 28,
-  },
-  block: {
-    marginHorizontal: 10,
-    paddingHorizontal: 22,
-    paddingTop: 26,
-    paddingBottom: 22,
-    gap: 8,
-    backgroundColor: colors.highlight,
-  },
-  eyebrow: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 12,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  blockTitle: {
-    fontFamily: fonts.displayLight,
-    fontSize: 34,
-    lineHeight: 38,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  blockText: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.text,
-    textAlign: 'left',
   },
   blockButton: {
     marginTop: 12,
