@@ -40,7 +40,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - No `node-linker=hoisted`: Expo supports pnpm isolated installs since SDK 54. Switch to `nodeLinker: hoisted` in `pnpm-workspace.yaml` only if a native library breaks.
 - `docker-compose.yml`: Postgres 17 + pgvector, Redis and SeaweedFS (S3 API on 8333, development keys in `docker/seaweedfs/s3.json`), published on 127.0.0.1 only. `docker/postgres/init.sql` creates `closet_test` when the volume is first created (`docker compose down -v` to recreate). On the owner's Mac Docker runs in OrbStack.
 - Lint: ESLint 9 (not 10: `eslint-plugin-react` inside `eslint-config-expo` crashes on 10). Root `eslint.config.js` covers `server` and `shared` with type-aware `typescript-eslint` rules; `client/eslint.config.js` uses `eslint-config-expo`, which includes the React Compiler rules. `pnpm lint` runs both and fails on warnings.
-- CI: `pnpm install --frozen-lockfile`, typecheck (all three packages), lint, tests, with a Postgres 17 + pgvector service for the server's Postgres tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
+- CI: `pnpm install --frozen-lockfile` (with `ONNXRUNTIME_NODE_INSTALL=skip`, so onnxruntime-node doesn't download its CUDA libraries on Linux; set the same in a production Docker build), typecheck (all three packages), lint, tests, with a Postgres 17 + pgvector service for the server's Postgres tests. Commit `pnpm-lock.yaml` together with any `package.json` change.
 - Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
 ## Tests

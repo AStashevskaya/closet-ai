@@ -37,6 +37,11 @@ jobs:
             -v "$PWD/docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro" \
             chrislusf/seaweedfs:4.48 server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json
       - run: pnpm install --frozen-lockfile
+        env:
+          # On Linux x64 onnxruntime-node's postinstall downloads its CUDA 12 libraries from
+          # Microsoft's servers. We only run it on the CPU (that binary ships in the package), and
+          # the download timing out failed CI once.
+          ONNXRUNTIME_NODE_INSTALL: skip
       - run: pnpm typecheck
       - run: pnpm lint
       - name: Wait for SeaweedFS
