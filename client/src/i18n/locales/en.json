@@ -213,7 +213,9 @@
     "taste": "Every 3 new looks update your style",
     "deleteTitle": "Delete this look?",
     "delete": "Delete",
-    "whatIHave": "What of a look do I already have?"
+    "wantText": "A screenshot of a look: I'll find its pieces and show which ones already hang in your closet.",
+    "wantTitle": "What of this look do you already own?",
+    "saved": "Your looks"
   },
   "want": {
     "title": "Want / Can",
