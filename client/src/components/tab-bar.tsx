@@ -67,7 +67,12 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       style={[styles.wrap, { bottom: Math.max(insets.bottom, 12) + 6 }]}
       pointerEvents="box-none"
     >
-      <BlurView intensity={60} tint="light" style={styles.capsule}>
+      <BlurView
+        intensity={80}
+        tint="light"
+        experimentalBlurMethod="dimezisBlurView"
+        style={styles.capsule}
+      >
         {state.routes.slice(0, half).map((_, i) => tab(i))}
         <PressableScale
           style={styles.plus}
@@ -75,7 +80,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           accessibilityRole="button"
           accessibilityLabel={t('closet.add')}
         >
-          <Icon name="plus" color={colors.onAccent} size={20} strokeWidth={1.4} />
+          <Icon name="plus" color={colors.text} size={20} strokeWidth={1.5} />
         </PressableScale>
         {state.routes.slice(half).map((_, i) => tab(half + i))}
       </BlurView>
@@ -98,8 +103,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 32,
     overflow: 'hidden',
-    // Milky over the blur, so icons read on any photo underneath.
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    // Just milky enough for the icons to read; what scrolls under it shows through, blurred.
+    backgroundColor: 'rgba(255, 255, 255, 0.38)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.06)',
     boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
@@ -125,6 +130,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.highlight,
   },
 });

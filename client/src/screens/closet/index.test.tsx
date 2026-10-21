@@ -262,4 +262,16 @@ describe('<Closet />', () => {
       );
     });
   });
+  test('features the newest item on the bright block once the closet has a few', async () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({
+      ...shirt,
+      id: `6b1f7c3e-0000-4000-8000-00000000001${i}`,
+      name: `Item ${i}`,
+    }));
+    jest.mocked(listItems).mockResolvedValue(many);
+    await render(<Closet />);
+    const block = await screen.findByRole('button', { name: 'New in your closet: Item 0' });
+    await fireEvent.press(block);
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: many[0]!.id } });
+  });
 });

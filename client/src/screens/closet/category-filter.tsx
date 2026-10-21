@@ -62,25 +62,25 @@ export function CategoryFilter({ categories, value, onChange }: Props) {
   );
 }
 
-// Words with an underline under the chosen one, as a brand's catalogue filters read.
+// Plain words; the chosen one on the bright colour, the one accent of the row.
 const styles = StyleSheet.create({
   // The row scrolls edge to edge; only its content is inset.
   scroll: {
     flexGrow: 0,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   row: {
-    paddingHorizontal: 16,
-    gap: 20,
+    paddingHorizontal: 10,
+    gap: 4,
   },
   chip: {
     height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
   },
   selected: {
-    borderBottomColor: colors.text,
+    backgroundColor: colors.highlight,
   },
   label: {
     fontFamily: fonts.body,

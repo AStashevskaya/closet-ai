@@ -9,11 +9,16 @@ import { PressableScale } from '@/components/pressable-scale';
 import { CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-// Cards rise a few points into place; nothing grows from nothing.
+// Cards come up out of nothing, slowly, one after another; the picture inside settles from a
+// slight zoom a little longer, as on a brand's site.
 const rise = new Keyframe({
-  0: { opacity: 0, transform: [{ translateY: 14 }] },
+  0: { opacity: 0, transform: [{ translateY: 28 }] },
   100: { opacity: 1, transform: [{ translateY: 0 }], easing: EASE_OUT },
 }).duration(durations.enter);
+const settle = new Keyframe({
+  0: { transform: [{ scale: 1.14 }] },
+  100: { transform: [{ scale: 1 }], easing: EASE_OUT },
+}).duration(durations.settle);
 
 const badgeIn = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.85 }] },
@@ -28,8 +33,6 @@ type Props = {
   leaving: boolean;
   // Only set on the first load, so cards don't replay their entrance when the list re-renders.
   enterDelay?: number;
-  // Which column the card is in: the start one draws the hairline between the two.
-  column: 'start' | 'end';
   // Opens the item screen; not set in edit mode, where the badge is the action.
   onPress?: () => void;
   onLongPress: () => void;
@@ -42,7 +45,6 @@ export function ClosetCard({
   editing,
   leaving,
   enterDelay,
-  column,
   onPress,
   onLongPress,
   onDelete,
@@ -57,7 +59,6 @@ export function ClosetCard({
       entering={enterDelay === undefined ? undefined : rise.delay(enterDelay)}
       style={[
         styles.cell,
-        column === 'start' && styles.startColumn,
         {
           opacity: leaving ? 0 : 1,
           transform: [{ scale }],
@@ -77,7 +78,14 @@ export function ClosetCard({
           if (event.nativeEvent.actionName === 'delete') onDelete();
         }}
       >
-        <ItemPhoto item={item} headers={headers} style={styles.photo} />
+        <View style={styles.tile}>
+          <Animated.View
+            style={styles.fill}
+            entering={enterDelay === undefined ? undefined : settle.delay(enterDelay)}
+          >
+            <ItemPhoto item={item} headers={headers} style={styles.photo} />
+          </Animated.View>
+        </View>
         <View style={styles.caption}>
           <Text style={styles.name} numberOfLines={1}>
             {item.name}
@@ -109,20 +117,23 @@ export function ClosetCard({
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
-  // Half the row; cells are a hairline apart, like a brand's product grid.
+  // Half a row, a gap apart; the list sets the gaps.
   cell: {
-    width: '50%',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
-  },
-  startColumn: {
-    borderEndWidth: StyleSheet.hairlineWidth,
-    borderEndColor: colors.divider,
+    flex: 1,
+    maxWidth: '50%',
   },
   card: {},
-  photo: {
-    width: '100%',
+  // Clips the picture while it settles from its zoom.
+  tile: {
     aspectRatio: 3 / 4,
+    overflow: 'hidden',
+    backgroundColor: colors.hero,
+  },
+  fill: {
+    flex: 1,
+  },
+  photo: {
+    flex: 1,
   },
   caption: {
     paddingHorizontal: 12,
