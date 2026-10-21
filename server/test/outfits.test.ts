@@ -319,7 +319,8 @@ describe("GET /api/wear-with", () => {
     await s.runJobs();
     const styled = await list(anna.cookie);
     expect(styled.map((e) => e.name)).toEqual([top.name, skirt.name]);
-    expect(styled[0]).toMatchObject({ mood: null, photoUrl: expect.stringContaining(top.id) });
+    expect(styled[0]!.mood).toBeNull();
+    expect(styled[0]!.photoUrl).toContain(top.id);
     expect(await list(boris.cookie)).toEqual([]);
 
     await s.server.inject({
