@@ -413,8 +413,10 @@ export function ItemScreen({ id }: { id: string }) {
                     <PressableScale
                       key={other.id}
                       style={styles.similarCard}
+                      // In place of this one, so back leads where the item was opened from (the
+                      // closet), not through every item looked at on the way.
                       onPress={() =>
-                        router.push({ pathname: '/item/[id]', params: { id: other.id } })
+                        router.replace({ pathname: '/item/[id]', params: { id: other.id } })
                       }
                       accessibilityRole="button"
                       accessibilityLabel={other.name}
