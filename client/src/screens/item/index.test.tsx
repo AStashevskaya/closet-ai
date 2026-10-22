@@ -123,6 +123,9 @@ describe('<ItemScreen />', () => {
       category: 'top',
       colors: ['white'],
       seasons: ['spring', 'summer', 'winter'],
+      brand: null,
+      price: null,
+      currency: null,
     });
     expect(mockBack).toHaveBeenCalled();
   });

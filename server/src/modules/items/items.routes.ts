@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   createItemInput,
+  priceHasCurrency,
   item,
   itemDetail,
   itemList,
@@ -64,7 +65,8 @@ export const itemsRoutes =
       },
     );
 
-    // The item screen saves the user's corrections here: name, category, colors, seasons.
+    // The item screen saves the user's corrections here: name, category, colors, seasons, brand,
+    // price.
     app.patch(
       "/items/:id",
       {
@@ -75,6 +77,8 @@ export const itemsRoutes =
         },
       },
       async (request) => {
+        // A new price comes with its currency, so the two can't drift apart.
+        if (!priceHasCurrency(request.body)) throw httpError(400, "a price needs its currency");
         const updated = await repo.update(userOf(request).id, request.params.id, request.body);
         if (!updated) throw httpError(404, "item not found");
         return updated;
@@ -130,6 +134,7 @@ export const itemsRoutes =
       async (request, reply) => {
         const user = userOf(request);
         const { photoKey } = request.body;
+        if (!priceHasCurrency(request.body)) throw httpError(400, "a price needs its currency");
         // Only a photo this user uploaded can be attached. It may still be processing
         // (the app saves right after the upload); a photo that failed can't.
         if (photoKey !== undefined) {

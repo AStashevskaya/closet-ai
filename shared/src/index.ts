@@ -41,6 +41,15 @@ export type PhotoStatus = z.infer<typeof photoStatus>;
 export const itemColor = z.enum(ITEM_COLORS);
 export type ItemColor = z.infer<typeof itemColor>;
 
+// Currencies a price can be in: the first markets and the usual ones abroad. All have cents.
+export const CURRENCIES = ["ILS", "USD", "EUR", "GBP", "RUB", "UAH", "BYN"] as const;
+export const currency = z.enum(CURRENCIES);
+export type Currency = z.infer<typeof currency>;
+
+// What the user paid, in the currency's main unit (350.5 = ₪350.50); optional, for "cost per wear".
+const price = z.number().nonnegative().max(1_000_000).multipleOf(0.01);
+const brand = z.string().trim().min(1).max(60);
+
 export const createItemInput = z.object({
   name: z.string().trim().min(1).max(120),
   category: itemCategory,
@@ -48,8 +57,16 @@ export const createItemInput = z.object({
   seasons: z.array(season).default([]),
   // Key returned by POST /api/photos. The server checks it is the caller's own upload.
   photoKey: z.string().max(200).optional(),
+  brand: brand.nullable().optional(),
+  // A price needs its currency, and a currency alone means nothing.
+  price: price.nullable().optional(),
+  currency: currency.nullable().optional(),
 });
 export type CreateItemInput = z.infer<typeof createItemInput>;
+
+// A price without its currency can't be shown or compared; the forms always send both.
+export const priceHasCurrency = (input: { price?: number | null; currency?: string | null }) =>
+  input.price == null || input.currency != null;
 
 export const item = createItemInput.omit({ photoKey: true }).extend({
   id: z.string().uuid(),
@@ -170,6 +187,9 @@ export const updateItemInput = z
     category: itemCategory,
     colors: createItemInput.shape.colors,
     seasons: z.array(season),
+    brand: brand.nullable(),
+    price: price.nullable(),
+    currency: currency.nullable(),
   })
   .partial();
 export type UpdateItemInput = z.infer<typeof updateItemInput>;
@@ -287,5 +307,57 @@ export const inspiration = z.object({
 });
 export type Inspiration = z.infer<typeof inspiration>;
 export const inspirationList = z.array(inspiration);
+
+// The user's details (decided 2026-10-22), all optional: the country gives the currency, the
+// weather and the market; the rest lets the stylist and partner items fit the person.
+// Countries are ISO 3166 codes; the app offers its markets first.
+export const PROFILE_COUNTRIES = [
+  "IL",
+  "UA",
+  "BY",
+  "RU",
+  "KZ",
+  "US",
+  "GB",
+  "DE",
+  "FR",
+  "CA",
+] as const;
+// Silhouettes a stylist works with, named by shape, never by body part.
+export const BODY_SHAPES = [
+  "hourglass",
+  "triangle",
+  "inverted_triangle",
+  "rectangle",
+  "oval",
+] as const;
+export const bodyShape = z.enum(BODY_SHAPES);
+export type BodyShape = z.infer<typeof bodyShape>;
+
+const size = z.string().trim().min(1).max(12);
+// The App Store's youngest age for an account is 13.
+const birthYear = z
+  .number()
+  .int()
+  .min(1920)
+  .refine((year) => year <= new Date().getFullYear() - 13, "too young");
+
+export const userProfile = z.object({
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .nullable(),
+  city: z.string().trim().min(1).max(80).nullable(),
+  birthYear: birthYear.nullable(),
+  heightCm: z.number().int().min(120).max(220).nullable(),
+  bodyShape: bodyShape.nullable(),
+  sizeTop: size.nullable(),
+  sizeBottom: size.nullable(),
+  sizeShoes: size.nullable(),
+});
+export type UserProfile = z.infer<typeof userProfile>;
+// PATCH /api/profile: only the fields sent change; null clears one.
+export const updateProfileInput = userProfile.partial();
+export type UpdateProfileInput = z.infer<typeof updateProfileInput>;
 
 export * from "./limits";

@@ -1,4 +1,6 @@
 import {
+  CURRENCIES,
+  BODY_SHAPES,
   ITEM_CATEGORIES,
   ITEM_COLORS,
   OUTFIT_REQUEST_STATUSES,
@@ -39,6 +41,8 @@ export const photoStatusEnum = pgEnum("photo_status", PHOTO_STATUSES);
 export const tagStatusEnum = pgEnum("tag_status", TAG_STATUSES);
 export const photoKindEnum = pgEnum("photo_kind", PHOTO_KINDS);
 export const usageActionEnum = pgEnum("usage_action", USAGE_ACTIONS);
+export const currencyEnum = pgEnum("currency", CURRENCIES);
+export const bodyShapeEnum = pgEnum("body_shape", BODY_SHAPES);
 
 // One row per uploaded photo. The worker turns the original (uploadKey) into the shrunk WebP
 // at key; photos never attached to an item are cleaned up after a day.
@@ -96,6 +100,10 @@ export const items = pgTable(
       .notNull()
       .default(sql`'{}'`),
     photoKey: text("photo_key").references(() => photos.key, { onDelete: "set null" }),
+    brand: text("brand"),
+    // In cents (minor units) of `currency`, so sums stay exact; the API speaks main units.
+    priceMinor: integer("price_minor"),
+    currency: currencyEnum("currency"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   // Every items query filters by owner.
@@ -227,3 +235,20 @@ export const outfitReactions = pgTable(
   },
   (table) => [index("outfit_reactions_outfit_idx").on(table.outfitId)],
 );
+
+// What the user tells about themselves (Profile → My details), one row per user, all optional.
+export const profiles = pgTable("profiles", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  // ISO 3166 code, "IL".
+  country: text("country"),
+  city: text("city"),
+  birthYear: integer("birth_year"),
+  heightCm: integer("height_cm"),
+  bodyShape: bodyShapeEnum("body_shape"),
+  sizeTop: text("size_top"),
+  sizeBottom: text("size_bottom"),
+  sizeShoes: text("size_shoes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

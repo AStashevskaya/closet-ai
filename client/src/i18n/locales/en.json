@@ -60,8 +60,15 @@
       "category": "Pick a category",
       "colors": "Pick at least one color",
       "cameraPermission": "Allow camera access in Settings to take a photo",
-      "save": "Couldn't save the item. Try again."
-    }
+      "save": "Couldn't save the item. Try again.",
+      "price": "Check the price: just the number, like 349.90"
+    },
+    "brand": "Brand",
+    "brandPlaceholder": "e.g. COS",
+    "price": "Price",
+    "pricePlaceholder": "What you paid",
+    "optional": "optional",
+    "currency": "Currency"
   },
   "tabs": {
     "closet": "Closet",
@@ -306,5 +313,44 @@
     "confirm": "Delete for good",
     "wrongPassword": "Wrong password",
     "failed": "Couldn't delete the account. Try again."
+  },
+  "details": {
+    "row": "My details",
+    "title": "My details",
+    "intro": "All optional. The stylist uses them to fit outfits to you, and partner pieces to show your size.",
+    "name": "Name",
+    "country": "Country",
+    "city": "City",
+    "cityPlaceholder": "e.g. Tel Aviv",
+    "birthYear": "Year of birth",
+    "height": "Height, cm",
+    "bodyShape": "Silhouette",
+    "bodyShapeHint": "For proportions in outfits",
+    "sizes": "Sizes",
+    "sizeTop": "Tops",
+    "sizeBottom": "Bottoms",
+    "sizeShoes": "Shoes",
+    "save": "Save",
+    "saved": "Saved",
+    "failed": "Couldn't save. Check the fields and try again.",
+    "countries": {
+      "IL": "Israel",
+      "UA": "Ukraine",
+      "BY": "Belarus",
+      "RU": "Russia",
+      "KZ": "Kazakhstan",
+      "US": "USA",
+      "GB": "UK",
+      "DE": "Germany",
+      "FR": "France",
+      "CA": "Canada"
+    },
+    "shapes": {
+      "hourglass": "Hourglass",
+      "triangle": "Triangle",
+      "inverted_triangle": "Inverted triangle",
+      "rectangle": "Rectangle",
+      "oval": "Oval"
+    }
   }
 }
