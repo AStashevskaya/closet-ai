@@ -17,6 +17,7 @@
     "db:studio": "drizzle-kit studio",
     "cutouts:backfill": "tsx --env-file=.env src/scripts/backfill-cutouts.ts",
     "embeddings:backfill": "tsx --env-file=.env src/scripts/backfill-embeddings.ts",
+    "catalog:import": "tsx --env-file=.env src/scripts/import-catalog.ts",
     "bench:worker": "tsx src/scripts/bench-worker.ts"
   },
   "dependencies": {

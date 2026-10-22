@@ -15,6 +15,11 @@ import type { ItemEmbedder } from "../src/ai/item-embedder";
 import type { ItemTagger, MatchVerdict } from "../src/ai/item-tagger";
 import type { BriefInput, ComposeInput, Stylist } from "../src/ai/stylist";
 import type { Env } from "../src/config/env";
+import type {
+  CatalogRepository,
+  CatalogRow,
+  NewCatalogItem,
+} from "../src/modules/catalog/catalog.repository";
 import { EMPTY_PROFILE, type ProfileRepository } from "../src/modules/profile/profile.repository";
 import { toItem, toMinor, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
@@ -432,14 +437,66 @@ export function createInMemoryRepositories() {
     },
   };
 
+  const catalogRows: CatalogRow[] = [];
+  const catalogEvents: { catalogItemId: string; userId: string; event: string }[] = [];
+  const catalogRepository: CatalogRepository & {
+    events: typeof catalogEvents;
+    add(item?: Partial<NewCatalogItem>): Promise<CatalogRow>;
+  } = {
+    events: catalogEvents,
+    get: async (id) => catalogRows.find((row) => row.id === id) ?? null,
+    getMany: async (ids) => catalogRows.filter((row) => ids.includes(row.id)),
+    upsert: async (item) => {
+      const row = catalogRows.find((r) => r.externalId === item.externalId);
+      if (row) Object.assign(row, item, { updatedAt: new Date() });
+      else
+        catalogRows.push({
+          ...item,
+          id: randomUUID(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+    },
+    closest: async (category, embedding, limit) =>
+      catalogRows
+        .filter((row) => row.category === category && row.inStock && row.embedding)
+        .sort((a, b) => dot(b.embedding!, embedding) - dot(a.embedding!, embedding))
+        .slice(0, limit),
+    record: async (ids, userId, event) => {
+      for (const catalogItemId of ids) catalogEvents.push({ catalogItemId, userId, event });
+    },
+    // A demo catalog item with defaults, for tests.
+    async add(item = {}) {
+      const externalId = item.externalId ?? `P${catalogRows.length + 1}`;
+      await this.upsert({ ...demoCatalogItem(externalId), ...item, externalId });
+      return catalogRows.find((row) => row.externalId === externalId)!;
+    },
+  };
+
   return {
     itemsRepository,
     photosRepository,
     usageRepository,
     outfitsRepository,
     profileRepository,
+    catalogRepository,
   };
 }
+
+export const demoCatalogItem = (externalId: string): NewCatalogItem => ({
+  externalId,
+  brand: "STUDIO EDIT",
+  names: { en: "Ankle boots", ru: "Ботинки", he: "מגפונים" },
+  category: "shoes",
+  colors: ["black"],
+  priceMinor: 45900,
+  currency: "ILS",
+  url: `https://brand.example/p/${externalId}`,
+  imageKey: `catalog/${externalId}.webp`,
+  embedding: unitVector(1),
+  inStock: true,
+  demo: true,
+});
 
 type QueuedJob =
   | { name: "process" | "tag"; key: string; lang: AppLanguage }

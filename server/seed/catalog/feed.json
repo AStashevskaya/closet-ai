@@ -1,0 +1,1902 @@
+[
+ {
+  "externalId": "P001",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Oversized shirt",
+   "ru": "Рубашка оверсайз",
+   "he": "חולצה אוברסייז"
+  },
+  "category": "top",
+  "colors": [
+   "pink"
+  ],
+  "price": 289.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P001",
+  "inStock": true,
+  "image": "images/P001.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P002",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Oversized shirt",
+   "ru": "Рубашка оверсайз",
+   "he": "חולצה אוברסייז"
+  },
+  "category": "top",
+  "colors": [
+   "blue"
+  ],
+  "price": 289.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P002",
+  "inStock": true,
+  "image": "images/P002.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P003",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Strappy top",
+   "ru": "Топ на бретелях",
+   "he": "גופייה עם כתפיות"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 159.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P003",
+  "inStock": true,
+  "image": "images/P003.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P004",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Strappy top",
+   "ru": "Топ на бретелях",
+   "he": "גופייה עם כתפיות"
+  },
+  "category": "top",
+  "colors": [
+   "black"
+  ],
+  "price": 159.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P004",
+  "inStock": true,
+  "image": "images/P004.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P005",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Long-sleeve top",
+   "ru": "Лонгслив",
+   "he": "חולצה ארוכה"
+  },
+  "category": "top",
+  "colors": [
+   "red"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P005",
+  "inStock": true,
+  "image": "images/P005.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P006",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Long-sleeve top",
+   "ru": "Лонгслив",
+   "he": "חולצה ארוכה"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P006",
+  "inStock": true,
+  "image": "images/P006.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P007",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Cardigan",
+   "ru": "Кардиган",
+   "he": "קרדיגן"
+  },
+  "category": "top",
+  "colors": [
+   "red"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P007",
+  "inStock": true,
+  "image": "images/P007.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P008",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Cardigan",
+   "ru": "Кардиган",
+   "he": "קרדיגן"
+  },
+  "category": "top",
+  "colors": [
+   "gray"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P008",
+  "inStock": true,
+  "image": "images/P008.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P009",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sweater",
+   "ru": "Свитер",
+   "he": "סוודר"
+  },
+  "category": "top",
+  "colors": [
+   "beige"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P009",
+  "inStock": true,
+  "image": "images/P009.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P010",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sweater",
+   "ru": "Свитер",
+   "he": "סוודר"
+  },
+  "category": "top",
+  "colors": [
+   "brown"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P010",
+  "inStock": true,
+  "image": "images/P010.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P011",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Vest",
+   "ru": "Жилет",
+   "he": "וסט"
+  },
+  "category": "top",
+  "colors": [
+   "gray"
+  ],
+  "price": 289.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P011",
+  "inStock": true,
+  "image": "images/P011.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P012",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Vest",
+   "ru": "Жилет",
+   "he": "וסט"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 289.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P012",
+  "inStock": true,
+  "image": "images/P012.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P013",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Bodysuit",
+   "ru": "Боди",
+   "he": "בגד גוף"
+  },
+  "category": "top",
+  "colors": [
+   "black"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P013",
+  "inStock": true,
+  "image": "images/P013.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P014",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Bodysuit",
+   "ru": "Боди",
+   "he": "בגד גוף"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P014",
+  "inStock": true,
+  "image": "images/P014.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P015",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Blazer",
+   "ru": "Пиджак",
+   "he": "בלייזר"
+  },
+  "category": "outerwear",
+  "colors": [
+   "black"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P015",
+  "inStock": true,
+  "image": "images/P015.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P016",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Blazer",
+   "ru": "Пиджак",
+   "he": "בלייזר"
+  },
+  "category": "outerwear",
+  "colors": [
+   "beige"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P016",
+  "inStock": true,
+  "image": "images/P016.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P017",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Coat",
+   "ru": "Пальто",
+   "he": "מעיל"
+  },
+  "category": "outerwear",
+  "colors": [
+   "brown"
+  ],
+  "price": 699.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P017",
+  "inStock": true,
+  "image": "images/P017.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P018",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Coat",
+   "ru": "Пальто",
+   "he": "מעיל"
+  },
+  "category": "outerwear",
+  "colors": [
+   "white"
+  ],
+  "price": 699.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P018",
+  "inStock": true,
+  "image": "images/P018.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P019",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Trench coat",
+   "ru": "Тренч",
+   "he": "מעיל טרנץ&#x27;"
+  },
+  "category": "outerwear",
+  "colors": [
+   "green"
+  ],
+  "price": 649.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P019",
+  "inStock": true,
+  "image": "images/P019.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P020",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Leather jacket",
+   "ru": "Кожаная куртка",
+   "he": "ז&#x27;קט עור"
+  },
+  "category": "outerwear",
+  "colors": [
+   "black"
+  ],
+  "price": 799.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P020",
+  "inStock": true,
+  "image": "images/P020.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P021",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mini skirt",
+   "ru": "Мини-юбка",
+   "he": "חצאית מיני"
+  },
+  "category": "bottom",
+  "colors": [
+   "red"
+  ],
+  "price": 279.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P021",
+  "inStock": true,
+  "image": "images/P021.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P022",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mini skirt",
+   "ru": "Мини-юбка",
+   "he": "חצאית מיני"
+  },
+  "category": "bottom",
+  "colors": [
+   "gray"
+  ],
+  "price": 279.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P022",
+  "inStock": true,
+  "image": "images/P022.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P023",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mini skirt",
+   "ru": "Мини-юбка",
+   "he": "חצאית מיני"
+  },
+  "category": "bottom",
+  "colors": [
+   "black"
+  ],
+  "price": 279.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P023",
+  "inStock": true,
+  "image": "images/P023.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P024",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Midi skirt",
+   "ru": "Юбка миди",
+   "he": "חצאית מידי"
+  },
+  "category": "bottom",
+  "colors": [
+   "white"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P024",
+  "inStock": true,
+  "image": "images/P024.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P025",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Midi skirt",
+   "ru": "Юбка миди",
+   "he": "חצאית מידי"
+  },
+  "category": "bottom",
+  "colors": [
+   "brown"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P025",
+  "inStock": true,
+  "image": "images/P025.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P026",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Slit skirt",
+   "ru": "Юбка с разрезом",
+   "he": "חצאית עם שסע"
+  },
+  "category": "bottom",
+  "colors": [
+   "black"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P026",
+  "inStock": true,
+  "image": "images/P026.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P027",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Denim skirt",
+   "ru": "Юбка джинсовая",
+   "he": "חצאית ג&#x27;ינס"
+  },
+  "category": "bottom",
+  "colors": [
+   "blue"
+  ],
+  "price": 299.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P027",
+  "inStock": true,
+  "image": "images/P027.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P028",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Denim skirt",
+   "ru": "Юбка джинсовая",
+   "he": "חצאית ג&#x27;ינס"
+  },
+  "category": "bottom",
+  "colors": [
+   "blue"
+  ],
+  "price": 299.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P028",
+  "inStock": true,
+  "image": "images/P028.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P029",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Pleated skirt",
+   "ru": "Юбка плиссе",
+   "he": "חצאית פליסה"
+  },
+  "category": "bottom",
+  "colors": [
+   "white"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P029",
+  "inStock": true,
+  "image": "images/P029.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P030",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Pleated skirt",
+   "ru": "Юбка плиссе",
+   "he": "חצאית פליסה"
+  },
+  "category": "bottom",
+  "colors": [
+   "gray"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P030",
+  "inStock": true,
+  "image": "images/P030.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P031",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Wide-leg jeans",
+   "ru": "Джинсы wide leg",
+   "he": "ג&#x27;ינס רחב"
+  },
+  "category": "bottom",
+  "colors": [
+   "blue"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P031",
+  "inStock": true,
+  "image": "images/P031.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P032",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Wide-leg jeans",
+   "ru": "Джинсы wide leg",
+   "he": "ג&#x27;ינס רחב"
+  },
+  "category": "bottom",
+  "colors": [
+   "black"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P032",
+  "inStock": true,
+  "image": "images/P032.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P033",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Straight jeans",
+   "ru": "Джинсы straight",
+   "he": "ג&#x27;ינס ישר"
+  },
+  "category": "bottom",
+  "colors": [
+   "blue"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P033",
+  "inStock": true,
+  "image": "images/P033.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P034",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Straight jeans",
+   "ru": "Джинсы straight",
+   "he": "ג&#x27;ינס ישר"
+  },
+  "category": "bottom",
+  "colors": [
+   "gray"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P034",
+  "inStock": true,
+  "image": "images/P034.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P035",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Tailored trousers",
+   "ru": "Брюки классические",
+   "he": "מכנסיים מחויטים"
+  },
+  "category": "bottom",
+  "colors": [
+   "white"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P035",
+  "inStock": true,
+  "image": "images/P035.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P036",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Tailored trousers",
+   "ru": "Брюки классические",
+   "he": "מכנסיים מחויטים"
+  },
+  "category": "bottom",
+  "colors": [
+   "gray"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P036",
+  "inStock": true,
+  "image": "images/P036.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P037",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Linen trousers",
+   "ru": "Брюки льняные",
+   "he": "מכנסי פשתן"
+  },
+  "category": "bottom",
+  "colors": [
+   "beige"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P037",
+  "inStock": true,
+  "image": "images/P037.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P038",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Linen trousers",
+   "ru": "Брюки льняные",
+   "he": "מכנסי פשתן"
+  },
+  "category": "bottom",
+  "colors": [
+   "white"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P038",
+  "inStock": true,
+  "image": "images/P038.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P039",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Shorts",
+   "ru": "Шорты",
+   "he": "מכנסיים קצרים"
+  },
+  "category": "bottom",
+  "colors": [
+   "white"
+  ],
+  "price": 249.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P039",
+  "inStock": true,
+  "image": "images/P039.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P040",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Shorts",
+   "ru": "Шорты",
+   "he": "מכנסיים קצרים"
+  },
+  "category": "bottom",
+  "colors": [
+   "black"
+  ],
+  "price": 249.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P040",
+  "inStock": true,
+  "image": "images/P040.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P041",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mini dress",
+   "ru": "Платье мини",
+   "he": "שמלת מיני"
+  },
+  "category": "dress",
+  "colors": [
+   "pink"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P041",
+  "inStock": true,
+  "image": "images/P041.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P042",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mini dress",
+   "ru": "Платье мини",
+   "he": "שמלת מיני"
+  },
+  "category": "dress",
+  "colors": [
+   "black"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P042",
+  "inStock": true,
+  "image": "images/P042.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P043",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Midi dress",
+   "ru": "Платье миди",
+   "he": "שמלת מידי"
+  },
+  "category": "dress",
+  "colors": [
+   "white"
+  ],
+  "price": 399.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P043",
+  "inStock": true,
+  "image": "images/P043.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P044",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Midi dress",
+   "ru": "Платье миди",
+   "he": "שמלת מידי"
+  },
+  "category": "dress",
+  "colors": [
+   "brown"
+  ],
+  "price": 399.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P044",
+  "inStock": true,
+  "image": "images/P044.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P045",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mesh dress",
+   "ru": "Платье сетка",
+   "he": "שמלת רשת"
+  },
+  "category": "dress",
+  "colors": [
+   "pink"
+  ],
+  "price": 399.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P045",
+  "inStock": true,
+  "image": "images/P045.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P046",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Ruffled dress",
+   "ru": "Платье с воланами",
+   "he": "שמלה עם מלמלה"
+  },
+  "category": "dress",
+  "colors": [
+   "white"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P046",
+  "inStock": true,
+  "image": "images/P046.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P047",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Pinafore dress",
+   "ru": "Сарафан",
+   "he": "סרפן"
+  },
+  "category": "dress",
+  "colors": [
+   "pink"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P047",
+  "inStock": true,
+  "image": "images/P047.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P048",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Jumpsuit",
+   "ru": "Комбинезон",
+   "he": "אוברול"
+  },
+  "category": "dress",
+  "colors": [
+   "black"
+  ],
+  "price": 399.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P048",
+  "inStock": true,
+  "image": "images/P048.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P049",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Beach dress",
+   "ru": "Пляжное платье",
+   "he": "שמלת חוף"
+  },
+  "category": "dress",
+  "colors": [
+   "white"
+  ],
+  "price": 349.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P049",
+  "inStock": true,
+  "image": "images/P049.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P050",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Knit dress",
+   "ru": "Вязаное платье",
+   "he": "שמלה סרוגה"
+  },
+  "category": "dress",
+  "colors": [
+   "red"
+  ],
+  "price": 399.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P050",
+  "inStock": true,
+  "image": "images/P050.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P051",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Knit top",
+   "ru": "Топ трикотажный",
+   "he": "גופיית טריקו"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 179.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P051",
+  "inStock": true,
+  "image": "images/P051.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P052",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Knit top",
+   "ru": "Топ трикотажный",
+   "he": "גופיית טריקו"
+  },
+  "category": "top",
+  "colors": [
+   "gray"
+  ],
+  "price": 179.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P052",
+  "inStock": true,
+  "image": "images/P052.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P053",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Asymmetric top",
+   "ru": "Топ асимметричный",
+   "he": "טופ א-סימטרי"
+  },
+  "category": "top",
+  "colors": [
+   "brown"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P053",
+  "inStock": true,
+  "image": "images/P053.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P054",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Asymmetric top",
+   "ru": "Топ асимметричный",
+   "he": "טופ א-סימטרי"
+  },
+  "category": "top",
+  "colors": [
+   "black"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P054",
+  "inStock": true,
+  "image": "images/P054.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P055",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Draped top",
+   "ru": "Топ с драпировкой",
+   "he": "טופ עם כיווצים"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P055",
+  "inStock": true,
+  "image": "images/P055.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P056",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Draped top",
+   "ru": "Топ с драпировкой",
+   "he": "טופ עם כיווצים"
+  },
+  "category": "top",
+  "colors": [
+   "red"
+  ],
+  "price": 189.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P056",
+  "inStock": true,
+  "image": "images/P056.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P057",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Corset top",
+   "ru": "Корсет",
+   "he": "מחוך"
+  },
+  "category": "top",
+  "colors": [
+   "black"
+  ],
+  "price": 249.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P057",
+  "inStock": true,
+  "image": "images/P057.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P058",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Corset top",
+   "ru": "Корсет",
+   "he": "מחוך"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 249.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P058",
+  "inStock": true,
+  "image": "images/P058.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P059",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Bralette",
+   "ru": "Бралетт",
+   "he": "בראלט"
+  },
+  "category": "top",
+  "colors": [
+   "black"
+  ],
+  "price": 169.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P059",
+  "inStock": true,
+  "image": "images/P059.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P060",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Bralette",
+   "ru": "Бралетт",
+   "he": "בראלט"
+  },
+  "category": "top",
+  "colors": [
+   "white"
+  ],
+  "price": 169.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P060",
+  "inStock": true,
+  "image": "images/P060.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P061",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Shoulder bag",
+   "ru": "Сумка на плечо",
+   "he": "תיק כתף"
+  },
+  "category": "accessory",
+  "colors": [
+   "red"
+  ],
+  "price": 599.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P061",
+  "inStock": true,
+  "image": "images/P061.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P062",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Shoulder bag",
+   "ru": "Сумка на плечо",
+   "he": "תיק כתף"
+  },
+  "category": "accessory",
+  "colors": [
+   "black"
+  ],
+  "price": 599.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P062",
+  "inStock": true,
+  "image": "images/P062.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P063",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Tote bag",
+   "ru": "Сумка тоут",
+   "he": "תיק טוט"
+  },
+  "category": "accessory",
+  "colors": [
+   "beige"
+  ],
+  "price": 649.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P063",
+  "inStock": true,
+  "image": "images/P063.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P064",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Tote bag",
+   "ru": "Сумка тоут",
+   "he": "תיק טוט"
+  },
+  "category": "accessory",
+  "colors": [
+   "brown"
+  ],
+  "price": 649.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P064",
+  "inStock": true,
+  "image": "images/P064.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P065",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mini bag",
+   "ru": "Мини-сумка",
+   "he": "תיק מיני"
+  },
+  "category": "accessory",
+  "colors": [
+   "pink"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P065",
+  "inStock": true,
+  "image": "images/P065.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P066",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Mini bag",
+   "ru": "Мини-сумка",
+   "he": "תיק מיני"
+  },
+  "category": "accessory",
+  "colors": [
+   "black"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P066",
+  "inStock": true,
+  "image": "images/P066.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P067",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Crossbody bag",
+   "ru": "Сумка кросс-боди",
+   "he": "תיק צד"
+  },
+  "category": "accessory",
+  "colors": [
+   "white"
+  ],
+  "price": 549.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P067",
+  "inStock": true,
+  "image": "images/P067.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P068",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Crossbody bag",
+   "ru": "Сумка кросс-боди",
+   "he": "תיק צד"
+  },
+  "category": "accessory",
+  "colors": [
+   "brown"
+  ],
+  "price": 549.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P068",
+  "inStock": true,
+  "image": "images/P068.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P069",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Clutch",
+   "ru": "Клатч",
+   "he": "קלאץ&#x27;"
+  },
+  "category": "accessory",
+  "colors": [
+   "gray"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P069",
+  "inStock": true,
+  "image": "images/P069.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P070",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Clutch",
+   "ru": "Клатч",
+   "he": "קלאץ&#x27;"
+  },
+  "category": "accessory",
+  "colors": [
+   "red"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P070",
+  "inStock": true,
+  "image": "images/P070.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P071",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sneakers",
+   "ru": "Кроссовки",
+   "he": "נעלי ספורט"
+  },
+  "category": "shoes",
+  "colors": [
+   "white"
+  ],
+  "price": 459.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P071",
+  "inStock": true,
+  "image": "images/P071.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P072",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sneakers",
+   "ru": "Кроссовки",
+   "he": "נעלי ספורט"
+  },
+  "category": "shoes",
+  "colors": [
+   "beige"
+  ],
+  "price": 459.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P072",
+  "inStock": true,
+  "image": "images/P072.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P073",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sneakers",
+   "ru": "Кроссовки",
+   "he": "נעלי ספורט"
+  },
+  "category": "shoes",
+  "colors": [
+   "gray"
+  ],
+  "price": 459.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P073",
+  "inStock": true,
+  "image": "images/P073.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P074",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Canvas sneakers",
+   "ru": "Кеды",
+   "he": "סניקרס בד"
+  },
+  "category": "shoes",
+  "colors": [
+   "white"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P074",
+  "inStock": true,
+  "image": "images/P074.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P075",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Canvas sneakers",
+   "ru": "Кеды",
+   "he": "סניקרס בד"
+  },
+  "category": "shoes",
+  "colors": [
+   "red"
+  ],
+  "price": 329.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P075",
+  "inStock": true,
+  "image": "images/P075.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P076",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Ballet flats",
+   "ru": "Балетки",
+   "he": "נעלי בובה"
+  },
+  "category": "shoes",
+  "colors": [
+   "pink"
+  ],
+  "price": 379.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P076",
+  "inStock": true,
+  "image": "images/P076.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P077",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Ballet flats",
+   "ru": "Балетки",
+   "he": "נעלי בובה"
+  },
+  "category": "shoes",
+  "colors": [
+   "black"
+  ],
+  "price": 379.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P077",
+  "inStock": true,
+  "image": "images/P077.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P078",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Loafers",
+   "ru": "Лоферы",
+   "he": "נעלי לופר"
+  },
+  "category": "shoes",
+  "colors": [
+   "brown"
+  ],
+  "price": 429.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P078",
+  "inStock": true,
+  "image": "images/P078.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P079",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sandals",
+   "ru": "Сандалии",
+   "he": "סנדלים"
+  },
+  "category": "shoes",
+  "colors": [
+   "white"
+  ],
+  "price": 379.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P079",
+  "inStock": true,
+  "image": "images/P079.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P080",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sandals",
+   "ru": "Сандалии",
+   "he": "סנדלים"
+  },
+  "category": "shoes",
+  "colors": [
+   "black"
+  ],
+  "price": 379.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P080",
+  "inStock": true,
+  "image": "images/P080.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P081",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Ankle boots",
+   "ru": "Ботинки",
+   "he": "מגפונים"
+  },
+  "category": "shoes",
+  "colors": [
+   "black"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P081",
+  "inStock": true,
+  "image": "images/P081.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P082",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Ankle boots",
+   "ru": "Ботинки",
+   "he": "מגפונים"
+  },
+  "category": "shoes",
+  "colors": [
+   "pink"
+  ],
+  "price": 499.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P082",
+  "inStock": true,
+  "image": "images/P082.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P083",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Tall boots",
+   "ru": "Сапоги",
+   "he": "מגפיים"
+  },
+  "category": "shoes",
+  "colors": [
+   "black"
+  ],
+  "price": 699.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P083",
+  "inStock": true,
+  "image": "images/P083.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P084",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Tall boots",
+   "ru": "Сапоги",
+   "he": "מגפיים"
+  },
+  "category": "shoes",
+  "colors": [
+   "brown"
+  ],
+  "price": 699.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P084",
+  "inStock": true,
+  "image": "images/P084.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P085",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sunglasses",
+   "ru": "Солнцезащитные очки",
+   "he": "משקפי שמש"
+  },
+  "category": "accessory",
+  "colors": [
+   "black"
+  ],
+  "price": 799.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P085",
+  "inStock": true,
+  "image": "images/P085.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P086",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Sunglasses",
+   "ru": "Солнцезащитные очки",
+   "he": "משקפי שמש"
+  },
+  "category": "accessory",
+  "colors": [
+   "brown"
+  ],
+  "price": 799.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P086",
+  "inStock": true,
+  "image": "images/P086.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P087",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Baseball cap",
+   "ru": "Кепка",
+   "he": "כובע מצחייה"
+  },
+  "category": "accessory",
+  "colors": [
+   "red"
+  ],
+  "price": 149.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P087",
+  "inStock": true,
+  "image": "images/P087.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P088",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Baseball cap",
+   "ru": "Кепка",
+   "he": "כובע מצחייה"
+  },
+  "category": "accessory",
+  "colors": [
+   "beige"
+  ],
+  "price": 149.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P088",
+  "inStock": true,
+  "image": "images/P088.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P089",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Bucket hat",
+   "ru": "Панама",
+   "he": "כובע טמבל"
+  },
+  "category": "accessory",
+  "colors": [
+   "white"
+  ],
+  "price": 169.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P089",
+  "inStock": true,
+  "image": "images/P089.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P090",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Bucket hat",
+   "ru": "Панама",
+   "he": "כובע טמבל"
+  },
+  "category": "accessory",
+  "colors": [
+   "black"
+  ],
+  "price": 169.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P090",
+  "inStock": true,
+  "image": "images/P090.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P091",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Belt",
+   "ru": "Ремень",
+   "he": "חגורה"
+  },
+  "category": "accessory",
+  "colors": [
+   "black"
+  ],
+  "price": 179.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P091",
+  "inStock": true,
+  "image": "images/P091.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P092",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Belt",
+   "ru": "Ремень",
+   "he": "חגורה"
+  },
+  "category": "accessory",
+  "colors": [
+   "brown"
+  ],
+  "price": 179.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P092",
+  "inStock": true,
+  "image": "images/P092.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P093",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Scarf",
+   "ru": "Шарф",
+   "he": "צעיף"
+  },
+  "category": "accessory",
+  "colors": [
+   "white"
+  ],
+  "price": 229.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P093",
+  "inStock": true,
+  "image": "images/P093.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P094",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Scarf",
+   "ru": "Шарф",
+   "he": "צעיף"
+  },
+  "category": "accessory",
+  "colors": [
+   "gray"
+  ],
+  "price": 229.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P094",
+  "inStock": true,
+  "image": "images/P094.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P095",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Necklace",
+   "ru": "Украшение",
+   "he": "שרשרת"
+  },
+  "category": "accessory",
+  "colors": [
+   "yellow"
+  ],
+  "price": 199.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P095",
+  "inStock": true,
+  "image": "images/P095.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P096",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Necklace",
+   "ru": "Украшение",
+   "he": "שרשרת"
+  },
+  "category": "accessory",
+  "colors": [
+   "white"
+  ],
+  "price": 199.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P096",
+  "inStock": true,
+  "image": "images/P096.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P097",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Earrings",
+   "ru": "Серьги",
+   "he": "עגילים"
+  },
+  "category": "accessory",
+  "colors": [
+   "yellow"
+  ],
+  "price": 149.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P097",
+  "inStock": true,
+  "image": "images/P097.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P098",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Earrings",
+   "ru": "Серьги",
+   "he": "עגילים"
+  },
+  "category": "accessory",
+  "colors": [
+   "gray"
+  ],
+  "price": 149.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P098",
+  "inStock": true,
+  "image": "images/P098.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P099",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Hair claw",
+   "ru": "Заколка",
+   "he": "קליפס לשיער"
+  },
+  "category": "accessory",
+  "colors": [
+   "brown"
+  ],
+  "price": 99.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P099",
+  "inStock": true,
+  "image": "images/P099.webp",
+  "demo": true
+ },
+ {
+  "externalId": "P100",
+  "brand": "STUDIO EDIT",
+  "names": {
+   "en": "Hair claw",
+   "ru": "Заколка",
+   "he": "קליפס לשיער"
+  },
+  "category": "accessory",
+  "colors": [
+   "pink"
+  ],
+  "price": 99.0,
+  "currency": "ILS",
+  "url": "https://brand.example/p/P100",
+  "inStock": true,
+  "image": "images/P100.webp",
+  "demo": true
+ }
+]
