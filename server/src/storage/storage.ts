@@ -1,9 +1,11 @@
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   NoSuchKey,
   NotFound,
   PutObjectCommand,
@@ -24,6 +26,8 @@ export interface Storage {
   exists(key: string): Promise<boolean>;
   // Deleting a key that doesn't exist is not an error (S3 behaves the same way).
   delete(key: string): Promise<void>;
+  // Deletes every object whose key starts with the prefix (all of one user's photos).
+  deletePrefix(prefix: string): Promise<void>;
 }
 
 function isMissing(error: unknown) {
@@ -77,6 +81,23 @@ export function createS3Storage(env: Env) {
     async delete(key) {
       await client.send(new DeleteObjectCommand({ Bucket, Key: key }));
     },
+
+    // Listed a page (up to 1000 keys) at a time, each page deleted in one request.
+    async deletePrefix(prefix) {
+      let token: string | undefined;
+      do {
+        const page = await client.send(
+          new ListObjectsV2Command({ Bucket, Prefix: prefix, ContinuationToken: token }),
+        );
+        const keys = (page.Contents ?? []).flatMap(({ Key }) => (Key ? [{ Key }] : []));
+        if (keys.length > 0) {
+          await client.send(
+            new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys, Quiet: true } }),
+          );
+        }
+        token = page.IsTruncated ? page.NextContinuationToken : undefined;
+      } while (token);
+    },
   };
 
   // Local SeaweedFS starts empty; in production the bucket is created once in the R2 dashboard.
@@ -102,6 +123,9 @@ export function createMemoryStorage(): Storage {
     exists: async (key) => objects.has(key),
     delete: async (key) => {
       objects.delete(key);
+    },
+    deletePrefix: async (prefix) => {
+      for (const key of [...objects.keys()]) if (key.startsWith(prefix)) objects.delete(key);
     },
   };
 }
