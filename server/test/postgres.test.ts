@@ -517,7 +517,13 @@ describe.skipIf(!url)("on Postgres", () => {
         },
       ],
       7_000,
+      { call: "skip", reason: "You have one.", twinItemId: top },
     );
+    expect((await outfits.getRequest(requestId))!.verdict).toEqual({
+      call: "skip",
+      reason: "You have one.",
+      twinItemId: top,
+    });
     expect(await outfits.latestDone(user!.id, skirt, "evening")).toBeNull();
     expect(await outfits.latestDone(user!.id, skirt, null)).toMatchObject({
       id: requestId,

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import {
+  BUY_CALLS,
   ITEM_CATEGORIES,
   type AppLanguage,
   type MissingPiece,
@@ -53,6 +54,10 @@ export interface ComposeInput {
   // What her last few requests already used: sheet pieces with the number of looks they were
   // in, and the looks' names. Fresh pieces and ideas are preferred over them.
   recent: { pieces: { n: number; looks: number }[]; captions: string[] };
+  // An item she doesn't own yet and is thinking of buying: the pieces of its category she owns
+  // that are closest to it (cosine of the embeddings, which see shape more than colour), for the
+  // verdict. null for her own items.
+  buying: { closest: { n: number; similarity: number }[] } | null;
   season: Season;
   // What the user asked the looks to be for; null for any.
   mood: OutfitMood | null;
@@ -81,6 +86,13 @@ export interface ComposedLook {
   why: string;
 }
 
+export interface ComposedVerdict {
+  call: (typeof BUY_CALLS)[number];
+  reason: string;
+  // The number of the piece she owns that it nearly repeats.
+  twin: number | null;
+}
+
 export interface BriefInput {
   wardrobe: StylistPiece[];
   // The wardrobe on numbered contact sheets (JPEG).
@@ -98,7 +110,9 @@ export type BriefResult =
   | { status: "failed"; reason: string };
 
 export interface Stylist {
-  compose(input: ComposeInput): Promise<{ looks: ComposedLook[]; costMicros: number }>;
+  compose(
+    input: ComposeInput,
+  ): Promise<{ looks: ComposedLook[]; verdict: ComposedVerdict | null; costMicros: number }>;
   // Starts writing a brief; returns the batch id to check on.
   submitBrief(input: BriefInput): Promise<string>;
   briefResult(batchId: string): Promise<BriefResult>;
@@ -117,6 +131,9 @@ const composed = z.object({
       why: z.string(),
     }),
   ),
+  verdict: z
+    .object({ call: z.enum(BUY_CALLS), reason: z.string(), twin: z.number().int().nullable() })
+    .nullable(),
 });
 
 const COMPOSE_PROMPT = `You are the client's personal stylist, editorial rather than catalogue. She shows you one item (the first image; she owns it) and asks what to wear it with.
@@ -133,7 +150,9 @@ Compose the asked number of looks built around the item:
 - She asks often, so freshness matters: prefer pieces her recent looks didn't use, and new names and ideas, whenever they work about as well.
 - partner: when a shop sheet is given, a piece from it may finish a look (see the request); otherwise null.
 - missing: if one more piece she doesn't own would clearly make the look (often shoes or a bag), describe it as a shop search would need it (type, colour, material, shape), with its category; otherwise null. At most one per look, and not in every look.
-- caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces. All three, and missing.description, in the language asked.`;
+- verdict: only when the request says she is thinking of buying the item; otherwise null. See the request.
+- caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces. All three, and missing.description, in the language asked.
+- Every text she reads (why, caption, verdict.reason) speaks to her directly: "you", in Russian the informal «ты», in Hebrew the plural form the app uses; never "she" or "the client". Name pieces by what they are ("your grey ribbed tank"), never by their numbers.`;
 
 const BRIEF_PROMPT = `You are a sought-after personal stylist. Write a working brief for a junior stylist who will put together this client's outfits every day from her wardrobe (numbered contact sheets and the list below). In English, compact, under 500 words:
 1. Her taste, read first from the looks she saved (if any; how she wants to look, newest first: weigh the newest most and say where her taste is moving), then her wardrobe and the outfits she liked or rejected: what she gravitates to, what makes a look "hers". Where a saved look asks for something the wardrobe can get close to, say how, by number. Her taste can be wider than her wardrobe: don't shrink it to what she owns.
@@ -155,6 +174,10 @@ const recentText = ({ pieces, captions }: ComposeInput["recent"]) =>
       ? `\nNames of her recent looks (don't reuse them or their ideas): ${captions.map((c) => `"${c}"`).join(", ")}.`
       : "",
   ].join("");
+
+// For an item she may buy: the verdict's rules, and the owned pieces most like it.
+const buyingText = ({ closest }: NonNullable<ComposeInput["buying"]>) =>
+  `\nShe doesn't own the item yet and is thinking of buying it. ${closest.length ? `The pieces of its kind she owns that are most like it (similarity of shape and texture, colour barely counts): ${closest.map((c) => `#${c.n} (${c.similarity.toFixed(2)})`).join(", ")}.` : "She owns nothing of its kind."} Give a verdict: buy when it makes several strong looks with her wardrobe and adds something she lacks; think when it works but with a catch (few looks, needs a piece she doesn't have, close to something she owns); skip when it nearly repeats a piece she owns (same kind, colour and style) or hardly goes with her wardrobe. twin: the number of the piece it nearly repeats, else null. reason: one concrete sentence to her, in the language asked, about her wardrobe (what gap it fills, or which piece it repeats, by name), not about the looks' captions.`;
 
 // The shop sheet's rules: relevance first, and never instead of a piece she owns.
 const shopText = (pieces: StylistPiece[]) =>
@@ -208,7 +231,7 @@ export function createClaudeStylist(
               ...(input.shop ? [jpegBlock(input.shop.sheet)] : []),
               {
                 type: "text",
-                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.${recentText(input.recent)}${input.shop ? shopText(input.shop.pieces) : ""}\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
+                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.${recentText(input.recent)}${input.buying ? buyingText(input.buying) : ""}${input.shop ? shopText(input.shop.pieces) : ""}\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
               },
             ],
           },
@@ -219,6 +242,8 @@ export function createClaudeStylist(
       }
       return {
         looks: response.parsed_output.looks,
+        // Only asked for an item she may buy; dropped if the model answers one anyway.
+        verdict: input.buying ? response.parsed_output.verdict : null,
         costMicros: costOf(composingModel, response.usage),
       };
     },

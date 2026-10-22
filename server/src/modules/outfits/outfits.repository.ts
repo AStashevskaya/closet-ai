@@ -1,5 +1,6 @@
 import type {
   AppLanguage,
+  BuyVerdict,
   ItemTags,
   OutfitMood,
   MissingPiece,
@@ -44,6 +45,7 @@ export interface OutfitRequestRow {
   mood: OutfitMood | null;
   status: WearWithRequest["status"];
   wardrobeSize: number;
+  verdict: BuyVerdict | null;
   createdAt: Date;
 }
 
@@ -100,12 +102,13 @@ export interface OutfitsRepository {
     itemId: string,
     mood: OutfitMood | null,
   ): Promise<OutfitRequestRow | null>;
-  // Stores the outfits and marks the request done.
+  // Stores the outfits (and, for an item from a photo, the verdict) and marks the request done.
   saveOutfits(
     requestId: string,
     userId: string,
     looks: NewOutfit[],
     costMicros: number,
+    verdict?: BuyVerdict | null,
   ): Promise<void>;
   markFailed(requestId: string): Promise<void>;
   // The request's outfits with their items and the user's reactions; null when not theirs.
@@ -155,6 +158,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     mood: outfitRequests.mood,
     status: outfitRequests.status,
     wardrobeSize: outfitRequests.wardrobeSize,
+    verdict: outfitRequests.verdict,
     createdAt: outfitRequests.createdAt,
   };
 
@@ -235,7 +239,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return row ?? null;
     },
 
-    async saveOutfits(requestId, userId, looks, costMicros) {
+    async saveOutfits(requestId, userId, looks, costMicros, verdict = null) {
       await db.transaction(async (tx) => {
         for (const [position, look] of looks.entries()) {
           const [saved] = await tx
@@ -252,7 +256,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         }
         await tx
           .update(outfitRequests)
-          .set({ status: "done", costMicros })
+          .set({ status: "done", costMicros, verdict })
           .where(eq(outfitRequests.id, requestId));
       });
     },
@@ -304,6 +308,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         status: request.status,
         // Filled in by the route, which knows the photo.
         addable: null,
+        verdict: null,
         outfits: looks.map((look) => ({
           id: look.id,
           caption: look.caption,

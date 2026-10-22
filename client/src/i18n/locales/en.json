@@ -365,5 +365,12 @@
     "subtitle": "Picked for your closet",
     "failed": "Couldn't open the Edit. Try again.",
     "empty": "Nothing here yet."
+  },
+  "verdict": {
+    "title": "Worth buying?",
+    "buy": "Buy it",
+    "think": "Think it over",
+    "skip": "Skip it",
+    "twin": "You already have one like it"
   }
 }

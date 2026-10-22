@@ -327,6 +327,7 @@ export function createInMemoryRepositories() {
         heroNoun: null,
         mood,
         ...hero,
+        verdict: null,
         status: "pending",
         wardrobeSize,
         createdAt: now(),
@@ -346,11 +347,11 @@ export function createInMemoryRepositories() {
             r.userId === userId && r.itemId === itemId && r.mood === mood && r.status === "done",
         )
         .at(-1) ?? null,
-    saveOutfits: async (requestId, userId, looks) => {
+    saveOutfits: async (requestId, userId, looks, _costMicros, verdict = null) => {
       for (const look of looks)
         storedOutfits.push({ ...look, id: randomUUID(), requestId, userId });
       const request = requests.find((r) => r.id === requestId);
-      if (request) request.status = "done";
+      if (request) Object.assign(request, { status: "done", verdict });
     },
     markFailed: async (requestId) => {
       const request = requests.find((r) => r.id === requestId);
@@ -363,6 +364,7 @@ export function createInMemoryRepositories() {
         id: request.id,
         status: request.status,
         addable: null,
+        verdict: null,
         outfits: storedOutfits
           .filter((o) => o.requestId === requestId)
           .map((o) => ({
@@ -739,6 +741,14 @@ export function createStubStylist() {
           occasion: "coffee",
           why: "because",
         })),
+        // For an item she may buy: "think", repeating the closest piece she owns.
+        verdict: input.buying
+          ? {
+              call: "think" as const,
+              reason: "Close to a piece you own.",
+              twin: input.buying.closest[0]?.n ?? null,
+            }
+          : null,
         costMicros: 6_000,
       };
     },

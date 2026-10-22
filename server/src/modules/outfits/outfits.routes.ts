@@ -177,8 +177,18 @@ export const outfitsRoutes =
           createdAt: new Date().toISOString(),
         };
         const owned = await outfits.isAttached(row.heroPhotoKey);
+        // The piece it nearly repeats; deleted since, it's just left out.
+        const twinDetail = row.verdict?.twinItemId
+          ? await items.get(user.id, row.verdict.twinItemId)
+          : null;
+        let twin: Item | null = null;
+        if (twinDetail) {
+          const { tags: _twinTags, ...rest } = twinDetail;
+          twin = rest;
+        }
         return {
           ...found,
+          verdict: row.verdict && { call: row.verdict.call, reason: row.verdict.reason, twin },
           addable: owned
             ? null
             : {
