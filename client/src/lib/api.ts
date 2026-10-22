@@ -23,6 +23,9 @@ import {
   type WearWithInput,
   inspirationList,
   type Inspiration,
+  type UpdateProfileInput,
+  userProfile,
+  type UserProfile,
   styledList,
   type StyledEntry,
 } from '@closet-ai/shared';
@@ -115,6 +118,19 @@ export function askWearWith(input: WearWithInput, lang: AppLanguage): Promise<{ 
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
+  });
+}
+
+// The user's details (Profile → My details); every field null until filled in.
+export function getProfile(): Promise<UserProfile> {
+  return request('/api/profile', userProfile);
+}
+
+export function updateProfile(patch: UpdateProfileInput): Promise<UserProfile> {
+  return request('/api/profile', userProfile, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
   });
 }
 

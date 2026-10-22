@@ -304,5 +304,44 @@
     "historyEmpty": "Outfits you ask for are kept here.",
     "open": "Outfits with {{name}}",
     "styling": "Styling {{name}}…"
+  },
+  "details": {
+    "row": "My details",
+    "title": "My details",
+    "intro": "All optional. The stylist uses them to fit outfits to you, and partner pieces to show your size.",
+    "name": "Name",
+    "country": "Country",
+    "city": "City",
+    "cityPlaceholder": "e.g. Tel Aviv",
+    "birthYear": "Year of birth",
+    "height": "Height, cm",
+    "bodyShape": "Silhouette",
+    "bodyShapeHint": "For proportions in outfits",
+    "sizes": "Sizes",
+    "sizeTop": "Tops",
+    "sizeBottom": "Bottoms",
+    "sizeShoes": "Shoes",
+    "save": "Save",
+    "saved": "Saved",
+    "failed": "Couldn't save. Check the fields and try again.",
+    "countries": {
+      "IL": "Israel",
+      "UA": "Ukraine",
+      "BY": "Belarus",
+      "RU": "Russia",
+      "KZ": "Kazakhstan",
+      "US": "USA",
+      "GB": "UK",
+      "DE": "Germany",
+      "FR": "France",
+      "CA": "Canada"
+    },
+    "shapes": {
+      "hourglass": "Hourglass",
+      "triangle": "Triangle",
+      "inverted_triangle": "Inverted triangle",
+      "rectangle": "Rectangle",
+      "oval": "Oval"
+    }
   }
 }

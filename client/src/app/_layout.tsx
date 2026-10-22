@@ -109,6 +109,17 @@ export default function RootLayout() {
             headerShadowVisible: false,
           }}
         />
+        <Stack.Screen
+          name="profile-details"
+          options={{
+            title: t('details.title'),
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
+            headerShadowVisible: false,
+          }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         {/* The auth screens draw their own full-bleed header. */}
