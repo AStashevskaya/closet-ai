@@ -1,8 +1,4 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { createFalBackgroundRemover } from "./ai/background-remover";
-import { createFashionSiglipEmbedder } from "./ai/item-embedder";
-import { createClaudeItemTagger } from "./ai/item-tagger";
-import { createClaudeStylist } from "./ai/stylist";
 import { buildApp } from "./app";
 import { createAuth } from "./auth/auth";
 import { loadEnv } from "./config/env";
@@ -12,9 +8,10 @@ import { createUsageRepository } from "./modules/usage/usage.repository";
 import { createItemsRepository } from "./modules/items/items.repository";
 import { createOutfitsRepository } from "./modules/outfits/outfits.repository";
 import { createPhotosRepository } from "./modules/photos/photos.repository";
-import { createOutfitQueue, createOutfitWorker } from "./queue/outfit-queue";
-import { createPhotoQueue, createPhotoWorker } from "./queue/photo-queue";
+import { createOutfitQueue } from "./queue/outfit-queue";
+import { createPhotoQueue } from "./queue/photo-queue";
 import { createS3Storage } from "./storage/storage";
+import { startWorkers } from "./workers";
 
 const env = loadEnv();
 const { db, close } = createDb(env.DATABASE_URL);
@@ -23,35 +20,11 @@ const s3 = createS3Storage(env);
 // Local SeaweedFS starts without the bucket; in production it is created once in the R2 dashboard.
 if (env.NODE_ENV === "development") await s3.ensureBucket();
 const photosRepository = createPhotosRepository(db);
-const queue = createPhotoQueue(env.REDIS_URL);
-const tagger = env.ANTHROPIC_API_KEY ? createClaudeItemTagger(env.ANTHROPIC_API_KEY) : null;
-// The worker runs in the API process for now: one process to deploy and run locally.
-// It only needs Redis, the database and storage, so it can move to its own process when
-// photo processing starts competing with requests.
-// The model loads on the first embed job; the first run downloads it into MODEL_CACHE_DIR.
-const embedder = createFashionSiglipEmbedder(env.MODEL_CACHE_DIR);
-const remover = env.FAL_KEY ? createFalBackgroundRemover(env.FAL_KEY) : null;
-const worker = createPhotoWorker(env.REDIS_URL, {
-  photos: photosRepository,
-  storage: s3.storage,
-  tagger,
-  embedder,
-  remover,
-  queue: queue.photoQueue,
-});
-await queue.scheduleCleanup();
 const outfitsRepository = createOutfitsRepository(db);
+// The API only adds jobs; the workers run them, here or in their own process (src/worker.ts).
+const queue = createPhotoQueue(env.REDIS_URL);
 const outfitQueue = createOutfitQueue(env.REDIS_URL);
-const stylist = env.ANTHROPIC_API_KEY ? createClaudeStylist(env.ANTHROPIC_API_KEY) : null;
-const outfitWorker = createOutfitWorker(env.REDIS_URL, {
-  outfits: outfitsRepository,
-  photos: photosRepository,
-  storage: s3.storage,
-  remover,
-  embedder,
-  stylist,
-  queue: outfitQueue.outfitQueue,
-});
+const workers = env.WORKERS_IN_API ? await startWorkers(env, db, s3.storage) : null;
 const app = await buildApp({
   env,
   auth,
@@ -62,18 +35,18 @@ const app = await buildApp({
   photoQueue: queue.photoQueue,
   outfitQueue: outfitQueue.outfitQueue,
   storage: s3.storage,
-  taggingEnabled: tagger !== null,
-  stylistEnabled: stylist !== null,
+  taggingEnabled: env.ANTHROPIC_API_KEY !== undefined,
+  stylistEnabled: env.ANTHROPIC_API_KEY !== undefined,
 });
-if (!tagger) app.log.warn("ANTHROPIC_API_KEY is not set: photos will not be tagged");
+if (!env.WORKERS_IN_API) app.log.info("workers run in their own process (src/worker.ts)");
+if (!env.ANTHROPIC_API_KEY) app.log.warn("ANTHROPIC_API_KEY is not set: photos will not be tagged");
 if (!env.FAL_KEY) app.log.warn("FAL_KEY is not set: photo backgrounds will not be removed");
 
 async function shutdown(signal: string) {
   app.log.info({ signal }, "shutting down");
   await app.close();
   // Lets a job in progress finish before the connections go away.
-  await worker.close();
-  await outfitWorker.close();
+  await workers?.close();
   await queue.close();
   await outfitQueue.close();
   await close();
