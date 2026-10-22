@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Chip } from '@/components/chip';
 import { HangerLoader } from '@/components/hanger-loader';
@@ -46,8 +46,9 @@ const text = (value: string) => value.trim() || null;
 // A whole number, or null for an empty field; NaN tells the server's check to refuse it.
 const whole = (value: string) => (value.trim() === '' ? null : Number(value.trim()));
 
-// Profile → My details: name, where the user lives, age, height, silhouette and sizes, all
-// optional. The name is on the account (Better Auth); the rest is in /api/profile.
+// Profile → My profile: name, where the user lives, age, height, silhouette and sizes, all
+// optional, and the account itself (sign out, delete). The name is on the account (Better
+// Auth); the rest is in /api/profile.
 export function ProfileDetails() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -192,6 +193,23 @@ export function ProfileDetails() {
         </Text>
       )}
       <Button label={t('details.save')} onPress={save} busy={busy} style={styles.save} />
+
+      <View style={styles.account}>
+        <Pressable
+          style={styles.accountRow}
+          onPress={() => authClient.signOut()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.accountText}>{t('auth.signOut')}</Text>
+        </Pressable>
+        <Pressable
+          style={styles.accountRow}
+          onPress={() => router.push('/delete-account')}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.accountText, styles.delete]}>{t('deleteAccount.row')}</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -283,5 +301,26 @@ const styles = StyleSheet.create({
   },
   save: {
     marginTop: 24,
+  },
+  // The account under the form, apart from it.
+  account: {
+    marginTop: 36,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.divider,
+  },
+  accountRow: {
+    minHeight: 52,
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
+  },
+  accountText: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.text,
+    textAlign: 'left',
+  },
+  delete: {
+    color: colors.error,
   },
 });
