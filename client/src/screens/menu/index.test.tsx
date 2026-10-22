@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Linking } from 'react-native';
 
 import i18n from '@/i18n';
-import { authClient } from '@/lib/auth-client';
 
 import { Menu } from '.';
 
@@ -50,11 +49,11 @@ describe('<Menu />', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/want-can');
   });
 
-  test('marks unbuilt sections as coming soon and disables them', async () => {
+  test('shows only the sections the app has', async () => {
     await render(<Menu />);
-
-    expect(screen.getAllByText('soon')).toHaveLength(5);
-    expect(screen.getByRole('menuitem', { name: /Trends/ })).toBeDisabled();
+    // My profile, the closet, Style it and Want / Can; nothing marked "soon".
+    expect(screen.getAllByRole('menuitem')).toHaveLength(4);
+    expect(screen.queryByText('soon')).toBeNull();
   });
 
   test('shows what is left of the limits', async () => {
@@ -86,21 +85,11 @@ describe('<Menu />', () => {
     });
   });
 
-  test('opens my details', async () => {
+  test('opens my profile, where the account can be signed out of or deleted', async () => {
     await render(<Menu />);
-    await fireEvent.press(screen.getByText('My details'));
+    await fireEvent.press(screen.getByText('My profile'));
     expect(mockPush).toHaveBeenCalledWith('/profile-details');
-  });
-
-  test('opens account deletion', async () => {
-    await render(<Menu />);
-    await fireEvent.press(screen.getByText('Delete account'));
-    expect(mockPush).toHaveBeenCalledWith('/delete-account');
-  });
-
-  test('signs out', async () => {
-    await render(<Menu />);
-    await fireEvent.press(screen.getByText('Sign out'));
-    expect(authClient.signOut).toHaveBeenCalled();
+    expect(screen.queryByText('Sign out')).toBeNull();
+    expect(screen.queryByText('Delete account')).toBeNull();
   });
 });

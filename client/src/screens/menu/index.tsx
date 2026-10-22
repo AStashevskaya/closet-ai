@@ -23,21 +23,17 @@ import { problemReportUrl, supportEmail } from '@/lib/report-problem';
 import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-type SectionKey =
-  'closet' | 'looks' | 'wantCan' | 'trends' | 'sell' | 'votes' | 'showroom' | 'favorites';
+type Section = {
+  key: 'closet' | 'looks' | 'wantCan';
+  icon: IconName;
+  href: '/' | '/style' | '/want-can';
+};
 
-type Section = { key: SectionKey; icon: IconName; href?: '/' | '/style' | '/want-can' };
-
-// Order and icons from the design. Sections without an href are not built yet and show "soon".
+// Only what the app has: sections not built yet aren't shown at all.
 const SECTIONS: Section[] = [
   { key: 'closet', icon: 'hanger', href: '/' },
   { key: 'looks', icon: 'look', href: '/style' },
   { key: 'wantCan', icon: 'spark', href: '/want-can' },
-  { key: 'trends', icon: 'trend' },
-  { key: 'sell', icon: 'tag' },
-  { key: 'votes', icon: 'chat' },
-  { key: 'showroom', icon: 'store' },
-  { key: 'favorites', icon: 'heart' },
 ];
 
 export function Menu() {
@@ -102,31 +98,20 @@ export function Menu() {
             <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
           </View>
         </Pressable>
-        {SECTIONS.map(({ key, icon, href }) => {
-          const ready = href !== undefined;
-          return (
-            <Pressable
-              key={key}
-              style={styles.row}
-              onPress={ready ? () => router.navigate(href) : undefined}
-              disabled={!ready}
-              accessibilityRole="menuitem"
-              accessibilityState={{ disabled: !ready }}
-            >
-              <Icon name={icon} color={ready ? colors.text : colors.tabInactive} />
-              <Text style={[styles.rowLabel, !ready && styles.rowLabelSoon]}>
-                {t(`menu.sections.${key}`)}
-              </Text>
-              {ready ? (
-                <View style={styles.chevron}>
-                  <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
-                </View>
-              ) : (
-                <Text style={styles.soon}>{t('menu.soon')}</Text>
-              )}
-            </Pressable>
-          );
-        })}
+        {SECTIONS.map(({ key, icon, href }) => (
+          <Pressable
+            key={key}
+            style={styles.row}
+            onPress={() => router.navigate(href)}
+            accessibilityRole="menuitem"
+          >
+            <Icon name={icon} color={colors.text} />
+            <Text style={styles.rowLabel}>{t(`menu.sections.${key}`)}</Text>
+            <View style={styles.chevron}>
+              <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+            </View>
+          </Pressable>
+        ))}
 
         {supportEmail() && (
           <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
@@ -134,22 +119,6 @@ export function Menu() {
             <Text style={styles.rowLabel}>{t('menu.report')}</Text>
           </Pressable>
         )}
-
-        <Pressable
-          style={styles.row}
-          onPress={() => authClient.signOut()}
-          accessibilityRole="menuitem"
-        >
-          <Icon name="logout" color={colors.text} />
-          <Text style={[styles.rowLabel, styles.signOut]}>{t('auth.signOut')}</Text>
-        </Pressable>
-        <Pressable
-          style={styles.row}
-          onPress={() => router.push('/delete-account')}
-          accessibilityRole="menuitem"
-        >
-          <Text style={[styles.rowLabel, styles.deleteAccount]}>{t('deleteAccount.row')}</Text>
-        </Pressable>
       </View>
     </ScrollView>
   );
@@ -218,20 +187,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     textAlign: 'left',
-  },
-  rowLabelSoon: {
-    color: colors.textMuted,
-  },
-  signOut: {
-    color: colors.text,
-  },
-  deleteAccount: {
-    color: colors.error,
-  },
-  soon: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.textMuted,
   },
   // The chevron points toward the end of the row, so it flips in right-to-left layouts.
   chevron: {

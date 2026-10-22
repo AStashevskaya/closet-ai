@@ -78,16 +78,10 @@
   },
   "menu": {
     "title": "Profile",
-    "soon": "soon",
     "sections": {
       "closet": "My closet",
       "looks": "Outfits",
-      "wantCan": "Recreate the look",
-      "trends": "Trends of the week",
-      "sell": "Sell items",
-      "votes": "Friends' votes",
-      "showroom": "Brand showroom",
-      "favorites": "Favorites"
+      "wantCan": "Recreate the look"
     },
     "limits": "Your limits",
     "usage": {
@@ -100,7 +94,6 @@
     "reportIntro": "What happened, and what did you expect?",
     "noMail": "Write to us at {{email}}"
   },
-  "comingSoon": "This section is coming soon",
   "items": {
     "count_one": "{{count}} item",
     "count_other": "{{count}} items"
@@ -319,8 +312,8 @@
     "failed": "Couldn't delete the account. Try again."
   },
   "details": {
-    "row": "My details",
-    "title": "My details",
+    "row": "My profile",
+    "title": "My profile",
     "intro": "All optional. The stylist uses them to fit outfits to you, and partner pieces to show your size.",
     "name": "Name",
     "country": "Country",

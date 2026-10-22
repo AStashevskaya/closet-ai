@@ -389,6 +389,20 @@ export function createInMemoryRepositories() {
       reactions.push({ outfitId, userId, reaction, createdAt: now() });
       return true;
     },
+    recentlyUsed: async (userId, count) => {
+      const recent = requests
+        .filter((r) => r.userId === userId && r.status === "done")
+        .slice(-count)
+        .map((r) => r.id);
+      const looks = storedOutfits.filter((o) => recent.includes(o.requestId));
+      const pieces = new Map<string, number>();
+      for (const piece of looks.flatMap((o) => o.pieces)) {
+        if (!piece.hero && piece.itemId) {
+          pieces.set(piece.itemId, (pieces.get(piece.itemId) ?? 0) + 1);
+        }
+      }
+      return { pieces, captions: looks.map((o) => o.caption) };
+    },
     reactionCount: async (userId) => reactions.filter((r) => r.userId === userId).length,
     reactedOutfits: async (userId, limit) =>
       [...new Set(reactions.filter((r) => r.userId === userId).map((r) => r.outfitId))]

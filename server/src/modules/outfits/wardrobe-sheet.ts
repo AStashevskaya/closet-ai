@@ -48,9 +48,7 @@ export async function pickShop(
   const picks = await Promise.all(
     Object.entries(SHOP_PER_CATEGORY)
       .filter(([category]) => (slots[category] ?? 0) > 0)
-      .map(([category, take]) =>
-        catalog.closest(category as ItemCategory, hero.embedding!, take),
-      ),
+      .map(([category, take]) => catalog.closest(category as ItemCategory, hero.embedding!, take)),
   );
   return picks.flat();
 }
@@ -62,10 +60,23 @@ const dot = (a: number[], b: number[]) => a.reduce((sum, x, i) => sum + x * b[i]
 // test, 2026-10-21).
 const RELEVANCE = 0.5;
 
+// How much each look a piece was in lately lowers its chance on the sheet, up to three looks.
+// Scores differ by ~0.1 between a good and a so-so piece, so a favourite used in three recent
+// looks gives way to a fresh one that fits nearly as well. Without it the same dozen pieces of a
+// 61-piece wardrobe filled most looks (owner's last 32 looks, 2026-10-22).
+const RECENT_PENALTY = 0.05;
+const RECENT_CAP = 3;
+
 // The pieces worth showing the model: in season, then per category a mix of pieces close to
 // the item (the embedding also sees colour and style) and pieces unlike each other, picked one
-// by one (maximal marginal relevance). Uses our own embeddings: free, unlike a bigger prompt.
-export function pickCandidates(hero: StylingItem, wardrobe: StylingItem[], season: Season) {
+// by one (maximal marginal relevance), favouring pieces her recent looks didn't use. Uses our
+// own embeddings: free, unlike a bigger prompt.
+export function pickCandidates(
+  hero: StylingItem,
+  wardrobe: StylingItem[],
+  season: Season,
+  recent: Map<string, number> = new Map(),
+) {
   const slots = slotsAround(hero.category);
   const similarity = (a: StylingItem, b: StylingItem) =>
     a.embedding && b.embedding ? dot(a.embedding, b.embedding) : 0;
@@ -82,7 +93,9 @@ export function pickCandidates(hero: StylingItem, wardrobe: StylingItem[], seaso
       let bestScore = -Infinity;
       for (const [i, item] of pool.entries()) {
         const sameness = Math.max(0, ...picked.map((p) => similarity(item, p)));
-        const score = RELEVANCE * similarity(hero, item) - (1 - RELEVANCE) * sameness;
+        const worn = Math.min(recent.get(item.id) ?? 0, RECENT_CAP);
+        const score =
+          RELEVANCE * similarity(hero, item) - (1 - RELEVANCE) * sameness - RECENT_PENALTY * worn;
         if (score > bestScore) [best, bestScore] = [i, score];
       }
       picked.push(pool.splice(best, 1)[0]!);
