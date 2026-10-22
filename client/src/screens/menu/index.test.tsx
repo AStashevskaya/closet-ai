@@ -68,6 +68,12 @@ describe('<Menu />', () => {
     expect(mockPush).toHaveBeenCalledWith('/profile-details');
   });
 
+  test('opens account deletion', async () => {
+    await render(<Menu />);
+    await fireEvent.press(screen.getByText('Delete account'));
+    expect(mockPush).toHaveBeenCalledWith('/delete-account');
+  });
+
   test('signs out', async () => {
     await render(<Menu />);
     await fireEvent.press(screen.getByText('Sign out'));

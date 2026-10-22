@@ -126,6 +126,32 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(second.json()).toMatchObject({ country: "IL", sizeTop: "M", bodyShape: "rectangle" });
   });
 
+  it("deletes the account with everything of theirs, and keeps other users' items", async () => {
+    // The database isn't wiped between tests, so these addresses are new.
+    const anna = await signUp("leaving@example.com");
+    const boris = await signUp("staying@example.com");
+    const annaId = (
+      await app.inject({ method: "GET", url: "/api/auth/get-session", headers: { cookie: anna } })
+    ).json<{ user: { id: string } }>().user.id;
+    for (const cookie of [anna, boris]) {
+      await app.inject({ method: "POST", url: "/api/items", headers: { cookie }, payload: shirt });
+    }
+
+    const deleted = await app.inject({
+      method: "POST",
+      url: "/api/auth/delete-user",
+      headers: { cookie: anna, origin: "closetai://" },
+      payload: { password: "correct-horse-battery" },
+    });
+    expect(deleted.statusCode).toBe(200);
+
+    const list = await app.inject({ method: "GET", url: "/api/items", headers: { cookie: boris } });
+    expect(list.json<Item[]>()).toHaveLength(1);
+    // Nothing of hers is left: the rows went with the user (ON DELETE CASCADE).
+    const hers = await db.db.select().from(schema.items).where(eq(schema.items.ownerId, annaId));
+    expect(hers).toEqual([]);
+  });
+
   it("keeps a session across sign-in", async () => {
     await signUp("maya@example.com");
     const res = await app.inject({
