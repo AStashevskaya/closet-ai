@@ -4,6 +4,7 @@ import { createAuth } from "./auth/auth";
 import { loadEnv } from "./config/env";
 import { createDb } from "./db/client";
 import * as schema from "./db/schema";
+import { createCatalogRepository } from "./modules/catalog/catalog.repository";
 import { createUsageRepository } from "./modules/usage/usage.repository";
 import { createItemsRepository } from "./modules/items/items.repository";
 import { createOutfitsRepository } from "./modules/outfits/outfits.repository";
@@ -38,6 +39,7 @@ const app = await buildApp({
   usageRepository: createUsageRepository(db),
   outfitsRepository,
   profileRepository: createProfileRepository(db),
+  catalogRepository: createCatalogRepository(db),
   photoQueue: queue.photoQueue,
   outfitQueue: outfitQueue.outfitQueue,
   storage: s3.storage,

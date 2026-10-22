@@ -9,13 +9,20 @@ import { createAuth } from "../src/auth/auth";
 import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
+import { createCatalogRepository } from "../src/modules/catalog/catalog.repository";
 import { createItemsRepository } from "../src/modules/items/items.repository";
 import { createProfileRepository } from "../src/modules/profile/profile.repository";
 import { createOutfitsRepository } from "../src/modules/outfits/outfits.repository";
 import { createUsageRepository } from "../src/modules/usage/usage.repository";
 import { createPhotosRepository } from "../src/modules/photos/photos.repository";
 import { createMemoryStorage } from "../src/storage/storage";
-import { createManualOutfitQueue, createManualPhotoQueue, shirtTags, unitVector } from "./helpers";
+import {
+  createManualOutfitQueue,
+  createManualPhotoQueue,
+  demoCatalogItem,
+  shirtTags,
+  unitVector,
+} from "./helpers";
 
 // The same app as in production, on a real Postgres: Drizzle queries, the Better Auth
 // Drizzle adapter and the committed migrations. Runs only when TEST_DATABASE_URL is set
@@ -77,6 +84,7 @@ describe.skipIf(!url)("on Postgres", () => {
       usageRepository: createUsageRepository(db.db),
       outfitsRepository: createOutfitsRepository(db.db),
       profileRepository: createProfileRepository(db.db),
+      catalogRepository: createCatalogRepository(db.db),
       photoQueue: createManualPhotoQueue().photoQueue,
       outfitQueue: createManualOutfitQueue().outfitQueue,
       stylistEnabled: false,
@@ -621,5 +629,36 @@ describe.skipIf(!url)("on Postgres", () => {
 
     const left = await db.db.select().from(schema.items).where(eq(schema.items.ownerId, user!.id));
     expect(left).toEqual([]);
+  });
+
+  it("imports catalog items again by feed id and finds the closest in stock", async () => {
+    const catalog = createCatalogRepository(db.db);
+    await catalog.upsert({ ...demoCatalogItem("C1"), embedding: unitVector(1, 0) });
+    await catalog.upsert({ ...demoCatalogItem("C2"), embedding: unitVector(1, 1) });
+    await catalog.upsert({ ...demoCatalogItem("C3"), embedding: unitVector(1, 0), inStock: false });
+    await catalog.upsert({ ...demoCatalogItem("C4"), category: "bottom" });
+    // Imported again with a new price: the same row.
+    await catalog.upsert({
+      ...demoCatalogItem("C1"),
+      embedding: unitVector(1, 0),
+      priceMinor: 100,
+    });
+
+    const closest = await catalog.closest("shoes", unitVector(1, 0), 5);
+    expect(closest.map((row) => row.externalId)).toEqual(["C1", "C2"]);
+    expect(closest[0]!.priceMinor).toBe(100);
+
+    const cookie = await signUp("catalog@example.com");
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/catalog/${closest[0]!.id}?lang=ru`,
+      headers: { cookie },
+    });
+    expect(res.json()).toMatchObject({ name: "Ботинки", price: 1, demo: true });
+    const events = await db.db
+      .select()
+      .from(schema.catalogEvents)
+      .where(eq(schema.catalogEvents.catalogItemId, closest[0]!.id));
+    expect(events.map((e) => e.event)).toEqual(["opened"]);
   });
 });

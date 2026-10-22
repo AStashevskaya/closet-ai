@@ -1,4 +1,5 @@
 import {
+  CATALOG_EVENTS,
   CURRENCIES,
   BODY_SHAPES,
   ITEM_CATEGORIES,
@@ -11,6 +12,7 @@ import {
   SEASONS,
   TAG_STATUSES,
   USAGE_ACTIONS,
+  type AppLanguage,
   type ItemTags,
   type LookItem,
   type LookMatch,
@@ -26,6 +28,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
@@ -43,6 +46,7 @@ export const photoKindEnum = pgEnum("photo_kind", PHOTO_KINDS);
 export const usageActionEnum = pgEnum("usage_action", USAGE_ACTIONS);
 export const currencyEnum = pgEnum("currency", CURRENCIES);
 export const bodyShapeEnum = pgEnum("body_shape", BODY_SHAPES);
+export const catalogEventEnum = pgEnum("catalog_event", CATALOG_EVENTS);
 
 // One row per uploaded photo. The worker turns the original (uploadKey) into the shrunk WebP
 // at key; photos never attached to an item are cleaned up after a day.
@@ -199,8 +203,8 @@ export const outfits = pgTable(
   (table) => [index("outfits_request_idx").on(table.requestId)],
 );
 
-// A piece of an outfit: the item asked about, a wardrobe item, or (once partners exist) a
-// partner catalog item, which is always marked sponsored.
+// A piece of an outfit: the item asked about, a wardrobe item, or a partner catalog item, which
+// is always marked sponsored.
 export const outfitPieces = pgTable(
   "outfit_pieces",
   {
@@ -212,8 +216,10 @@ export const outfitPieces = pgTable(
     hero: boolean("hero").notNull().default(false),
     // Null when the item was deleted since: the outfit and its reactions stay.
     itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
-    // No catalog table yet; gets its foreign key with it.
-    catalogItemId: uuid("catalog_item_id"),
+    // Null when the brand took the item out of the catalog since.
+    catalogItemId: uuid("catalog_item_id").references(() => catalogItems.id, {
+      onDelete: "set null",
+    }),
     sponsored: boolean("sponsored").notNull().default(false),
   },
   (table) => [index("outfit_pieces_outfit_idx").on(table.outfitId)],
@@ -252,3 +258,56 @@ export const profiles = pgTable("profiles", {
   sizeShoes: text("size_shoes"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Partner brands' items, imported from their feeds (`catalog:import`). Not anyone's wardrobe:
+// outfits and Want / Can recommend them next to the user's own pieces, labelled as a partner's.
+export const catalogItems = pgTable(
+  "catalog_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The feed's own id ("P001"): importing the feed again updates the same rows.
+    externalId: text("external_id").notNull(),
+    // Plain text until brands sign up through the brand portal and become organizations.
+    brand: text("brand").notNull(),
+    // The name by app language, as the feed gives it.
+    names: jsonb("names").$type<Partial<Record<AppLanguage, string>>>().notNull(),
+    category: itemCategoryEnum("category").notNull(),
+    colors: itemColorEnum("colors").array().notNull(),
+    priceMinor: integer("price_minor").notNull(),
+    currency: currencyEnum("currency").notNull(),
+    url: text("url").notNull(),
+    // A WebP with transparency at catalog/<external id>.webp.
+    imageKey: text("image_key").notNull(),
+    // Of the picture flattened on white, like wardrobe cut-outs, so the two compare.
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
+    inStock: boolean("in_stock").notNull().default(true),
+    // The demo catalog's made-up brands (see CatalogItem.demo).
+    demo: boolean("demo").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("catalog_items_external_id_idx").on(table.externalId),
+    index("catalog_items_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+  ],
+);
+
+// One row per partner item shown, opened or followed. Brands only ever see counts; the user
+// is kept to count people rather than views, and goes with their account.
+export const catalogEvents = pgTable(
+  "catalog_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    catalogItemId: uuid("catalog_item_id")
+      .notNull()
+      .references(() => catalogItems.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    event: catalogEventEnum("event").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("catalog_events_item_idx").on(table.catalogItemId, table.event, table.createdAt),
+  ],
+);

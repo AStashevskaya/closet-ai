@@ -361,3 +361,30 @@ export const updateProfileInput = userProfile.partial();
 export type UpdateProfileInput = z.infer<typeof updateProfileInput>;
 
 export * from "./limits";
+
+// Partner brands' items (the brand catalog), never in anyone's wardrobe: recommended next to
+// the user's own pieces and always labelled as a partner's.
+
+export const catalogItem = z.object({
+  id: z.string().uuid(),
+  brand: z.string(),
+  // In the app language asked for, English when the feed has none in it.
+  name: z.string(),
+  category: itemCategory,
+  colors: z.array(itemColor),
+  // In the currency's main unit, like an item's price.
+  price: z.number(),
+  currency,
+  // The item on the brand's own site.
+  url: z.string().url(),
+  imageUrl: z.string(),
+  inStock: z.boolean(),
+  // From the demo catalog of made-up brands: its link leads nowhere, so the app doesn't offer it.
+  demo: z.boolean(),
+});
+export type CatalogItem = z.infer<typeof catalogItem>;
+
+// What brands are shown, in aggregate only: a partner item shown to someone, its card opened,
+// its link followed.
+export const CATALOG_EVENTS = ["shown", "opened", "clicked"] as const;
+export type CatalogEvent = (typeof CATALOG_EVENTS)[number];

@@ -8,6 +8,8 @@ import {
 import type { Auth } from "./auth/auth";
 import { authRoutes } from "./auth/auth.routes";
 import type { Env } from "./config/env";
+import type { CatalogRepository } from "./modules/catalog/catalog.repository";
+import { catalogRoutes } from "./modules/catalog/catalog.routes";
 import type { ItemsRepository } from "./modules/items/items.repository";
 import { itemsRoutes } from "./modules/items/items.routes";
 import type { PhotosRepository } from "./modules/photos/photos.repository";
@@ -35,6 +37,7 @@ export interface AppDeps {
   usageRepository: UsageRepository;
   outfitsRepository: OutfitsRepository;
   profileRepository: ProfileRepository;
+  catalogRepository: CatalogRepository;
   photoQueue: PhotoQueue;
   outfitQueue: OutfitQueue;
   storage: Storage;
@@ -56,6 +59,7 @@ export async function buildApp({
   usageRepository,
   outfitsRepository,
   profileRepository,
+  catalogRepository,
   photoQueue,
   outfitQueue,
   storage,
@@ -113,6 +117,7 @@ export async function buildApp({
   );
   await app.register(usageRoutes(limits, auth), { prefix: "/api" });
   await app.register(profileRoutes(profileRepository, auth), { prefix: "/api" });
+  await app.register(catalogRoutes(catalogRepository, storage, auth), { prefix: "/api" });
   await app.register(inspirationRoutes(photosRepository, storage, outfitQueue, auth), {
     prefix: "/api",
   });
