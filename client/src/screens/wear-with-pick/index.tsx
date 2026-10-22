@@ -5,14 +5,15 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
 import { MoodChips } from '@/components/mood-chips';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { askWearWith, getPhotoState, uploadPhoto } from '@/lib/api';
-import { limitReached } from '@/lib/api-error';
+import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
@@ -29,7 +30,8 @@ type Shot =
   | { status: 'empty' }
   | { status: 'finding'; uri: string; aspect: number }
   | { status: 'found'; uri: string; aspect: number; photoKey: string; items: LookItem[] }
-  | { status: 'failed'; uri: string; aspect: number };
+  // offline: the server couldn't be reached, which is no fault of the photo.
+  | { status: 'failed'; uri: string; aspect: number; offline: boolean };
 
 // "What do I wear this with?" for an item the user doesn't own (yet): a screenshot or photo,
 // the item on it picked when there are several, then the outfits.
@@ -73,7 +75,7 @@ export function WearWithPick() {
         return;
       }
       if (__DEV__) console.warn('Uploading the photo failed', cause);
-      setShot({ status: 'failed', uri, aspect });
+      setShot({ status: 'failed', uri, aspect, offline: isOffline(cause) });
     }
   }
 
@@ -93,7 +95,9 @@ export function WearWithPick() {
       else {
         if (__DEV__) console.warn('Asking for outfits failed', cause);
         setShot((current) =>
-          current.status === 'found' ? { ...current, status: 'failed' } : current,
+          current.status === 'found'
+            ? { ...current, status: 'failed', offline: isOffline(cause) }
+            : current,
         );
       }
     }
@@ -105,6 +109,8 @@ export function WearWithPick() {
     let cancelled = false;
 
     const poll = async () => {
+      // Whether the last poll found the server unreachable.
+      let offline = false;
       for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
         try {
           const state = await getPhotoState(photoKey);
@@ -121,15 +127,17 @@ export function WearWithPick() {
             return;
           }
           if (state.status === 'failed' || state.tagStatus !== 'pending') break;
-        } catch {
+          offline = false;
+        } catch (error) {
           // A dropped request is no reason to stop; the next poll tries again.
+          offline = isOffline(error);
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
         if (cancelled) return;
       }
       if (!cancelled) {
         setShot((current) =>
-          current.status === 'finding' ? { ...current, status: 'failed' } : current,
+          current.status === 'finding' ? { ...current, status: 'failed', offline } : current,
         );
       }
     };
@@ -201,13 +209,13 @@ export function WearWithPick() {
           exiting={FadeOut.duration(durations.press)}
           accessibilityLiveRegion="polite"
         >
-          {(shot.status === 'finding' || busy) && (
-            <ActivityIndicator size="small" color={colors.accent} />
-          )}
+          {(shot.status === 'finding' || busy) && <HangerLoader size="small" />}
           <Text style={styles.statusText}>
             {busy && t('wearWith.composing')}
             {!busy && shot.status === 'finding' && t('wearWith.finding')}
-            {!busy && shot.status === 'failed' && t('wearWith.notRead')}
+            {!busy &&
+              shot.status === 'failed' &&
+              (shot.offline ? t('common.offline') : t('wearWith.notRead'))}
             {!busy &&
               shot.status === 'found' &&
               (shot.items.length === 0 ? t('wearWith.none') : t('wearWith.pickOne'))}
@@ -268,7 +276,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '55%',
     aspectRatio: 3 / 4,
-    borderRadius: 20,
   },
   photoEmpty: {
     backgroundColor: colors.hero,
@@ -338,16 +345,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
   },
   crop: {
     width: 64,
     height: 84,
-    borderRadius: 12,
   },
   rowText: {
     flex: 1,

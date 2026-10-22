@@ -19,7 +19,9 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
-import { RotateButton } from '@/components/rotate-button';
+import { PhotoCropper } from '@/components/photo-cropper';
+import { CropButton, RotateButton } from '@/components/rotate-button';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -65,6 +67,10 @@ export function AddItem() {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ItemCategory | null>(null);
   const [itemColors, setItemColors] = useState<ItemColor[]>([]);
+  // Fields the user changed by hand: a crop refills the others from the cropped photo's tags.
+  const edited = useRef({ name: false, category: false, colors: false });
+  // The photo in the cropper while it is open.
+  const [cropping, setCropping] = useState<string | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
   // A limit the save ran into (the day's photos, or the server's daily stop).
@@ -129,6 +135,18 @@ export function AddItem() {
     } finally {
       setBusy(false);
     }
+    await startUpload(uri);
+  }
+
+  // A crop shows the app which item is meant, so the tags filled in from the whole photo are
+  // dropped and the cropped photo's fill them again; what the user typed or picked stays.
+  async function cropped(uri: string) {
+    setCropping(null);
+    setPhotoUri(uri);
+    if (!edited.current.name) setName('');
+    if (!edited.current.category) setCategory(null);
+    if (!edited.current.colors) setItemColors([]);
+    setSeasons([]);
     await startUpload(uri);
   }
 
@@ -264,7 +282,10 @@ export function AddItem() {
               contentFit="cover"
               transition={250}
             />
-            <RotateButton onPress={rotate} disabled={busy} style={styles.rotate} />
+            <View style={styles.photoActions}>
+              <CropButton onPress={() => setCropping(photoUri)} disabled={busy} />
+              <RotateButton onPress={rotate} disabled={busy} />
+            </View>
           </View>
         ) : (
           <View style={[styles.photo, styles.photoEmpty]} />
@@ -312,7 +333,7 @@ export function AddItem() {
             exiting={FadeOut.duration(durations.press)}
             accessibilityLiveRegion="polite"
           >
-            {tagging === 'waiting' && <ActivityIndicator size="small" color={colors.accent} />}
+            {tagging === 'waiting' && <HangerLoader size="small" />}
             <Text style={styles.taggingText}>
               {t(tagging === 'waiting' ? 'addItem.tagging' : 'addItem.tagged')}
             </Text>
@@ -321,11 +342,20 @@ export function AddItem() {
 
         <ItemFields
           name={name}
-          onNameChange={setName}
+          onNameChange={(value) => {
+            edited.current.name = true;
+            setName(value);
+          }}
           category={category}
-          onCategoryChange={setCategory}
+          onCategoryChange={(value) => {
+            edited.current.category = true;
+            setCategory(value);
+          }}
           itemColors={itemColors}
-          onColorsChange={setItemColors}
+          onColorsChange={(value) => {
+            edited.current.colors = true;
+            setItemColors(value);
+          }}
         />
 
         {limit && (
@@ -369,6 +399,7 @@ export function AddItem() {
           <Text style={styles.styleButtonText}>{t('addItem.saveAndStyle')}</Text>
         </PressableScale>
       </ScrollView>
+      <PhotoCropper uri={cropping} onCancel={() => setCropping(null)} onDone={cropped} />
     </KeyboardAvoidingView>
   );
 }
@@ -388,19 +419,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '70%',
     aspectRatio: 3 / 4,
-    borderRadius: 20,
   },
   photoImage: {
     flex: 1,
-    borderRadius: 20,
   },
   photoEmpty: {
     backgroundColor: colors.hero,
   },
-  rotate: {
+  photoActions: {
     position: 'absolute',
     bottom: 10,
     end: 10,
+    flexDirection: 'row',
+    gap: 8,
   },
   photoButtons: {
     marginTop: 6,

@@ -2,13 +2,17 @@ import type { Inspiration as SavedLook } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Link, useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EditorialCover } from '@/components/cover';
+import { HangerLoader } from '@/components/hanger-loader';
+import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
+import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { PressableScale } from '@/components/pressable-scale';
 import {
   absoluteUrl,
@@ -21,8 +25,8 @@ import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
-import { durations } from '@/motion';
-import { colors, fonts } from '@/theme';
+import { rise, STAGGER_STEP } from '@/motion';
+import { colors } from '@/theme';
 
 // Looks picked at once from the gallery, and saved a few at a time.
 const MAX_PICKED = 20;
@@ -33,6 +37,7 @@ const PARALLEL_UPLOADS = 3;
 export function Inspiration() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [looks, setLooks] = useState<SavedLook[] | null>(null);
   // Local photos on their way up, shown greyed out in the grid until the list catches up.
   const [saving, setSaving] = useState<string[]>([]);
@@ -125,29 +130,43 @@ export function Inspiration() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
     >
-      <Text style={styles.title} accessibilityRole="header">
-        {t('inspiration.title')}
-      </Text>
-      <Text style={styles.intro}>{t('inspiration.intro')}</Text>
+      <Animated.View entering={rise} style={[maison.gutter, styles.intro]}>
+        <ScreenTitle title={t('inspiration.title')} />
+        <Text style={maison.body}>{t('inspiration.intro')}</Text>
+      </Animated.View>
 
-      <PressableScale
-        style={styles.button}
-        onPress={add}
-        disabled={saving.length > 0}
-        accessibilityRole="button"
-      >
-        {saving.length > 0 ? (
-          <ActivityIndicator color={colors.onAccent} />
-        ) : (
-          <Text style={styles.buttonText}>{t('inspiration.add')}</Text>
-        )}
-      </PressableScale>
-      <Text style={styles.note}>{message ?? t('inspiration.taste')}</Text>
+      {/* Want / Can: what of a look the user already owns, on the screen's cover. */}
+      <Animated.View entering={rise.delay(STAGGER_STEP)}>
+        <EditorialCover
+          eyebrow={t('want.title')}
+          title={t('inspiration.wantTitle')}
+          text={t('inspiration.wantText')}
+        >
+          <Button
+            label={t('want.pick')}
+            onPress={() => router.push('/want-can')}
+            style={styles.coverButton}
+          />
+        </EditorialCover>
+      </Animated.View>
+
+      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={[maison.gutter, styles.add]}>
+        <SectionLabel>{t('inspiration.saved')}</SectionLabel>
+        <Button
+          kind="outline"
+          label={t('inspiration.add')}
+          onPress={add}
+          busy={saving.length > 0}
+        />
+        <Text style={[maison.note, styles.centered]}>{message ?? t('inspiration.taste')}</Text>
+      </Animated.View>
 
       {looks === null ? (
-        <ActivityIndicator color={colors.accent} style={styles.loading} />
+        <View style={styles.loading}>
+          <HangerLoader />
+        </View>
       ) : (
         <View style={styles.grid}>
           {saving.map((uri) => (
@@ -159,7 +178,7 @@ export function Inspiration() {
             <Animated.View
               key={look.key}
               style={styles.cell}
-              entering={FadeIn.duration(durations.enter).delay(Math.min(index, 12) * 30)}
+              entering={rise.delay(STAGGER_STEP * 2 + Math.min(index, 8) * STAGGER_STEP)}
             >
               <PressableScale
                 style={styles.cellPress}
@@ -173,7 +192,7 @@ export function Inspiration() {
                     source={{ uri: absoluteUrl(look.url), headers }}
                     style={styles.image}
                     contentFit="cover"
-                    transition={200}
+                    transition={300}
                     accessibilityIgnoresInvertColors
                   />
                 )}
@@ -182,72 +201,44 @@ export function Inspiration() {
           ))}
         </View>
       )}
-
-      <Link href="/want-can" asChild>
-        <PressableScale style={styles.link} accessibilityRole="link">
-          <Text style={styles.linkText}>{t('inspiration.whatIHave')}</Text>
-        </PressableScale>
-      </Link>
     </ScrollView>
   );
 }
 
-// textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
   },
   content: {
-    paddingHorizontal: 22,
-    paddingBottom: 40,
-    gap: 12,
-  },
-  title: {
-    fontFamily: fonts.display,
-    fontSize: 34,
-    lineHeight: 38,
-    color: colors.text,
-    textAlign: 'left',
+    paddingBottom: TAB_BAR_CLEARANCE,
+    gap: 24,
   },
   intro: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 21,
-    color: colors.textSecondary,
-    textAlign: 'left',
+    gap: 12,
   },
-  button: {
-    marginTop: 4,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
+  coverButton: {
+    marginTop: 12,
   },
-  buttonText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.onAccent,
+  add: {
+    gap: 10,
   },
-  note: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.textMuted,
+  centered: {
     textAlign: 'center',
   },
   loading: {
-    marginTop: 24,
+    alignItems: 'center',
+    paddingVertical: 24,
   },
+  // A moodboard: two to a row, 10 px apart, as in the closet.
   grid: {
-    marginTop: 8,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   cell: {
-    // Three to a row with two 8 px gaps.
-    width: '31.8%',
+    width: '48.5%',
     aspectRatio: 3 / 4,
   },
   cellPress: {
@@ -255,22 +246,9 @@ const styles = StyleSheet.create({
   },
   image: {
     flex: 1,
-    borderRadius: 14,
     backgroundColor: colors.hero,
   },
   pending: {
     opacity: 0.45,
-  },
-  link: {
-    marginTop: 12,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  linkText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: colors.accent,
-    textDecorationLine: 'underline',
   },
 });

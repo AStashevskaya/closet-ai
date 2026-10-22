@@ -14,6 +14,8 @@ import {
 } from "@closet-ai/shared";
 import * as z from "zod/v4";
 
+import { modelCopy } from "../modules/photos/process-photo.js";
+
 // Every AI call goes through a module like this one, so tests swap in a stub and never spend money.
 export interface ItemTagger {
   tag(image: Uint8Array, lang: AppLanguage): Promise<TaggedPhoto>;
@@ -167,20 +169,24 @@ export function createClaudeItemTagger(apiKey: string): ItemTagger {
     return response.parsed_output as T;
   }
 
-  // One photo and the language to name its items in.
-  const photoIn = (image: Uint8Array, lang: AppLanguage): Anthropic.ContentBlockParam[] => [
-    imageBlock(image),
+  // One photo, at the model's size, and the language to name its items in.
+  const photoIn = async (
+    image: Uint8Array,
+    lang: AppLanguage,
+  ): Promise<Anthropic.ContentBlockParam[]> => [
+    imageBlock(await modelCopy(image)),
     { type: "text", text: `Language for the name: ${LANGUAGE_NAMES[lang]}.` },
   ];
 
   return {
-    tag: (image, lang) => ask<TaggedPhoto>(SYSTEM_PROMPT, modelTags, photoIn(image, lang)),
+    tag: async (image, lang) =>
+      ask<TaggedPhoto>(SYSTEM_PROMPT, modelTags, await photoIn(image, lang)),
 
     async findItems(image, lang) {
       const { items } = await ask<z.infer<typeof modelLook>>(
         LOOK_PROMPT,
         modelLook,
-        photoIn(image, lang),
+        await photoIn(image, lang),
       );
       return items.map(({ box, ...item }) => {
         const [xMin, xMax] = [

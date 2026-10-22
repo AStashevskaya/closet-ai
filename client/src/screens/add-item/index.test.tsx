@@ -22,6 +22,11 @@ jest.mock('expo-image-picker', () => ({
 jest.mock('@/lib/use-confirm-leave', () => ({
   useConfirmLeave: () => (navigate: () => void) => navigate(),
 }));
+// The cropper reads the safe area.
+jest.mock(
+  'react-native-safe-area-context',
+  () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
+);
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   // No usage unless a test gives one: the screens then show no counts.
@@ -282,6 +287,13 @@ describe('<AddItem />', () => {
 
     await waitFor(() => expect(uploadPhoto).toHaveBeenLastCalledWith('file:///turned.jpg', 'en'));
     expect(rotatePhoto).toHaveBeenCalledWith('file:///small.jpg');
+  });
+  test('opens the cropper on the picked photo', async () => {
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.press(await screen.findByLabelText('Crop photo'));
+
+    expect(screen.getByRole('header', { name: 'Crop to the item' })).toBeOnTheScreen();
   });
   test('saves the item and goes on to the outfits for it', async () => {
     jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);

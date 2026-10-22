@@ -9,9 +9,10 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { addLookItems, getPhotoState, uploadPhoto } from '@/lib/api';
-import { limitReached } from '@/lib/api-error';
+import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
@@ -30,7 +31,8 @@ type Look =
   | { status: 'empty' }
   | { status: 'finding'; uri: string; aspect: number }
   | { status: 'found'; uri: string; aspect: number; photoKey: string; items: LookItem[] }
-  | { status: 'failed'; uri: string; aspect: number };
+  // offline: the server couldn't be reached, which is no fault of the photo.
+  | { status: 'failed'; uri: string; aspect: number; offline: boolean };
 
 type ErrorKey = 'addLook.errors.save' | 'addLook.errors.empty' | 'addItem.errors.cameraPermission';
 
@@ -80,7 +82,7 @@ export function AddLook() {
         return;
       }
       if (__DEV__) console.warn('Uploading the look failed', cause);
-      setLook({ status: 'failed', uri, aspect });
+      setLook({ status: 'failed', uri, aspect, offline: isOffline(cause) });
     }
   }
 
@@ -90,6 +92,8 @@ export function AddLook() {
     let cancelled = false;
 
     const poll = async () => {
+      // Whether the last poll found the server unreachable.
+      let offline = false;
       for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
         try {
           const state = await getPhotoState(photoKey);
@@ -106,15 +110,17 @@ export function AddLook() {
             return;
           }
           if (state.status === 'failed' || state.tagStatus !== 'pending') break;
-        } catch {
+          offline = false;
+        } catch (error) {
           // A dropped request is no reason to stop; the next poll tries again.
+          offline = isOffline(error);
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
         if (cancelled) return;
       }
       if (!cancelled) {
         setLook((current) =>
-          current.status === 'finding' ? { ...current, status: 'failed' } : current,
+          current.status === 'finding' ? { ...current, status: 'failed', offline } : current,
         );
       }
     };
@@ -222,10 +228,11 @@ export function AddLook() {
           exiting={FadeOut.duration(durations.press)}
           accessibilityLiveRegion="polite"
         >
-          {look.status === 'finding' && <ActivityIndicator size="small" color={colors.accent} />}
+          {look.status === 'finding' && <HangerLoader size="small" />}
           <Text style={styles.statusText}>
             {look.status === 'finding' && t('addLook.finding')}
-            {look.status === 'failed' && t('addLook.errors.find')}
+            {look.status === 'failed' &&
+              (look.offline ? t('common.offline') : t('addLook.errors.find'))}
             {look.status === 'found' &&
               (look.items.length > 0
                 ? t('addLook.found', { count: look.items.length })
@@ -326,7 +333,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '55%',
     aspectRatio: 3 / 4,
-    borderRadius: 20,
   },
   photoEmpty: {
     backgroundColor: colors.hero,
@@ -381,20 +387,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
     backgroundColor: colors.background,
   },
   rowSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.surface,
+    // Picked rows sit on the studio grey.
+    backgroundColor: colors.hero,
   },
   crop: {
     width: 64,
     height: 84,
-    borderRadius: 12,
   },
   rowText: {
     flex: 1,

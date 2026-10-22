@@ -7,14 +7,20 @@ import {
   FrankRuhlLibre_400Regular,
 } from '@expo-google-fonts/frank-ruhl-libre';
 import { GveretLevin_400Regular } from '@expo-google-fonts/gveret-levin';
-import { Heebo_400Regular, Heebo_500Medium, Heebo_600SemiBold } from '@expo-google-fonts/heebo';
+import {
+  Heebo_300Light,
+  Heebo_400Regular,
+  Heebo_500Medium,
+  Heebo_600SemiBold,
+} from '@expo-google-fonts/heebo';
 import type { FontSource } from 'expo-font';
 import { MarckScript_400Regular } from '@expo-google-fonts/marck-script';
 import {
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-} from '@expo-google-fonts/manrope';
+  InterTight_300Light,
+  InterTight_400Regular,
+  InterTight_500Medium,
+  InterTight_600SemiBold,
+} from '@expo-google-fonts/inter-tight';
 
 import i18n from '@/i18n';
 
@@ -25,6 +31,7 @@ export const fontAssets: Record<string, FontSource> =
     ? {
         FrankRuhlLibre_300Light,
         FrankRuhlLibre_400Regular,
+        Heebo_300Light,
         Heebo_400Regular,
         Heebo_500Medium,
         Heebo_600SemiBold,
@@ -33,8 +40,9 @@ export const fontAssets: Record<string, FontSource> =
     : {
         CormorantGaramond_300Light,
         CormorantGaramond_400Regular,
-        Manrope_400Regular,
-        Manrope_500Medium,
-        Manrope_600SemiBold,
+        InterTight_300Light,
+        InterTight_400Regular,
+        InterTight_500Medium,
+        InterTight_600SemiBold,
         MarckScript_400Regular,
       };

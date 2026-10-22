@@ -1,4 +1,14 @@
 {
+  "common": {
+    "loading": "Loading",
+    "offline": "No connection to the server. Check the internet and try again."
+  },
+  "crop": {
+    "button": "Crop photo",
+    "title": "Crop to the item",
+    "hint": "Drag the corners around the one item you're adding, so the app looks only at it",
+    "done": "Done"
+  },
   "app": {
     "name": "CLOSET",
     "tagline": "your closet · your mood"
@@ -26,7 +36,8 @@
     "deleteTitle": "Delete “{{name}}”?",
     "deleteMessage": "The item and its photo will be removed from your closet.",
     "cancel": "Cancel",
-    "deleteError": "Couldn't delete the item. Try again."
+    "deleteError": "Couldn't delete the item. Try again.",
+    "newIn": "New in your closet"
   },
   "addItem": {
     "title": "New item",
@@ -53,14 +64,13 @@
     }
   },
   "tabs": {
-    "home": "Home",
     "closet": "Closet",
+    "style": "Style it",
     "inspiration": "Inspiration",
-    "trends": "Trends",
     "profile": "Profile"
   },
   "menu": {
-    "title": "Menu",
+    "title": "Profile",
     "soon": "soon",
     "sections": {
       "closet": "My closet",
@@ -71,6 +81,12 @@
       "votes": "Friends' votes",
       "showroom": "Brand showroom",
       "favorites": "Favorites"
+    },
+    "limits": "Your limits",
+    "usage": {
+      "want": "Want / Can screenshots this month",
+      "look": "Selfies this month",
+      "wear_with": "Style it today"
     }
   },
   "comingSoon": "This section is coming soon",
@@ -203,7 +219,9 @@
     "taste": "Every 3 new looks update your style",
     "deleteTitle": "Delete this look?",
     "delete": "Delete",
-    "whatIHave": "What of a look do I already have?"
+    "wantText": "A screenshot of a look: I'll find its pieces and show which ones already hang in your closet.",
+    "wantTitle": "What of this look do you already own?",
+    "saved": "Your looks"
   },
   "want": {
     "title": "Want / Can",
@@ -263,5 +281,21 @@
     "budget": "The AI is resting for today. Try again tomorrow.",
     "wear_with": "That's {{limit}} for today. Ask again tomorrow.",
     "inspiration": "That's enough looks for today. Save more tomorrow."
+  },
+  "styleIt": {
+    "title": "Style it",
+    "subtitle": "What to wear it with",
+    "photoEyebrow": "From a photo",
+    "photoTitle": "Seen a piece you love?",
+    "photoText": "A screenshot from a shop or Instagram: I'll put outfits together with it from your closet.",
+    "photoButton": "Choose a photo",
+    "closet": "From your closet",
+    "closetHint": "Tap a piece and I'll build four outfits around it",
+    "emptyCloset": "Add a few pieces to your closet and I'll start styling them.",
+    "addFirst": "Add an item",
+    "history": "Already styled",
+    "historyEmpty": "Outfits you ask for are kept here.",
+    "open": "Outfits with {{name}}",
+    "styling": "Styling {{name}}…"
   }
 }

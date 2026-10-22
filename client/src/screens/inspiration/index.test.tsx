@@ -14,10 +14,13 @@ jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
+// `mock` prefix: jest.mock factories may only use variables named like this.
+const mockPush = jest.fn();
+
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual('react');
   return {
-    Link: ({ children }: { children: unknown }) => children,
+    useRouter: () => ({ push: mockPush }),
     // Runs the callback once on mount, as if the tab just came into view.
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
   };
@@ -50,6 +53,12 @@ beforeEach(async () => {
 });
 
 describe('<Inspiration />', () => {
+  test('opens Want / Can from its cover', async () => {
+    await render(<Inspiration />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose a screenshot' }));
+    expect(mockPush).toHaveBeenCalledWith('/want-can');
+  });
+
   test('saves several looks at once as inspiration', async () => {
     jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
       canceled: false,

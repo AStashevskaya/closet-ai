@@ -40,7 +40,8 @@ export default function RootLayout() {
             title: t('addItem.title'),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.accent,
-            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+            headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
+            headerShadowVisible: false,
           }}
         />
         <Stack.Screen
@@ -50,7 +51,8 @@ export default function RootLayout() {
             title: t('addItems.title'),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.accent,
-            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+            headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
+            headerShadowVisible: false,
           }}
         />
         <Stack.Screen
@@ -60,18 +62,19 @@ export default function RootLayout() {
             title: t('addLook.title'),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.accent,
-            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+            headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
+            headerShadowVisible: false,
           }}
         />
-        {/* The screen sets its title to the item's name once it has loaded. */}
+        {/* See-through: the item's photo runs under it, and the name is on the page. */}
         <Stack.Screen
           name="item/[id]"
           options={{
             title: '',
+            headerTransparent: true,
+            headerShadowVisible: false,
             headerBackButtonDisplayMode: 'minimal',
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.accent,
-            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+            headerTintColor: colors.text,
           }}
         />
         <Stack.Screen
@@ -91,7 +94,8 @@ export default function RootLayout() {
             title: t('wearWith.title'),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.accent,
-            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+            headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
+            headerShadowVisible: false,
           }}
         />
         <Stack.Screen
@@ -101,7 +105,8 @@ export default function RootLayout() {
             headerBackButtonDisplayMode: 'minimal',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.accent,
-            headerTitleStyle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+            headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
+            headerShadowVisible: false,
           }}
         />
       </Stack.Protected>

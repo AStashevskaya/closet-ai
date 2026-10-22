@@ -62,35 +62,32 @@ export function CategoryFilter({ categories, value, onChange }: Props) {
   );
 }
 
+// Plain words; the chosen one on the bright colour, the one accent of the row.
 const styles = StyleSheet.create({
   // The row scrolls edge to edge; only its content is inset.
   scroll: {
     flexGrow: 0,
-    marginBottom: 18,
+    marginBottom: 14,
   },
   row: {
-    paddingHorizontal: 22,
-    gap: 8,
+    paddingHorizontal: 10,
+    gap: 4,
   },
   chip: {
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 18,
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
   selected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.highlight,
   },
   label: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: fonts.body,
     fontSize: 13,
-    color: colors.textSecondary,
+    color: colors.textMuted,
   },
   labelSelected: {
-    color: colors.onAccent,
+    color: colors.text,
   },
 });

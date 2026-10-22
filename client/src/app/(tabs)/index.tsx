@@ -1,5 +1,6 @@
-import { Home } from '@/screens/home';
+import { Closet } from '@/screens/closet';
 
-export default function HomeScreen() {
-  return <Home />;
+// The closet is the first tab, where the app opens.
+export default function ClosetScreen() {
+  return <Closet />;
 }

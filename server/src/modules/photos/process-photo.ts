@@ -1,9 +1,14 @@
 import sharp from "sharp";
 
-// Photos are stored small on purpose: free storage tiers are measured in gigabytes.
-// 1024 px on the long side is enough for the phone, for listings and for vision models.
-export const PHOTO_MAX_SIDE = 1024;
-const WEBP_QUALITY = 70;
+// Sharp enough for a full-screen photo on a phone and for cropping into it (1024 px at quality
+// 70 looked soft, 2026-10-21). Capped by area, not by the long side: a tall phone screenshot
+// (1170 × 2532) kept to a 1600 px long side was only 739 px wide, soft on a full-width cover.
+// About 2.6 MP: 1860 × 1395 for a 4:3 photo, 1100 × 2380 for a screenshot; ~300 KB.
+export const PHOTO_MAX_PIXELS = 2_600_000;
+const PHOTO_MAX_SIDE = 2600;
+const WEBP_QUALITY = 85;
+// Vision models get a smaller copy: they read items as well at 1024 px, for fewer tokens.
+const MODEL_MAX_SIDE = 1024;
 // Refuse absurd resolutions before decoding them (a 100 MB "image" can be a few KB of PNG).
 const MAX_INPUT_PIXELS = 50_000_000;
 // HEIC is not here: sharp's prebuilt binaries can't decode it, so the app converts to JPEG first.
@@ -36,16 +41,38 @@ export async function checkPhoto(input: Uint8Array): Promise<string> {
 // so EXIF data such as GPS location and camera model never reaches storage.
 export async function processPhoto(input: Uint8Array): Promise<Uint8Array> {
   await checkPhoto(input);
+  const {
+    width = 1,
+    height = 1,
+    orientation = 1,
+  } = await sharp(input, {
+    limitInputPixels: MAX_INPUT_PIXELS,
+  }).metadata();
+  // EXIF orientations 5 to 8 turn the photo a quarter, swapping its sides.
+  const uprightWidth = orientation >= 5 ? height : width;
+  const scale = Math.min(
+    1,
+    Math.sqrt(PHOTO_MAX_PIXELS / (width * height)),
+    PHOTO_MAX_SIDE / Math.max(width, height),
+  );
 
   return sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
     .rotate() // apply the EXIF orientation before the EXIF data is dropped
+    .resize({ width: Math.round(uprightWidth * scale), withoutEnlargement: true })
+    .webp({ quality: WEBP_QUALITY, effort: 6 })
+    .toBuffer();
+}
+
+// A stored photo as sent to a vision model: at most MODEL_MAX_SIDE on the long side.
+export async function modelCopy(image: Uint8Array): Promise<Uint8Array> {
+  return sharp(image)
     .resize({
-      width: PHOTO_MAX_SIDE,
-      height: PHOTO_MAX_SIDE,
+      width: MODEL_MAX_SIDE,
+      height: MODEL_MAX_SIDE,
       fit: "inside",
       withoutEnlargement: true,
     })
-    .webp({ quality: WEBP_QUALITY, effort: 6 })
+    .webp({ quality: 80 })
     .toBuffer();
 }
 

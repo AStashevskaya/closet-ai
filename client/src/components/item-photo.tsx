@@ -41,8 +41,9 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
+  // Air around the item, as on a catalogue page.
   cutout: {
     flex: 1,
-    margin: '8%',
+    margin: '13%',
   },
 });

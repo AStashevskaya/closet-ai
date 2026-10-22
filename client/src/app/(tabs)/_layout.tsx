@@ -1,48 +1,27 @@
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Icon, type IconName } from '@/components/icon';
-import { colors, fonts } from '@/theme';
+import { TabBar } from '@/components/tab-bar';
 
-// JS tabs rather than NativeTabs: the design's bar uses our own fonts and icons,
-// which the native tab bar doesn't allow.
-const TABS: {
-  name: string;
-  icon: IconName;
-  label: 'home' | 'closet' | 'inspiration' | 'trends' | 'profile';
-}[] = [
-  { name: 'index', icon: 'home', label: 'home' },
-  { name: 'closet', icon: 'hanger', label: 'closet' },
-  { name: 'inspiration', icon: 'heart', label: 'inspiration' },
-  { name: 'trends', icon: 'trend', label: 'trends' },
-  { name: 'profile', icon: 'user', label: 'profile' },
-];
+// JS tabs rather than NativeTabs, so the bar can be our own frosted capsule (src/components/tab-bar.tsx).
+const TABS = [
+  { name: 'index', label: 'closet' },
+  { name: 'style', label: 'style' },
+  { name: 'inspiration', label: 'inspiration' },
+  { name: 'profile', label: 'profile' },
+] as const;
 
 export default function TabsLayout() {
   const { t } = useTranslation();
 
   return (
     <Tabs
-      screenOptions={{
-        // Each screen draws its own header.
-        headerShown: false,
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.tabInactive,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.divider },
-        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 10 },
-      }}
+      tabBar={(props) => <TabBar {...props} />}
+      // Each screen draws its own header.
+      screenOptions={{ headerShown: false }}
     >
-      {TABS.map(({ name, icon, label }) => (
-        <Tabs.Screen
-          key={name}
-          name={name}
-          options={{
-            title: t(`tabs.${label}`),
-            tabBarIcon: ({ color, focused }) => (
-              <Icon name={icon} color={color} fill={focused ? colors.accentSoft : 'none'} />
-            ),
-          }}
-        />
+      {TABS.map(({ name, label }) => (
+        <Tabs.Screen key={name} name={name} options={{ title: t(`tabs.${label}`) }} />
       ))}
     </Tabs>
   );

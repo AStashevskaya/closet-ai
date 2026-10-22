@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import {
   APP_LANGUAGES,
   outfitReactionInput,
+  styledList,
   wearWithInput,
   wearWithRequest,
   wearWithStarted,
   type Item,
+  type StyledEntry,
   type WearWithRequest,
 } from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -21,6 +23,9 @@ import { cropToBox } from "../photos/process-photo";
 import type { Limits } from "../usage/limits";
 import type { OutfitQueue } from "./outfit-jobs";
 import type { OutfitsRepository } from "./outfits.repository";
+
+// Styled items listed at most, newest first.
+const HISTORY_LIMIT = 30;
 
 // The photo of an item from a photo, served by the API like an item's: by request id.
 const heroPath = (requestId: string, variant?: "cutout") =>
@@ -98,6 +103,44 @@ export const outfitsRoutes =
         // A new brief is written in the background when the old one is stale; the job decides.
         await queue.enqueueBrief(user.id);
         return reply.code(202).send({ id });
+      },
+    );
+
+    // The styled items, newest first; an item deleted since (and not from a photo) drops out.
+    app.get(
+      "/wear-with",
+      { schema: { response: { 200: styledList } } },
+      async (request): Promise<StyledEntry[]> => {
+        const user = request.user as SessionUser;
+        const rows = await outfits.history(user.id, HISTORY_LIMIT);
+        const entries = await Promise.all(
+          rows.map(async (row): Promise<StyledEntry | null> => {
+            const base = {
+              id: row.id,
+              createdAt: row.createdAt.toISOString(),
+              mood: row.mood,
+            };
+            if (row.itemId) {
+              const item = await items.get(user.id, row.itemId);
+              if (!item) return null;
+              return {
+                ...base,
+                name: item.name,
+                photoUrl: item.photoUrl ?? null,
+                cutoutUrl: item.cutoutUrl ?? null,
+              };
+            }
+            const photo = row.heroPhotoKey ? await photos.get(row.heroPhotoKey) : null;
+            if (!photo?.tags) return null;
+            return {
+              ...base,
+              name: photo.tags.name,
+              photoUrl: heroPath(row.id),
+              cutoutUrl: photo.cutoutKey ? heroPath(row.id, "cutout") : null,
+            };
+          }),
+        );
+        return entries.filter((entry) => entry !== null);
       },
     );
 

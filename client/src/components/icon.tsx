@@ -20,6 +20,7 @@ const PATHS = {
   check: 'M5 12.5l4.5 4.5L19 7',
   // A quarter turn clockwise.
   rotate: 'M20 12a8 8 0 1 1-2.34-5.66L20 8.5M20 3.5v5h-5',
+  crop: 'M7 3v14h14M3 7h14v14',
 } as const;
 
 export type IconName = keyof typeof PATHS;

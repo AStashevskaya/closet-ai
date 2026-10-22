@@ -11,11 +11,11 @@ import {
   type OutfitMood,
 } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Image } from 'expo-image';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -24,17 +24,21 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, Keyframe } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HangerLoader } from '@/components/hanger-loader';
 import { Chip } from '@/components/chip';
-import { Icon } from '@/components/icon';
+import { Button, maison } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
 import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
 import { RotateButton } from '@/components/rotate-button';
 import {
+  absoluteUrl,
   askWearWith,
   deleteItem,
   getItem,
@@ -46,7 +50,7 @@ import {
 import { ApiError, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
-import { durations } from '@/motion';
+import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 const MAX_COLORS = 5;
@@ -63,11 +67,19 @@ const draftOf = (item: ItemDetail): Draft => ({
 
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 
+// The picture settles in from a little zoom, slowly.
+const settle = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 1.08 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
+}).duration(durations.settle);
+
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; item: ItemDetail };
 
 export function ItemScreen({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const { usage, refresh: refreshUsage } = useUsage();
   // The mood asked of the outfits; null for any.
   const [mood, setMood] = useState<OutfitMood | null>(null);
@@ -76,14 +88,22 @@ export function ItemScreen({ id }: { id: string }) {
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [busy, setBusy] = useState(false);
   const [similar, setSimilar] = useState<SimilarItem[]>([]);
+  // The item as last loaded, to tell unsaved corrections from what the server has.
+  const loaded = useRef<ItemDetail | null>(null);
 
   const load = useCallback(async () => {
     try {
       const item = await getItem(id);
+      const previous = loaded.current;
+      loaded.current = item;
       setState({ status: 'ready', item });
-      setDraft(draftOf(item));
+      // Coming back from the outfits reloads the item: corrections not saved yet stay.
+      setDraft((current) =>
+        current && previous && !sameDraft(current, draftOf(previous)) ? current : draftOf(item),
+      );
     } catch {
-      setState({ status: 'error' });
+      // A failed reload keeps the item already shown; only a first load shows the error.
+      setState((current) => (current.status === 'ready' ? current : { status: 'error' }));
       return;
     }
     // A nice-to-have: if it fails, the row just stays hidden.
@@ -115,7 +135,11 @@ export function ItemScreen({ id }: { id: string }) {
   }, []);
 
   if (state.status === 'loading' || (state.status === 'ready' && !draft)) {
-    return <ActivityIndicator style={styles.center} color={colors.accent} />;
+    return (
+      <View style={styles.center}>
+        <HangerLoader />
+      </View>
+    );
   }
 
   if (state.status === 'error' || !draft) {
@@ -226,144 +250,168 @@ export function ItemScreen({ id }: { id: string }) {
       // iOS is handled by the ScrollView below; Android still needs the view to shrink.
       behavior={Platform.OS === 'android' ? 'height' : undefined}
     >
-      <Stack.Screen options={{ title: item.name }} />
       <ScrollView
         contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="never"
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         keyboardDismissMode="interactive"
       >
-        <View style={styles.photo}>
-          <ItemPhoto item={item} headers={headers} style={styles.photoImage} />
+        {/* Full bleed under the see-through header: the cut-out on a soft wash of its own
+            photo, blurred, as on Dior's product pages; a photo without one fills the frame. */}
+        <View style={[styles.hero, { height: Math.round(height * 0.6) }]}>
+          {item.cutoutUrl && item.photoUrl && headers && (
+            <>
+              <Image
+                source={{ uri: absoluteUrl(item.photoUrl), headers }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                blurRadius={60}
+                accessibilityIgnoresInvertColors
+              />
+              <View style={styles.wash} />
+            </>
+          )}
+          <Animated.View
+            entering={settle}
+            style={[
+              styles.heroPicture,
+              item.cutoutUrl && { paddingTop: insets.top + 56, paddingBottom: 28 },
+            ]}
+          >
+            <ItemPhoto item={item} headers={headers} style={styles.heroImage} />
+          </Animated.View>
           {item.photoUrl && <RotateButton onPress={rotate} disabled={busy} style={styles.rotate} />}
         </View>
 
-        {item.photoUrl && (
-          <View style={styles.wearWith}>
-            <MoodChips mood={mood} onChange={setMood} />
-            <PressableScale
-              style={[styles.wearWithButton, busy && styles.buttonDisabled]}
-              onPress={wearWith}
-              disabled={busy}
-              accessibilityRole="button"
-            >
-              <Icon name="spark" color={colors.onAccent} size={16} strokeWidth={1.6} />
-              <Text style={styles.wearWithText}>{t('wearWith.button')}</Text>
-            </PressableScale>
-            {usage && (
-              <Text style={styles.wearWithLeft}>
-                {t('wearWith.left', {
-                  left: Math.max(0, usage.wear_with.limit - usage.wear_with.used),
-                  limit: usage.wear_with.limit,
-                })}
-              </Text>
-            )}
-          </View>
-        )}
+        <View style={styles.body}>
+          <Animated.View entering={rise} style={styles.heading}>
+            <Text style={styles.name} accessibilityRole="header">
+              {item.name}
+            </Text>
+            <Text style={maison.note}>
+              {[t(`categories.${item.category}`), ...item.colors.map((c) => t(`colors.${c}`))].join(
+                ' · ',
+              )}
+            </Text>
+          </Animated.View>
 
-        <Text style={styles.label}>{t('addItem.name')}</Text>
-        <TextInput
-          style={styles.input}
-          value={draft.name}
-          onChangeText={(name) => update({ name })}
-          maxLength={120}
-          accessibilityLabel={t('addItem.name')}
-        />
-
-        <Text style={styles.label}>{t('addItem.category')}</Text>
-        <View style={styles.chips}>
-          {ITEM_CATEGORIES.map((c) => (
-            <Chip
-              key={c}
-              label={t(`categories.${c}`)}
-              selected={draft.category === c}
-              onPress={() => update({ category: c })}
-            />
-          ))}
-        </View>
-
-        <Text style={styles.label}>
-          {t('addItem.colors')} <Text style={styles.hint}>· {t('addItem.colorsHint')}</Text>
-        </Text>
-        <View style={styles.chips}>
-          {ITEM_COLORS.map((c) => (
-            <Chip
-              key={c}
-              label={t(`colors.${c}`)}
-              color={c}
-              selected={draft.colors.includes(c)}
-              onPress={() => update({ colors: toggle(draft.colors, c, MAX_COLORS) })}
-            />
-          ))}
-        </View>
-
-        <Text style={styles.label}>{t('item.seasons')}</Text>
-        <View style={styles.chips}>
-          {SEASONS.map((s) => (
-            <Chip
-              key={s}
-              label={t(`seasons.${s}`)}
-              selected={draft.seasons.includes(s)}
-              onPress={() => update({ seasons: toggle(draft.seasons, s) })}
-            />
-          ))}
-        </View>
-
-        <Text style={styles.label}>{t('item.fromPhoto')}</Text>
-        <PhotoDetails tags={item.tags} />
-
-        {similar.length > 0 && headers && (
-          <>
-            <Text style={styles.label}>{t('item.similar')}</Text>
-            <Animated.View entering={FadeIn.duration(durations.enter)}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.similarRow}
-                style={styles.similarScroll}
-              >
-                {similar.map((other) => (
-                  <PressableScale
-                    key={other.id}
-                    style={styles.similarCard}
-                    onPress={() =>
-                      router.push({ pathname: '/item/[id]', params: { id: other.id } })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={other.name}
-                  >
-                    <ItemPhoto item={other} headers={headers} style={styles.similarPhoto} />
-                    <Text style={styles.similarName} numberOfLines={2}>
-                      {other.name}
-                    </Text>
-                  </PressableScale>
-                ))}
-              </ScrollView>
+          {item.photoUrl && (
+            <Animated.View entering={rise.delay(STAGGER_STEP)} style={styles.wearWith}>
+              <View style={styles.edgeToEdge}>
+                <MoodChips mood={mood} onChange={setMood} inset={20} />
+              </View>
+              <Button kind="bright" label={t('wearWith.button')} onPress={wearWith} busy={busy} />
+              {usage && (
+                <Text style={[maison.note, styles.centered]}>
+                  {t('wearWith.left', {
+                    left: Math.max(0, usage.wear_with.limit - usage.wear_with.used),
+                    limit: usage.wear_with.limit,
+                  })}
+                </Text>
+              )}
             </Animated.View>
-          </>
-        )}
-
-        <PressableScale
-          style={[styles.button, (!dirty || !valid || busy) && styles.buttonDisabled]}
-          onPress={save}
-          disabled={!dirty || !valid || busy}
-          accessibilityRole="button"
-        >
-          {busy ? (
-            <ActivityIndicator color={colors.onAccent} />
-          ) : (
-            <Text style={styles.buttonText}>{t('item.save')}</Text>
           )}
-        </PressableScale>
 
-        <Pressable
-          style={styles.deleteButton}
-          onPress={confirmDelete}
-          disabled={busy}
-          accessibilityRole="button"
-        >
-          <Text style={styles.deleteText}>{t('item.delete')}</Text>
-        </Pressable>
+          <Text style={styles.label}>{t('addItem.name')}</Text>
+          <TextInput
+            style={styles.input}
+            value={draft.name}
+            onChangeText={(name) => update({ name })}
+            maxLength={120}
+            accessibilityLabel={t('addItem.name')}
+          />
+
+          <Text style={styles.label}>{t('addItem.category')}</Text>
+          <View style={styles.chips}>
+            {ITEM_CATEGORIES.map((c) => (
+              <Chip
+                key={c}
+                label={t(`categories.${c}`)}
+                selected={draft.category === c}
+                onPress={() => update({ category: c })}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.label}>
+            {t('addItem.colors')} <Text style={styles.hint}>· {t('addItem.colorsHint')}</Text>
+          </Text>
+          <View style={styles.chips}>
+            {ITEM_COLORS.map((c) => (
+              <Chip
+                key={c}
+                label={t(`colors.${c}`)}
+                color={c}
+                selected={draft.colors.includes(c)}
+                onPress={() => update({ colors: toggle(draft.colors, c, MAX_COLORS) })}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.label}>{t('item.seasons')}</Text>
+          <View style={styles.chips}>
+            {SEASONS.map((s) => (
+              <Chip
+                key={s}
+                label={t(`seasons.${s}`)}
+                selected={draft.seasons.includes(s)}
+                onPress={() => update({ seasons: toggle(draft.seasons, s) })}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.label}>{t('item.fromPhoto')}</Text>
+          <PhotoDetails tags={item.tags} />
+
+          {similar.length > 0 && headers && (
+            <>
+              <Text style={styles.label}>{t('item.similar')}</Text>
+              <Animated.View entering={FadeIn.duration(durations.enter)}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.similarRow}
+                  style={styles.similarScroll}
+                >
+                  {similar.map((other) => (
+                    <PressableScale
+                      key={other.id}
+                      style={styles.similarCard}
+                      onPress={() =>
+                        router.push({ pathname: '/item/[id]', params: { id: other.id } })
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={other.name}
+                    >
+                      <ItemPhoto item={other} headers={headers} style={styles.similarPhoto} />
+                      <Text style={styles.similarName} numberOfLines={2}>
+                        {other.name}
+                      </Text>
+                    </PressableScale>
+                  ))}
+                </ScrollView>
+              </Animated.View>
+            </>
+          )}
+
+          <Button
+            label={t('item.save')}
+            onPress={save}
+            disabled={!dirty || !valid}
+            busy={busy}
+            style={styles.save}
+          />
+
+          <Pressable
+            style={styles.deleteButton}
+            onPress={confirmDelete}
+            disabled={busy}
+            accessibilityRole="button"
+          >
+            <Text style={styles.deleteText}>{t('item.delete')}</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -426,51 +474,59 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   content: {
-    padding: 22,
-    paddingBottom: 40,
-    gap: 10,
+    paddingBottom: 48,
   },
-  photo: {
-    alignSelf: 'center',
-    width: '80%',
-    aspectRatio: 3 / 4,
+  hero: {
+    overflow: 'hidden',
+    backgroundColor: colors.hero,
   },
-  photoImage: {
+  // Keeps the blurred photo to a soft wash of its colours.
+  wash: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(243, 242, 239, 0.55)',
+  },
+  heroPicture: {
     flex: 1,
-    borderRadius: 20,
+    paddingHorizontal: 36,
   },
-  wearWith: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  wearWithButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 48,
-    paddingHorizontal: 22,
-    borderRadius: 24,
-    backgroundColor: colors.accent,
-  },
-  wearWithText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.onAccent,
-  },
-  wearWithLeft: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.textMuted,
+  heroImage: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   rotate: {
     position: 'absolute',
-    bottom: 10,
-    end: 10,
+    bottom: 14,
+    end: 14,
+  },
+  body: {
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    gap: 10,
+  },
+  heading: {
+    gap: 6,
+  },
+  name: {
+    fontFamily: fonts.displayLight,
+    fontSize: 34,
+    lineHeight: 38,
+    color: colors.text,
+    textAlign: 'left',
+  },
+  wearWith: {
+    marginTop: 14,
+    gap: 12,
+  },
+  edgeToEdge: {
+    marginHorizontal: -20,
+  },
+  centered: {
+    textAlign: 'center',
   },
   label: {
-    marginTop: 12,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
+    marginTop: 22,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
     color: colors.text,
     textAlign: 'left',
   },
@@ -478,13 +534,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     color: colors.textMuted,
   },
+  // An underlined field, as on a brand's checkout, instead of a boxed one.
   input: {
-    height: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    height: 48,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.textMuted,
     fontFamily: fonts.body,
     fontSize: 15,
     color: colors.text,
@@ -503,11 +557,9 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   details: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 18,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.divider,
   },
   detailRow: {
     minHeight: 46,
@@ -534,10 +586,10 @@ const styles = StyleSheet.create({
   },
   // The row runs edge to edge under the screen's padding.
   similarScroll: {
-    marginHorizontal: -22,
+    marginHorizontal: -20,
   },
   similarRow: {
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     gap: 12,
   },
   similarCard: {
@@ -547,7 +599,6 @@ const styles = StyleSheet.create({
   similarPhoto: {
     width: 104,
     aspectRatio: 3 / 4,
-    borderRadius: 14,
   },
   similarName: {
     fontFamily: fonts.bodyMedium,
@@ -556,21 +607,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'left',
   },
-  button: {
-    height: 52,
-    marginTop: 20,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-  },
-  buttonDisabled: {
-    opacity: 0.45,
-  },
-  buttonText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.onAccent,
+  save: {
+    marginTop: 28,
   },
   deleteButton: {
     minHeight: 44,
@@ -578,7 +616,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   deleteText: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: fonts.bodyMedium,
     fontSize: 14,
     color: colors.error,
   },

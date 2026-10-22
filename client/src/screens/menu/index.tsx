@@ -3,19 +3,25 @@ import { useTranslation } from 'react-i18next';
 import { I18nManager, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import Animated from 'react-native-reanimated';
+
+import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
+import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
 import { authClient } from '@/lib/auth-client';
+import { useUsage } from '@/lib/limits';
+import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 type SectionKey =
   'closet' | 'looks' | 'wantCan' | 'trends' | 'sell' | 'votes' | 'showroom' | 'favorites';
 
-type Section = { key: SectionKey; icon: IconName; href?: '/closet' | '/want-can' };
+type Section = { key: SectionKey; icon: IconName; href?: '/' | '/style' | '/want-can' };
 
 // Order and icons from the design. Sections without an href are not built yet and show "soon".
 const SECTIONS: Section[] = [
-  { key: 'closet', icon: 'hanger', href: '/closet' },
-  { key: 'looks', icon: 'look' },
+  { key: 'closet', icon: 'hanger', href: '/' },
+  { key: 'looks', icon: 'look', href: '/style' },
   { key: 'wantCan', icon: 'spark', href: '/want-can' },
   { key: 'trends', icon: 'trend' },
   { key: 'sell', icon: 'tag' },
@@ -29,27 +35,34 @@ export function Menu() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: session } = authClient.useSession();
+  const { usage } = useUsage();
 
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]}
     >
-      <Text style={styles.title} accessibilityRole="header">
-        {t('menu.title')}
-      </Text>
+      <Animated.View entering={rise} style={[maison.gutter, styles.profile]}>
+        <ScreenTitle title={t('menu.title')} />
+        <Text style={styles.name} numberOfLines={1}>
+          {session?.user.name}
+        </Text>
+        <Text style={maison.note}>{t('app.tagline')}</Text>
+      </Animated.View>
 
-      <View style={styles.profile}>
-        <View style={styles.avatar}>
-          <Icon name="user" color={colors.iconMuted} size={26} strokeWidth={1.2} />
-        </View>
-        <View style={styles.profileText}>
-          <Text style={styles.name} numberOfLines={1}>
-            {session?.user.name}
-          </Text>
-          <Text style={styles.tagline}>{t('app.tagline')}</Text>
-        </View>
-      </View>
+      {usage && (
+        <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.usage]}>
+          <SectionLabel>{t('menu.limits')}</SectionLabel>
+          {(['wear_with', 'want', 'look'] as const).map((action) => (
+            <View key={action} style={styles.usageRow}>
+              <Text style={styles.usageLabel}>{t(`menu.usage.${action}`)}</Text>
+              <Text style={styles.usageValue}>
+                {usage[action].used} / {usage[action].limit}
+              </Text>
+            </View>
+          ))}
+        </Animated.View>
+      )}
 
       <View accessibilityRole="menu" style={styles.list}>
         {SECTIONS.map(({ key, icon, href }) => {
@@ -63,7 +76,7 @@ export function Menu() {
               accessibilityRole="menuitem"
               accessibilityState={{ disabled: !ready }}
             >
-              <Icon name={icon} color={ready ? colors.accent : colors.tabInactive} />
+              <Icon name={icon} color={ready ? colors.text : colors.tabInactive} />
               <Text style={[styles.rowLabel, !ready && styles.rowLabelSoon]}>
                 {t(`menu.sections.${key}`)}
               </Text>
@@ -83,7 +96,7 @@ export function Menu() {
           onPress={() => authClient.signOut()}
           accessibilityRole="menuitem"
         >
-          <Icon name="logout" color={colors.accent} />
+          <Icon name="logout" color={colors.text} />
           <Text style={[styles.rowLabel, styles.signOut]}>{t('auth.signOut')}</Text>
         </Pressable>
       </View>
@@ -97,70 +110,60 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   container: {
-    paddingBottom: 24,
-  },
-  title: {
-    paddingHorizontal: 22,
-    fontFamily: fonts.display,
-    fontSize: 26,
-    lineHeight: 32,
-    color: colors.text,
-    textAlign: 'center',
+    paddingBottom: TAB_BAR_CLEARANCE,
+    gap: 28,
   },
   profile: {
-    marginTop: 18,
-    marginHorizontal: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.hero,
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  profileText: {
-    flex: 1,
     gap: 6,
   },
   name: {
+    marginTop: 8,
     fontFamily: fonts.display,
-    fontSize: 32,
-    lineHeight: 36,
+    fontSize: 24,
+    lineHeight: 28,
     color: colors.text,
     textAlign: 'left',
   },
-  tagline: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 10,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    color: colors.accent,
+  usage: {
+    gap: 2,
+  },
+  usageRow: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
+  },
+  usageLabel: {
+    flexShrink: 1,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textSecondary,
     textAlign: 'left',
   },
+  usageValue: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: colors.text,
+  },
   list: {
-    marginTop: 20,
-    marginHorizontal: 14,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginHorizontal: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.divider,
   },
   row: {
     height: 52,
-    paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.divider,
   },
   rowLabel: {
     flex: 1,
-    fontFamily: fonts.bodyMedium,
+    fontFamily: fonts.body,
     fontSize: 15,
     color: colors.text,
     textAlign: 'left',
@@ -169,17 +172,12 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   signOut: {
-    color: colors.accent,
+    color: colors.text,
   },
   soon: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 10,
-    overflow: 'hidden',
-    backgroundColor: colors.accentSoft,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    color: colors.accent,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   // The chevron points toward the end of the row, so it flips in right-to-left layouts.
   chevron: {

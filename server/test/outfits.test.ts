@@ -1,4 +1,4 @@
-import type { Item, Usage, WearWithRequest } from "@closet-ai/shared";
+import type { Item, StyledEntry, Usage, WearWithRequest } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -297,6 +297,38 @@ describe("POST /api/wear-with", () => {
     const noa = await signUp(off, "noa@example.com");
     const item = await addItem(off, noa);
     expect((await ask(off, noa.cookie, item.id)).statusCode).toBe(503);
+  });
+});
+
+describe("GET /api/wear-with", () => {
+  it("lists the styled items newest first, without deleted ones or other people's", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const boris = await signUp(s, "boris@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    const top = await addItem(s, anna, "top");
+    await ask(s, anna.cookie, skirt.id);
+    await ask(s, anna.cookie, top.id);
+    // Still composing: not listed yet.
+    const list = async (cookie: string) =>
+      (await s.server.inject({ method: "GET", url: "/api/wear-with", headers: { cookie } })).json<
+        StyledEntry[]
+      >();
+    expect(await list(anna.cookie)).toEqual([]);
+
+    await s.runJobs();
+    const styled = await list(anna.cookie);
+    expect(styled.map((e) => e.name)).toEqual([top.name, skirt.name]);
+    expect(styled[0]!.mood).toBeNull();
+    expect(styled[0]!.photoUrl).toContain(top.id);
+    expect(await list(boris.cookie)).toEqual([]);
+
+    await s.server.inject({
+      method: "DELETE",
+      url: `/api/items/${top.id}`,
+      headers: { cookie: anna.cookie },
+    });
+    expect((await list(anna.cookie)).map((e) => e.name)).toEqual([skirt.name]);
   });
 });
 

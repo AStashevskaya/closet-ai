@@ -95,12 +95,10 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   input: {
-    height: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    height: 48,
+    // Underlined, as on a brand's checkout, instead of boxed.
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.textMuted,
     fontFamily: fonts.body,
     fontSize: 15,
     color: colors.text,

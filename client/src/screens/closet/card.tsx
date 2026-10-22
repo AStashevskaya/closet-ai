@@ -1,6 +1,6 @@
 import type { Item } from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
@@ -9,11 +9,16 @@ import { PressableScale } from '@/components/pressable-scale';
 import { CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-// Cards rise a few points into place; nothing grows from nothing.
+// Cards come up out of nothing, slowly, one after another; the picture inside settles from a
+// slight zoom a little longer, as on a brand's site.
 const rise = new Keyframe({
-  0: { opacity: 0, transform: [{ translateY: 14 }] },
+  0: { opacity: 0, transform: [{ translateY: 28 }] },
   100: { opacity: 1, transform: [{ translateY: 0 }], easing: EASE_OUT },
 }).duration(durations.enter);
+const settle = new Keyframe({
+  0: { transform: [{ scale: 1.14 }] },
+  100: { transform: [{ scale: 1 }], easing: EASE_OUT },
+}).duration(durations.settle);
 
 const badgeIn = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.85 }] },
@@ -73,11 +78,20 @@ export function ClosetCard({
           if (event.nativeEvent.actionName === 'delete') onDelete();
         }}
       >
-        <ItemPhoto item={item} headers={headers} style={styles.photo} />
-        <Text style={styles.name} numberOfLines={2}>
-          {item.name}
-        </Text>
-        <Text style={styles.category}>{t(`categories.${item.category}`)}</Text>
+        <View style={styles.tile}>
+          <Animated.View
+            style={styles.fill}
+            entering={enterDelay === undefined ? undefined : settle.delay(enterDelay)}
+          >
+            <ItemPhoto item={item} headers={headers} style={styles.photo} />
+          </Animated.View>
+        </View>
+        <View style={styles.caption}>
+          <Text style={styles.name} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={styles.category}>{t(`categories.${item.category}`)}</Text>
+        </View>
       </PressableScale>
 
       {editing && (
@@ -103,28 +117,39 @@ export function ClosetCard({
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
+  // Half a row, a gap apart; the list sets the gaps.
   cell: {
     flex: 1,
+    maxWidth: '50%',
   },
-  card: {
-    gap: 4,
+  card: {},
+  // Clips the picture while it settles from its zoom.
+  tile: {
+    aspectRatio: 3 / 4,
+    overflow: 'hidden',
+    backgroundColor: colors.hero,
+  },
+  fill: {
+    flex: 1,
   },
   photo: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: 18,
+    flex: 1,
+  },
+  caption: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 16,
+    gap: 2,
   },
   name: {
-    marginTop: 6,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
+    fontFamily: fonts.body,
+    fontSize: 13,
     color: colors.text,
     textAlign: 'left',
   },
   category: {
     fontFamily: fonts.body,
     fontSize: 12,
-    letterSpacing: 0.4,
     color: colors.textMuted,
     textAlign: 'left',
   },
