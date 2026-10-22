@@ -47,6 +47,9 @@ export interface ComposeInput {
   // The pieces worth considering this time, on one numbered contact sheet (JPEG).
   sheet: Uint8Array;
   brief: string | null;
+  // Partner brands' pieces she could add where her wardrobe falls short, on a contact sheet of
+  // their own, numbered after the wardrobe; null when there are none to offer.
+  shop: { pieces: StylistPiece[]; sheet: Uint8Array } | null;
   season: Season;
   // What the user asked the looks to be for; null for any.
   mood: OutfitMood | null;
@@ -67,6 +70,8 @@ const MOODS: Record<OutfitMood, string> = {
 export interface ComposedLook {
   // Wardrobe numbers that go with the hero.
   items: number[];
+  // A shop piece's number, when one finishes the look.
+  partner: number | null;
   missing: MissingPiece | null;
   caption: string;
   occasion: string;
@@ -102,6 +107,7 @@ const composed = z.object({
   looks: z.array(
     z.object({
       items: z.array(z.number().int()),
+      partner: z.number().int().nullable(),
       missing: z.object({ category: z.enum(ITEM_CATEGORIES), description: z.string() }).nullable(),
       caption: z.string(),
       occasion: z.string(),
@@ -121,6 +127,7 @@ Compose the asked number of looks built around the item:
 - why speaks only of the item and the pieces listed in the look; a piece she doesn't own belongs in missing, never in why.
 - Don't lean on the same pieces: no wardrobe piece in more than two looks, and if the sheet has an alternative, use it. Four looks that share their top, jacket or shoes read as one look.
 - Without a brief, read her taste from the wardrobe itself.
+- partner: when a shop sheet is given, a piece from it may finish a look (see the request); otherwise null.
 - missing: if one more piece she doesn't own would clearly make the look (often shoes or a bag), describe it as a shop search would need it (type, colour, material, shape), with its category; otherwise null. At most one per look, and not in every look.
 - caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces. All three, and missing.description, in the language asked.`;
 
@@ -133,6 +140,10 @@ const BRIEF_PROMPT = `You are a sought-after personal stylist. Write a working b
 
 const describe = (p: StylistPiece) =>
   `#${p.n} ${p.name} | ${p.category} | ${p.colors.join("/")} | ${p.seasons.join("/") || "?"}${p.details ? ` | ${p.details}` : ""}`;
+
+// The shop sheet's rules: relevance first, and never instead of a piece she owns.
+const shopText = (pieces: StylistPiece[]) =>
+  `\nThe third image is a shop sheet: pieces from partner brands she doesn't own.\n${pieces.map(describe).join("\n")}\nPut one in partner only where her wardrobe has no piece that works as well for that slot (often shoes, a bag or a jacket) and it truly suits the look; never in items. At most one per look, in no more than two looks, and none at all when nothing on the sheet fits. A look with a shop piece needs no missing for that slot.`;
 
 const jpegBlock = (image: Uint8Array): Anthropic.ImageBlockParam => ({
   type: "image",
@@ -179,9 +190,10 @@ export function createClaudeStylist(
               },
               jpegBlock(input.hero.image),
               jpegBlock(input.sheet),
+              ...(input.shop ? [jpegBlock(input.shop.sheet)] : []),
               {
                 type: "text",
-                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
+                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.${input.shop ? shopText(input.shop.pieces) : ""}\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
               },
             ],
           },

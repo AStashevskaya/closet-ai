@@ -1,7 +1,8 @@
-import type { Season } from "@closet-ai/shared";
+import type { ItemCategory, Season } from "@closet-ai/shared";
 import sharp, { type OverlayOptions } from "sharp";
 import type { StylistPiece } from "../../ai/stylist";
 import type { Storage } from "../../storage/storage";
+import type { CatalogRepository, CatalogRow } from "../catalog/catalog.repository";
 import type { StylingItem } from "./outfits.repository";
 
 // How many pieces of each kind go on the contact sheet around the item: enough choice for good
@@ -23,6 +24,35 @@ function slotsAround(heroCategory: string): Record<string, number> {
   if (heroCategory === "top") return { ...PER_CATEGORY, top: 4 };
   if (heroCategory === "outerwear") return { ...PER_CATEGORY, outerwear: 0 };
   return PER_CATEGORY;
+}
+
+// Partner pieces offered per category: where a missing piece is most often the finishing touch.
+// Never a dress: it would replace the look rather than finish it.
+const SHOP_PER_CATEGORY: Record<string, number> = {
+  shoes: 3,
+  accessory: 3,
+  outerwear: 2,
+  top: 2,
+  bottom: 2,
+};
+
+// The catalog's pieces for the shop sheet: in the categories the item leaves room for, the ones
+// closest to it (our embeddings see colour and style across categories too). The stylist then
+// takes one only where the wardrobe falls short.
+export async function pickShop(
+  catalog: CatalogRepository,
+  hero: StylingItem,
+): Promise<CatalogRow[]> {
+  if (!hero.embedding) return [];
+  const slots = slotsAround(hero.category);
+  const picks = await Promise.all(
+    Object.entries(SHOP_PER_CATEGORY)
+      .filter(([category]) => (slots[category] ?? 0) > 0)
+      .map(([category, take]) =>
+        catalog.closest(category as ItemCategory, hero.embedding!, take),
+      ),
+  );
+  return picks.flat();
 }
 
 const dot = (a: number[], b: number[]) => a.reduce((sum, x, i) => sum + x * b[i]!, 0);
@@ -69,6 +99,16 @@ export function seasonOf(date: Date): Season {
   if (month <= 7) return "summer";
   return "autumn";
 }
+
+// A partner piece described like a wardrobe one.
+export const shopPiece = (row: CatalogRow, n: number): StylistPiece => ({
+  n,
+  name: row.names.en ?? Object.values(row.names)[0] ?? row.brand,
+  category: row.category,
+  colors: row.colors,
+  seasons: [],
+  details: `${row.brand}, ${row.priceMinor / 100} ${row.currency}`,
+});
 
 export const toStylistPiece = (item: StylingItem, n: number): StylistPiece => ({
   n,

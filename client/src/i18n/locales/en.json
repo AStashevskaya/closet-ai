@@ -356,5 +356,13 @@
       "rectangle": "Rectangle",
       "oval": "Oval"
     }
+  },
+  "partner": {
+    "label": "Partner",
+    "demoLabel": "Partner · demo brand",
+    "toSite": "On the brand's site",
+    "demoNote": "A made-up brand, to show how partner pieces will look. It can't be bought yet.",
+    "soldOut": "sold out",
+    "failed": "Couldn't open this piece. Try again."
   }
 }

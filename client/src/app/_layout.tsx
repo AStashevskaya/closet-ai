@@ -110,6 +110,16 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="catalog/[id]"
+          options={{
+            title: '',
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
           name="profile-details"
           options={{
             title: t('details.title'),

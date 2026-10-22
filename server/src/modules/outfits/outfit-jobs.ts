@@ -3,11 +3,20 @@ import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import type { Stylist } from "../../ai/stylist";
 import type { Storage } from "../../storage/storage";
+import type { CatalogRepository } from "../catalog/catalog.repository";
 import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { flattenOnWhite, processCutout } from "../photos/process-photo";
 import type { OutfitRequestRow, OutfitsRepository, StylingItem } from "./outfits.repository";
-import { asJpeg, contactSheet, pickCandidates, seasonOf, toStylistPiece } from "./wardrobe-sheet";
+import {
+  asJpeg,
+  contactSheet,
+  pickCandidates,
+  pickShop,
+  seasonOf,
+  shopPiece,
+  toStylistPiece,
+} from "./wardrobe-sheet";
 
 export interface OutfitQueue {
   enqueueComposing(requestId: string, lang: AppLanguage): Promise<void>;
@@ -27,6 +36,8 @@ export interface OutfitJobDeps {
   embedder: ItemEmbedder | null;
   // null when no API key is configured: outfits are off.
   stylist: Stylist | null;
+  // Partner items the stylist may finish a look with; null when they are switched off.
+  catalog: CatalogRepository | null;
   queue: OutfitQueue;
   clock?: () => Date;
 }
@@ -35,6 +46,8 @@ export interface OutfitJobDeps {
 export class PermanentOutfitError extends Error {}
 
 export const LOOKS_PER_REQUEST = 4;
+// Partner pieces stay the exception: never in every look (docs/product.md, partner items).
+export const MAX_PARTNER_LOOKS = 2;
 
 // Job "compose": outfits around the request's item. Safe to run twice: only a pending request
 // is composed.
@@ -67,6 +80,20 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     candidates.map((item) => ({ n: nOf.get(item.id)!, imageKey: item.imageKey })),
   );
 
+  // Numbered after the wardrobe and the item from a photo, so no number means two things.
+  const shopRows = deps.catalog ? await pickShop(deps.catalog, hero) : [];
+  const shopN = (i: number) => wardrobe.length + 2 + i;
+  const shop =
+    shopRows.length > 0
+      ? {
+          pieces: shopRows.map((row, i) => shopPiece(row, shopN(i))),
+          sheet: await contactSheet(
+            storage,
+            shopRows.map((row, i) => ({ n: shopN(i), imageKey: row.imageKey })),
+          ),
+        }
+      : null;
+
   const { looks, costMicros } = await stylist.compose({
     hero: { ...toStylistPiece(hero, nOf.get(hero.id)!), image: await asJpeg(heroFile.body, 512) },
     wardrobe: numbered
@@ -74,32 +101,43 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       .map(({ item, n }) => toStylistPiece(item, n)),
     sheet,
     brief: (await outfits.brief(request.userId))?.brief ?? null,
+    shop,
     season,
     mood: request.mood,
     lang,
     looks: LOOKS_PER_REQUEST,
   });
 
-  // Only pieces that were on the sheet: a number the model made up, or the item itself, is dropped.
+  // Only pieces that were on the sheets: a number the model made up, or the item itself, is dropped.
   const byN = new Map(candidates.map((item) => [nOf.get(item.id)!, item]));
-  await outfits.saveOutfits(
-    requestId,
-    request.userId,
-    looks.map((look) => ({
+  const shopByN = new Map(shopRows.map((row, i) => [shopN(i), row]));
+  let partnerLooks = 0;
+  const saved = looks.map((look) => {
+    const found = look.partner === null ? undefined : shopByN.get(look.partner);
+    const partner = found && partnerLooks < MAX_PARTNER_LOOKS ? found : undefined;
+    if (partner) partnerLooks += 1;
+    return {
       caption: look.caption,
       occasion: look.occasion,
       why: look.why,
-      missing: look.missing,
+      // The shop piece fills that slot already.
+      missing: partner && look.missing?.category === partner.category ? null : look.missing,
       pieces: [
         { hero: true, itemId: request.heroPhotoKey ? null : hero.id },
         ...[...new Set(look.items)].flatMap((n) => {
           const item = byN.get(n);
           return item ? [{ hero: false, itemId: item.id }] : [];
         }),
+        ...(partner
+          ? [{ hero: false, itemId: null, catalogItemId: partner.id, sponsored: true }]
+          : []),
       ],
-    })),
-    costMicros,
-  );
+    };
+  });
+  await outfits.saveOutfits(requestId, request.userId, saved, costMicros);
+
+  const shown = saved.flatMap((look) => look.pieces.flatMap((p) => p.catalogItemId ?? []));
+  await deps.catalog?.record(shown, request.userId, "shown");
 }
 
 // The item from a photo, as styling sees it: cut out by its English name the first time (the

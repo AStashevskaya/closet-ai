@@ -147,11 +147,15 @@ export const outfitsRoutes =
     app.get(
       "/wear-with/:id",
       {
-        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: wearWithRequest } },
+        schema: {
+          params: z.object({ id: z.string().uuid() }),
+          querystring: z.object({ lang: z.enum(APP_LANGUAGES).default("en") }),
+          response: { 200: wearWithRequest },
+        },
       },
       async (request): Promise<WearWithRequest> => {
         const user = request.user as SessionUser;
-        const found = await outfits.view(request.params.id, user.id);
+        const found = await outfits.view(request.params.id, user.id, request.query.lang);
         const row = await outfits.getRequest(request.params.id);
         if (!found || !row) throw httpError(404, "request not found");
         if (!row.heroPhotoKey) return found;

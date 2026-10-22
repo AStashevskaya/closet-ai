@@ -8,8 +8,10 @@ import Animated from 'react-native-reanimated';
 import { FlatLay } from '@/components/flat-lay';
 import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
+import { PartnerPiece } from '@/components/partner-piece';
 import { PressableScale } from '@/components/pressable-scale';
 import { createItem, getWearWith, reactToOutfit, sessionHeaders } from '@/lib/api';
+import { appLanguage } from '@/lib/app-language';
 import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -24,7 +26,8 @@ type State =
 
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = appLanguage(i18n.language);
   const [state, setState] = useState<State>({ status: 'pending' });
   const [headers, setHeaders] = useState<Record<string, string>>();
 
@@ -46,7 +49,7 @@ export function WearWith({ id }: { id: string }) {
     const poll = async () => {
       for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
         try {
-          const request: WearWithRequest = await getWearWith(id);
+          const request: WearWithRequest = await getWearWith(id, lang);
           if (cancelled) return;
           if (request.status === 'done') {
             setState({ status: 'done', outfits: request.outfits, addable: request.addable });
@@ -66,7 +69,7 @@ export function WearWith({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, lang]);
 
   // Shown at once; if the server doesn't take it, it goes back.
   async function react(outfit: Outfit, reaction: OutfitReaction) {
@@ -136,6 +139,8 @@ export function WearWith({ id }: { id: string }) {
       {state.outfits.length === 0 && <Text style={styles.message}>{t('wearWith.empty')}</Text>}
       {state.outfits.map((outfit, index) => {
         const pieces = outfit.pieces.flatMap((p) => (p.item ? [p.item] : []));
+        // At most one, and labelled: a partner brand's piece where the closet had nothing as good.
+        const partner = outfit.pieces.find((p) => p.catalogItem)?.catalogItem;
         return (
           <Animated.View
             key={outfit.id}
@@ -146,10 +151,15 @@ export function WearWith({ id }: { id: string }) {
             <Text style={styles.number}>
               {String(index + 1).padStart(2, '0')} / {String(state.outfits.length).padStart(2, '0')}
             </Text>
-            <FlatLay pieces={pieces} headers={headers} caption={outfit.caption} />
+            <FlatLay
+              pieces={partner ? [...pieces, { ...partner, cutoutUrl: partner.imageUrl }] : pieces}
+              headers={headers}
+              caption={outfit.caption}
+            />
             <Text style={styles.occasion}>{outfit.occasion}</Text>
             <Text style={styles.why}>{outfit.why}</Text>
             <Text style={styles.pieces}>{pieces.map((p) => p.name).join(' · ')}</Text>
+            {partner && <PartnerPiece item={partner} headers={headers} />}
             {outfit.missing && (
               <View style={styles.missing}>
                 <Text style={styles.missingText}>
