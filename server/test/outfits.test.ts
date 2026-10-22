@@ -158,7 +158,8 @@ describe("POST /api/wear-with", () => {
     await s.runJobs();
     const done = await view(s, anna.cookie, id);
     expect(done.status).toBe("done");
-    expect(done.outfits).toHaveLength(4);
+    // The stub puts the second skirt with the skirt in two looks: no top, so not a look.
+    expect(done.outfits.map((o) => o.caption)).toEqual(["Look 1", "Look 3"]);
     const [first] = done.outfits;
     // The item first, then what goes with it; the number the model made up is gone.
     expect(first!.pieces.map((p) => [p.hero, p.item?.id])).toEqual([
@@ -221,6 +222,45 @@ describe("POST /api/wear-with", () => {
     ]);
   });
 
+  it("keeps a wardrobe piece the model took off the sheet, and drops a look without a bottom", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const top = await addItem(s, anna, "top");
+    // More tops than the sheet has room for next to a top: some stay off it.
+    const tops = [];
+    for (let i = 0; i < 6; i++) tops.push(await addItem(s, anna, "top"));
+    const offSheet = tops.at(-1)!;
+    const skirt = await addItem(s, anna, "bottom");
+    s.stub.stylist.compose = async (input) => {
+      const skirtN = input.wardrobe.find((p) => p.name === skirt.name)!.n;
+      const lastTop = input.wardrobe.find((p) => p.name === offSheet.name)!.n;
+      const look = (items: number[], caption: string) => ({
+        items,
+        partner: null,
+        missing: null,
+        caption,
+        occasion: "coffee",
+        why: "because",
+      });
+      return {
+        looks: [
+          look([skirtN, lastTop], "Skirt"),
+          look([lastTop], "Two tops"),
+          look([skirtN, 999], "Made up"),
+        ],
+        costMicros: 6_000,
+      };
+    };
+
+    const { id } = (await ask(s, anna.cookie, top.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    expect(done.outfits.map((o) => [o.caption, o.pieces.map((p) => p.item?.name)])).toEqual([
+      ["Skirt", [top.name, skirt.name, offSheet.name]],
+      ["Made up", [top.name, skirt.name]],
+    ]);
+  });
+
   it("tells the model what her recent looks already used", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
@@ -238,7 +278,8 @@ describe("POST /api/wear-with", () => {
     // The top was in two of the first request's looks; the skirt asked about doesn't count.
     const topN = second.wardrobe.find((p) => p.name === top.name)!.n;
     expect(second.recent.pieces).toEqual([{ n: topN, looks: 2 }]);
-    expect(second.recent.captions).toEqual(["Look 1", "Look 2", "Look 3", "Look 4"]);
+    // Looks 2 and 4 put the jeans with the skirt: no top, so not kept.
+    expect(second.recent.captions).toEqual(["Look 1", "Look 3"]);
   });
 
   it("waits for an item saved a moment ago whose photo is still processing", async () => {

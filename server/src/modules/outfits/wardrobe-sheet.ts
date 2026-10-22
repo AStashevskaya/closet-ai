@@ -48,9 +48,7 @@ export async function pickShop(
   const picks = await Promise.all(
     Object.entries(SHOP_PER_CATEGORY)
       .filter(([category]) => (slots[category] ?? 0) > 0)
-      .map(([category, take]) =>
-        catalog.closest(category as ItemCategory, hero.embedding!, take),
-      ),
+      .map(([category, take]) => catalog.closest(category as ItemCategory, hero.embedding!, take)),
   );
   return picks.flat();
 }
