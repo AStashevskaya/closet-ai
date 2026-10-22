@@ -51,8 +51,8 @@ describe('<Menu />', () => {
 
   test('shows only the sections the app has', async () => {
     await render(<Menu />);
-    // My profile, the closet, Style it and Want / Can; nothing marked "soon".
-    expect(screen.getAllByRole('menuitem')).toHaveLength(4);
+    // My profile, the closet, Style it, Recreate the look and the Edit; nothing marked "soon".
+    expect(screen.getAllByRole('menuitem')).toHaveLength(5);
     expect(screen.queryByText('soon')).toBeNull();
   });
 

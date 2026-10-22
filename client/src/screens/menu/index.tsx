@@ -24,9 +24,9 @@ import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 type Section = {
-  key: 'closet' | 'looks' | 'wantCan';
+  key: 'closet' | 'looks' | 'wantCan' | 'theEdit';
   icon: IconName;
-  href: '/' | '/style' | '/want-can';
+  href: '/' | '/style' | '/want-can' | '/the-edit';
 };
 
 // Only what the app has: sections not built yet aren't shown at all.
@@ -34,6 +34,7 @@ const SECTIONS: Section[] = [
   { key: 'closet', icon: 'hanger', href: '/' },
   { key: 'looks', icon: 'look', href: '/style' },
   { key: 'wantCan', icon: 'spark', href: '/want-can' },
+  { key: 'theEdit', icon: 'store', href: '/the-edit' },
 ];
 
 export function Menu() {

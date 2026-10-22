@@ -81,7 +81,8 @@
     "sections": {
       "closet": "My closet",
       "looks": "Outfits",
-      "wantCan": "Recreate the look"
+      "wantCan": "Recreate the look",
+      "theEdit": "The Edit"
     },
     "limits": "Your limits",
     "usage": {
@@ -358,5 +359,11 @@
     "soldOut": "sold out",
     "failed": "Couldn't open this piece. Try again.",
     "similar": "Like it from partner brands"
+  },
+  "edit": {
+    "title": "The Edit",
+    "subtitle": "Picked for your closet",
+    "failed": "Couldn't open the Edit. Try again.",
+    "empty": "Nothing here yet."
   }
 }
