@@ -99,6 +99,13 @@ export function Menu() {
           <Icon name="logout" color={colors.text} />
           <Text style={[styles.rowLabel, styles.signOut]}>{t('auth.signOut')}</Text>
         </Pressable>
+        <Pressable
+          style={styles.row}
+          onPress={() => router.push('/delete-account')}
+          accessibilityRole="menuitem"
+        >
+          <Text style={[styles.rowLabel, styles.deleteAccount]}>{t('deleteAccount.row')}</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -173,6 +180,9 @@ const styles = StyleSheet.create({
   },
   signOut: {
     color: colors.text,
+  },
+  deleteAccount: {
+    color: colors.error,
   },
   soon: {
     fontFamily: fonts.body,
