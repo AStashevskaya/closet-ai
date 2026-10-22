@@ -8,12 +8,15 @@ import { Menu } from '.';
 
 // The `mock` prefix lets the jest.mock factory below use it.
 const mockNavigate = jest.fn();
+const mockPush = jest.fn();
 
 jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
-jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ navigate: mockNavigate, push: mockPush }),
+}));
 jest.mock('@/lib/api', () => ({
   getUsage: jest.fn().mockResolvedValue({
     want: { used: 2, limit: 5, resetsAt: '2026-11-01T00:00:00.000Z' },
@@ -81,6 +84,12 @@ describe('<Menu />', () => {
       await render(<Menu />);
       expect(screen.queryByText('Report a problem')).toBeNull();
     });
+  });
+
+  test('opens account deletion', async () => {
+    await render(<Menu />);
+    await fireEvent.press(screen.getByText('Delete account'));
+    expect(mockPush).toHaveBeenCalledWith('/delete-account');
   });
 
   test('signs out', async () => {

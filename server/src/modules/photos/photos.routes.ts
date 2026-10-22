@@ -25,7 +25,7 @@ import { checkPhoto, UnsupportedPhotoError } from "./process-photo";
 // Each user's photos live under their own prefix.
 export const photoPrefix = (userId: string) => `photos/${userId}/`;
 // Originals wait here until the worker has turned them into a WebP, then they are deleted.
-const uploadPrefix = (userId: string) => `uploads/${userId}/`;
+export const uploadPrefix = (userId: string) => `uploads/${userId}/`;
 
 export const photosRoutes =
   (
