@@ -22,6 +22,7 @@ import {
   createStubEmbedder,
   createStubRemover,
   createStubTagger,
+  lookItems,
   shirtTags,
   testEnv as env,
   unitVector,
@@ -39,6 +40,8 @@ let embedding: ReturnType<typeof createStubEmbedder>;
 
 // Tagging is on by default, with a stub instead of Claude; pass tagger: null to turn it off.
 // Background removal is off unless a remover is passed.
+let catalog: ReturnType<typeof createInMemoryRepositories>["catalogRepository"];
+
 async function setup({
   tagger,
   remover = null,
@@ -49,12 +52,14 @@ async function setup({
   embedding = createStubEmbedder();
   const activeTagger = tagger === undefined ? stub.tagger : tagger;
   const repositories = createInMemoryRepositories();
+  catalog = repositories.catalogRepository;
   jobDeps = {
     photos: repositories.photosRepository,
     storage,
     tagger: activeTagger,
     embedder: embedding.embedder,
     remover,
+    catalog,
     queue: queue.photoQueue,
   };
   const auth = createAuth(
@@ -916,6 +921,53 @@ describe("want / can: a look matched against the wardrobe", () => {
     expect((await jobDeps.photos.get(photoKey))!.cutoutKey).toBeNull();
   });
 
+  it("offers close partner pieces for each item, in the language asked for", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    // The stub embeds every photo as unitVector(1).
+    const mesh = await catalog.add({
+      category: "top",
+      names: { en: "Mesh top", ru: "Топ-сетка" },
+      embedding: unitVector(1),
+    });
+    // Too far from the item to offer, and a category the look has no item in.
+    await catalog.add({ category: "top", embedding: unitVector(0, 1) });
+    await catalog.add({ category: "dress", embedding: unitVector(1) });
+
+    const look = await uploadWant(server, anna);
+    await runWorker();
+
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/photos/status?key=${encodeURIComponent(look)}&lang=ru`,
+      headers: { cookie: anna },
+    });
+    const { matches } = res.json<PhotoState>();
+    expect(matches!.map((m) => m.shop.map((offer) => offer.name))).toEqual([["Топ-сетка"], []]);
+    expect(matches![0]!.shop[0]).toMatchObject({ id: mesh.id, demo: true, price: 459 });
+    expect(catalog.events.map((e) => [e.catalogItemId, e.event])).toEqual([[mesh.id, "shown"]]);
+  });
+
+  it("offers only the same kind of accessory: a bag for a bag, not a hat", async () => {
+    const bag = { ...lookItems[0]!, name: "Black tote", category: "accessory" as const };
+    const server = await setup({
+      tagger: createStubTagger(undefined, async () => [{ ...bag, noun: "leather tote bag" }]).tagger,
+    });
+    const anna = await signUp(server, "anna@example.com");
+    // The hat is closer by embedding, the bag close enough.
+    await catalog.add({ category: "accessory", names: { en: "Bucket hat" } });
+    const tote = await catalog.add({
+      category: "accessory",
+      names: { en: "Tote bag" },
+      embedding: unitVector(1, 0.5),
+    });
+
+    const look = await uploadWant(server, anna);
+    await runWorker();
+    const { matches } = await status(server, anna, look);
+    expect(matches![0]!.shop.map((offer) => offer.id)).toEqual([tote.id]);
+  });
+
   it("answers none when the model sees no match", async () => {
     const server = await setup({
       tagger: createStubTagger(undefined, undefined, {
@@ -941,7 +993,7 @@ describe("want / can: a look matched against the wardrobe", () => {
     expect((await status(server, cookie, look)).matches![0]!.how).toBe("same");
 
     await server.inject({ method: "DELETE", url: `/api/items/${top.id}`, headers: { cookie } });
-    expect((await status(server, cookie, look)).matches![0]).toEqual({ how: "none", item: null });
+    expect((await status(server, cookie, look)).matches![0]).toEqual({ how: "none", item: null, shop: [] });
   });
 
   it("can't be read by someone else", async () => {

@@ -13,6 +13,7 @@ import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { PhotoQueue } from "../../queue/photo-queue";
+import { toCatalogItem, type CatalogRepository } from "../catalog/catalog.repository";
 import type { ItemsRepository } from "../items/items.repository";
 import { addItemsFromLook } from "./look-items";
 import type { Storage } from "../../storage/storage";
@@ -32,6 +33,7 @@ export const photosRoutes =
     storage: Storage,
     photos: PhotosRepository,
     items: ItemsRepository,
+    catalog: CatalogRepository,
     queue: PhotoQueue,
     outfitQueue: OutfitQueue,
     limits: Limits,
@@ -107,7 +109,11 @@ export const photosRoutes =
       "/photos/status",
       {
         schema: {
-          querystring: z.object({ key: z.string().max(200) }),
+          // lang names the partner pieces of a "want" look.
+          querystring: z.object({
+            key: z.string().max(200),
+            lang: z.enum(APP_LANGUAGES).default("en"),
+          }),
           response: { 200: photoState },
         },
       },
@@ -118,15 +124,21 @@ export const photosRoutes =
         if (!photo || photo.ownerId !== user.id) {
           throw httpError(404, "photo not found");
         }
-        // A matched item deleted since counts as no match.
+        // A matched item deleted since counts as no match; a partner piece taken out of the
+        // catalog since is left out.
+        const offered = await catalog.getMany(photo.matches?.flatMap((m) => m.shop ?? []) ?? []);
         const matches =
           photo.matches &&
           (await Promise.all(
-            photo.matches.map(async ({ how, itemId }) => {
+            photo.matches.map(async ({ how, itemId, shop = [] }) => {
+              const offers = shop.flatMap((id) => {
+                const row = offered.find((o) => o.id === id);
+                return row ? [toCatalogItem(row, request.query.lang)] : [];
+              });
               const found = itemId ? await items.get(user.id, itemId) : null;
-              if (!found) return { how: "none" as const, item: null };
+              if (!found) return { how: "none" as const, item: null, shop: offers };
               const { tags: _tags, ...item } = found;
-              return { how, item };
+              return { how, item, shop: offers };
             }),
           ));
         return {

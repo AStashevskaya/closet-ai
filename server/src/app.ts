@@ -107,6 +107,7 @@ export async function buildApp({
       storage,
       photosRepository,
       itemsRepository,
+      catalogRepository,
       photoQueue,
       outfitQueue,
       limits,

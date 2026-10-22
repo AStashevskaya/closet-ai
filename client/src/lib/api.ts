@@ -197,8 +197,10 @@ export async function uploadPhoto(
 }
 
 // Whether an uploaded photo is processed yet, and what the vision model read off it.
-export function getPhotoState(photoKey: string): Promise<PhotoState> {
-  return request(`/api/photos/status?key=${encodeURIComponent(photoKey)}`, photoState);
+// lang names a "want" look's partner pieces.
+export function getPhotoState(photoKey: string, lang?: AppLanguage): Promise<PhotoState> {
+  const query = `key=${encodeURIComponent(photoKey)}${lang ? `&lang=${lang}` : ''}`;
+  return request(`/api/photos/status?${query}`, photoState);
 }
 
 // Adds the items picked from a look photo to the wardrobe; each gets the look cropped to it.
