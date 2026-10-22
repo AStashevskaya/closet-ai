@@ -15,11 +15,15 @@ import { createPhotosRepository } from "./modules/photos/photos.repository";
 import { createOutfitQueue, createOutfitWorker } from "./queue/outfit-queue";
 import { createPhotoQueue, createPhotoWorker } from "./queue/photo-queue";
 import { createS3Storage } from "./storage/storage";
+import { deleteUserFiles } from "./modules/account/account";
 
 const env = loadEnv();
 const { db, close } = createDb(env.DATABASE_URL);
-const auth = createAuth(env, drizzleAdapter(db, { provider: "pg", schema }));
 const s3 = createS3Storage(env);
+const auth = createAuth(env, drizzleAdapter(db, { provider: "pg", schema }), {
+  // Called only after the app is up, so `app` is defined by then.
+  onUserDeleted: (userId) => deleteUserFiles(s3.storage, app.log)(userId),
+});
 // Local SeaweedFS starts without the bucket; in production it is created once in the R2 dashboard.
 if (env.NODE_ENV === "development") await s3.ensureBucket();
 const photosRepository = createPhotosRepository(db);
