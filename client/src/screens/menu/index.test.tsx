@@ -46,7 +46,7 @@ describe('<Menu />', () => {
     await render(<Menu />);
     await fireEvent.press(screen.getByText('My closet'));
     expect(mockNavigate).toHaveBeenCalledWith('/');
-    await fireEvent.press(screen.getByText('Want / Can'));
+    await fireEvent.press(screen.getByText('Recreate the look'));
     expect(mockNavigate).toHaveBeenCalledWith('/want-can');
   });
 
