@@ -81,11 +81,11 @@
     "sections": {
       "closet": "My closet",
       "looks": "Outfits",
-      "wantCan": "Want / Can"
+      "wantCan": "Recreate the look"
     },
     "limits": "Your limits",
     "usage": {
-      "want": "Want / Can screenshots this month",
+      "want": "“Recreate the look” screenshots this month",
       "look": "Selfies this month",
       "wear_with": "Style it today"
     },
@@ -228,7 +228,7 @@
     "saved": "Your looks"
   },
   "want": {
-    "title": "Want / Can",
+    "title": "Recreate the look",
     "intro": "Add a screenshot of a look from Pinterest or Instagram: the app finds its items and shows which of them you already have.",
     "pick": "Choose a screenshot",
     "pickAnother": "Choose another screenshot",
