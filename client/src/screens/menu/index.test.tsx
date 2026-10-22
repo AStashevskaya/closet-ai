@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Linking } from 'react-native';
 
 import i18n from '@/i18n';
 import { authClient } from '@/lib/auth-client';
@@ -25,7 +26,7 @@ jest.mock('@/lib/api', () => ({
 }));
 jest.mock('@/lib/auth-client', () => ({
   authClient: {
-    useSession: () => ({ data: { user: { name: 'Anna' } } }),
+    useSession: () => ({ data: { user: { id: 'user-1', name: 'Anna' } } }),
     signOut: jest.fn(),
   },
 }));
@@ -60,6 +61,29 @@ describe('<Menu />', () => {
     await render(<Menu />);
     expect(await screen.findByText('2 / 5')).toBeOnTheScreen();
     expect(screen.getByText('1 / 30')).toBeOnTheScreen();
+  });
+
+  describe('report a problem', () => {
+    afterEach(() => {
+      delete process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
+    });
+
+    test('opens a letter to support with the details to look into it', async () => {
+      process.env.EXPO_PUBLIC_SUPPORT_EMAIL = 'help@closet.test';
+      const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+      await render(<Menu />);
+      await fireEvent.press(screen.getByText('Report a problem'));
+
+      const url = decodeURIComponent(open.mock.lastCall![0]);
+      expect(url).toMatch(/^mailto:help@closet\.test\?subject=Closet: a problem&body=/);
+      expect(url).toContain('Account: user-1');
+      expect(url).toContain('Language: en');
+    });
+
+    test('is hidden until a support address is set', async () => {
+      await render(<Menu />);
+      expect(screen.queryByText('Report a problem')).toBeNull();
+    });
   });
 
   test('opens my details', async () => {

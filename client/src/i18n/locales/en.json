@@ -94,7 +94,11 @@
       "want": "Want / Can screenshots this month",
       "look": "Selfies this month",
       "wear_with": "Style it today"
-    }
+    },
+    "report": "Report a problem",
+    "reportSubject": "Closet: a problem",
+    "reportIntro": "What happened, and what did you expect?",
+    "noMail": "Write to us at {{email}}"
   },
   "comingSoon": "This section is coming soon",
   "items": {
