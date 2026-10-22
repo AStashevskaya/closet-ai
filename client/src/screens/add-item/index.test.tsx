@@ -132,6 +132,9 @@ describe('<AddItem />', () => {
       colors: ['white', 'beige'],
       seasons: [],
       photoKey: 'photos/u1/p1.webp',
+      brand: null,
+      price: null,
+      currency: null,
     });
     expect(mockBack).toHaveBeenCalled();
   });
@@ -203,6 +206,9 @@ describe('<AddItem />', () => {
       // Not asked in the form: they come with the tags.
       seasons: ['spring', 'summer'],
       photoKey: 'photos/u1/p1.webp',
+      brand: null,
+      price: null,
+      currency: null,
     });
   });
 
@@ -288,6 +294,40 @@ describe('<AddItem />', () => {
     await waitFor(() => expect(uploadPhoto).toHaveBeenLastCalledWith('file:///turned.jpg', 'en'));
     expect(rotatePhoto).toHaveBeenCalledWith('file:///small.jpg');
   });
+  test('saves the brand and the price with its currency', async () => {
+    jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
+    await fireEvent.press(screen.getByText('Top'));
+    await fireEvent.press(screen.getByText('White'));
+    await fireEvent.changeText(screen.getByLabelText('Brand'), ' COS ');
+    await fireEvent.changeText(screen.getByLabelText('Price'), '349,90');
+    await fireEvent.press(screen.getByText('₪ ILS'));
+    await fireEvent.press(screen.getByText('Save'));
+
+    await waitFor(() =>
+      expect(createItem).toHaveBeenCalledWith(
+        expect.objectContaining({ brand: 'COS', price: 349.9, currency: 'ILS' }),
+      ),
+    );
+  });
+
+  test("won't save a price that isn't a number", async () => {
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
+    await fireEvent.press(screen.getByText('Top'));
+    await fireEvent.press(screen.getByText('White'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), 'about 300');
+    await fireEvent.press(screen.getByText('Save'));
+
+    expect(
+      await screen.findByText('Check the price: just the number, like 349.90'),
+    ).toBeOnTheScreen();
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
   test('opens the cropper on the picked photo', async () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));

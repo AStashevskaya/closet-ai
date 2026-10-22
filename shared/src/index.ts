@@ -41,6 +41,15 @@ export type PhotoStatus = z.infer<typeof photoStatus>;
 export const itemColor = z.enum(ITEM_COLORS);
 export type ItemColor = z.infer<typeof itemColor>;
 
+// Currencies a price can be in: the first markets and the usual ones abroad. All have cents.
+export const CURRENCIES = ["ILS", "USD", "EUR", "GBP", "RUB", "UAH", "BYN"] as const;
+export const currency = z.enum(CURRENCIES);
+export type Currency = z.infer<typeof currency>;
+
+// What the user paid, in the currency's main unit (350.5 = ₪350.50); optional, for "cost per wear".
+const price = z.number().nonnegative().max(1_000_000).multipleOf(0.01);
+const brand = z.string().trim().min(1).max(60);
+
 export const createItemInput = z.object({
   name: z.string().trim().min(1).max(120),
   category: itemCategory,
@@ -48,8 +57,16 @@ export const createItemInput = z.object({
   seasons: z.array(season).default([]),
   // Key returned by POST /api/photos. The server checks it is the caller's own upload.
   photoKey: z.string().max(200).optional(),
+  brand: brand.nullable().optional(),
+  // A price needs its currency, and a currency alone means nothing.
+  price: price.nullable().optional(),
+  currency: currency.nullable().optional(),
 });
 export type CreateItemInput = z.infer<typeof createItemInput>;
+
+// A price without its currency can't be shown or compared; the forms always send both.
+export const priceHasCurrency = (input: { price?: number | null; currency?: string | null }) =>
+  input.price == null || input.currency != null;
 
 export const item = createItemInput.omit({ photoKey: true }).extend({
   id: z.string().uuid(),
@@ -170,6 +187,9 @@ export const updateItemInput = z
     category: itemCategory,
     colors: createItemInput.shape.colors,
     seasons: z.array(season),
+    brand: brand.nullable(),
+    price: price.nullable(),
+    currency: currency.nullable(),
   })
   .partial();
 export type UpdateItemInput = z.infer<typeof updateItemInput>;

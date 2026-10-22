@@ -388,6 +388,29 @@ describe("PATCH /api/items/:id", () => {
     expect(list.json<Item[]>()[0]).toMatchObject({ name: "Linen shirt", category: "top" });
   });
 
+  it("stores brand and price with its currency, and clears them with null", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const created = await createShirt(server, cookie);
+    expect(created).toMatchObject({ brand: null, price: null, currency: null });
+
+    const patch = (payload: object) =>
+      server.inject({
+        method: "PATCH",
+        url: `/api/items/${created.id}`,
+        headers: { cookie },
+        payload,
+      });
+    const priced = await patch({ brand: " COS ", price: 349.9, currency: "ILS" });
+    expect(priced.json<Item>()).toMatchObject({ brand: "COS", price: 349.9, currency: "ILS" });
+    // A price on its own would be in no currency at all.
+    expect((await patch({ price: 10 })).statusCode).toBe(400);
+    expect((await patch({ price: 10.001, currency: "USD" })).statusCode).toBe(400);
+
+    const cleared = await patch({ brand: null, price: null, currency: null });
+    expect(cleared.json<Item>()).toMatchObject({ brand: null, price: null, currency: null });
+  });
+
   it("validates like creating does", async () => {
     const server = await setup();
     const cookie = await signUp(server, "anna@example.com");

@@ -1,4 +1,4 @@
-import type { ItemCategory, ItemColor, LimitCode, Season } from '@closet-ai/shared';
+import type { Currency, ItemCategory, ItemColor, LimitCode, Season } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,6 +8,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { BrandPriceFields } from '@/components/brand-price-fields';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
 import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
@@ -17,6 +18,7 @@ import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
+import { defaultCurrency, parsePrice } from '@/lib/price';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { CSS_EASE_OUT, durations } from '@/motion';
@@ -31,7 +33,16 @@ const PARALLEL_UPLOADS = 3;
 export type PickedPhoto = { uri: string; width: number; height: number };
 
 // What will be saved for a recognised photo: its tags, as corrected in the list.
-type Draft = { name: string; category: ItemCategory; colors: ItemColor[]; seasons: Season[] };
+// price is the field's text, parsed when saving.
+type Draft = {
+  name: string;
+  category: ItemCategory;
+  colors: ItemColor[];
+  seasons: Season[];
+  brand: string;
+  price: string;
+  currency: Currency;
+};
 
 // One picked photo on its way to becoming an item.
 type Entry =
@@ -62,8 +73,8 @@ const isPending = (entry: Entry) =>
   entry.status === 'tagging' ||
   (entry.status === 'ready' && entry.rotating);
 
-const isComplete = ({ name, colors: itemColors }: Draft) =>
-  name.trim().length > 0 && itemColors.length > 0;
+const isComplete = ({ name, colors: itemColors, price }: Draft) =>
+  name.trim().length > 0 && itemColors.length > 0 && parsePrice(price) !== undefined;
 
 // Several photos from the gallery at once, one item each: every photo is uploaded and tagged
 // like in the single-item form, the recognised ones are ticked with their tags, and each row
@@ -112,6 +123,9 @@ export function AddItems() {
             category: tags.category,
             colors: tags.colors.slice(0, MAX_COLORS),
             seasons: tags.seasons,
+            brand: tags.brand ?? '',
+            price: '',
+            currency: defaultCurrency(),
           };
           update(index, () => ({ status: 'ready', uri, photoKey, draft, rotating: false }));
           setPicked((current) => new Set(current).add(index));
@@ -246,8 +260,16 @@ export function AddItems() {
       indexes.map((index) => {
         const entry = entries[index];
         if (entry?.status !== 'ready') return Promise.reject(new Error('not recognised'));
-        const { name, ...rest } = entry.draft;
-        return createItem({ name: name.trim(), ...rest, photoKey: entry.photoKey });
+        const { name, brand, price, currency, ...rest } = entry.draft;
+        const paid = parsePrice(price) ?? null;
+        return createItem({
+          name: name.trim(),
+          ...rest,
+          photoKey: entry.photoKey,
+          brand: brand.trim() || null,
+          price: paid,
+          currency: paid === null ? null : currency,
+        });
       }),
     );
     const failed = new Set(indexes.filter((_, i) => results[i]!.status === 'rejected'));
@@ -392,6 +414,14 @@ export function AddItems() {
                   onCategoryChange={(value) => edit(index, { category: value })}
                   itemColors={entry.draft.colors}
                   onColorsChange={(value) => edit(index, { colors: value })}
+                />
+                <BrandPriceFields
+                  brand={entry.draft.brand}
+                  onBrandChange={(value) => edit(index, { brand: value })}
+                  price={entry.draft.price}
+                  onPriceChange={(value) => edit(index, { price: value })}
+                  currency={entry.draft.currency}
+                  onCurrencyChange={(value) => edit(index, { currency: value })}
                 />
               </Animated.View>
             )}

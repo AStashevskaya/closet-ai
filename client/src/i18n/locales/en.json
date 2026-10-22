@@ -60,8 +60,15 @@
       "category": "Pick a category",
       "colors": "Pick at least one color",
       "cameraPermission": "Allow camera access in Settings to take a photo",
-      "save": "Couldn't save the item. Try again."
-    }
+      "save": "Couldn't save the item. Try again.",
+      "price": "Check the price: just the number, like 349.90"
+    },
+    "brand": "Brand",
+    "brandPlaceholder": "e.g. COS",
+    "price": "Price",
+    "pricePlaceholder": "What you paid",
+    "optional": "optional",
+    "currency": "Currency"
   },
   "tabs": {
     "closet": "Closet",

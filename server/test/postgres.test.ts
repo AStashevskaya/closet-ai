@@ -224,12 +224,21 @@ describe.skipIf(!url)("on Postgres", () => {
       method: "PATCH",
       url: `/api/items/${id}`,
       headers: { cookie: owner },
-      payload: { seasons: ["summer", "spring"], colors: ["white", "blue"] },
+      payload: {
+        seasons: ["summer", "spring"],
+        colors: ["white", "blue"],
+        brand: "COS",
+        price: 349.9,
+        currency: "ILS",
+      },
     });
     expect(own.json<Item>()).toMatchObject({
       name: shirt.name,
       seasons: ["summer", "spring"],
       colors: ["white", "blue"],
+      brand: "COS",
+      price: 349.9,
+      currency: "ILS",
       tags: null,
     });
   });

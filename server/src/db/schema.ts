@@ -1,4 +1,5 @@
 import {
+  CURRENCIES,
   ITEM_CATEGORIES,
   ITEM_COLORS,
   OUTFIT_REQUEST_STATUSES,
@@ -39,6 +40,7 @@ export const photoStatusEnum = pgEnum("photo_status", PHOTO_STATUSES);
 export const tagStatusEnum = pgEnum("tag_status", TAG_STATUSES);
 export const photoKindEnum = pgEnum("photo_kind", PHOTO_KINDS);
 export const usageActionEnum = pgEnum("usage_action", USAGE_ACTIONS);
+export const currencyEnum = pgEnum("currency", CURRENCIES);
 
 // One row per uploaded photo. The worker turns the original (uploadKey) into the shrunk WebP
 // at key; photos never attached to an item are cleaned up after a day.
@@ -96,6 +98,10 @@ export const items = pgTable(
       .notNull()
       .default(sql`'{}'`),
     photoKey: text("photo_key").references(() => photos.key, { onDelete: "set null" }),
+    brand: text("brand"),
+    // In cents (minor units) of `currency`, so sums stay exact; the API speaks main units.
+    priceMinor: integer("price_minor"),
+    currency: currencyEnum("currency"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   // Every items query filters by owner.

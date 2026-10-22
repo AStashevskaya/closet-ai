@@ -2,6 +2,7 @@ import {
   ITEM_CATEGORIES,
   ITEM_COLORS,
   SEASONS,
+  type Currency,
   type ItemCategory,
   type ItemColor,
   type ItemDetail,
@@ -32,6 +33,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HangerLoader } from '@/components/hanger-loader';
 import { Chip } from '@/components/chip';
+import { BrandPriceFields } from '@/components/brand-price-fields';
 import { Button, maison } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
 import { ItemPhoto } from '@/components/item-photo';
@@ -50,19 +52,32 @@ import {
 import { ApiError, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
+import { defaultCurrency, parsePrice, priceText } from '@/lib/price';
 import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 const MAX_COLORS = 5;
 
 // The editable part of an item: what the user can correct when the model got it wrong.
-type Draft = { name: string; category: ItemCategory; colors: ItemColor[]; seasons: Season[] };
+// price is the field's text, parsed when saving.
+type Draft = {
+  name: string;
+  category: ItemCategory;
+  colors: ItemColor[];
+  seasons: Season[];
+  brand: string;
+  price: string;
+  currency: Currency;
+};
 
 const draftOf = (item: ItemDetail): Draft => ({
   name: item.name,
   category: item.category,
   colors: item.colors,
   seasons: item.seasons,
+  brand: item.brand ?? '',
+  price: priceText(item.price),
+  currency: item.currency ?? defaultCurrency(),
 });
 
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
@@ -161,7 +176,10 @@ export function ItemScreen({ id }: { id: string }) {
 
   const { item } = state;
   const dirty = !sameDraft(draft, draftOf(item));
-  const valid = draft.name.trim().length > 0 && draft.colors.length > 0;
+  const valid =
+    draft.name.trim().length > 0 &&
+    draft.colors.length > 0 &&
+    parsePrice(draft.price) !== undefined;
   const update = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
 
   const toggle = <T,>(list: T[], value: T, max = Infinity) =>
@@ -175,7 +193,15 @@ export function ItemScreen({ id }: { id: string }) {
     if (!draft) return;
     setBusy(true);
     try {
-      await updateItem(id, { ...draft, name: draft.name.trim() });
+      const { brand, price, currency, ...fields } = draft;
+      const paid = parsePrice(price) ?? null;
+      await updateItem(id, {
+        ...fields,
+        name: draft.name.trim(),
+        brand: brand.trim() || null,
+        price: paid,
+        currency: paid === null ? null : currency,
+      });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (cause) {
@@ -360,6 +386,15 @@ export function ItemScreen({ id }: { id: string }) {
               />
             ))}
           </View>
+
+          <BrandPriceFields
+            brand={draft.brand}
+            onBrandChange={(brand) => update({ brand })}
+            price={draft.price}
+            onPriceChange={(price) => update({ price })}
+            currency={draft.currency}
+            onCurrencyChange={(currency) => update({ currency })}
+          />
 
           <Text style={styles.label}>{t('item.fromPhoto')}</Text>
           <PhotoDetails tags={item.tags} />
