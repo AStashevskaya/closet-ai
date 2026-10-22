@@ -23,6 +23,8 @@ import { inspirationRoutes } from "./modules/inspiration/inspiration.routes";
 import { outfitsRoutes } from "./modules/outfits/outfits.routes";
 import type { ProfileRepository } from "./modules/profile/profile.repository";
 import { profileRoutes } from "./modules/profile/profile.routes";
+import type { WishesRepository } from "./modules/wishes/wishes.repository";
+import { wishesRoutes } from "./modules/wishes/wishes.routes";
 import type { PhotoQueue } from "./queue/photo-queue";
 import { healthRoutes } from "./routes/health";
 import type { Storage } from "./storage/storage";
@@ -38,6 +40,7 @@ export interface AppDeps {
   outfitsRepository: OutfitsRepository;
   profileRepository: ProfileRepository;
   catalogRepository: CatalogRepository;
+  wishesRepository: WishesRepository;
   photoQueue: PhotoQueue;
   outfitQueue: OutfitQueue;
   storage: Storage;
@@ -60,6 +63,7 @@ export async function buildApp({
   outfitsRepository,
   profileRepository,
   catalogRepository,
+  wishesRepository,
   photoQueue,
   outfitQueue,
   storage,
@@ -126,6 +130,7 @@ export async function buildApp({
     outfitsRoutes(
       outfitsRepository,
       itemsRepository,
+      wishesRepository,
       photosRepository,
       storage,
       outfitQueue,
@@ -135,6 +140,9 @@ export async function buildApp({
     ),
     { prefix: "/api" },
   );
+  await app.register(wishesRoutes(wishesRepository, outfitsRepository, photosRepository, auth), {
+    prefix: "/api",
+  });
 
   return app;
 }

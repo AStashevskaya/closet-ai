@@ -82,7 +82,8 @@
       "closet": "My closet",
       "looks": "Outfits",
       "wantCan": "Recreate the look",
-      "theEdit": "The Edit"
+      "theEdit": "The Edit",
+      "wishes": "Wishes"
     },
     "limits": "Your limits",
     "usage": {
@@ -372,5 +373,21 @@
     "think": "Think it over",
     "skip": "Skip it",
     "twin": "You already have one like it"
+  },
+  "wishes": {
+    "row": "Wishes",
+    "title": "Wishes",
+    "subtitle": "A week to think it over",
+    "intro": "Save pieces you want to buy here. In a week I'll ask whether you still want them.",
+    "add": "Add to wishes",
+    "added": "In your wishes",
+    "ask": "Still want it?",
+    "still": "Yes",
+    "no": "Not anymore",
+    "bought": "Bought it",
+    "due_one": "{{count}} to answer",
+    "due_other": "{{count}} to answer",
+    "failed": "Couldn't open your wishes. Try again.",
+    "saved": "Saved {{date}}"
   }
 }

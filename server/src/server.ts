@@ -9,6 +9,7 @@ import { createUsageRepository } from "./modules/usage/usage.repository";
 import { createItemsRepository } from "./modules/items/items.repository";
 import { createOutfitsRepository } from "./modules/outfits/outfits.repository";
 import { createPhotosRepository } from "./modules/photos/photos.repository";
+import { createWishesRepository } from "./modules/wishes/wishes.repository";
 import { createProfileRepository } from "./modules/profile/profile.repository";
 import { createOutfitQueue } from "./queue/outfit-queue";
 import { createPhotoQueue } from "./queue/photo-queue";
@@ -40,6 +41,7 @@ const app = await buildApp({
   outfitsRepository,
   profileRepository: createProfileRepository(db),
   catalogRepository: createCatalogRepository(db),
+  wishesRepository: createWishesRepository(db),
   photoQueue: queue.photoQueue,
   outfitQueue: outfitQueue.outfitQueue,
   storage: s3.storage,

@@ -314,3 +314,27 @@ export const catalogEvents = pgTable(
     index("catalog_events_item_idx").on(table.catalogItemId, table.event, table.createdAt),
   ],
 );
+
+// Pieces the user wants to buy: an item-from-a-photo request saved to her wishes. Answering "no"
+// or "bought" deletes the row; "still" moves askAt a week on.
+export const wishes = pgTable(
+  "wishes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => outfitRequests.id, { onDelete: "cascade" }),
+    // When to ask whether she still wants it.
+    askAt: timestamp("ask_at", { withTimezone: true }).notNull(),
+    // How many times she said she still does: intent, for her and (in aggregate) for brands.
+    stillCount: integer("still_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("wishes_request_idx").on(table.requestId),
+    index("wishes_user_idx").on(table.userId),
+  ],
+);

@@ -309,6 +309,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         // Filled in by the route, which knows the photo.
         addable: null,
         verdict: null,
+        wishId: null,
         outfits: looks.map((look) => ({
           id: look.id,
           caption: look.caption,

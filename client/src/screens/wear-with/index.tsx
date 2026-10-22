@@ -12,7 +12,7 @@ import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
 import { PartnerPiece } from '@/components/partner-piece';
 import { PressableScale } from '@/components/pressable-scale';
-import { createItem, getWearWith, reactToOutfit, sessionHeaders } from '@/lib/api';
+import { addWish, createItem, getWearWith, reactToOutfit, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -29,6 +29,7 @@ type State =
       outfits: Outfit[];
       addable: WearWithRequest['addable'];
       verdict: WearWithRequest['verdict'];
+      wishId: string | null;
     };
 
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
@@ -64,6 +65,7 @@ export function WearWith({ id }: { id: string }) {
               outfits: request.outfits,
               addable: request.addable,
               verdict: request.verdict,
+              wishId: request.wishId,
             });
             void Haptics.selectionAsync();
             return;
@@ -121,6 +123,24 @@ export function WearWith({ id }: { id: string }) {
     }
   }
 
+  // A piece she may buy, into her wishes: asked about again in a week.
+  const [wishing, setWishing] = useState(false);
+  async function wish() {
+    if (state.status !== 'done' || state.wishId) return;
+    setWishing(true);
+    try {
+      const saved = await addWish(id);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setState((current) =>
+        current.status === 'done' ? { ...current, wishId: saved.id } : current,
+      );
+    } catch (cause) {
+      if (__DEV__) console.warn('Saving the wish failed', cause);
+    } finally {
+      setWishing(false);
+    }
+  }
+
   if (state.status === 'pending') {
     return (
       <View style={styles.center} accessibilityLiveRegion="polite">
@@ -140,6 +160,15 @@ export function WearWith({ id }: { id: string }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {state.verdict && <Verdict verdict={state.verdict} headers={headers} />}
+      {state.addable && (
+        <Button
+          kind={state.wishId ? 'outline' : 'ink'}
+          label={t(state.wishId ? 'wishes.added' : 'wishes.add')}
+          onPress={wish}
+          disabled={state.wishId !== null}
+          busy={wishing}
+        />
+      )}
       {state.addable && (
         <Button
           kind="outline"

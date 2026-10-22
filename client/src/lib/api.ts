@@ -21,6 +21,10 @@ import {
   type WearWithRequest,
   catalogItem,
   catalogList,
+  wish,
+  wishList,
+  type Wish,
+  type WishAnswer,
   type CatalogItem,
   wearWithStarted,
   type WearWithInput,
@@ -140,6 +144,27 @@ export function updateProfile(patch: UpdateProfileInput): Promise<UserProfile> {
 // The styled items, newest first, for the Style it tab.
 export function listStyled(): Promise<StyledEntry[]> {
   return request('/api/wear-with', styledList);
+}
+
+// Wishes: pieces from photos the user wants to buy.
+export function listWishes(): Promise<Wish[]> {
+  return request('/api/wishes', wishList);
+}
+
+export function addWish(requestId: string): Promise<Wish> {
+  return request('/api/wishes', wish, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ requestId }),
+  });
+}
+
+export async function answerWish(id: string, answer: WishAnswer): Promise<void> {
+  await send(`/api/wishes/${id}/answer`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ answer }),
+  });
 }
 
 // Partner pieces in the outfits come named in the language asked for.

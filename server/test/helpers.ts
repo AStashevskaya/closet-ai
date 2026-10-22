@@ -21,6 +21,7 @@ import {
   type CatalogRow,
   type NewCatalogItem,
 } from "../src/modules/catalog/catalog.repository";
+import type { WishesRepository, WishRow } from "../src/modules/wishes/wishes.repository";
 import { EMPTY_PROFILE, type ProfileRepository } from "../src/modules/profile/profile.repository";
 import { toItem, toMinor, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
@@ -365,6 +366,7 @@ export function createInMemoryRepositories() {
         status: request.status,
         addable: null,
         verdict: null,
+        wishId: null,
         outfits: storedOutfits
           .filter((o) => o.requestId === requestId)
           .map((o) => ({
@@ -515,6 +517,33 @@ export function createInMemoryRepositories() {
     },
   };
 
+  const wishRows: (WishRow & { userId: string })[] = [];
+  const wishesRepository: WishesRepository & { rows: typeof wishRows } = {
+    rows: wishRows,
+    add: async (userId, requestId, askAt) => {
+      const found = wishRows.find((w) => w.userId === userId && w.requestId === requestId);
+      if (found) return found.id;
+      const row = { id: randomUUID(), userId, requestId, askAt, stillCount: 0, createdAt: now() };
+      wishRows.push(row);
+      return row.id;
+    },
+    list: async (userId) => wishRows.filter((w) => w.userId === userId).reverse(),
+    idFor: async (userId, requestId) =>
+      wishRows.find((w) => w.userId === userId && w.requestId === requestId)?.id ?? null,
+    keep: async (userId, id, askAt) => {
+      const row = wishRows.find((w) => w.userId === userId && w.id === id);
+      if (!row) return false;
+      Object.assign(row, { askAt, stillCount: row.stillCount + 1 });
+      return true;
+    },
+    remove: async (userId, id) => {
+      const index = wishRows.findIndex((w) => w.userId === userId && w.id === id);
+      if (index < 0) return false;
+      wishRows.splice(index, 1);
+      return true;
+    },
+  };
+
   return {
     itemsRepository,
     photosRepository,
@@ -522,6 +551,7 @@ export function createInMemoryRepositories() {
     outfitsRepository,
     profileRepository,
     catalogRepository,
+    wishesRepository,
   };
 }
 

@@ -11,6 +11,7 @@ import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createCatalogRepository } from "../src/modules/catalog/catalog.repository";
 import { createItemsRepository } from "../src/modules/items/items.repository";
+import { createWishesRepository } from "../src/modules/wishes/wishes.repository";
 import { createProfileRepository } from "../src/modules/profile/profile.repository";
 import { createOutfitsRepository } from "../src/modules/outfits/outfits.repository";
 import { createUsageRepository } from "../src/modules/usage/usage.repository";
@@ -86,6 +87,7 @@ describe.skipIf(!url)("on Postgres", () => {
       outfitsRepository: createOutfitsRepository(db.db),
       profileRepository: createProfileRepository(db.db),
       catalogRepository: createCatalogRepository(db.db),
+      wishesRepository: createWishesRepository(db.db),
       photoQueue: createManualPhotoQueue().photoQueue,
       outfitQueue: createManualOutfitQueue().outfitQueue,
       stylistEnabled: false,
@@ -706,5 +708,35 @@ describe.skipIf(!url)("on Postgres", () => {
       "E1",
       "E2",
     ]);
+  });
+
+  it("keeps one wish per request, moves it on, and lets it go", async () => {
+    await signUp("wishes@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "wishes@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const crop = `photos/${user!.id}/wish.webp`;
+    await photos.createReady({ key: crop, ownerId: user!.id, tags: shirtTags });
+    const outfits = createOutfitsRepository(db.db);
+    const requestId = await outfits.createRequest(
+      user!.id,
+      { heroPhotoKey: crop, heroNoun: "shirt" },
+      0,
+    );
+    const wishes = createWishesRepository(db.db);
+
+    const id = await wishes.add(user!.id, requestId, new Date(Date.now() + 1000));
+    expect(await wishes.add(user!.id, requestId, new Date())).toBe(id);
+    expect(await wishes.idFor(user!.id, requestId)).toBe(id);
+    expect(await wishes.keep("someone-else", id, new Date())).toBe(false);
+    const later = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    expect(await wishes.keep(user!.id, id, later)).toBe(true);
+    expect(await wishes.list(user!.id)).toEqual([
+      expect.objectContaining({ id, requestId, askAt: later, stillCount: 1 }),
+    ]);
+    expect(await wishes.remove(user!.id, id)).toBe(true);
+    expect(await wishes.list(user!.id)).toEqual([]);
   });
 });

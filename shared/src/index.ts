@@ -337,7 +337,30 @@ export const wearWithRequest = z.object({
   // For an item from a photo, once composed: the verdict, with the twin from her wardrobe (null
   // when it repeats nothing, or the twin was deleted since). null for wardrobe items.
   verdict: z.object({ call: buyCall, reason: z.string(), twin: item.nullable() }).nullable(),
+  // For an item from a photo: its wish when the user saved it to their wishes, else null.
+  wishId: z.string().uuid().nullable(),
 });
+
+// Wishes: pieces the user wants to buy, saved from an item-from-a-photo's outfits. A week later
+// the app asks whether she still wants it: yes asks again a week on, no and "bought" let it go.
+export const WISH_ANSWERS = ["still", "no", "bought"] as const;
+export type WishAnswer = (typeof WISH_ANSWERS)[number];
+export const wishAnswerInput = z.object({ answer: z.enum(WISH_ANSWERS) });
+export const addWishInput = z.object({ requestId: z.string().uuid() });
+export const wish = z.object({
+  id: z.string().uuid(),
+  // Its outfits, GET /api/wear-with/:id.
+  requestId: z.string().uuid(),
+  name: z.string(),
+  photoUrl: z.string(),
+  cutoutUrl: z.string().nullable(),
+  call: buyCall.nullable(),
+  createdAt: z.string().datetime(),
+  // Time to ask whether she still wants it.
+  due: z.boolean(),
+});
+export type Wish = z.infer<typeof wish>;
+export const wishList = z.array(wish);
 export type WearWithRequest = z.infer<typeof wearWithRequest>;
 
 // GET /api/wear-with: the user's styled items, newest first, to open their outfits again.

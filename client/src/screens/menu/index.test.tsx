@@ -15,6 +15,9 @@ jest.mock(
 );
 jest.mock('expo-router', () => ({
   useRouter: () => ({ navigate: mockNavigate, push: mockPush }),
+  // As if the tab had just come into view.
+  useFocusEffect: (effect: () => void) =>
+    jest.requireActual<typeof import('react')>('react').useEffect(effect, [effect]),
 }));
 jest.mock('@/lib/api', () => ({
   getUsage: jest.fn().mockResolvedValue({
@@ -22,6 +25,7 @@ jest.mock('@/lib/api', () => ({
     look: { used: 0, limit: 3, resetsAt: '2026-11-01T00:00:00.000Z' },
     wear_with: { used: 1, limit: 30, resetsAt: '2026-10-22T00:00:00.000Z' },
   }),
+  listWishes: jest.fn().mockResolvedValue([{ due: true }, { due: false }]),
 }));
 jest.mock('@/lib/auth-client', () => ({
   authClient: {
@@ -51,9 +55,16 @@ describe('<Menu />', () => {
 
   test('shows only the sections the app has', async () => {
     await render(<Menu />);
-    // My profile, the closet, Style it, Recreate the look and the Edit; nothing marked "soon".
-    expect(screen.getAllByRole('menuitem')).toHaveLength(5);
+    // My profile, the closet, Style it, Recreate the look, Wishes and the Edit; nothing "soon".
+    expect(screen.getAllByRole('menuitem')).toHaveLength(6);
     expect(screen.queryByText('soon')).toBeNull();
+  });
+
+  test('shows how many wishes wait for an answer', async () => {
+    await render(<Menu />);
+    expect(await screen.findByText('1 to answer')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('Wishes'));
+    expect(mockNavigate).toHaveBeenCalledWith('/wishes');
   });
 
   test('shows what is left of the limits', async () => {
