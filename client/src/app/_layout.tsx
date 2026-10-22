@@ -110,6 +110,17 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="profile-details"
+          options={{
+            title: t('details.title'),
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
           name="delete-account"
           options={{
             presentation: 'modal',

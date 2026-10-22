@@ -50,6 +50,17 @@ type PhotoFields = { photoStatus: PhotoStatus | null; cutoutKey: string | null }
 
 type ItemRow = typeof items.$inferSelect;
 
+// Prices travel in main units (350.5) and are stored in cents (35050), so sums stay exact.
+export const toMinor = (price: number | null | undefined) =>
+  price == null ? null : Math.round(price * 100);
+
+// The item fields the API takes, as table columns: only the ones given, so a PATCH changes
+// only what it sends.
+export function toColumns(input: UpdateItemInput & { photoKey?: string }) {
+  const { price, ...rest } = input;
+  return price === undefined ? rest : { ...rest, priceMinor: toMinor(price) };
+}
+
 // The photo URL only appears once the worker has stored the WebP; until then the app
 // shows a placeholder and polls while photoStatus is "processing". The cut-out URL comes a few
 // seconds later, once the background is removed.
@@ -60,6 +71,9 @@ export function toItem(row: ItemRow, { photoStatus, cutoutKey }: PhotoFields): I
     category: row.category,
     colors: row.colors,
     seasons: row.seasons,
+    brand: row.brand,
+    price: row.priceMinor === null ? null : row.priceMinor / 100,
+    currency: row.currency,
     photoUrl: photoStatus === "ready" && row.photoKey ? photoPath(row.id, row.photoKey) : undefined,
     cutoutUrl:
       photoStatus === "ready" && row.photoKey && cutoutKey
@@ -99,7 +113,7 @@ export function createItemsRepository(db: Db): ItemsRepository {
       if (Object.keys(patch).length > 0) {
         const updated = await db
           .update(items)
-          .set(patch)
+          .set(toColumns(patch))
           .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)))
           .returning({ id: items.id });
         if (updated.length === 0) return null;
@@ -110,7 +124,13 @@ export function createItemsRepository(db: Db): ItemsRepository {
     async create(ownerId, input) {
       const [row] = await db
         .insert(items)
-        .values({ ...input, ownerId })
+        .values({
+          ...toColumns(input),
+          name: input.name,
+          category: input.category,
+          colors: input.colors,
+          ownerId,
+        })
         .returning();
       if (!row) throw new Error("Insert returned no rows");
       const [photo] = row.photoKey

@@ -91,6 +91,17 @@ export function Menu() {
       )}
 
       <View accessibilityRole="menu" style={styles.list}>
+        <Pressable
+          style={styles.row}
+          onPress={() => router.push('/profile-details')}
+          accessibilityRole="menuitem"
+        >
+          <Icon name="user" color={colors.text} />
+          <Text style={styles.rowLabel}>{t('details.row')}</Text>
+          <View style={styles.chevron}>
+            <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+          </View>
+        </Pressable>
         {SECTIONS.map(({ key, icon, href }) => {
           const ready = href !== undefined;
           return (

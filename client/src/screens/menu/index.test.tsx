@@ -86,6 +86,12 @@ describe('<Menu />', () => {
     });
   });
 
+  test('opens my details', async () => {
+    await render(<Menu />);
+    await fireEvent.press(screen.getByText('My details'));
+    expect(mockPush).toHaveBeenCalledWith('/profile-details');
+  });
+
   test('opens account deletion', async () => {
     await render(<Menu />);
     await fireEvent.press(screen.getByText('Delete account'));

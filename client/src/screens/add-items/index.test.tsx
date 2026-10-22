@@ -92,6 +92,9 @@ describe('<AddItems />', () => {
       colors: ['white'],
       seasons: ['summer'],
       photoKey: 'photos/u1/shirt.jpg',
+      brand: null,
+      price: null,
+      currency: null,
     });
   });
 
