@@ -1,6 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { I18nManager, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  I18nManager,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Animated from 'react-native-reanimated';
@@ -10,6 +19,7 @@ import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
 import { authClient } from '@/lib/auth-client';
 import { useUsage } from '@/lib/limits';
+import { problemReportUrl, supportEmail } from '@/lib/report-problem';
 import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -31,11 +41,27 @@ const SECTIONS: Section[] = [
 ];
 
 export function Menu() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: session } = authClient.useSession();
   const { usage } = useUsage();
+
+  async function report() {
+    const url = problemReportUrl({
+      userId: session?.user.id,
+      language: i18n.language,
+      subject: t('menu.reportSubject'),
+      intro: t('menu.reportIntro'),
+    });
+    if (!url) return;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // No mail app set up: the address at least.
+      Alert.alert(t('menu.noMail', { email: supportEmail() }));
+    }
+  }
 
   return (
     <ScrollView
@@ -90,6 +116,13 @@ export function Menu() {
             </Pressable>
           );
         })}
+
+        {supportEmail() && (
+          <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
+            <Icon name="chat" color={colors.text} />
+            <Text style={styles.rowLabel}>{t('menu.report')}</Text>
+          </Pressable>
+        )}
 
         <Pressable
           style={styles.row}
