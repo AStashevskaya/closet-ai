@@ -48,6 +48,8 @@ export class PermanentOutfitError extends Error {}
 export const LOOKS_PER_REQUEST = 4;
 // Partner pieces stay the exception: never in every look (docs/product.md, partner items).
 export const MAX_PARTNER_LOOKS = 2;
+// How far back "recently" goes: about a week of styling for an active user.
+export const RECENT_REQUESTS = 6;
 
 // Job "compose": outfits around the request's item. Safe to run twice: only a pending request
 // is composed.
@@ -74,7 +76,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const nOf = new Map(numbered.map(({ item, n }) => [item.id, n]));
   if (!nOf.has(hero.id)) nOf.set(hero.id, wardrobe.length + 1);
   const season = seasonOf(deps.clock?.() ?? new Date());
-  const candidates = pickCandidates(hero, wardrobe, season);
+  const recent = await outfits.recentlyUsed(request.userId, RECENT_REQUESTS);
+  const candidates = pickCandidates(hero, wardrobe, season, recent.pieces);
   const sheet = await contactSheet(
     storage,
     candidates.map((item) => ({ n: nOf.get(item.id)!, imageKey: item.imageKey })),
@@ -102,19 +105,41 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     sheet,
     brief: (await outfits.brief(request.userId))?.brief ?? null,
     shop,
+    // Only the pieces on the sheet matter to the model; the most used first.
+    recent: {
+      pieces: candidates
+        .flatMap((item) => {
+          const looks = recent.pieces.get(item.id) ?? 0;
+          return looks > 0 ? [{ n: nOf.get(item.id)!, looks }] : [];
+        })
+        .sort((a, b) => b.looks - a.looks),
+      captions: recent.captions,
+    },
     season,
     mood: request.mood,
     lang,
     looks: LOOKS_PER_REQUEST,
   });
 
-  // Only pieces that were on the sheets: a number the model made up, or the item itself, is dropped.
-  const byN = new Map(candidates.map((item) => [nOf.get(item.id)!, item]));
+  // Any piece of her wardrobe: the model sometimes takes a fitting one from the list that wasn't
+  // on the sheet, and dropping it left a look without its skirt while "why" still spoke of it
+  // (owner's halter top, 2026-10-22). A number the model made up, or the item itself, is dropped.
+  const byN = new Map(
+    numbered.filter(({ item }) => item.id !== hero.id).map(({ item, n }) => [n, item]),
+  );
   const shopByN = new Map(shopRows.map((row, i) => [shopN(i), row]));
+  const resolved = looks.map((look) => ({
+    look,
+    items: [...new Set(look.items)].flatMap((n) => byN.get(n) ?? []),
+    shop: look.partner === null ? undefined : shopByN.get(look.partner),
+  }));
+  // A look without a bottom (or a dress) isn't one; shown only if every look came out so.
+  const complete = resolved.filter(({ items, shop }) =>
+    isComplete([hero.category, ...items.map((item) => item.category), shop?.category]),
+  );
   let partnerLooks = 0;
-  const saved = looks.map((look) => {
-    const found = look.partner === null ? undefined : shopByN.get(look.partner);
-    const partner = found && partnerLooks < MAX_PARTNER_LOOKS ? found : undefined;
+  const saved = (complete.length > 0 ? complete : resolved).map(({ look, items, shop }) => {
+    const partner = shop && partnerLooks < MAX_PARTNER_LOOKS ? shop : undefined;
     if (partner) partnerLooks += 1;
     return {
       caption: look.caption,
@@ -124,10 +149,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       missing: partner && look.missing?.category === partner.category ? null : look.missing,
       pieces: [
         { hero: true, itemId: request.heroPhotoKey ? null : hero.id },
-        ...[...new Set(look.items)].flatMap((n) => {
-          const item = byN.get(n);
-          return item ? [{ hero: false, itemId: item.id }] : [];
-        }),
+        ...items.map((item) => ({ hero: false, itemId: item.id })),
         ...(partner
           ? [{ hero: false, itemId: null, catalogItemId: partner.id, sponsored: true }]
           : []),
@@ -138,6 +160,13 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
 
   const shown = saved.flatMap((look) => look.pieces.flatMap((p) => p.catalogItemId ?? []));
   await deps.catalog?.record(shown, request.userId, "shown");
+}
+
+// Something to wear: a dress, or a top and a bottom.
+export function isComplete(categories: (string | undefined)[]) {
+  return (
+    categories.includes("dress") || (categories.includes("top") && categories.includes("bottom"))
+  );
 }
 
 // The item from a photo, as styling sees it: cut out by its English name the first time (the
