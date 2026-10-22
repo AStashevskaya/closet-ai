@@ -19,12 +19,13 @@ import { ItemScreen } from '.';
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockBack = jest.fn();
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual('react');
   return {
     Stack: { Screen: () => null },
-    useRouter: () => ({ back: mockBack, push: mockPush }),
+    useRouter: () => ({ back: mockBack, push: mockPush, replace: mockReplace }),
     // Runs the callback once on mount, as if the screen just came into view.
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
   };
@@ -130,7 +131,7 @@ describe('<ItemScreen />', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
-  test('shows similar items from the wardrobe and opens them', async () => {
+  test('shows similar items from the wardrobe and opens them in its place', async () => {
     const { tags: _tags, ...base } = shirt;
     jest.mocked(getSimilarItems).mockResolvedValue([
       {
@@ -144,10 +145,12 @@ describe('<ItemScreen />', () => {
 
     expect(await screen.findByText('Similar in your wardrobe')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Cream shirt' }));
-    expect(mockPush).toHaveBeenCalledWith({
+    // Back from it leads to the closet, not to this item.
+    expect(mockReplace).toHaveBeenCalledWith({
       pathname: '/item/[id]',
       params: { id: '6b1f7c3e-0000-4000-8000-000000000002' },
     });
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   test('hides the similar row when there is nothing similar', async () => {
