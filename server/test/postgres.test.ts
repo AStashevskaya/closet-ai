@@ -10,6 +10,7 @@ import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createItemsRepository } from "../src/modules/items/items.repository";
+import { createProfileRepository } from "../src/modules/profile/profile.repository";
 import { createOutfitsRepository } from "../src/modules/outfits/outfits.repository";
 import { createUsageRepository } from "../src/modules/usage/usage.repository";
 import { createPhotosRepository } from "../src/modules/photos/photos.repository";
@@ -75,6 +76,7 @@ describe.skipIf(!url)("on Postgres", () => {
       photosRepository: createPhotosRepository(db.db),
       usageRepository: createUsageRepository(db.db),
       outfitsRepository: createOutfitsRepository(db.db),
+      profileRepository: createProfileRepository(db.db),
       photoQueue: createManualPhotoQueue().photoQueue,
       outfitQueue: createManualOutfitQueue().outfitQueue,
       stylistEnabled: false,
@@ -113,6 +115,15 @@ describe.skipIf(!url)("on Postgres", () => {
 
     const list = await app.inject({ method: "GET", url: "/api/items", headers: { cookie } });
     expect(list.json<Item[]>()).toEqual([created.json<Item>()]);
+  });
+
+  it("saves the profile and updates it in place", async () => {
+    const cookie = await signUp("profile@example.com");
+    const patch = (payload: object) =>
+      app.inject({ method: "PATCH", url: "/api/profile", headers: { cookie }, payload });
+    await patch({ country: "IL", sizeTop: "S" });
+    const second = await patch({ sizeTop: "M", bodyShape: "rectangle" });
+    expect(second.json()).toMatchObject({ country: "IL", sizeTop: "M", bodyShape: "rectangle" });
   });
 
   it("deletes the account with everything of theirs, and keeps other users' items", async () => {

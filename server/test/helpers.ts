@@ -7,6 +7,7 @@ import type {
   LookItem,
   OutfitReaction,
   UsageAction,
+  UserProfile,
 } from "@closet-ai/shared";
 import type { BackgroundRemover } from "../src/ai/background-remover";
 import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
@@ -14,6 +15,7 @@ import type { ItemEmbedder } from "../src/ai/item-embedder";
 import type { ItemTagger, MatchVerdict } from "../src/ai/item-tagger";
 import type { BriefInput, ComposeInput, Stylist } from "../src/ai/stylist";
 import type { Env } from "../src/config/env";
+import { EMPTY_PROFILE, type ProfileRepository } from "../src/modules/profile/profile.repository";
 import { toItem, toMinor, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
   cutOutPhoto,
@@ -420,7 +422,23 @@ export function createInMemoryRepositories() {
     },
   };
 
-  return { itemsRepository, photosRepository, usageRepository, outfitsRepository };
+  const profileRows = new Map<string, UserProfile>();
+  const profileRepository: ProfileRepository = {
+    get: async (userId) => profileRows.get(userId) ?? EMPTY_PROFILE,
+    update: async (userId, patch) => {
+      const next = { ...(profileRows.get(userId) ?? EMPTY_PROFILE), ...patch };
+      profileRows.set(userId, next);
+      return next;
+    },
+  };
+
+  return {
+    itemsRepository,
+    photosRepository,
+    usageRepository,
+    outfitsRepository,
+    profileRepository,
+  };
 }
 
 type QueuedJob =

@@ -308,4 +308,56 @@ export const inspiration = z.object({
 export type Inspiration = z.infer<typeof inspiration>;
 export const inspirationList = z.array(inspiration);
 
+// The user's details (decided 2026-10-22), all optional: the country gives the currency, the
+// weather and the market; the rest lets the stylist and partner items fit the person.
+// Countries are ISO 3166 codes; the app offers its markets first.
+export const PROFILE_COUNTRIES = [
+  "IL",
+  "UA",
+  "BY",
+  "RU",
+  "KZ",
+  "US",
+  "GB",
+  "DE",
+  "FR",
+  "CA",
+] as const;
+// Silhouettes a stylist works with, named by shape, never by body part.
+export const BODY_SHAPES = [
+  "hourglass",
+  "triangle",
+  "inverted_triangle",
+  "rectangle",
+  "oval",
+] as const;
+export const bodyShape = z.enum(BODY_SHAPES);
+export type BodyShape = z.infer<typeof bodyShape>;
+
+const size = z.string().trim().min(1).max(12);
+// The App Store's youngest age for an account is 13.
+const birthYear = z
+  .number()
+  .int()
+  .min(1920)
+  .refine((year) => year <= new Date().getFullYear() - 13, "too young");
+
+export const userProfile = z.object({
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .nullable(),
+  city: z.string().trim().min(1).max(80).nullable(),
+  birthYear: birthYear.nullable(),
+  heightCm: z.number().int().min(120).max(220).nullable(),
+  bodyShape: bodyShape.nullable(),
+  sizeTop: size.nullable(),
+  sizeBottom: size.nullable(),
+  sizeShoes: size.nullable(),
+});
+export type UserProfile = z.infer<typeof userProfile>;
+// PATCH /api/profile: only the fields sent change; null clears one.
+export const updateProfileInput = userProfile.partial();
+export type UpdateProfileInput = z.infer<typeof updateProfileInput>;
+
 export * from "./limits";
