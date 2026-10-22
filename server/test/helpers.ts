@@ -14,7 +14,7 @@ import type { ItemEmbedder } from "../src/ai/item-embedder";
 import type { ItemTagger, MatchVerdict } from "../src/ai/item-tagger";
 import type { BriefInput, ComposeInput, Stylist } from "../src/ai/stylist";
 import type { Env } from "../src/config/env";
-import { toItem, type ItemsRepository } from "../src/modules/items/items.repository";
+import { toItem, toMinor, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
   cutOutPhoto,
   embedPhoto,
@@ -68,10 +68,20 @@ export function createInMemoryRepositories() {
   const photoRows = new Map<string, Photo & { createdAt: Date; embedding?: number[] }>();
 
   const toApiItem = ({ id, ownerId, input, createdAt }: ItemRow) => {
-    const { photoKey = null, seasons = [], ...rest } = input;
+    const { photoKey = null, seasons = [], brand = null, price, currency = null, ...rest } = input;
     const photo = photoKey ? photoRows.get(photoKey) : undefined;
     return toItem(
-      { ...rest, seasons, id, ownerId, photoKey, createdAt },
+      {
+        ...rest,
+        seasons,
+        id,
+        ownerId,
+        photoKey,
+        brand,
+        priceMinor: toMinor(price),
+        currency,
+        createdAt,
+      },
       { photoStatus: photo?.status ?? null, cutoutKey: photo?.cutoutKey ?? null },
     );
   };

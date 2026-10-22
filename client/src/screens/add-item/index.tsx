@@ -1,4 +1,4 @@
-import type { ItemCategory, ItemColor, LimitCode, Season } from '@closet-ai/shared';
+import type { Currency, ItemCategory, ItemColor, LimitCode, Season } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,6 +18,7 @@ import {
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { BrandPriceFields } from '@/components/brand-price-fields';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
 import { PhotoCropper } from '@/components/photo-cropper';
 import { CropButton, RotateButton } from '@/components/rotate-button';
@@ -27,6 +28,7 @@ import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
+import { defaultCurrency, parsePrice } from '@/lib/price';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { durations } from '@/motion';
@@ -48,6 +50,7 @@ type ErrorKey =
   | 'addItem.errors.name'
   | 'addItem.errors.category'
   | 'addItem.errors.colors'
+  | 'addItem.errors.price'
   | 'addItem.errors.cameraPermission'
   | 'addItem.errors.save';
 
@@ -68,7 +71,10 @@ export function AddItem() {
   const [category, setCategory] = useState<ItemCategory | null>(null);
   const [itemColors, setItemColors] = useState<ItemColor[]>([]);
   // Fields the user changed by hand: a crop refills the others from the cropped photo's tags.
-  const edited = useRef({ name: false, category: false, colors: false });
+  const edited = useRef({ name: false, category: false, colors: false, brand: false });
+  const [brand, setBrand] = useState('');
+  const [price, setPrice] = useState('');
+  const [currency, setCurrency] = useState<Currency>(defaultCurrency);
   // The photo in the cropper while it is open.
   const [cropping, setCropping] = useState<string | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
@@ -144,6 +150,7 @@ export function AddItem() {
     setCropping(null);
     setPhotoUri(uri);
     if (!edited.current.name) setName('');
+    if (!edited.current.brand) setBrand('');
     if (!edited.current.category) setCategory(null);
     if (!edited.current.colors) setItemColors([]);
     setSeasons([]);
@@ -186,6 +193,8 @@ export function AddItem() {
               current.length > 0 ? current : tags.colors.slice(0, MAX_COLORS),
             );
             setSeasons(tags.seasons);
+            // The brand only when the model read one (a label, a logo); the user's own stays.
+            if (tags.brand && !edited.current.brand) setBrand(tags.brand);
             setTagging('filled');
             return;
           }
@@ -216,6 +225,8 @@ export function AddItem() {
   async function save(andStyle = false) {
     if (!photoUri) return fail('addItem.errors.photo');
     if (!name.trim()) return fail('addItem.errors.name');
+    const paid = parsePrice(price);
+    if (paid === undefined) return fail('addItem.errors.price');
     if (!category) return fail('addItem.errors.category');
     if (itemColors.length === 0) return fail('addItem.errors.colors');
 
@@ -232,6 +243,9 @@ export function AddItem() {
         colors: itemColors,
         seasons,
         photoKey: uploaded,
+        brand: brand.trim() || null,
+        price: paid,
+        currency: paid === null ? null : currency,
       });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (andStyle) {
@@ -356,6 +370,17 @@ export function AddItem() {
             edited.current.colors = true;
             setItemColors(value);
           }}
+        />
+        <BrandPriceFields
+          brand={brand}
+          onBrandChange={(value) => {
+            edited.current.brand = true;
+            setBrand(value);
+          }}
+          price={price}
+          onPriceChange={setPrice}
+          currency={currency}
+          onCurrencyChange={setCurrency}
         />
 
         {limit && (
