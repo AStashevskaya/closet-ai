@@ -1,6 +1,6 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
-import { shrinkPhoto, UPLOAD_MAX_SIDE } from './shrink-photo';
+import { shrinkPhoto } from './shrink-photo';
 
 const resize = jest.fn();
 const saveAsync = jest.fn().mockResolvedValue({ uri: 'file:///out.jpg' });
@@ -19,14 +19,14 @@ beforeEach(() => {
 });
 
 describe('shrinkPhoto', () => {
-  test('scales a landscape photo down by its width', async () => {
+  test('scales a camera photo down to about 4 MP', async () => {
     await shrinkPhoto({ uri: 'file:///in.heic', width: 4032, height: 3024 });
-    expect(resize).toHaveBeenCalledWith({ width: UPLOAD_MAX_SIDE });
+    expect(resize).toHaveBeenCalledWith({ width: 2366 });
   });
 
-  test('scales a portrait photo down by its height', async () => {
-    await shrinkPhoto({ uri: 'file:///in.heic', width: 3024, height: 4032 });
-    expect(resize).toHaveBeenCalledWith({ height: UPLOAD_MAX_SIDE });
+  test('keeps a tall phone screenshot at its full width', async () => {
+    await shrinkPhoto({ uri: 'file:///in.png', width: 1170, height: 2532 });
+    expect(resize).not.toHaveBeenCalled();
   });
 
   test('leaves a small photo at its size but still re-encodes it as JPEG', async () => {
