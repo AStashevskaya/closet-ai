@@ -48,6 +48,8 @@ export class PermanentOutfitError extends Error {}
 export const LOOKS_PER_REQUEST = 4;
 // Partner pieces stay the exception: never in every look (docs/product.md, partner items).
 export const MAX_PARTNER_LOOKS = 2;
+// How far back "recently" goes: about a week of styling for an active user.
+export const RECENT_REQUESTS = 6;
 
 // Job "compose": outfits around the request's item. Safe to run twice: only a pending request
 // is composed.
@@ -74,7 +76,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const nOf = new Map(numbered.map(({ item, n }) => [item.id, n]));
   if (!nOf.has(hero.id)) nOf.set(hero.id, wardrobe.length + 1);
   const season = seasonOf(deps.clock?.() ?? new Date());
-  const candidates = pickCandidates(hero, wardrobe, season);
+  const recent = await outfits.recentlyUsed(request.userId, RECENT_REQUESTS);
+  const candidates = pickCandidates(hero, wardrobe, season, recent.pieces);
   const sheet = await contactSheet(
     storage,
     candidates.map((item) => ({ n: nOf.get(item.id)!, imageKey: item.imageKey })),
@@ -102,6 +105,16 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     sheet,
     brief: (await outfits.brief(request.userId))?.brief ?? null,
     shop,
+    // Only the pieces on the sheet matter to the model; the most used first.
+    recent: {
+      pieces: candidates
+        .flatMap((item) => {
+          const looks = recent.pieces.get(item.id) ?? 0;
+          return looks > 0 ? [{ n: nOf.get(item.id)!, looks }] : [];
+        })
+        .sort((a, b) => b.looks - a.looks),
+      captions: recent.captions,
+    },
     season,
     mood: request.mood,
     lang,

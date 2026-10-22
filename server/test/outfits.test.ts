@@ -221,6 +221,26 @@ describe("POST /api/wear-with", () => {
     ]);
   });
 
+  it("tells the model what her recent looks already used", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    const top = await addItem(s, anna, "top");
+    const jeans = await addItem(s, anna, "bottom");
+
+    await ask(s, anna.cookie, skirt.id);
+    await s.runJobs();
+    expect(s.stub.composeCalls[0]!.recent).toEqual({ pieces: [], captions: [] });
+
+    await ask(s, anna.cookie, jeans.id);
+    await s.runJobs();
+    const second = s.stub.composeCalls[1]!;
+    // The top was in two of the first request's looks; the skirt asked about doesn't count.
+    const topN = second.wardrobe.find((p) => p.name === top.name)!.n;
+    expect(second.recent.pieces).toEqual([{ n: topN, looks: 2 }]);
+    expect(second.recent.captions).toEqual(["Look 1", "Look 2", "Look 3", "Look 4"]);
+  });
+
   it("waits for an item saved a moment ago whose photo is still processing", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
