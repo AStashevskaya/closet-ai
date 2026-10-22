@@ -47,6 +47,12 @@ const envSchema = z
           .map((id) => id.trim())
           .filter(Boolean),
       ),
+    // Whether the API process also runs the background jobs. "false" in production, where
+    // src/worker.ts runs them in a process of its own.
+    WORKERS_IN_API: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
     // Where the embedding model's weights (~100 MB) are downloaded on first use. Outside git.
     MODEL_CACHE_DIR: z.string().default(".models"),
   })

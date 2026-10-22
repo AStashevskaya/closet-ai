@@ -7,6 +7,8 @@
     "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsup",
     "start": "node dist/server.js",
+    "dev:worker": "tsx watch --env-file=.env src/worker.ts",
+    "start:worker": "node dist/worker.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -14,7 +16,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "cutouts:backfill": "tsx --env-file=.env src/scripts/backfill-cutouts.ts",
-    "embeddings:backfill": "tsx --env-file=.env src/scripts/backfill-embeddings.ts"
+    "embeddings:backfill": "tsx --env-file=.env src/scripts/backfill-embeddings.ts",
+    "bench:worker": "tsx src/scripts/bench-worker.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
