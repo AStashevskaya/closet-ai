@@ -64,6 +64,7 @@ describe.skipIf(!url)("on Postgres", () => {
       AI_DAILY_BUDGET_USD: 3,
       TESTER_USER_IDS: [],
       MODEL_CACHE_DIR: ".models",
+      WORKERS_IN_API: true,
     };
     const auth = createAuth(env, drizzleAdapter(db.db, { provider: "pg", schema }));
     // Photo processing is covered in photos.test.ts; here storage is only a stand-in.
