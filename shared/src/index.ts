@@ -171,6 +171,8 @@ export const catalogItem = z.object({
   demo: z.boolean(),
 });
 export type CatalogItem = z.infer<typeof catalogItem>;
+// GET /api/catalog: the Edit, partner pieces closest to the user's wardrobe first.
+export const catalogList = z.array(catalogItem);
 
 // What brands are shown, in aggregate only: a partner item shown to someone, its card opened,
 // its link followed.

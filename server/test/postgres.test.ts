@@ -668,4 +668,37 @@ describe.skipIf(!url)("on Postgres", () => {
       .where(eq(schema.catalogEvents.catalogItemId, closest[0]!.id));
     expect(events.map((e) => e.event)).toEqual(["opened"]);
   });
+
+  it("orders the Edit by closeness to the user's wardrobe as a whole", async () => {
+    const cookie = await signUp("edit@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "edit@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const key = `photos/${user!.id}/edit.webp`;
+    await photos.createReady({ key, ownerId: user!.id, tags: shirtTags });
+    await photos.setEmbedding(key, unitVector(0, 0, 1));
+    await app.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { ...shirt, photoKey: key },
+    });
+    const catalog = createCatalogRepository(db.db);
+    await catalog.upsert({ ...demoCatalogItem("E1"), category: "dress", embedding: unitVector(1) });
+    await catalog.upsert({
+      ...demoCatalogItem("E2"),
+      category: "dress",
+      embedding: unitVector(0, 0, 1),
+    });
+
+    const rows = await catalog.list(user!.id, "dress", 10);
+    expect(rows.map((row) => row.externalId)).toEqual(["E2", "E1"]);
+    // Someone with no wardrobe gets the feed's order.
+    expect((await catalog.list("nobody", "dress", 10)).map((row) => row.externalId)).toEqual([
+      "E1",
+      "E2",
+    ]);
+  });
 });

@@ -1,4 +1,4 @@
-import { APP_LANGUAGES, catalogItem } from "@closet-ai/shared";
+import { APP_LANGUAGES, catalogItem, catalogList, itemCategory } from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
@@ -7,12 +7,39 @@ import { httpError } from "../../http-error";
 import type { Storage } from "../../storage/storage";
 import { toCatalogItem, type CatalogRepository } from "./catalog.repository";
 
+// Enough for the demo catalog in one screen; paging comes with real partners.
+const EDIT_LIMIT = 200;
+
 // A partner item's card and picture. Any signed-in user may see any catalog item: it's a
 // brand's product, not someone's wardrobe.
 export const catalogRoutes =
   (catalog: CatalogRepository, storage: Storage, auth: Auth): FastifyPluginAsyncZod =>
   async (app) => {
     app.addHook("preHandler", requireUser(auth));
+
+    // The Edit: the whole catalog, one category at a time if asked. Not counted as "shown":
+    // a grid scrolled past says little; opening a card does.
+    app.get(
+      "/catalog",
+      {
+        schema: {
+          querystring: z.object({
+            lang: z.enum(APP_LANGUAGES).default("en"),
+            category: itemCategory.optional(),
+          }),
+          response: { 200: catalogList },
+        },
+      },
+      async (request) => {
+        const { lang, category } = request.query;
+        const rows = await catalog.list(
+          (request.user as SessionUser).id,
+          category ?? null,
+          EDIT_LIMIT,
+        );
+        return rows.map((row) => toCatalogItem(row, lang));
+      },
+    );
 
     app.get(
       "/catalog/:id",
