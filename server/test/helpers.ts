@@ -60,6 +60,7 @@ export const testEnv: Env = {
   AI_DAILY_BUDGET_USD: 3,
   TESTER_USER_IDS: [],
   MODEL_CACHE_DIR: ".models",
+  WORKERS_IN_API: true,
 };
 
 // In-memory stand-ins for the Drizzle repositories. They share state the way the tables do:
