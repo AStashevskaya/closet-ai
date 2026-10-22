@@ -1,4 +1,4 @@
-import type { Item, LimitCode, LookItem, MatchKind } from '@closet-ai/shared';
+import type { CatalogItem, Item, LimitCode, LookItem, MatchKind } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { LookCollage } from '@/components/look-collage';
+import { PartnerOffers } from '@/components/partner-offers';
 import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { getPhotoState, sessionHeaders, uploadPhoto } from '@/lib/api';
@@ -28,7 +29,7 @@ import { colors, fonts } from '@/theme';
 const POLL_MS = 1500;
 const MAX_POLLS = 60;
 
-type Match = { how: MatchKind; item: Item | null };
+type Match = { how: MatchKind; item: Item | null; shop: CatalogItem[] };
 type Found = { item: LookItem; match: Match };
 
 // The screenshot picked, uploaded and read: from nothing picked yet to its items and matches.
@@ -105,13 +106,13 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       let offline = false;
       for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
         try {
-          const state = await getPhotoState(photoKey);
+          const state = await getPhotoState(photoKey, lang);
           if (cancelled) return;
           const { lookItems, matches } = state;
           if (state.tagStatus === 'done' && lookItems && matches) {
             const found = lookItems.map((item, index) => ({
               item,
-              match: matches[index] ?? { how: 'none' as const, item: null },
+              match: matches[index] ?? { how: 'none' as const, item: null, shop: [] },
             }));
             setLook((current) =>
               current.status === 'finding'
@@ -141,7 +142,7 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [photoKey]);
+  }, [photoKey, lang]);
 
   // Wardrobe items that rebuild the look, each once (two pieces can match the same item).
   const mine =
@@ -261,6 +262,10 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
                   </View>
                 )}
               </PressableScale>
+              {/* What the closet doesn't have exactly, partner brands may. */}
+              {match.how !== 'same' && match.shop.length > 0 && (
+                <PartnerOffers offers={match.shop} headers={headers} />
+              )}
             </Animated.View>
           );
         })}

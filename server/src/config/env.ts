@@ -53,7 +53,7 @@ const envSchema = z
       .enum(["true", "false"])
       .default("true")
       .transform((value) => value === "true"),
-    // Whether outfits may be finished with a partner brand's piece from the catalog
+    // Whether outfits and Want / Can may offer partner brands' pieces from the catalog
     // (catalog:import). "false" switches it off without emptying the catalog.
     PARTNER_ITEMS: z
       .enum(["true", "false"])

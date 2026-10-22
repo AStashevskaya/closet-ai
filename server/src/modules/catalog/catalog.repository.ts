@@ -12,8 +12,12 @@ export interface CatalogRepository {
   getMany(ids: string[]): Promise<CatalogRow[]>;
   // Adds a feed item, or updates the one imported before under the same external id.
   upsert(item: NewCatalogItem): Promise<void>;
-  // In-stock items of the category closest to the embedding, closest first.
-  closest(category: ItemCategory, embedding: number[], limit: number): Promise<CatalogRow[]>;
+  // In-stock items of the category closest to the embedding, closest first, with the cosine.
+  closest(
+    category: ItemCategory,
+    embedding: number[],
+    limit: number,
+  ): Promise<(CatalogRow & { similarity: number })[]>;
   record(catalogItemIds: string[], userId: string, event: CatalogEvent): Promise<void>;
 }
 
@@ -60,8 +64,8 @@ export function createCatalogRepository(db: Db): CatalogRepository {
 
     async closest(category, embedding, limit) {
       const distance = cosineDistance(catalogItems.embedding, embedding);
-      return db
-        .select()
+      const rows = await db
+        .select({ row: catalogItems, distance })
         .from(catalogItems)
         .where(
           and(
@@ -72,6 +76,7 @@ export function createCatalogRepository(db: Db): CatalogRepository {
         )
         .orderBy(distance)
         .limit(limit);
+      return rows.map(({ row, distance: d }) => ({ ...row, similarity: 1 - Number(d) }));
     },
 
     async record(catalogItemIds, userId, event) {

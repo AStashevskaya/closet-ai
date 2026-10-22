@@ -5,6 +5,7 @@ import type { ItemEmbedder } from "../../ai/item-embedder";
 import { TaggingRefusedError, type ItemTagger } from "../../ai/item-tagger";
 import type { PhotoQueue } from "../../queue/photo-queue";
 import type { Storage } from "../../storage/storage";
+import type { CatalogRepository } from "../catalog/catalog.repository";
 import {
   flattenOnWhite,
   processCutout,
@@ -23,6 +24,8 @@ export interface PhotoJobDeps {
   embedder: ItemEmbedder | null;
   // null when no fal.ai key is configured: photos keep their background.
   remover: BackgroundRemover | null;
+  // Partner items to offer for a "want" look's items; absent or null when switched off.
+  catalog?: CatalogRepository | null;
   queue: Pick<PhotoQueue, "enqueueTagging" | "enqueueEmbedding" | "enqueueCutout">;
 }
 
@@ -196,6 +199,8 @@ export async function tagPhoto(deps: PhotoJobDeps, key: string, lang: AppLanguag
       const items = await tagger.findItems(file.body, lang);
       const matches = await matchLookItems(deps, photo.ownerId, file.body, items);
       await photos.setLookItems(photo.key, items, matches);
+      const shown = matches.flatMap((match) => match.shop ?? []);
+      await deps.catalog?.record(shown, photo.ownerId, "shown");
       return;
     }
     const { onPerson, ...tags } = await tagger.tag(file.body, lang);

@@ -19,6 +19,7 @@ export async function startWorkers(env: Env, db: Db, storage: Storage) {
   const photosRepository = createPhotosRepository(db);
   const photoQueue = createPhotoQueue(env.REDIS_URL);
   const outfitQueue = createOutfitQueue(env.REDIS_URL);
+  const catalog = env.PARTNER_ITEMS ? createCatalogRepository(db) : null;
   const tagger = env.ANTHROPIC_API_KEY ? createClaudeItemTagger(env.ANTHROPIC_API_KEY) : null;
   // The model loads on the first embed job; the first run downloads it into MODEL_CACHE_DIR.
   const embedder = createFashionSiglipEmbedder(env.MODEL_CACHE_DIR);
@@ -31,6 +32,7 @@ export async function startWorkers(env: Env, db: Db, storage: Storage) {
     tagger,
     embedder,
     remover,
+    catalog,
     queue: photoQueue.photoQueue,
   });
   await photoQueue.scheduleCleanup();
@@ -41,7 +43,7 @@ export async function startWorkers(env: Env, db: Db, storage: Storage) {
     remover,
     embedder,
     stylist,
-    catalog: env.PARTNER_ITEMS ? createCatalogRepository(db) : null,
+    catalog,
     queue: outfitQueue.outfitQueue,
   });
 

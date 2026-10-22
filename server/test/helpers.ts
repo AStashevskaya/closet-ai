@@ -467,7 +467,8 @@ export function createInMemoryRepositories() {
     closest: async (category, embedding, limit) =>
       catalogRows
         .filter((row) => row.category === category && row.inStock && row.embedding)
-        .sort((a, b) => dot(b.embedding!, embedding) - dot(a.embedding!, embedding))
+        .map((row) => ({ ...row, similarity: dot(row.embedding!, embedding) }))
+        .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit),
     record: async (ids, userId, event) => {
       for (const catalogItemId of ids) catalogEvents.push({ catalogItemId, userId, event });

@@ -150,6 +150,33 @@ export type ItemBox = z.infer<typeof itemBox>;
 export const lookItem = itemTags.omit({ recognized: true }).extend({ box: itemBox });
 export type LookItem = z.infer<typeof lookItem>;
 
+// Partner brands' items (the brand catalog), never in anyone's wardrobe: recommended next to
+// the user's own pieces and always labelled as a partner's.
+
+export const catalogItem = z.object({
+  id: z.string().uuid(),
+  brand: z.string(),
+  // In the app language asked for, English when the feed has none in it.
+  name: z.string(),
+  category: itemCategory,
+  colors: z.array(itemColor),
+  // In the currency's main unit, like an item's price.
+  price: z.number(),
+  currency,
+  // The item on the brand's own site.
+  url: z.string().url(),
+  imageUrl: z.string(),
+  inStock: z.boolean(),
+  // From the demo catalog of made-up brands: its link leads nowhere, so the app doesn't offer it.
+  demo: z.boolean(),
+});
+export type CatalogItem = z.infer<typeof catalogItem>;
+
+// What brands are shown, in aggregate only: a partner item shown to someone, its card opened,
+// its link followed.
+export const CATALOG_EVENTS = ["shown", "opened", "clicked"] as const;
+export type CatalogEvent = (typeof CATALOG_EVENTS)[number];
+
 // How close the wardrobe comes to an item on a "want" look: the same item, one that can stand
 // in for it, or nothing.
 export const MATCH_KINDS = ["same", "similar", "none"] as const;
@@ -157,7 +184,12 @@ export const matchKind = z.enum(MATCH_KINDS);
 export type MatchKind = z.infer<typeof matchKind>;
 
 // What the server stores per found item of a "want" look, in the order of its items.
-export const lookMatch = z.object({ how: matchKind, itemId: z.string().uuid().nullable() });
+// shop: partner pieces like it, closest first (absent on looks matched before the catalog).
+export const lookMatch = z.object({
+  how: matchKind,
+  itemId: z.string().uuid().nullable(),
+  shop: z.array(z.string().uuid()).optional(),
+});
 export type LookMatch = z.infer<typeof lookMatch>;
 
 // Response of GET /api/photos/status: the app polls it while the add-item form is open.
@@ -169,8 +201,11 @@ export const photoState = z.object({
   // A look photo's items once found (empty when none); null for item photos and until then.
   lookItems: z.array(lookItem).nullable(),
   // A "want" look's wardrobe matches, one per item in lookItems, with the matched item (null
-  // when nothing matches, or the item was deleted since). null for other photos and until then.
-  matches: z.array(z.object({ how: matchKind, item: item.nullable() })).nullable(),
+  // when nothing matches, or the item was deleted since) and partner pieces like it, in the
+  // language asked for. null for other photos and until then.
+  matches: z
+    .array(z.object({ how: matchKind, item: item.nullable(), shop: z.array(catalogItem) }))
+    .nullable(),
 });
 export type PhotoState = z.infer<typeof photoState>;
 
@@ -219,33 +254,6 @@ export const addLookItemsInput = z.object({
     .max(12),
 });
 export type AddLookItemsInput = z.infer<typeof addLookItemsInput>;
-
-// Partner brands' items (the brand catalog), never in anyone's wardrobe: recommended next to
-// the user's own pieces and always labelled as a partner's.
-
-export const catalogItem = z.object({
-  id: z.string().uuid(),
-  brand: z.string(),
-  // In the app language asked for, English when the feed has none in it.
-  name: z.string(),
-  category: itemCategory,
-  colors: z.array(itemColor),
-  // In the currency's main unit, like an item's price.
-  price: z.number(),
-  currency,
-  // The item on the brand's own site.
-  url: z.string().url(),
-  imageUrl: z.string(),
-  inStock: z.boolean(),
-  // From the demo catalog of made-up brands: its link leads nowhere, so the app doesn't offer it.
-  demo: z.boolean(),
-});
-export type CatalogItem = z.infer<typeof catalogItem>;
-
-// What brands are shown, in aggregate only: a partner item shown to someone, its card opened,
-// its link followed.
-export const CATALOG_EVENTS = ["shown", "opened", "clicked"] as const;
-export type CatalogEvent = (typeof CATALOG_EVENTS)[number];
 
 // "What do I wear this with?": outfits built around one item, from the user's wardrobe.
 

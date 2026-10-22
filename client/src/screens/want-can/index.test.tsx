@@ -1,4 +1,4 @@
-import type { Item, LookItem, PhotoState, Usage } from '@closet-ai/shared';
+import type { CatalogItem, Item, LookItem, PhotoState, Usage } from '@closet-ai/shared';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -73,8 +73,8 @@ const matched: PhotoState = {
   tags: null,
   lookItems: [lookItem('Pink mesh top', 'top'), lookItem('Black leather skirt', 'bottom')],
   matches: [
-    { how: 'same', item: myTop },
-    { how: 'none', item: null },
+    { how: 'same', item: myTop, shop: [] },
+    { how: 'none', item: null, shop: [] },
   ],
 };
 
@@ -110,8 +110,8 @@ describe('<WantCan />', () => {
     jest.mocked(getPhotoState).mockResolvedValue({
       ...matched,
       matches: [
-        { how: 'none', item: null },
-        { how: 'none', item: null },
+        { how: 'none', item: null, shop: [] },
+        { how: 'none', item: null, shop: [] },
       ],
     });
     await render(<WantCan />);
@@ -119,6 +119,44 @@ describe('<WantCan />', () => {
 
     expect(await screen.findByText('You have 0 of 2')).toBeOnTheScreen();
     expect(screen.queryByLabelText('From your closet')).not.toBeOnTheScreen();
+  });
+
+  test('offers partner pieces for what the closet lacks, not for what it has', async () => {
+    const offer = (id: string, name: string): CatalogItem => ({
+      id,
+      brand: 'STUDIO EDIT',
+      name,
+      category: 'bottom',
+      colors: ['black'],
+      price: 239,
+      currency: 'ILS',
+      url: `https://brand.example/p/${id}`,
+      imageUrl: `/api/catalog/${id}/photo?v=1`,
+      inStock: true,
+      demo: true,
+    });
+    const slit = offer('6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a71', 'Slit skirt');
+    jest.mocked(getPhotoState).mockResolvedValue({
+      ...matched,
+      matches: [
+        {
+          how: 'same',
+          item: myTop,
+          shop: [offer('6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a70', 'Mesh top')],
+        },
+        { how: 'none', item: null, shop: [slit] },
+      ],
+    });
+    await render(<WantCan />);
+    await fireEvent.press(screen.getByText('Choose a screenshot'));
+
+    expect(await screen.findByText('Like it from partner brands')).toBeOnTheScreen();
+    expect(screen.queryByText('Mesh top')).toBeNull();
+    expect(getPhotoState).toHaveBeenCalledWith('photos/u1/want.webp', 'en');
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Partner · demo brand: STUDIO EDIT, Slit skirt, ₪239' }),
+    );
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/catalog/[id]', params: { id: slit.id } });
   });
 
   test('opens the matched wardrobe item', async () => {
