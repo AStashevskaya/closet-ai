@@ -304,5 +304,14 @@
     "historyEmpty": "Outfits you ask for are kept here.",
     "open": "Outfits with {{name}}",
     "styling": "Styling {{name}}…"
+  },
+  "deleteAccount": {
+    "title": "Delete account",
+    "row": "Delete account",
+    "text": "Your closet, photos, saved looks and outfits will be deleted for good. This can't be undone.",
+    "password": "Your password",
+    "confirm": "Delete for good",
+    "wrongPassword": "Wrong password",
+    "failed": "Couldn't delete the account. Try again."
   }
 }
