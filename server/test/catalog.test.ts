@@ -115,4 +115,21 @@ describe("/api/catalog/:id", () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  it("lists the Edit: in stock, one category if asked, in feed order without a wardrobe", async () => {
+    const { server, catalog } = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    await catalog.add({ externalId: "P2", category: "shoes" });
+    await catalog.add({ externalId: "P1", category: "top", names: { en: "Tee", ru: "Футболка" } });
+    await catalog.add({ externalId: "P3", category: "shoes", inStock: false });
+
+    const list = async (query: string) =>
+      (
+        await server.inject({ method: "GET", url: `/api/catalog?${query}`, headers: { cookie } })
+      ).json<CatalogItem[]>();
+    expect((await list("lang=ru")).map((item) => item.name)).toEqual(["Футболка", "Ботинки"]);
+    expect((await list("category=shoes")).map((item) => item.name)).toEqual(["Ankle boots"]);
+    // Browsing the grid isn't "shown"; only an opened card counts.
+    expect(catalog.events).toEqual([]);
+  });
 });

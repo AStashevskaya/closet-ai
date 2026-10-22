@@ -1,7 +1,7 @@
 import type { AppLanguage, CatalogEvent, CatalogItem, ItemCategory } from "@closet-ai/shared";
 import { and, cosineDistance, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { catalogEvents, catalogItems } from "../../db/schema";
+import { catalogEvents, catalogItems, items, photos } from "../../db/schema";
 import { keyVersion } from "../items/items.repository";
 
 export type CatalogRow = typeof catalogItems.$inferSelect;
@@ -18,6 +18,9 @@ export interface CatalogRepository {
     embedding: number[],
     limit: number,
   ): Promise<(CatalogRow & { similarity: number })[]>;
+  // In-stock items (of a category, or all) for the Edit: those closest to the user's wardrobe
+  // as a whole first, by the average of its embeddings; in feed order without a wardrobe.
+  list(userId: string, category: ItemCategory | null, limit: number): Promise<CatalogRow[]>;
   record(catalogItemIds: string[], userId: string, event: CatalogEvent): Promise<void>;
 }
 
@@ -77,6 +80,27 @@ export function createCatalogRepository(db: Db): CatalogRepository {
         .orderBy(distance)
         .limit(limit);
       return rows.map(({ row, distance: d }) => ({ ...row, similarity: 1 - Number(d) }));
+    },
+
+    async list(userId, category, limit) {
+      // pgvector averages vectors; the angle to the average is what counts, so it needn't be
+      // unit length. null without embedded items: every distance is null and feed order rules.
+      const taste = sql`(
+        select avg(${photos.embedding}) from ${items}
+        join ${photos} on ${photos.key} = ${items.photoKey}
+        where ${items.ownerId} = ${userId} and ${photos.embedding} is not null
+      )`;
+      return db
+        .select()
+        .from(catalogItems)
+        .where(
+          and(
+            eq(catalogItems.inStock, true),
+            category ? eq(catalogItems.category, category) : undefined,
+          ),
+        )
+        .orderBy(sql`${catalogItems.embedding} <=> ${taste} nulls last`, catalogItems.externalId)
+        .limit(limit);
     },
 
     async record(catalogItemIds, userId, event) {

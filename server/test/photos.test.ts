@@ -951,7 +951,8 @@ describe("want / can: a look matched against the wardrobe", () => {
   it("offers only the same kind of accessory: a bag for a bag, not a hat", async () => {
     const bag = { ...lookItems[0]!, name: "Black tote", category: "accessory" as const };
     const server = await setup({
-      tagger: createStubTagger(undefined, async () => [{ ...bag, noun: "leather tote bag" }]).tagger,
+      tagger: createStubTagger(undefined, async () => [{ ...bag, noun: "leather tote bag" }])
+        .tagger,
     });
     const anna = await signUp(server, "anna@example.com");
     // The hat is closer by embedding, the bag close enough.
@@ -993,7 +994,11 @@ describe("want / can: a look matched against the wardrobe", () => {
     expect((await status(server, cookie, look)).matches![0]!.how).toBe("same");
 
     await server.inject({ method: "DELETE", url: `/api/items/${top.id}`, headers: { cookie } });
-    expect((await status(server, cookie, look)).matches![0]).toEqual({ how: "none", item: null, shop: [] });
+    expect((await status(server, cookie, look)).matches![0]).toEqual({
+      how: "none",
+      item: null,
+      shop: [],
+    });
   });
 
   it("can't be read by someone else", async () => {

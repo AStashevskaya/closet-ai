@@ -20,6 +20,7 @@ import {
   wearWithRequest,
   type WearWithRequest,
   catalogItem,
+  catalogList,
   type CatalogItem,
   wearWithStarted,
   type WearWithInput,
@@ -144,6 +145,11 @@ export function listStyled(): Promise<StyledEntry[]> {
 // Partner pieces in the outfits come named in the language asked for.
 export function getWearWith(id: string, lang: AppLanguage): Promise<WearWithRequest> {
   return request(`/api/wear-with/${id}?lang=${lang}`, wearWithRequest);
+}
+
+// The Edit: partner pieces closest to the user's closet first.
+export function listCatalog(lang: AppLanguage): Promise<CatalogItem[]> {
+  return request(`/api/catalog?lang=${lang}`, catalogList);
 }
 
 export function getCatalogItem(id: string, lang: AppLanguage): Promise<CatalogItem> {

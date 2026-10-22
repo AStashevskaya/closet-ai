@@ -484,6 +484,24 @@ export function createInMemoryRepositories() {
         .map((row) => ({ ...row, similarity: dot(row.embedding!, embedding) }))
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit),
+    list: async (userId, category, limit) => {
+      const own = itemRows
+        .filter((row) => row.ownerId === userId && row.input.photoKey)
+        .map((row) => photoRows.get(row.input.photoKey!)?.embedding)
+        .filter((embedding) => embedding !== undefined);
+      const taste = own.length
+        ? own.reduce(
+            (sum, e) => sum.map((x, i) => x + e[i]!),
+            Array<number>(own[0]!.length).fill(0),
+          )
+        : null;
+      const score = (row: CatalogRow) =>
+        taste && row.embedding ? dot(row.embedding, taste) : -Infinity;
+      return catalogRows
+        .filter((row) => row.inStock && (!category || row.category === category))
+        .sort((a, b) => score(b) - score(a) || a.externalId.localeCompare(b.externalId))
+        .slice(0, limit);
+    },
     record: async (ids, userId, event) => {
       for (const catalogItemId of ids) catalogEvents.push({ catalogItemId, userId, event });
     },
