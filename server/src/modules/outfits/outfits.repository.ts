@@ -113,6 +113,12 @@ export interface OutfitsRepository {
   view(requestId: string, userId: string, lang: AppLanguage): Promise<WearWithRequest | null>;
   // false when the outfit doesn't exist or is someone else's.
   react(outfitId: string, userId: string, reaction: OutfitReaction): Promise<boolean>;
+  // What her last few finished requests used: how many looks each wardrobe piece was in (the
+  // item asked about not counted) and the looks' names, so the next ones can be fresher.
+  recentlyUsed(
+    userId: string,
+    requests: number,
+  ): Promise<{ pieces: Map<string, number>; captions: string[] }>;
   reactionCount(userId: string): Promise<number>;
   reactedOutfits(userId: string, limit: number): Promise<ReactedOutfit[]>;
   // Storage keys of the looks the user saved (and "want" screenshots still around), newest first.
@@ -329,6 +335,33 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       if (!own) return false;
       await db.insert(outfitReactions).values({ outfitId, userId, reaction });
       return true;
+    },
+
+    async recentlyUsed(userId, requests) {
+      const recent = await db
+        .select({ id: outfitRequests.id })
+        .from(outfitRequests)
+        .where(and(eq(outfitRequests.userId, userId), eq(outfitRequests.status, "done")))
+        .orderBy(desc(outfitRequests.createdAt))
+        .limit(requests);
+      const pieces = new Map<string, number>();
+      if (recent.length === 0) return { pieces, captions: [] };
+      const ids = recent.map((r) => r.id);
+      const [looks, used] = await Promise.all([
+        db
+          .select({ caption: outfits.caption })
+          .from(outfits)
+          .where(inArray(outfits.requestId, ids)),
+        db
+          .select({ itemId: outfitPieces.itemId })
+          .from(outfitPieces)
+          .innerJoin(outfits, eq(outfits.id, outfitPieces.outfitId))
+          .where(and(inArray(outfits.requestId, ids), eq(outfitPieces.hero, false))),
+      ]);
+      for (const { itemId } of used) {
+        if (itemId) pieces.set(itemId, (pieces.get(itemId) ?? 0) + 1);
+      }
+      return { pieces, captions: looks.map((look) => look.caption) };
     },
 
     async reactionCount(userId) {
