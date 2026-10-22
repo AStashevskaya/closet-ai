@@ -21,6 +21,13 @@ describe("parseEnv", () => {
     expect(parsed.success && parsed.data.BETTER_AUTH_URL).toBe("http://localhost:3000");
   });
 
+  it("runs the workers inside the API unless told otherwise", () => {
+    const inline = parseEnv(base);
+    const apart = parseEnv({ ...base, WORKERS_IN_API: "false" });
+    expect(inline.success && inline.data.WORKERS_IN_API).toBe(true);
+    expect(apart.success && apart.data.WORKERS_IN_API).toBe(false);
+  });
+
   it("rejects the example secret from .env.example", () => {
     const errors = errorsFor({
       ...base,
