@@ -9,13 +9,15 @@ import { ProfileDetails } from '.';
 
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: mockPush }) }));
 jest.mock('@/lib/api', () => ({ getProfile: jest.fn(), updateProfile: jest.fn() }));
 jest.mock('@/lib/auth-client', () => ({
   authClient: {
     useSession: () => ({ data: { user: { name: 'Anna' } } }),
     updateUser: jest.fn(),
+    signOut: jest.fn(),
   },
 }));
 
@@ -79,5 +81,13 @@ describe('<ProfileDetails />', () => {
       await screen.findByText("Couldn't save. Check the fields and try again."),
     ).toBeOnTheScreen();
     expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  test('signs out and opens account deletion', async () => {
+    await render(<ProfileDetails />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Sign out' }));
+    expect(authClient.signOut).toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete account' }));
+    expect(mockPush).toHaveBeenCalledWith('/delete-account');
   });
 });
