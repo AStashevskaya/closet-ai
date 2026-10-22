@@ -15,10 +15,11 @@ import type { ItemEmbedder } from "../src/ai/item-embedder";
 import type { ItemTagger, MatchVerdict } from "../src/ai/item-tagger";
 import type { BriefInput, ComposeInput, Stylist } from "../src/ai/stylist";
 import type { Env } from "../src/config/env";
-import type {
-  CatalogRepository,
-  CatalogRow,
-  NewCatalogItem,
+import {
+  toCatalogItem,
+  type CatalogRepository,
+  type CatalogRow,
+  type NewCatalogItem,
 } from "../src/modules/catalog/catalog.repository";
 import { EMPTY_PROFILE, type ProfileRepository } from "../src/modules/profile/profile.repository";
 import { toItem, toMinor, type ItemsRepository } from "../src/modules/items/items.repository";
@@ -66,6 +67,7 @@ export const testEnv: Env = {
   TESTER_USER_IDS: [],
   MODEL_CACHE_DIR: ".models",
   WORKERS_IN_API: true,
+  PARTNER_ITEMS: true,
 };
 
 // In-memory stand-ins for the Drizzle repositories. They share state the way the tables do:
@@ -354,7 +356,7 @@ export function createInMemoryRepositories() {
       const request = requests.find((r) => r.id === requestId);
       if (request) request.status = "failed";
     },
-    view: async (requestId, userId) => {
+    view: async (requestId, userId, lang) => {
       const request = requests.find((r) => r.id === requestId && r.userId === userId);
       if (!request) return null;
       return {
@@ -371,7 +373,12 @@ export function createInMemoryRepositories() {
             missing: o.missing,
             pieces: o.pieces.map((p) => {
               const row = itemRows.find((r) => r.id === p.itemId);
-              return { hero: p.hero, item: row ? toApiItem(row) : null };
+              const partner = catalogRows.find((r) => r.id === p.catalogItemId);
+              return {
+                hero: p.hero,
+                item: row ? toApiItem(row) : null,
+                catalogItem: partner ? toCatalogItem(partner, lang) : null,
+              };
             }),
             ...summarize(reactions.filter((r) => r.outfitId === o.id)),
           })),
@@ -691,6 +698,8 @@ export function createStubStylist() {
         looks: Array.from({ length: input.looks }, (_, i) => ({
           // A number the model made up (999) is dropped by the job.
           items: [others[i % others.length]!, 999].filter((n) => n !== undefined),
+          // Asks for a shop piece in three looks (the job keeps two) and makes one up in the last.
+          partner: input.shop ? (i < 3 ? input.shop.pieces[0]!.n : 12345) : null,
           missing:
             i === 0 ? { category: "shoes" as const, description: "black leather boots" } : null,
           caption: `Look ${i + 1}`,

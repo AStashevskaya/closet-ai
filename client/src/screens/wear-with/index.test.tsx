@@ -1,10 +1,13 @@
-import type { Item, WearWithRequest } from '@closet-ai/shared';
+import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import i18n from '@/i18n';
 import { createItem, getWearWith, reactToOutfit } from '@/lib/api';
 
 import { WearWith } from '.';
+
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 jest.mock('@/lib/api', () => ({
   getWearWith: jest.fn(),
@@ -40,10 +43,10 @@ const done: WearWithRequest = {
       why: 'The tee makes the satin offhand.',
       missing: { category: 'shoes', description: 'chunky white sneakers' },
       pieces: [
-        { hero: true, item: skirt },
-        { hero: false, item: tee },
+        { hero: true, item: skirt, catalogItem: null },
+        { hero: false, item: tee, catalogItem: null },
         // A piece deleted since is left out.
-        { hero: false, item: null },
+        { hero: false, item: null, catalogItem: null },
       ],
       opinion: null,
       woreCount: 0,
@@ -72,6 +75,43 @@ describe('<WearWith />', () => {
     expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
     expect(screen.getByText('Mauve satin skirt · Grey tee')).toBeOnTheScreen();
     expect(screen.getByText('Missing: chunky white sneakers')).toBeOnTheScreen();
+    expect(getWearWith).toHaveBeenCalledWith('req-1', 'en');
+  });
+
+  test('labels a partner piece and opens its card', async () => {
+    const boots: CatalogItem = {
+      id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a99',
+      brand: 'STUDIO EDIT',
+      name: 'Ankle boots',
+      category: 'shoes',
+      colors: ['black'],
+      price: 459,
+      currency: 'ILS',
+      url: 'https://brand.example/p/P070',
+      imageUrl: '/api/catalog/boots/photo?v=1',
+      inStock: true,
+      demo: true,
+    };
+    const look = done.outfits[0]!;
+    jest.mocked(getWearWith).mockResolvedValue({
+      ...done,
+      outfits: [
+        {
+          ...look,
+          missing: null,
+          pieces: [...look.pieces, { hero: false, item: null, catalogItem: boots }],
+        },
+      ],
+    });
+    await render(<WearWith id="req-1" />);
+
+    const partner = await screen.findByRole('button', {
+      name: 'Partner · demo brand: STUDIO EDIT, Ankle boots, ₪459',
+    });
+    // The closet's pieces stay apart from the partner's.
+    expect(screen.getByText('Mauve satin skirt · Grey tee')).toBeOnTheScreen();
+    await fireEvent.press(partner);
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/catalog/[id]', params: { id: boots.id } });
   });
 
   test('likes, takes the like back and counts every wear', async () => {

@@ -55,6 +55,7 @@ async function setup() {
     stylist: stub.stylist,
     remover: null,
     embedder: null,
+    catalog: repositories.catalogRepository,
     queue: outfitQueue.outfitQueue,
   };
   return {

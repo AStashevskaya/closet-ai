@@ -19,6 +19,8 @@ import {
   type OutfitReaction,
   wearWithRequest,
   type WearWithRequest,
+  catalogItem,
+  type CatalogItem,
   wearWithStarted,
   type WearWithInput,
   inspirationList,
@@ -139,8 +141,13 @@ export function listStyled(): Promise<StyledEntry[]> {
   return request('/api/wear-with', styledList);
 }
 
-export function getWearWith(id: string): Promise<WearWithRequest> {
-  return request(`/api/wear-with/${id}`, wearWithRequest);
+// Partner pieces in the outfits come named in the language asked for.
+export function getWearWith(id: string, lang: AppLanguage): Promise<WearWithRequest> {
+  return request(`/api/wear-with/${id}?lang=${lang}`, wearWithRequest);
+}
+
+export function getCatalogItem(id: string, lang: AppLanguage): Promise<CatalogItem> {
+  return request(`/api/catalog/${id}?lang=${lang}`, catalogItem);
 }
 
 export async function reactToOutfit(id: string, reaction: OutfitReaction): Promise<void> {

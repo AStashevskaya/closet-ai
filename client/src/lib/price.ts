@@ -28,3 +28,7 @@ export function parsePrice(text: string): number | null | undefined {
 }
 
 export const priceText = (price: number | null | undefined) => (price == null ? '' : String(price));
+
+// A shop price as people read it: ₪459, €39.90.
+export const priceLabel = (price: number, currency: Currency) =>
+  `${CURRENCY_SYMBOLS[currency]}${Number.isInteger(price) ? price : price.toFixed(2)}`;

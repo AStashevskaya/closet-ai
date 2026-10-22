@@ -4,6 +4,7 @@ import { createClaudeItemTagger } from "./ai/item-tagger";
 import { createClaudeStylist } from "./ai/stylist";
 import type { Env } from "./config/env";
 import type { Db } from "./db/client";
+import { createCatalogRepository } from "./modules/catalog/catalog.repository";
 import { createOutfitsRepository } from "./modules/outfits/outfits.repository";
 import { createPhotosRepository } from "./modules/photos/photos.repository";
 import { createOutfitQueue, createOutfitWorker } from "./queue/outfit-queue";
@@ -40,6 +41,7 @@ export async function startWorkers(env: Env, db: Db, storage: Storage) {
     remover,
     embedder,
     stylist,
+    catalog: env.PARTNER_ITEMS ? createCatalogRepository(db) : null,
     queue: outfitQueue.outfitQueue,
   });
 

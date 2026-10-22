@@ -15,6 +15,7 @@ import {
   createStubStylist,
   createStubTagger,
   shirtTags,
+  unitVector,
   testEnv as env,
 } from "./helpers";
 
@@ -49,6 +50,7 @@ async function setup({ stylistEnabled = true } = {}) {
     stylist: stub.stylist,
     remover: cut.remover,
     embedder: null,
+    catalog: repositories.catalogRepository,
     queue: queue.outfitQueue,
     clock: () => new Date("2026-10-21T12:00:00Z"),
   };
@@ -175,6 +177,48 @@ describe("POST /api/wear-with", () => {
     expect(call!.hero.name).toBe(skirt.name);
     expect(call!.wardrobe.map((p) => p.name)).not.toContain(skirt.name);
     expect(call!).toMatchObject({ lang: "ru", season: "autumn", looks: 4, brief: null });
+    // No embedding for the item, so nothing to pick partner pieces by.
+    expect(call!.shop).toBeNull();
+  });
+
+  it("finishes at most two looks with a partner piece, labelled and counted as shown", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await s.repositories.photosRepository.setEmbedding(
+      `photos/${anna.userId}/p${made}.webp`,
+      unitVector(1),
+    );
+    await addItem(s, anna, "top");
+    const boots = await s.repositories.catalogRepository.add({ category: "shoes" });
+    // A dress would replace the look rather than finish it: never offered.
+    await s.repositories.catalogRepository.add({ category: "dress" });
+
+    const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+    await s.runJobs();
+
+    const [call] = s.stub.composeCalls;
+    expect(call!.shop!.pieces).toEqual([
+      expect.objectContaining({ n: 4, name: "Ankle boots", category: "shoes" }),
+    ]);
+    const done = (
+      await s.server.inject({
+        method: "GET",
+        url: `/api/wear-with/${id}?lang=ru`,
+        headers: { cookie: anna.cookie },
+      })
+    ).json<WearWithRequest>();
+    const partners = done.outfits.map(
+      (o) => o.pieces.find((p) => p.catalogItem)?.catalogItem?.name ?? null,
+    );
+    // Asked for in three looks and made up in the last: kept in the first two only.
+    expect(partners).toEqual(["Ботинки", "Ботинки", null, null]);
+    // The boots fill the shoes the first look said it lacked.
+    expect(done.outfits[0]!.missing).toBeNull();
+    expect(s.repositories.catalogRepository.events).toEqual([
+      { catalogItemId: boots.id, userId: anna.userId, event: "shown" },
+      { catalogItemId: boots.id, userId: anna.userId, event: "shown" },
+    ]);
   });
 
   it("waits for an item saved a moment ago whose photo is still processing", async () => {

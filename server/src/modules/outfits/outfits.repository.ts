@@ -1,4 +1,5 @@
 import type {
+  AppLanguage,
   ItemTags,
   OutfitMood,
   MissingPiece,
@@ -9,6 +10,7 @@ import type {
 import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import {
+  catalogItems,
   items,
   outfitPieces,
   outfitReactions,
@@ -17,6 +19,7 @@ import {
   photos,
   styleBriefs,
 } from "../../db/schema";
+import { toCatalogItem } from "../catalog/catalog.repository";
 import { toItem } from "../items/items.repository";
 
 // A wardrobe item with what styling needs: its tags, its picture and its embedding.
@@ -49,8 +52,13 @@ export interface NewOutfit {
   occasion: string;
   why: string;
   missing: MissingPiece | null;
-  // itemId is null for the hero when it is an item from a photo.
-  pieces: { hero: boolean; itemId: string | null }[];
+  // itemId is null for the hero when it is an item from a photo, and for a partner piece.
+  pieces: {
+    hero: boolean;
+    itemId: string | null;
+    catalogItemId?: string;
+    sponsored?: boolean;
+  }[];
 }
 
 export interface StyleBrief {
@@ -101,7 +109,8 @@ export interface OutfitsRepository {
   ): Promise<void>;
   markFailed(requestId: string): Promise<void>;
   // The request's outfits with their items and the user's reactions; null when not theirs.
-  view(requestId: string, userId: string): Promise<WearWithRequest | null>;
+  // Partner pieces are named in the language asked for.
+  view(requestId: string, userId: string, lang: AppLanguage): Promise<WearWithRequest | null>;
   // false when the outfit doesn't exist or is someone else's.
   react(outfitId: string, userId: string, reaction: OutfitReaction): Promise<boolean>;
   reactionCount(userId: string): Promise<number>;
@@ -249,7 +258,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .where(eq(outfitRequests.id, requestId));
     },
 
-    async view(requestId, userId) {
+    async view(requestId, userId, lang) {
       const [request] = await db
         .select(requestColumns)
         .from(outfitRequests)
@@ -272,10 +281,12 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
                 item: items,
                 photoStatus: photos.status,
                 cutoutKey: photos.cutoutKey,
+                catalog: catalogItems,
               })
               .from(outfitPieces)
               .leftJoin(items, eq(items.id, outfitPieces.itemId))
               .leftJoin(photos, eq(photos.key, items.photoKey))
+              .leftJoin(catalogItems, eq(catalogItems.id, outfitPieces.catalogItemId))
               .where(inArray(outfitPieces.outfitId, ids))
               .orderBy(asc(outfitPieces.position)),
             db.select().from(outfitReactions).where(inArray(outfitReactions.outfitId, ids)),
@@ -303,6 +314,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
                     cutoutKey: p.cutoutKey ?? null,
                   })
                 : null,
+              catalogItem: p.catalog ? toCatalogItem(p.catalog, lang) : null,
             })),
           ...summarize(reactions.filter((r) => r.outfitId === look.id)),
         })),

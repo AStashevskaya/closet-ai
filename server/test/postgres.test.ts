@@ -73,6 +73,7 @@ describe.skipIf(!url)("on Postgres", () => {
       TESTER_USER_IDS: [],
       MODEL_CACHE_DIR: ".models",
       WORKERS_IN_API: true,
+      PARTNER_ITEMS: true,
     };
     const auth = createAuth(env, drizzleAdapter(db.db, { provider: "pg", schema }));
     // Photo processing is covered in photos.test.ts; here storage is only a stand-in.
@@ -490,6 +491,10 @@ describe.skipIf(!url)("on Postgres", () => {
     }
     const [skirt, top] = ids as [string, string];
     const outfits = createOutfitsRepository(db.db);
+    const catalog = createCatalogRepository(db.db);
+    // Its own category, so the catalog test's closest items stay its own.
+    await catalog.upsert({ ...demoCatalogItem("O1"), category: "outerwear" });
+    const [boots] = await catalog.closest("outerwear", unitVector(1), 1);
 
     expect((await outfits.wardrobe(user!.id)).map((i) => i.id)).toEqual([skirt, top]);
     expect(await outfits.wardrobeSize(user!.id)).toBe(2);
@@ -507,6 +512,7 @@ describe.skipIf(!url)("on Postgres", () => {
           pieces: [
             { hero: true, itemId: skirt },
             { hero: false, itemId: top },
+            { hero: false, itemId: null, catalogItemId: boots!.id, sponsored: true },
           ],
         },
       ],
@@ -518,18 +524,19 @@ describe.skipIf(!url)("on Postgres", () => {
       wardrobeSize: 2,
     });
 
-    const viewed = await outfits.view(requestId, user!.id);
-    expect(await outfits.view(requestId, "someone-else")).toBeNull();
+    const viewed = await outfits.view(requestId, user!.id, "en");
+    expect(await outfits.view(requestId, "someone-else", "en")).toBeNull();
     const outfitId = viewed!.outfits[0]!.id;
     expect(await outfits.react(outfitId, user!.id, "like")).toBe(true);
     expect(await outfits.react(outfitId, "someone-else", "like")).toBe(false);
     await outfits.react(outfitId, user!.id, "wore");
-    expect((await outfits.view(requestId, user!.id))!.outfits[0]).toMatchObject({
+    expect((await outfits.view(requestId, user!.id, "en"))!.outfits[0]).toMatchObject({
       caption: "Tee and satin",
       missing: { category: "shoes" },
       pieces: [
-        { hero: true, item: { id: skirt } },
-        { hero: false, item: { id: top } },
+        { hero: true, item: { id: skirt }, catalogItem: null },
+        { hero: false, item: { id: top }, catalogItem: null },
+        { hero: false, item: null, catalogItem: { id: boots!.id, name: "Ankle boots" } },
       ],
       opinion: "like",
       woreCount: 1,
@@ -541,7 +548,7 @@ describe.skipIf(!url)("on Postgres", () => {
 
     // A deleted item leaves the outfit, without that piece.
     await app.inject({ method: "DELETE", url: `/api/items/${top}`, headers: { cookie } });
-    expect((await outfits.view(requestId, user!.id))!.outfits[0]!.pieces[1]!.item).toBeNull();
+    expect((await outfits.view(requestId, user!.id, "en"))!.outfits[0]!.pieces[1]!.item).toBeNull();
 
     // A crop an outfit request points to is kept by the cleanup.
     const crop = `photos/${user!.id}/crop.webp`;

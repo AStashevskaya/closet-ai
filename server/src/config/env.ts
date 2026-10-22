@@ -53,6 +53,12 @@ const envSchema = z
       .enum(["true", "false"])
       .default("true")
       .transform((value) => value === "true"),
+    // Whether outfits may be finished with a partner brand's piece from the catalog
+    // (catalog:import). "false" switches it off without emptying the catalog.
+    PARTNER_ITEMS: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
     // Where the embedding model's weights (~100 MB) are downloaded on first use. Outside git.
     MODEL_CACHE_DIR: z.string().default(".models"),
   })
