@@ -218,7 +218,9 @@ async function heroFromPhoto(
       { fromLook: true },
     ).catch(() => null);
     // A piece worn by someone often comes out in bits around the arms; the crop then looks better.
-    if (png && (await isWhole(png, photo.tags.category))) {
+    // An answer that can't even be read counts as broken: the crop stays, as when fal is down.
+    const whole = png ? await isWhole(png, photo.tags.category).catch(() => false) : false;
+    if (png && whole) {
       cutoutKey = cutoutKeyFor(photo.key);
       await storage.put(cutoutKey, await processCutout(png), "image/webp");
       await photos.setCutout(photo.key, cutoutKey);
