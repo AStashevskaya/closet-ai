@@ -30,6 +30,9 @@ export interface ItemTagger {
 
 export type LookScene = "worn" | "shown";
 
+// Pieces listed at most from a photo of something to buy: enough to pick from, a short answer.
+const SHOWN_MAX_ITEMS = 8;
+
 // A wardrobe item to compare with: its photo (or cut-out on white) and its name.
 export interface MatchCandidate {
   image: Uint8Array;
@@ -128,7 +131,7 @@ Seasons come from the item, not from the rest of the outfit. When a field can't 
 // For a photo of something the user may buy: pieces on a shelf or a hanger count as much as worn
 // ones. The look prompt asked for worn items only, so shoes on a shop shelf came back as nothing
 // (owner's photos of slingbacks and UGGs, 2026-10-23).
-const SHOWN_PROMPT = `You read photos for a wardrobe app: the user shows a clothing item, pair of shoes, bag or accessory she is thinking of buying, photographed in a shop (on a shelf, a hanger, a mannequin, in a fitting room), on a product page or worn by someone. List every such piece that is clearly on show, so she can pick the one she means. Skip the shop fittings, the background and pieces cut off at the edges of the frame. A single shoe stands for its pair; the same model in two colours is two items. If there is no clothing, return an empty list.
+const SHOWN_PROMPT = `You read photos for a wardrobe app: the user shows a clothing item, pair of shoes, bag or accessory they are thinking of buying, photographed in a shop (on a shelf, a hanger, a mannequin, in a fitting room), on a product page or worn by someone. List the pieces clearly on show, so the user can pick the one they mean: at most 8, the nearest and most in focus first. Skip the shop fittings, the background and pieces mostly out of the frame, unless that is the only piece (a close-up often cuts off a toe or a hem). A single shoe stands for its pair; the same model in two colours is two items. If there is no clothing, return an empty list.
 
 For each item fill in:
 ${TAG_RULES}
@@ -203,17 +206,20 @@ export function createClaudeItemTagger(apiKey: string): ItemTagger {
         modelLook,
         await photoIn(image, lang),
       );
-      return items.map(({ box, ...item }) => {
-        const [xMin, xMax] = [
-          clamp(Math.min(box.xMin, box.xMax)),
-          clamp(Math.max(box.xMin, box.xMax)),
-        ];
-        const [yMin, yMax] = [
-          clamp(Math.min(box.yMin, box.yMax)),
-          clamp(Math.max(box.yMin, box.yMax)),
-        ];
-        return { ...item, box: { xMin, yMin, xMax, yMax } };
-      });
+      // The prompt asks for at most 8; a wall of a shop could still bring more.
+      return items
+        .slice(0, scene === "shown" ? SHOWN_MAX_ITEMS : undefined)
+        .map(({ box, ...item }) => {
+          const [xMin, xMax] = [
+            clamp(Math.min(box.xMin, box.xMax)),
+            clamp(Math.max(box.xMin, box.xMax)),
+          ];
+          const [yMin, yMax] = [
+            clamp(Math.min(box.yMin, box.yMax)),
+            clamp(Math.max(box.yMin, box.yMax)),
+          ];
+          return { ...item, box: { xMin, yMin, xMax, yMax } };
+        });
     },
 
     async compare(item, candidates) {

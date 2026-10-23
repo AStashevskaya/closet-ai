@@ -198,7 +198,7 @@ export async function tagPhoto(deps: PhotoJobDeps, key: string, lang: AppLanguag
       return;
     }
     if (photo.kind === "want") {
-      const items = await tagger.findItems(file.body, lang);
+      const items = await tagger.findItems(file.body, lang, "worn");
       const matches = await matchLookItems(deps, photo.ownerId, file.body, items);
       await photos.setLookItems(photo.key, items, matches);
       const shown = matches.flatMap((match) => match.shop ?? []);
