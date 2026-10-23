@@ -375,7 +375,6 @@
     "twin": "You already have one like it"
   },
   "wishes": {
-    "row": "Wishes",
     "title": "Wishes",
     "subtitle": "A week to think it over",
     "intro": "Save pieces you want to buy here. In a week I'll ask whether you still want them.",
@@ -388,6 +387,7 @@
     "due_one": "{{count}} to answer",
     "due_other": "{{count}} to answer",
     "failed": "Couldn't open your wishes. Try again.",
-    "saved": "Saved {{date}}"
+    "saved": "Saved {{date}}",
+    "answerFailed": "Couldn't save the answer. Try again."
   }
 }

@@ -697,12 +697,59 @@ describe("an item from a photo", () => {
         headers: { cookie: anna.cookie },
         payload: { answer: value },
       });
+    expect(
+      (
+        await s.server.inject({
+          method: "GET",
+          url: "/api/wishes/due",
+          headers: { cookie: anna.cookie },
+        })
+      ).json(),
+    ).toEqual({ count: 1 });
     expect((await answer("still")).statusCode).toBe(204);
     expect((await wishes(anna.cookie)).json<Wish[]>()[0]!.due).toBe(false);
+    expect(row.stillCount).toBe(1);
+    // A retried "still" before the next week doesn't count again.
+    expect((await answer("still")).statusCode).toBe(409);
     expect(row.stillCount).toBe(1);
     expect((await answer("no")).statusCode).toBe(204);
     expect((await wishes(anna.cookie)).json<Wish[]>()).toEqual([]);
     expect((await answer("no")).statusCode).toBe(404);
+  });
+
+  it("lets a wish go once its piece is added to the closet, and won't save one that's there", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const requestId = await styleFromPhoto(s, anna.cookie);
+    await s.server.inject({
+      method: "POST",
+      url: "/api/wishes",
+      headers: { cookie: anna.cookie },
+      payload: { requestId },
+    });
+
+    // Bought it, and added it from its outfits.
+    const { addable } = await view(s, anna.cookie, requestId);
+    await s.server.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie: anna.cookie },
+      payload: addable!,
+    });
+    const list = await s.server.inject({
+      method: "GET",
+      url: "/api/wishes",
+      headers: { cookie: anna.cookie },
+    });
+    expect(list.json()).toEqual([]);
+    const again = await s.server.inject({
+      method: "POST",
+      url: "/api/wishes",
+      headers: { cookie: anna.cookie },
+      payload: { requestId },
+    });
+    expect(again.statusCode).toBe(409);
   });
 
   it("keeps wishes to their owner, and only for pieces from photos", async () => {

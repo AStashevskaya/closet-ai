@@ -25,7 +25,7 @@ jest.mock('@/lib/api', () => ({
     look: { used: 0, limit: 3, resetsAt: '2026-11-01T00:00:00.000Z' },
     wear_with: { used: 1, limit: 30, resetsAt: '2026-10-22T00:00:00.000Z' },
   }),
-  listWishes: jest.fn().mockResolvedValue([{ due: true }, { due: false }]),
+  countDueWishes: jest.fn().mockResolvedValue(1),
 }));
 jest.mock('@/lib/auth-client', () => ({
   authClient: {

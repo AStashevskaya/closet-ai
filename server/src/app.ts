@@ -103,9 +103,10 @@ export async function buildApp({
     env.AI_DAILY_BUDGET_USD,
     new Set(env.TESTER_USER_IDS),
   );
-  await app.register(itemsRoutes(itemsRepository, photosRepository, storage, photoQueue, auth), {
-    prefix: "/api",
-  });
+  await app.register(
+    itemsRoutes(itemsRepository, photosRepository, storage, photoQueue, wishesRepository, auth),
+    { prefix: "/api" },
+  );
   await app.register(
     photosRoutes(
       storage,

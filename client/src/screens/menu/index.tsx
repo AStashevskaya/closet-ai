@@ -18,7 +18,7 @@ import Animated from 'react-native-reanimated';
 import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
-import { listWishes } from '@/lib/api';
+import { countDueWishes } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { useUsage } from '@/lib/limits';
 import { problemReportUrl, supportEmail } from '@/lib/report-problem';
@@ -52,7 +52,7 @@ export function Menu() {
     useCallback(() => {
       const load = async () => {
         try {
-          setDue((await listWishes()).filter((wish) => wish.due).length);
+          setDue(await countDueWishes());
         } catch {
           // Only a hint: the row works without it.
         }

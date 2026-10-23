@@ -19,6 +19,7 @@ import { cutoutKeyFor, deletePhoto } from "../photos/photo-jobs";
 import { photoPrefix } from "../photos/photos.routes";
 import { rotateQuarter } from "../photos/process-photo";
 import type { PhotosRepository } from "../photos/photos.repository";
+import type { WishesRepository } from "../wishes/wishes.repository";
 import type { ItemsRepository } from "./items.repository";
 
 // One row on the item screen.
@@ -30,6 +31,7 @@ export const itemsRoutes =
     photos: PhotosRepository,
     storage: Storage,
     photoQueue: PhotoQueue,
+    wishes: WishesRepository,
     auth: Auth,
   ): FastifyPluginAsyncZod =>
   async (app) => {
@@ -144,6 +146,8 @@ export const itemsRoutes =
           }
         }
         const created = await repo.create(user.id, request.body);
+        // A piece from a photo she wished for, now in her closet: bought, so the wish goes.
+        if (photoKey !== undefined) await wishes.removeForPhoto(user.id, photoKey);
         return reply.code(201).send(created);
       },
     );

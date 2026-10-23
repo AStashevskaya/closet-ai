@@ -21,8 +21,8 @@ import type { PhotosRepository } from "../photos/photos.repository";
 import { photoPrefix } from "../photos/photos.routes";
 import { cropToBox } from "../photos/process-photo";
 import type { Limits } from "../usage/limits";
-import type { OutfitQueue } from "./outfit-jobs";
 import type { WishesRepository } from "../wishes/wishes.repository";
+import type { OutfitQueue } from "./outfit-jobs";
 import type { OutfitsRepository } from "./outfits.repository";
 
 // Styled items listed at most, newest first.

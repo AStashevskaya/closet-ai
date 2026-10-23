@@ -1,13 +1,20 @@
-import { addWishInput, wish, wishAnswerInput, wishList, type Wish } from "@closet-ai/shared";
+import {
+  addWishInput,
+  wish,
+  wishAnswerInput,
+  wishesDue,
+  wishList,
+  type Wish,
+} from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
-import { heroPath } from "../outfits/outfits.routes";
 import type { OutfitsRepository } from "../outfits/outfits.repository";
+import { heroPath } from "../outfits/outfits.routes";
 import type { PhotosRepository } from "../photos/photos.repository";
-import type { WishRow, WishesRepository } from "./wishes.repository";
+import type { WishesRepository, WishRow } from "./wishes.repository";
 
 // A week to cool off before asking whether she still wants it.
 export const WISH_ASK_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -24,30 +31,31 @@ export const wishesRoutes =
   async (app) => {
     app.addHook("preHandler", requireUser(auth));
 
-    // The wish as the app shows it: its piece from the request's photo. null when the photo is
-    // gone (it can't be, while a request points to it, but a wish without it would show nothing).
-    async function toWish(row: WishRow): Promise<Wish | null> {
-      const request = await outfits.getRequest(row.requestId);
-      const photo = request?.heroPhotoKey ? await photos.get(request.heroPhotoKey) : null;
-      if (!request || !photo?.tags) return null;
-      return {
-        id: row.id,
-        requestId: row.requestId,
-        name: photo.tags.name,
-        photoUrl: heroPath(row.requestId),
-        cutoutUrl: photo.cutoutKey ? heroPath(row.requestId, "cutout") : null,
-        call: request.verdict?.call ?? null,
-        createdAt: row.createdAt.toISOString(),
-        due: row.askAt.getTime() <= clock().getTime(),
-      };
-    }
+    const toWish = (row: WishRow): Wish => ({
+      id: row.id,
+      requestId: row.requestId,
+      name: row.name,
+      photoUrl: heroPath(row.requestId),
+      cutoutUrl: row.cutoutKey ? heroPath(row.requestId, "cutout") : null,
+      call: row.call,
+      createdAt: row.createdAt.toISOString(),
+      due: row.askAt.getTime() <= clock().getTime(),
+    });
 
     app.get("/wishes", { schema: { response: { 200: wishList } } }, async (request) => {
       const rows = await wishes.list((request.user as SessionUser).id);
-      const listed = await Promise.all(rows.map(toWish));
       // The ones to answer first, then the newest.
-      return listed.filter((w) => w !== null).sort((a, b) => Number(b.due) - Number(a.due));
+      return rows.map(toWish).sort((a, b) => Number(b.due) - Number(a.due));
     });
+
+    // Just the number waiting for an answer, for the menu row.
+    app.get(
+      "/wishes/due",
+      { schema: { response: { 200: wishesDue } } },
+      async (request) => ({
+        count: await wishes.countDue((request.user as SessionUser).id, clock()),
+      }),
+    );
 
     // Saves an item-from-a-photo's request to her wishes; saving it again is the same wish.
     app.post(
@@ -56,31 +64,42 @@ export const wishesRoutes =
       async (request, reply) => {
         const user = request.user as SessionUser;
         const found = await outfits.getRequest(request.body.requestId);
-        if (!found || found.userId !== user.id || !found.heroPhotoKey) {
+        const photo = found?.heroPhotoKey ? await photos.get(found.heroPhotoKey) : null;
+        // Checked before saving: a wish the list can't show would be saved for nothing.
+        if (!found || found.userId !== user.id || !photo?.tags) {
           throw httpError(404, "request not found");
         }
-        const askAt = new Date(clock().getTime() + WISH_ASK_AFTER_MS);
-        const id = await wishes.add(user.id, found.id, askAt);
-        const row = (await wishes.list(user.id)).find((w) => w.id === id)!;
-        const saved = await toWish(row);
-        if (!saved) throw httpError(404, "request not found");
-        return reply.code(201).send(saved);
+        if (await outfits.isAttached(photo.key)) throw httpError(409, "already in the closet");
+        const saved = await wishes.add(
+          user.id,
+          found.id,
+          new Date(clock().getTime() + WISH_ASK_AFTER_MS),
+        );
+        return reply.code(201).send(toWish(saved));
       },
     );
 
-    // still: asked again in a week; no, bought: let go (bought pieces are added to the wardrobe
-    // by the app first, through POST /api/items).
+    // still: asked again in a week, once it's due (409 before); no, bought: let go (bought pieces
+    // are added to the wardrobe by the app first, which lets the wish go by itself).
     app.post(
       "/wishes/:id/answer",
       { schema: { params: z.object({ id: z.string().uuid() }), body: wishAnswerInput } },
       async (request, reply) => {
         const userId = (request.user as SessionUser).id;
         const { id } = request.params;
-        const done =
-          request.body.answer === "still"
-            ? await wishes.keep(userId, id, new Date(clock().getTime() + WISH_ASK_AFTER_MS))
-            : await wishes.remove(userId, id);
-        if (!done) throw httpError(404, "wish not found");
+        if (request.body.answer === "still") {
+          const now = clock();
+          const result = await wishes.keep(
+            userId,
+            id,
+            now,
+            new Date(now.getTime() + WISH_ASK_AFTER_MS),
+          );
+          if (result === "missing") throw httpError(404, "wish not found");
+          if (result === "not-due") throw httpError(409, "not asked yet");
+        } else if (!(await wishes.remove(userId, id))) {
+          throw httpError(404, "wish not found");
+        }
         return reply.code(204).send();
       },
     );

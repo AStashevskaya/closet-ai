@@ -23,6 +23,7 @@ import {
   catalogList,
   wish,
   wishList,
+  wishesDue,
   type Wish,
   type WishAnswer,
   type CatalogItem,
@@ -149,6 +150,11 @@ export function listStyled(): Promise<StyledEntry[]> {
 // Wishes: pieces from photos the user wants to buy.
 export function listWishes(): Promise<Wish[]> {
   return request('/api/wishes', wishList);
+}
+
+// How many wishes wait for "still want it?": the menu row's number.
+export async function countDueWishes(): Promise<number> {
+  return (await request('/api/wishes/due', wishesDue)).count;
 }
 
 export function addWish(requestId: string): Promise<Wish> {

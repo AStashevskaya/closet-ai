@@ -53,7 +53,7 @@ describe('<Wishes />', () => {
     expect(screen.queryByText('Still want it?')).toBeNull();
   });
 
-  test('lets a wish go, or adds a bought one to the closet first', async () => {
+  test('adds a bought one to the closet', async () => {
     const addable = {
       name: 'Red knit mini',
       category: 'bottom' as const,
@@ -67,8 +67,18 @@ describe('<Wishes />', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Bought it' }));
 
     expect(createItem).toHaveBeenCalledWith(addable);
-    expect(answerWish).toHaveBeenCalledWith(skirt.id, 'bought');
+    // Adding it to the closet lets the wish go on the server; nothing left to answer.
+    expect(answerWish).not.toHaveBeenCalled();
     expect(screen.queryByText('Red knit mini')).toBeNull();
+  });
+
+  test('says so when the answer could not be saved, and keeps the question', async () => {
+    jest.mocked(answerWish).mockRejectedValue(new Error('offline'));
+    await render(<Wishes />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Not anymore' }));
+
+    expect(await screen.findByText("Couldn't save the answer. Try again.")).toBeOnTheScreen();
+    expect(screen.getByText('Still want it?')).toBeOnTheScreen();
   });
 
   test('opens the outfits of a wish', async () => {

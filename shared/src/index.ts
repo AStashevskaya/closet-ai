@@ -361,6 +361,8 @@ export const wish = z.object({
 });
 export type Wish = z.infer<typeof wish>;
 export const wishList = z.array(wish);
+// GET /api/wishes/due: how many wait for "still want it?".
+export const wishesDue = z.object({ count: z.number().int() });
 export type WearWithRequest = z.infer<typeof wearWithRequest>;
 
 // GET /api/wear-with: the user's styled items, newest first, to open their outfits again.

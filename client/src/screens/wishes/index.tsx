@@ -47,27 +47,36 @@ export function Wishes() {
     }, []),
   );
 
+  // The wish whose answer didn't go through, to say so under it.
+  const [failed, setFailed] = useState<string | null>(null);
+
   async function answer(wish: Wish, value: WishAnswer) {
-    if (state.status !== 'done') return;
     setBusy(wish.id);
+    setFailed(null);
     try {
-      if (value === 'bought') {
-        // Into the closet with its crop, unless it's there already.
-        const { addable } = await getWearWith(wish.requestId, lang);
-        if (addable) await createItem(addable);
-      }
-      await answerWish(wish.id, value);
+      // Bought: into the closet with its crop, which lets the wish go on the server too. Only
+      // when it's in the closet already is there a wish left to answer.
+      const { addable } =
+        value === 'bought' ? await getWearWith(wish.requestId, lang) : { addable: null };
+      if (addable) await createItem(addable);
+      else await answerWish(wish.id, value);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setState({
-        ...state,
-        wishes:
-          value === 'still'
-            ? state.wishes.map((w) => (w.id === wish.id ? { ...w, due: false } : w))
-            : state.wishes.filter((w) => w.id !== wish.id),
-      });
+      // From the state as it is now: the list may have reloaded while this was on its way.
+      setState((current) =>
+        current.status === 'done'
+          ? {
+              ...current,
+              wishes:
+                value === 'still'
+                  ? current.wishes.map((w) => (w.id === wish.id ? { ...w, due: false } : w))
+                  : current.wishes.filter((w) => w.id !== wish.id),
+            }
+          : current,
+      );
     } catch (cause) {
       if (__DEV__) console.warn('Answering the wish failed', cause);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setFailed(wish.id);
     } finally {
       setBusy(null);
     }
@@ -134,7 +143,11 @@ export function Wishes() {
                 {(['still', 'no', 'bought'] as const).map((value) => (
                   <PressableScale
                     key={value}
-                    style={[styles.answer, value === 'still' && styles.answerYes]}
+                    style={[
+                      styles.answer,
+                      value === 'still' && styles.answerYes,
+                      busy !== null && styles.answerBusy,
+                    ]}
                     onPress={() => answer(wish, value)}
                     disabled={busy !== null}
                     accessibilityRole="button"
@@ -144,6 +157,11 @@ export function Wishes() {
                   </PressableScale>
                 ))}
               </View>
+              {failed === wish.id && (
+                <Text style={styles.error} accessibilityRole="alert">
+                  {t('wishes.answerFailed')}
+                </Text>
+              )}
             </View>
           )}
         </Animated.View>
@@ -242,6 +260,15 @@ const styles = StyleSheet.create({
   answerYes: {
     borderColor: colors.highlight,
     backgroundColor: colors.highlight,
+  },
+  answerBusy: {
+    opacity: 0.5,
+  },
+  error: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.error,
+    textAlign: 'left',
   },
   answerText: {
     fontFamily: fonts.bodyMedium,

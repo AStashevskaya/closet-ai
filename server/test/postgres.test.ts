@@ -727,16 +727,27 @@ describe.skipIf(!url)("on Postgres", () => {
     );
     const wishes = createWishesRepository(db.db);
 
-    const id = await wishes.add(user!.id, requestId, new Date(Date.now() + 1000));
-    expect(await wishes.add(user!.id, requestId, new Date())).toBe(id);
-    expect(await wishes.idFor(user!.id, requestId)).toBe(id);
-    expect(await wishes.keep("someone-else", id, new Date())).toBe(false);
+    const soon = new Date(Date.now() + 1000);
+    const saved = await wishes.add(user!.id, requestId, soon);
+    expect(saved).toMatchObject({ requestId, name: shirtTags.name, call: null, stillCount: 0 });
+    expect((await wishes.add(user!.id, requestId, new Date())).id).toBe(saved.id);
+    expect(await wishes.idFor(user!.id, requestId)).toBe(saved.id);
+
+    // Not due yet: "still" doesn't count; once due, it does, and moves it on.
     const later = new Date(Date.now() + 7 * 24 * 3600 * 1000);
-    expect(await wishes.keep(user!.id, id, later)).toBe(true);
+    expect(await wishes.keep(user!.id, saved.id, new Date(), later)).toBe("not-due");
+    expect(await wishes.keep("someone-else", saved.id, later, later)).toBe("missing");
+    expect(await wishes.countDue(user!.id, new Date(Date.now() + 2000))).toBe(1);
+    expect(await wishes.keep(user!.id, saved.id, new Date(Date.now() + 2000), later)).toBe("kept");
     expect(await wishes.list(user!.id)).toEqual([
-      expect.objectContaining({ id, requestId, askAt: later, stillCount: 1 }),
+      expect.objectContaining({ id: saved.id, askAt: later, stillCount: 1 }),
     ]);
-    expect(await wishes.remove(user!.id, id)).toBe(true);
+
+    // In her closet now: the wish goes.
+    await wishes.removeForPhoto("someone-else", crop);
+    expect(await wishes.list(user!.id)).toHaveLength(1);
+    await wishes.removeForPhoto(user!.id, crop);
     expect(await wishes.list(user!.id)).toEqual([]);
+    expect(await wishes.remove(user!.id, saved.id)).toBe(false);
   });
 });
