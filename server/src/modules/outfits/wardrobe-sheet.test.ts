@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StylingItem } from "./outfits.repository";
-import { pickCandidates } from "./wardrobe-sheet";
+import { kindOf, pickCandidates } from "./wardrobe-sheet";
 
 const piece = (id: string, category: string, embedding: number[]): StylingItem => ({
   id,
@@ -35,5 +35,25 @@ describe("pickCandidates", () => {
     ]);
     expect(picked(recent)).not.toContain("favourite-1");
     expect(picked(recent)).toHaveLength(4);
+  });
+});
+
+describe("bags on the sheet", () => {
+  // Hats closer to the skirt than the bag: with one accessory slot the bag lost its place.
+  const skirt = piece("skirt", "bottom", [1, 0]);
+  const hats = ["hat-1", "hat-2", "hat-3"].map((id) => piece(id, "accessory", [0.99, 0.1]));
+  const bag = piece("Blue suede shoulder bag", "accessory", [0.5, 0.87]);
+
+  it("keeps a place for bags apart from other accessories", () => {
+    const ids = pickCandidates(skirt, [skirt, ...hats, bag], "autumn").map((item) => item.id);
+    expect(ids).toContain(bag.id);
+    expect(ids.filter((id) => id.startsWith("hat"))).toHaveLength(2);
+  });
+
+  it("tells a bag by its type, in any of the app's languages", () => {
+    expect(kindOf("accessory", "shoulder bag")).toBe("bag");
+    expect(kindOf("accessory", "Голубая замшевая сумка")).toBe("bag");
+    expect(kindOf("accessory", "felt fedora hat")).toBe("accessory");
+    expect(kindOf("shoes", "bag-like loafers")).toBe("shoes");
   });
 });

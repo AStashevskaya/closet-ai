@@ -7,48 +7,74 @@ import type { StylingItem } from "./outfits.repository";
 
 // How many pieces of each kind go on the contact sheet around the item: enough choice for good
 // outfits, few enough that the request stays small however big the wardrobe grows.
-const PER_CATEGORY: Record<string, number> = {
+// Bags are kept apart from the rest: every look has shoes and a bag (the owner's rule,
+// 2026-10-23), and an accessory slot of hats and belts left most looks without one.
+const PER_KIND: Record<string, number> = {
   top: 8,
   bottom: 6,
   dress: 4,
   outerwear: 4,
   shoes: 4,
-  accessory: 3,
+  bag: 4,
+  accessory: 2,
 };
 
-// What the item's own category leaves room for: a skirt needs no second bottom, a dress no
-// bottoms at all and only a top to layer.
-function slotsAround(heroCategory: string): Record<string, number> {
-  if (heroCategory === "bottom") return { ...PER_CATEGORY, bottom: 0 };
-  if (heroCategory === "dress") return { ...PER_CATEGORY, bottom: 0, dress: 0, top: 3 };
-  if (heroCategory === "top") return { ...PER_CATEGORY, top: 4 };
-  if (heroCategory === "outerwear") return { ...PER_CATEGORY, outerwear: 0 };
-  return PER_CATEGORY;
+// Bags are accessories, as are hats and belts: told apart by the English type the tagger gives
+// ("shoulder bag"), or by the name when there is none.
+const BAG = /\b(bag|tote|clutch|backpack|purse|satchel|crossbody)\b|сумк|клатч|рюкзак|шоппер|תיק/i;
+
+// A category, or "bag" for an accessory that is one.
+export const kindOf = (category: string, name: string) =>
+  category === "accessory" && BAG.test(name) ? "bag" : category;
+export const itemKind = (item: StylingItem) => kindOf(item.category, item.tags?.noun ?? item.name);
+export const catalogKind = (row: CatalogRow) =>
+  kindOf(row.category, row.names.en ?? Object.values(row.names)[0] ?? "");
+
+// What the item leaves room for: a skirt needs no second bottom, a dress no bottoms at all and
+// only a top to layer, shoes or a bag no second one.
+function slotsAround(heroKind: string): Record<string, number> {
+  if (heroKind === "bottom") return { ...PER_KIND, bottom: 0 };
+  if (heroKind === "dress") return { ...PER_KIND, bottom: 0, dress: 0, top: 3 };
+  if (heroKind === "top") return { ...PER_KIND, top: 4 };
+  if (heroKind === "outerwear") return { ...PER_KIND, outerwear: 0 };
+  if (heroKind === "shoes") return { ...PER_KIND, shoes: 0 };
+  if (heroKind === "bag") return { ...PER_KIND, bag: 0 };
+  return PER_KIND;
 }
 
-// Partner pieces offered per category: where a missing piece is most often the finishing touch.
-// Never a dress: it would replace the look rather than finish it.
-const SHOP_PER_CATEGORY: Record<string, number> = {
+// Partner pieces offered per kind: shoes and bags for looks her wardrobe can't finish, the rest
+// to show a brand's piece now and then. Never a dress: it would replace the look rather than
+// finish it.
+const SHOP_PER_KIND: Record<string, number> = {
   shoes: 3,
-  accessory: 3,
+  bag: 3,
   outerwear: 2,
   top: 2,
   bottom: 2,
 };
+// Bags are looked for among the closest accessories, which are hats and belts too.
+const BAG_SEARCH = 15;
 
-// The catalog's pieces for the shop sheet: in the categories the item leaves room for, the ones
-// closest to it (our embeddings see colour and style across categories too). The stylist then
-// takes one only where the wardrobe falls short.
+// The catalog's pieces for the shop sheet: of the kinds the item leaves room for, the ones
+// closest to it (our embeddings see colour and style across categories too).
 export async function pickShop(
   catalog: CatalogRepository,
   hero: StylingItem,
 ): Promise<CatalogRow[]> {
   if (!hero.embedding) return [];
-  const slots = slotsAround(hero.category);
+  const slots = slotsAround(itemKind(hero));
   const picks = await Promise.all(
-    Object.entries(SHOP_PER_CATEGORY)
-      .filter(([category]) => (slots[category] ?? 0) > 0)
-      .map(([category, take]) => catalog.closest(category as ItemCategory, hero.embedding!, take)),
+    Object.entries(SHOP_PER_KIND)
+      .filter(([kind]) => (slots[kind] ?? 0) > 0)
+      .map(async ([kind, take]) => {
+        const category = (kind === "bag" ? "accessory" : kind) as ItemCategory;
+        const rows = await catalog.closest(
+          category,
+          hero.embedding!,
+          kind === "bag" ? BAG_SEARCH : take,
+        );
+        return rows.filter((row) => catalogKind(row) === kind).slice(0, take);
+      }),
   );
   return picks.flat();
 }
@@ -77,14 +103,14 @@ export function pickCandidates(
   season: Season,
   recent: Map<string, number> = new Map(),
 ) {
-  const slots = slotsAround(hero.category);
+  const slots = slotsAround(itemKind(hero));
   const similarity = (a: StylingItem, b: StylingItem) =>
     a.embedding && b.embedding ? dot(a.embedding, b.embedding) : 0;
-  return Object.entries(slots).flatMap(([category, take]) => {
+  return Object.entries(slots).flatMap(([kind, take]) => {
     const pool = wardrobe.filter(
       (item) =>
         item.id !== hero.id &&
-        item.category === category &&
+        itemKind(item) === kind &&
         (item.seasons.length === 0 || item.seasons.includes(season)),
     );
     const picked: StylingItem[] = [];

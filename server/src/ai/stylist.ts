@@ -78,8 +78,8 @@ const MOODS: Record<OutfitMood, string> = {
 export interface ComposedLook {
   // Wardrobe numbers that go with the hero.
   items: number[];
-  // A shop piece's number, when one finishes the look.
-  partner: number | null;
+  // Shop pieces' numbers: shoes or a bag her wardrobe lacks for the look, or a brand's piece.
+  partners: number[];
   missing: MissingPiece | null;
   caption: string;
   occasion: string;
@@ -124,7 +124,7 @@ const composed = z.object({
   looks: z.array(
     z.object({
       items: z.array(z.number().int()),
-      partner: z.number().int().nullable(),
+      partners: z.array(z.number().int()),
       missing: z.object({ category: z.enum(ITEM_CATEGORIES), description: z.string() }).nullable(),
       caption: z.string(),
       occasion: z.string(),
@@ -142,14 +142,15 @@ You get her whole wardrobe in words, a contact sheet of the numbered pieces wort
 
 Compose the asked number of looks built around the item:
 - The item is in every look; list the wardrobe numbers that go with it, from the contact sheet (another piece from her wardrobe list only when it is clearly better). Every piece you mention in why is in the look's numbers.
-- A complete look: with a dress, nothing else is required; otherwise a top and a bottom (the item counts as its category). A shirt, vest, cardigan or jacket may be layered over a top or a dress when it helps; never a top worn over a dress. Shoes when a pair truly suits.
+- A complete look: with a dress, nothing else is required; otherwise a top and a bottom (the item counts as its category). A shirt, vest, cardigan or jacket may be layered over a top or a dress when it helps; never a top worn over a dress.
+- Every look has shoes and a bag (the item counts if it is one): the pair and the bag from her wardrobe that suit that look best. One pair and one bag per look.
 - The looks go in different directions, in this order: (1) her core style; (2) one of the looks she saved, recreated: take a recipe from the brief's "recreating her saves" that works with the item, or build the closest one, and say in why which saved look it echoes; (3) a step out of her comfort zone that still flatters her; (4) an unexpected mix of moods or textures. With fewer looks asked, take them from the start of this list. Each look has its own idea (a colour story, a play of proportions), different occasions across the looks, and none a stylist would call obvious or shapeless.
 - why speaks only of the item and the pieces listed in the look; a piece she doesn't own belongs in missing, never in why.
 - Don't lean on the same pieces: no wardrobe piece in more than two looks, and if the sheet has an alternative, use it. Four looks that share their top, jacket or shoes read as one look.
 - Without a brief, read her taste from the wardrobe itself. With one, its hero pieces explain her taste; they are not pieces to put in every look.
 - She asks often, so freshness matters: prefer pieces her recent looks didn't use, and new names and ideas, whenever they work about as well.
-- partner: when a shop sheet is given, a piece from it may finish a look (see the request); otherwise null.
-- missing: if one more piece she doesn't own would clearly make the look (often shoes or a bag), describe it as a shop search would need it (type, colour, material, shape), with its category; otherwise null. At most one per look, and not in every look.
+- partners: numbers from the shop sheet when one is given (see the request); otherwise empty.
+- missing: if one more piece she doesn't own would clearly make the look, describe it as a shop search would need it (type, colour, material, shape), with its category; otherwise null. At most one per look, and not in every look.
 - verdict: only when the request says she is thinking of buying the item; otherwise null. See the request.
 - caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces. All three, and missing.description, in the language asked.
 - Every text she reads (why, caption, verdict.reason) speaks to her directly: "you", in Russian the informal «ты», in Hebrew the plural form the app uses; never "she" or "the client". Name pieces by what they are ("your grey ribbed tank"), never by their numbers.`;
@@ -181,7 +182,10 @@ const buyingText = ({ closest }: NonNullable<ComposeInput["buying"]>) =>
 
 // The shop sheet's rules: relevance first, and never instead of a piece she owns.
 const shopText = (pieces: StylistPiece[]) =>
-  `\nThe third image is a shop sheet: pieces from partner brands she doesn't own.\n${pieces.map(describe).join("\n")}\nPut one in partner only where her wardrobe has no piece that works as well for that slot (often shoes, a bag or a jacket) and it truly suits the look; never in items. At most one per look, in no more than two looks, and none at all when nothing on the sheet fits. A look with a shop piece needs no missing for that slot.`;
+  `\nThe third image is a shop sheet: pieces from partner brands she doesn't own.\n${pieces.map(describe).join("\n")}\nShop pieces go in the look's partners, never in items, in two cases:
+- Shoes or a bag, only when no pair or bag of hers on the contact sheet could go with that look. Hers come first; never a second pair or bag next to hers.
+- To show her a brand's piece she'd love: in about two of the looks, one piece that truly suits the look and that her wardrobe has nothing as good for. Quietly: the look is still hers.
+A look with a shop piece needs no missing for that slot.`;
 
 const jpegBlock = (image: Uint8Array): Anthropic.ImageBlockParam => ({
   type: "image",

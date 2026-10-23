@@ -3,14 +3,22 @@ import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import type { Stylist } from "../../ai/stylist";
 import type { Storage } from "../../storage/storage";
-import type { CatalogRepository } from "../catalog/catalog.repository";
+import type { CatalogRepository, CatalogRow } from "../catalog/catalog.repository";
 import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { flattenOnWhite, isWhole, processCutout } from "../photos/process-photo";
-import type { OutfitRequestRow, OutfitsRepository, StylingItem } from "./outfits.repository";
+import type {
+  NewOutfit,
+  OutfitRequestRow,
+  OutfitsRepository,
+  StylingItem,
+} from "./outfits.repository";
 import {
   asJpeg,
+  catalogKind,
   contactSheet,
+  itemKind,
+  kindOf,
   pickCandidates,
   pickShop,
   seasonOf,
@@ -46,7 +54,8 @@ export interface OutfitJobDeps {
 export class PermanentOutfitError extends Error {}
 
 export const LOOKS_PER_REQUEST = 4;
-// Partner pieces stay the exception: never in every look (docs/product.md, partner items).
+// A brand's piece shown for its own sake stays the exception: never in every look (docs/product.md,
+// partner items). Partner shoes and bags that finish a look her wardrobe can't are not counted.
 export const MAX_PARTNER_LOOKS = 2;
 // How far back "recently" goes: about a week of styling for an active user.
 export const RECENT_REQUESTS = 6;
@@ -131,31 +140,64 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     numbered.filter(({ item }) => item.id !== hero.id).map(({ item, n }) => [n, item]),
   );
   const shopByN = new Map(shopRows.map((row, i) => [shopN(i), row]));
-  const resolved = looks.map((look) => ({
-    look,
-    items: [...new Set(look.items)].flatMap((n) => byN.get(n) ?? []),
-    shop: look.partner === null ? undefined : shopByN.get(look.partner),
-  }));
+  // Shoes and bags of hers the model could have taken. Given a shop sheet, it reached for a
+  // partner bag in half the looks though three of hers were on the sheet (2026-10-23), so a
+  // partner pair or bag finishes a look only when she has none to offer; otherwise it's promoted.
+  const ownKinds = new Set(candidates.map(itemKind));
+  const resolved = looks.map((look) => {
+    const items = [...new Set(look.items)].flatMap((n) => byN.get(n) ?? []);
+    const kinds = new Set([itemKind(hero), ...items.map(itemKind)]);
+    // Partner shoes or a bag where she has none (never a second pair next to hers), and one
+    // promoted piece of a brand's at most.
+    const finishing: CatalogRow[] = [];
+    let promoted: CatalogRow | undefined;
+    for (const row of [...new Set(look.partners)].flatMap((n) => shopByN.get(n) ?? [])) {
+      const kind = catalogKind(row);
+      if (kinds.has(kind) && FINISHING_KINDS.includes(kind)) continue;
+      if (FINISHING_KINDS.includes(kind) && !ownKinds.has(kind)) finishing.push(row);
+      else if (promoted) continue;
+      else promoted = row;
+      kinds.add(kind);
+    }
+    return { look, items, finishing, promoted };
+  });
   // A look without a bottom (or a dress) isn't one; shown only if every look came out so.
-  const complete = resolved.filter(({ items, shop }) =>
-    isComplete([hero.category, ...items.map((item) => item.category), shop?.category]),
+  const complete = resolved.filter(({ items, promoted }) =>
+    isComplete([hero.category, ...items.map((item) => item.category), promoted?.category]),
   );
-  let partnerLooks = 0;
-  const saved = (complete.length > 0 ? complete : resolved).map(({ look, items, shop }) => {
-    const partner = shop && partnerLooks < MAX_PARTNER_LOOKS ? shop : undefined;
-    if (partner) partnerLooks += 1;
+  // How many looks each wardrobe piece is in so far, so an added pair or bag is spread around.
+  const used = new Map<string, number>();
+  let promotedLooks = 0;
+  const saved = (complete.length > 0 ? complete : resolved).map((look): NewOutfit => {
+    const promoted = look.promoted && promotedLooks < MAX_PARTNER_LOOKS ? look.promoted : undefined;
+    if (promoted) promotedLooks += 1;
+    // A promoted partner bag is the look's bag: no second one of hers next to it.
+    const { items, finishing: shop } = withShoesAndBag(
+      hero,
+      { items: look.items, finishing: [...look.finishing, ...(promoted ? [promoted] : [])] },
+      candidates,
+      shopRows,
+      used,
+    );
+    for (const item of items) used.set(item.id, (used.get(item.id) ?? 0) + 1);
+    const filled = new Set([...items.map(itemKind), ...shop.map(catalogKind)]);
+    const { missing } = look.look;
     return {
-      caption: look.caption,
-      occasion: look.occasion,
-      why: look.why,
-      // The shop piece fills that slot already.
-      missing: partner && look.missing?.category === partner.category ? null : look.missing,
+      caption: look.look.caption,
+      occasion: look.look.occasion,
+      why: look.look.why,
+      // A piece of the look fills that slot already.
+      missing:
+        missing && filled.has(kindOf(missing.category, missing.description)) ? null : missing,
       pieces: [
         { hero: true, itemId: request.heroPhotoKey ? null : hero.id },
         ...items.map((item) => ({ hero: false, itemId: item.id })),
-        ...(partner
-          ? [{ hero: false, itemId: null, catalogItemId: partner.id, sponsored: true }]
-          : []),
+        ...shop.map((row) => ({
+          hero: false,
+          itemId: null,
+          catalogItemId: row.id,
+          sponsored: true,
+        })),
       ],
     };
   });
@@ -173,6 +215,32 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
 
   const shown = saved.flatMap((look) => look.pieces.flatMap((p) => p.catalogItemId ?? []));
   await deps.catalog?.record(shown, request.userId, "shown");
+}
+
+// Every look has shoes and a bag (the owner's rule, 2026-10-23).
+const FINISHING_KINDS = ["shoes", "bag"];
+
+// A look the model left without shoes or a bag gets one: hers from the sheet (the closest to the
+// item first, the one in fewest looks so far), else a partner's, else it goes without.
+function withShoesAndBag(
+  hero: StylingItem,
+  look: { items: StylingItem[]; finishing: CatalogRow[] },
+  candidates: StylingItem[],
+  shopRows: CatalogRow[],
+  used: Map<string, number>,
+) {
+  const items = [...look.items];
+  const finishing = [...look.finishing];
+  const has = new Set([itemKind(hero), ...items.map(itemKind), ...finishing.map(catalogKind)]);
+  for (const kind of FINISHING_KINDS.filter((kind) => !has.has(kind))) {
+    const hers = candidates
+      .filter((item) => itemKind(item) === kind)
+      .sort((a, b) => (used.get(a.id) ?? 0) - (used.get(b.id) ?? 0))[0];
+    const shop = shopRows.find((row) => catalogKind(row) === kind);
+    if (hers) items.push(hers);
+    else if (shop) finishing.push(shop);
+  }
+  return { items, finishing };
 }
 
 // How many of her own pieces the verdict weighs the item against.

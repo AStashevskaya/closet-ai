@@ -110,13 +110,15 @@ async function addItem(
   { server, repositories, storage }: Setup,
   { cookie, userId }: { cookie: string; userId: string },
   category: Item["category"] = "top",
+  // The English type the tagger gives: it tells a bag from other accessories.
+  noun = "linen shirt",
 ) {
   const key = `photos/${userId}/p${++made}.webp`;
   await storage.put(key, await picture, "image/webp");
   await repositories.photosRepository.createReady({
     key,
     ownerId: userId,
-    tags: { ...shirtTags, category },
+    tags: { ...shirtTags, category, noun },
   });
   const res = await server.inject({
     method: "POST",
@@ -187,7 +189,7 @@ describe("POST /api/wear-with", () => {
     expect(call!.shop).toBeNull();
   });
 
-  it("finishes at most two looks with a partner piece, labelled and counted as shown", async () => {
+  it("finishes every look with shoes and a bag: hers first, a partner's where she has none", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
     const skirt = await addItem(s, anna, "bottom");
@@ -196,6 +198,9 @@ describe("POST /api/wear-with", () => {
       unitVector(1),
     );
     await addItem(s, anna, "top");
+    const bag = await addItem(s, anna, "accessory", "shoulder bag");
+    // A hat is an accessory too, not a bag.
+    await addItem(s, anna, "accessory", "felt fedora hat");
     const boots = await s.repositories.catalogRepository.add({ category: "shoes" });
     // A dress would replace the look rather than finish it: never offered.
     await s.repositories.catalogRepository.add({ category: "dress" });
@@ -205,7 +210,7 @@ describe("POST /api/wear-with", () => {
 
     const [call] = s.stub.composeCalls;
     expect(call!.shop!.pieces).toEqual([
-      expect.objectContaining({ n: 4, name: "Ankle boots", category: "shoes" }),
+      expect.objectContaining({ n: 6, name: "Ankle boots", category: "shoes" }),
     ]);
     const done = (
       await s.server.inject({
@@ -214,16 +219,116 @@ describe("POST /api/wear-with", () => {
         headers: { cookie: anna.cookie },
       })
     ).json<WearWithRequest>();
-    const partners = done.outfits.map(
-      (o) => o.pieces.find((p) => p.catalogItem)?.catalogItem?.name ?? null,
-    );
-    // Asked for in three looks and made up in the last: kept in the first two only.
-    expect(partners).toEqual(["Ботинки", "Ботинки", null, null]);
+    // She owns no shoes: the partner's boots finish every look, the one the model forgot too;
+    // her bag goes in every look the model left without one.
+    for (const outfit of done.outfits) {
+      expect(outfit.pieces.find((p) => p.catalogItem)?.catalogItem?.name).toBe("Ботинки");
+      expect(outfit.pieces.map((p) => p.item?.id)).toContain(bag.id);
+    }
     // The boots fill the shoes the first look said it lacked.
     expect(done.outfits[0]!.missing).toBeNull();
-    expect(s.repositories.catalogRepository.events).toEqual([
-      { catalogItemId: boots.id, userId: anna.userId, event: "shown" },
-      { catalogItemId: boots.id, userId: anna.userId, event: "shown" },
+    expect(s.repositories.catalogRepository.events).toHaveLength(done.outfits.length);
+    expect(s.repositories.catalogRepository.events[0]).toEqual({
+      catalogItemId: boots.id,
+      userId: anna.userId,
+      event: "shown",
+    });
+  });
+
+  it("shows a brand's other piece in two looks at most, and never shoes next to hers", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await s.repositories.photosRepository.setEmbedding(
+      `photos/${anna.userId}/p${made}.webp`,
+      unitVector(1),
+    );
+    await addItem(s, anna, "top");
+    const sneakers = await addItem(s, anna, "shoes", "white sneakers");
+    await addItem(s, anna, "accessory", "straw tote");
+    const jacket = await s.repositories.catalogRepository.add({
+      category: "outerwear",
+      names: { en: "Denim jacket", ru: "Джинсовая куртка" },
+    });
+    await s.repositories.catalogRepository.add({ category: "shoes" });
+    s.stub.stylist.compose = async (input) => {
+      const pieces = input.wardrobe.map((p) => p.n);
+      const [boots, denim] = ["shoes", "outerwear"].map(
+        (category) => input.shop!.pieces.find((p) => p.category === category)!.n,
+      );
+      return {
+        looks: [1, 2, 3, 4].map((i) => ({
+          items: pieces,
+          // Partner boots next to her sneakers in every look, the jacket in three.
+          partners: i < 4 ? [boots!, denim!] : [boots!],
+          missing: null,
+          caption: `Look ${i}`,
+          occasion: "coffee",
+          why: "because",
+        })),
+        verdict: null,
+        costMicros: 6_000,
+      };
+    };
+
+    const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    expect(done.outfits.map((o) => o.pieces.flatMap((p) => p.catalogItem?.id ?? []))).toEqual([
+      [jacket.id],
+      [jacket.id],
+      [],
+      [],
+    ]);
+    for (const outfit of done.outfits) {
+      expect(outfit.pieces.map((p) => p.item?.id)).toContain(sneakers.id);
+    }
+  });
+
+  it("promotes a partner bag in two looks at most when she has bags of her own", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await s.repositories.photosRepository.setEmbedding(
+      `photos/${anna.userId}/p${made}.webp`,
+      unitVector(1),
+    );
+    await addItem(s, anna, "top");
+    await addItem(s, anna, "shoes", "white sneakers");
+    const tote = await addItem(s, anna, "accessory", "straw tote");
+    const partnerBag = await s.repositories.catalogRepository.add({
+      category: "accessory",
+      names: { en: "Shoulder bag", ru: "Сумка на плечо" },
+    });
+    s.stub.stylist.compose = async (input) => ({
+      looks: [1, 2, 3, 4].map((i) => ({
+        // Her top and shoes, and the partner's bag in every look.
+        items: input.wardrobe.filter((p) => p.category !== "accessory").map((p) => p.n),
+        partners: [input.shop!.pieces.find((p) => p.category === "accessory")!.n],
+        missing: null,
+        caption: `Look ${i}`,
+        occasion: "coffee",
+        why: "because",
+      })),
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    const bags = done.outfits.map(
+      (o) =>
+        o.pieces.find((p) => p.catalogItem)?.catalogItem?.id ??
+        o.pieces.find((p) => p.item?.id === tote.id)?.item?.id,
+    );
+    expect(bags).toEqual([partnerBag.id, partnerBag.id, tote.id, tote.id]);
+    // One bag a look: hers isn't added next to the partner's.
+    expect(done.outfits.map((o) => o.pieces.some((p) => p.item?.id === tote.id))).toEqual([
+      false,
+      false,
+      true,
+      true,
     ]);
   });
 
@@ -241,7 +346,7 @@ describe("POST /api/wear-with", () => {
       const lastTop = input.wardrobe.find((p) => p.name === offSheet.name)!.n;
       const look = (items: number[], caption: string) => ({
         items,
-        partner: null,
+        partners: [],
         missing: null,
         caption,
         occasion: "coffee",

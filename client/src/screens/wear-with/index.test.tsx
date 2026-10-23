@@ -88,7 +88,7 @@ describe('<WearWith />', () => {
     expect(getWearWith).toHaveBeenCalledWith('req-1', 'en');
   });
 
-  test('labels a partner piece and opens its card', async () => {
+  test('labels every partner piece and opens its card', async () => {
     const boots: CatalogItem = {
       id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a99',
       brand: 'STUDIO EDIT',
@@ -102,6 +102,13 @@ describe('<WearWith />', () => {
       inStock: true,
       demo: true,
     };
+    const bag: CatalogItem = {
+      ...boots,
+      id: '0b2e7c1d-4a5f-4c3b-8d2e-1f0a9b8c7d6e',
+      name: 'Shoulder bag',
+      category: 'accessory',
+      price: 389,
+    };
     const look = done.outfits[0]!;
     jest.mocked(getWearWith).mockResolvedValue({
       ...done,
@@ -109,7 +116,11 @@ describe('<WearWith />', () => {
         {
           ...look,
           missing: null,
-          pieces: [...look.pieces, { hero: false, item: null, catalogItem: boots }],
+          pieces: [
+            ...look.pieces,
+            { hero: false, item: null, catalogItem: boots },
+            { hero: false, item: null, catalogItem: bag },
+          ],
         },
       ],
     });
@@ -120,6 +131,10 @@ describe('<WearWith />', () => {
     });
     // The closet's pieces stay apart from the partner's.
     expect(screen.getByText('Mauve satin skirt · Grey tee')).toBeOnTheScreen();
+    // Shoes and a bag the closet had none of: both shown.
+    expect(
+      screen.getByRole('button', { name: 'Partner · demo brand: STUDIO EDIT, Shoulder bag, ₪389' }),
+    ).toBeOnTheScreen();
     await fireEvent.press(partner);
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/catalog/[id]', params: { id: boots.id } });
   });
