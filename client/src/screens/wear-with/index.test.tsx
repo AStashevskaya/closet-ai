@@ -2,7 +2,7 @@ import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import i18n from '@/i18n';
-import { createItem, getWearWith, reactToOutfit } from '@/lib/api';
+import { addWish, createItem, getWearWith, reactToOutfit } from '@/lib/api';
 
 import { WearWith } from '.';
 
@@ -10,6 +10,7 @@ const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 jest.mock('@/lib/api', () => ({
+  addWish: jest.fn(),
   getWearWith: jest.fn(),
   reactToOutfit: jest.fn(),
   createItem: jest.fn(),
@@ -36,6 +37,7 @@ const done: WearWithRequest = {
   status: 'done',
   addable: null,
   verdict: null,
+  wishId: null,
   outfits: [
     {
       id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a90',
@@ -71,6 +73,7 @@ describe('<WearWith />', () => {
         outfits: [],
         addable: null,
         verdict: null,
+        wishId: null,
       })
       .mockResolvedValue(done);
     await render(<WearWith id="req-1" />);
@@ -138,15 +141,14 @@ describe('<WearWith />', () => {
   });
 
   test('says so when the outfits could not be put together', async () => {
-    jest
-      .mocked(getWearWith)
-      .mockResolvedValue({
-        id: 'req-1',
-        status: 'failed',
-        outfits: [],
-        addable: null,
-        verdict: null,
-      });
+    jest.mocked(getWearWith).mockResolvedValue({
+      id: 'req-1',
+      status: 'failed',
+      outfits: [],
+      addable: null,
+      verdict: null,
+      wishId: null,
+    });
     await render(<WearWith id="req-1" />);
     expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
   });
@@ -180,5 +182,22 @@ describe('<WearWith />', () => {
 
     expect(createItem).toHaveBeenCalledWith(addable);
     expect(await screen.findByText('In your closet')).toBeOnTheScreen();
+  });
+
+  test('saves a piece from a photo to the wishes', async () => {
+    const addable = {
+      name: 'Red leather skirt',
+      category: 'bottom' as const,
+      colors: ['red' as const],
+      seasons: ['autumn' as const],
+      photoKey: 'photos/u1/crop.webp',
+    };
+    jest.mocked(getWearWith).mockResolvedValue({ ...done, addable });
+    jest.mocked(addWish).mockResolvedValue({ id: 'wish-1' } as never);
+    await render(<WearWith id="req-1" />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add to wishes' }));
+
+    expect(addWish).toHaveBeenCalledWith('req-1');
+    expect(await screen.findByRole('button', { name: 'In your wishes' })).toBeDisabled();
   });
 });

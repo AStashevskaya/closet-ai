@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -17,6 +18,7 @@ import Animated from 'react-native-reanimated';
 import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
+import { countDueWishes } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { useUsage } from '@/lib/limits';
 import { problemReportUrl, supportEmail } from '@/lib/report-problem';
@@ -24,9 +26,9 @@ import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 type Section = {
-  key: 'closet' | 'looks' | 'wantCan' | 'theEdit';
+  key: 'closet' | 'looks' | 'wantCan' | 'wishes' | 'theEdit';
   icon: IconName;
-  href: '/' | '/style' | '/want-can' | '/the-edit';
+  href: '/' | '/style' | '/want-can' | '/wishes' | '/the-edit';
 };
 
 // Only what the app has: sections not built yet aren't shown at all.
@@ -34,6 +36,7 @@ const SECTIONS: Section[] = [
   { key: 'closet', icon: 'hanger', href: '/' },
   { key: 'looks', icon: 'look', href: '/style' },
   { key: 'wantCan', icon: 'spark', href: '/want-can' },
+  { key: 'wishes', icon: 'heart', href: '/wishes' },
   { key: 'theEdit', icon: 'store', href: '/the-edit' },
 ];
 
@@ -43,6 +46,20 @@ export function Menu() {
   const insets = useSafeAreaInsets();
   const { data: session } = authClient.useSession();
   const { usage } = useUsage();
+  // Wishes waiting for "still want it?", shown on their row; reloaded when the tab comes back.
+  const [due, setDue] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        try {
+          setDue(await countDueWishes());
+        } catch {
+          // Only a hint: the row works without it.
+        }
+      };
+      void load();
+    }, []),
+  );
 
   async function report() {
     const url = problemReportUrl({
@@ -108,6 +125,9 @@ export function Menu() {
           >
             <Icon name={icon} color={colors.text} />
             <Text style={styles.rowLabel}>{t(`menu.sections.${key}`)}</Text>
+            {key === 'wishes' && due > 0 && (
+              <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
+            )}
             <View style={styles.chevron}>
               <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
             </View>
@@ -188,6 +208,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     textAlign: 'left',
+  },
+  due: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: colors.highlight,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.text,
   },
   // The chevron points toward the end of the row, so it flips in right-to-left layouts.
   chevron: {

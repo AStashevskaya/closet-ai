@@ -1,4 +1,4 @@
-import type { Item, StyledEntry, Usage, WearWithRequest } from "@closet-ai/shared";
+import type { Item, StyledEntry, Usage, WearWithRequest, Wish } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -637,6 +637,157 @@ describe("an item from a photo", () => {
     await s.runJobs();
     expect(s.stub.composeCalls[0]!.buying).toBeNull();
     expect((await view(s, anna.cookie, id)).verdict).toBeNull();
+  });
+
+  // Asks for outfits for the jeans of an uploaded "wear" photo and composes them.
+  async function styleFromPhoto(s: Setup, cookie: string) {
+    const { photoKey } = (await uploadWear(s, cookie)).json<{ photoKey: string }>();
+    await s.runPhotoJobs();
+    const { id } = (
+      await s.server.inject({
+        method: "POST",
+        url: "/api/wear-with",
+        headers: { cookie },
+        payload: { photoKey, index: 1 },
+      })
+    ).json<{ id: string }>();
+    await s.runJobs();
+    return id;
+  }
+
+  it("saves a piece to her wishes once, and asks a week later whether she still wants it", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const requestId = await styleFromPhoto(s, anna.cookie);
+    const wishes = (cookie: string) =>
+      s.server.inject({ method: "GET", url: "/api/wishes", headers: { cookie } });
+    const save = () =>
+      s.server.inject({
+        method: "POST",
+        url: "/api/wishes",
+        headers: { cookie: anna.cookie },
+        payload: { requestId },
+      });
+
+    const saved = await save();
+    expect(saved.statusCode).toBe(201);
+    expect(saved.json<Wish>()).toMatchObject({
+      requestId,
+      name: "Blue wide-leg jeans",
+      photoUrl: `/api/wear-with/${requestId}/photo`,
+      call: "think",
+      due: false,
+    });
+    // Saving again is the same wish, and the outfits screen knows it.
+    expect((await save()).json<Wish>().id).toBe(saved.json<Wish>().id);
+    expect((await view(s, anna.cookie, requestId)).wishId).toBe(saved.json<Wish>().id);
+    expect((await wishes(anna.cookie)).json<Wish[]>()).toHaveLength(1);
+
+    // A week on: due. "Still" asks again in a week; "no" lets it go.
+    const row = s.repositories.wishesRepository.rows[0]!;
+    expect(row.askAt.getTime() - Date.now()).toBeGreaterThan(6.9 * 24 * 3600 * 1000);
+    row.askAt = new Date(Date.now() - 1000);
+    const [due] = (await wishes(anna.cookie)).json<Wish[]>();
+    expect(due!.due).toBe(true);
+    const answer = (value: string) =>
+      s.server.inject({
+        method: "POST",
+        url: `/api/wishes/${due!.id}/answer`,
+        headers: { cookie: anna.cookie },
+        payload: { answer: value },
+      });
+    expect(
+      (
+        await s.server.inject({
+          method: "GET",
+          url: "/api/wishes/due",
+          headers: { cookie: anna.cookie },
+        })
+      ).json(),
+    ).toEqual({ count: 1 });
+    expect((await answer("still")).statusCode).toBe(204);
+    expect((await wishes(anna.cookie)).json<Wish[]>()[0]!.due).toBe(false);
+    expect(row.stillCount).toBe(1);
+    // A retried "still" before the next week doesn't count again.
+    expect((await answer("still")).statusCode).toBe(409);
+    expect(row.stillCount).toBe(1);
+    expect((await answer("no")).statusCode).toBe(204);
+    expect((await wishes(anna.cookie)).json<Wish[]>()).toEqual([]);
+    expect((await answer("no")).statusCode).toBe(404);
+  });
+
+  it("lets a wish go once its piece is added to the closet, and won't save one that's there", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const requestId = await styleFromPhoto(s, anna.cookie);
+    await s.server.inject({
+      method: "POST",
+      url: "/api/wishes",
+      headers: { cookie: anna.cookie },
+      payload: { requestId },
+    });
+
+    // Bought it, and added it from its outfits.
+    const { addable } = await view(s, anna.cookie, requestId);
+    await s.server.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie: anna.cookie },
+      payload: addable!,
+    });
+    const list = await s.server.inject({
+      method: "GET",
+      url: "/api/wishes",
+      headers: { cookie: anna.cookie },
+    });
+    expect(list.json()).toEqual([]);
+    const again = await s.server.inject({
+      method: "POST",
+      url: "/api/wishes",
+      headers: { cookie: anna.cookie },
+      payload: { requestId },
+    });
+    expect(again.statusCode).toBe(409);
+  });
+
+  it("keeps wishes to their owner, and only for pieces from photos", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const maya = await signUp(s, "maya@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top");
+    const fromPhoto = await styleFromPhoto(s, anna.cookie);
+    const { id: owned } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+
+    const save = (cookie: string, requestId: string) =>
+      s.server.inject({
+        method: "POST",
+        url: "/api/wishes",
+        headers: { cookie },
+        payload: { requestId },
+      });
+    expect((await save(maya.cookie, fromPhoto)).statusCode).toBe(404);
+    expect((await save(anna.cookie, owned)).statusCode).toBe(404);
+
+    const wish = (await save(anna.cookie, fromPhoto)).json<Wish>();
+    const theirs = await s.server.inject({
+      method: "POST",
+      url: `/api/wishes/${wish.id}/answer`,
+      headers: { cookie: maya.cookie },
+      payload: { answer: "no" },
+    });
+    expect(theirs.statusCode).toBe(404);
+    expect(
+      (
+        await s.server.inject({
+          method: "GET",
+          url: "/api/wishes",
+          headers: { cookie: maya.cookie },
+        })
+      ).json(),
+    ).toEqual([]);
   });
 
   it("keeps the crop through the cleanup, and not the uploaded photo", async () => {

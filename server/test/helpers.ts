@@ -21,6 +21,7 @@ import {
   type CatalogRow,
   type NewCatalogItem,
 } from "../src/modules/catalog/catalog.repository";
+import type { WishesRepository, WishRow } from "../src/modules/wishes/wishes.repository";
 import { EMPTY_PROFILE, type ProfileRepository } from "../src/modules/profile/profile.repository";
 import { toItem, toMinor, type ItemsRepository } from "../src/modules/items/items.repository";
 import {
@@ -365,6 +366,7 @@ export function createInMemoryRepositories() {
         status: request.status,
         addable: null,
         verdict: null,
+        wishId: null,
         outfits: storedOutfits
           .filter((o) => o.requestId === requestId)
           .map((o) => ({
@@ -515,6 +517,70 @@ export function createInMemoryRepositories() {
     },
   };
 
+  type StoredWish = {
+    id: string;
+    userId: string;
+    requestId: string;
+    askAt: Date;
+    stillCount: number;
+    createdAt: Date;
+  };
+  const wishRows: StoredWish[] = [];
+  // As the Drizzle version reads it: with the request's photo and verdict.
+  const toWishRow = (w: StoredWish): WishRow | null => {
+    const request = requests.find((r) => r.id === w.requestId);
+    const photo = request?.heroPhotoKey ? photoRows.get(request.heroPhotoKey) : undefined;
+    if (!request || !photo?.tags) return null;
+    const { userId: _userId, ...row } = w;
+    return {
+      ...row,
+      name: photo.tags.name,
+      cutoutKey: photo.cutoutKey ?? null,
+      call: request.verdict?.call ?? null,
+    };
+  };
+  const wishesRepository: WishesRepository & { rows: StoredWish[] } = {
+    rows: wishRows,
+    add: async (userId, requestId, askAt) => {
+      let found = wishRows.find((w) => w.userId === userId && w.requestId === requestId);
+      if (!found) {
+        found = { id: randomUUID(), userId, requestId, askAt, stillCount: 0, createdAt: now() };
+        wishRows.push(found);
+      }
+      return toWishRow(found)!;
+    },
+    list: async (userId) =>
+      wishRows
+        .filter((w) => w.userId === userId)
+        .reverse()
+        .flatMap((w) => toWishRow(w) ?? []),
+    countDue: async (userId, at) =>
+      wishRows.filter((w) => w.userId === userId && w.askAt <= at).length,
+    idFor: async (userId, requestId) =>
+      wishRows.find((w) => w.userId === userId && w.requestId === requestId)?.id ?? null,
+    keep: async (userId, id, at, askAt) => {
+      const row = wishRows.find((w) => w.userId === userId && w.id === id);
+      if (!row) return "missing";
+      if (row.askAt > at) return "not-due";
+      Object.assign(row, { askAt, stillCount: row.stillCount + 1 });
+      return "kept";
+    },
+    remove: async (userId, id) => {
+      const index = wishRows.findIndex((w) => w.userId === userId && w.id === id);
+      if (index < 0) return false;
+      wishRows.splice(index, 1);
+      return true;
+    },
+    removeForPhoto: async (userId, photoKey) => {
+      for (const w of [...wishRows]) {
+        const request = requests.find((r) => r.id === w.requestId);
+        if (w.userId === userId && request?.heroPhotoKey === photoKey) {
+          wishRows.splice(wishRows.indexOf(w), 1);
+        }
+      }
+    },
+  };
+
   return {
     itemsRepository,
     photosRepository,
@@ -522,6 +588,7 @@ export function createInMemoryRepositories() {
     outfitsRepository,
     profileRepository,
     catalogRepository,
+    wishesRepository,
   };
 }
 

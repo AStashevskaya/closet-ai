@@ -21,6 +21,7 @@ import type { PhotosRepository } from "../photos/photos.repository";
 import { photoPrefix } from "../photos/photos.routes";
 import { cropToBox } from "../photos/process-photo";
 import type { Limits } from "../usage/limits";
+import type { WishesRepository } from "../wishes/wishes.repository";
 import type { OutfitQueue } from "./outfit-jobs";
 import type { OutfitsRepository } from "./outfits.repository";
 
@@ -28,13 +29,14 @@ import type { OutfitsRepository } from "./outfits.repository";
 const HISTORY_LIMIT = 30;
 
 // The photo of an item from a photo, served by the API like an item's: by request id.
-const heroPath = (requestId: string, variant?: "cutout") =>
+export const heroPath = (requestId: string, variant?: "cutout") =>
   `/api/wear-with/${requestId}/photo${variant ? `?variant=${variant}` : ""}`;
 
 export const outfitsRoutes =
   (
     outfits: OutfitsRepository,
     items: ItemsRepository,
+    wishes: WishesRepository,
     photos: PhotosRepository,
     storage: Storage,
     queue: OutfitQueue,
@@ -189,6 +191,7 @@ export const outfitsRoutes =
         return {
           ...found,
           verdict: row.verdict && { call: row.verdict.call, reason: row.verdict.reason, twin },
+          wishId: await wishes.idFor(user.id, row.id),
           addable: owned
             ? null
             : {

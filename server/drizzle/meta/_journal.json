@@ -127,6 +127,13 @@
       "when": 1792698911410,
       "tag": "0017_buy_verdict",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792699245994,
+      "tag": "0018_wishes",
+      "breakpoints": true
     }
   ]
 }
