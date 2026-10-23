@@ -145,8 +145,18 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   // partner pair or bag finishes a look only when she has none to offer; otherwise it's promoted.
   const ownKinds = new Set(candidates.map(itemKind));
   const resolved = looks.map((look) => {
-    const items = [...new Set(look.items)].flatMap((n) => byN.get(n) ?? []);
-    const kinds = new Set([itemKind(hero), ...items.map(itemKind)]);
+    const picked = [...new Set(look.items)].flatMap((n) => byN.get(n) ?? []);
+    // A top over a dress scored 0.1 of 1 with the owner and the model still did it now and then
+    // despite the prompt: a dress look keeps no top (the item itself stays).
+    const dress = [hero, ...picked].some((item) => item.category === "dress");
+    const heroKind = itemKind(hero);
+    // Nor a second pair or bag next to the item when it is one (taken from her list, off the sheet).
+    const items = picked.filter(
+      (item) =>
+        !(dress && item.category === "top") &&
+        !(FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind),
+    );
+    const kinds = new Set([heroKind, ...items.map(itemKind)]);
     // Partner shoes or a bag where she has none (never a second pair next to hers), and one
     // promoted piece of a brand's at most.
     const finishing: CatalogRow[] = [];

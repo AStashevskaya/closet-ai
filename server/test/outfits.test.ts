@@ -332,6 +332,63 @@ describe("POST /api/wear-with", () => {
     ]);
   });
 
+  it("never puts a top over a dress", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const dress = await addItem(s, anna, "dress");
+    const top = await addItem(s, anna, "top");
+    const jacket = await addItem(s, anna, "outerwear");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Layers",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, dress.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    const ids = done.outfits[0]!.pieces.map((p) => p.item?.id);
+    expect(ids).toContain(jacket.id);
+    expect(ids).not.toContain(top.id);
+  });
+
+  it("never puts a second pair next to shoes being styled", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const boots = await addItem(s, anna, "shoes", "ankle boots");
+    const sneakers = await addItem(s, anna, "shoes", "white sneakers");
+    await addItem(s, anna, "top");
+    await addItem(s, anna, "bottom");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Two pairs",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, boots.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    expect(done.outfits[0]!.pieces.map((p) => p.item?.id)).not.toContain(sneakers.id);
+  });
+
   it("keeps a wardrobe piece the model took off the sheet, and drops a look without a bottom", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
