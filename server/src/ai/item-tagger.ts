@@ -19,12 +19,16 @@ import { modelCopy } from "../modules/photos/process-photo.js";
 // Every AI call goes through a module like this one, so tests swap in a stub and never spend money.
 export interface ItemTagger {
   tag(image: Uint8Array, lang: AppLanguage): Promise<TaggedPhoto>;
-  // Every item a person wears or carries on a look photo (a mirror selfie), each with its box.
-  findItems(image: Uint8Array, lang: AppLanguage): Promise<LookItem[]>;
+  // The items on a photo, each with its box. worn: what a person wears or carries (a mirror
+  // selfie, a screenshot of a look); shown: pieces on show, worn or not (a shop shelf, a
+  // hanger, a product page), for "what do I wear this with?" about something not bought yet.
+  findItems(image: Uint8Array, lang: AppLanguage, scene?: LookScene): Promise<LookItem[]>;
   // Whether one of the wardrobe items (the few closest by embedding) is the item cropped from a
   // look, or could stand in for it. index points into candidates; null when how is "none".
   compare(item: Uint8Array, candidates: MatchCandidate[]): Promise<MatchVerdict>;
 }
+
+export type LookScene = "worn" | "shown";
 
 // A wardrobe item to compare with: its photo (or cut-out on white) and its name.
 export interface MatchCandidate {
@@ -121,6 +125,17 @@ ${TAG_RULES}
 
 Seasons come from the item, not from the rest of the outfit. When a field can't be read from the photo, use null rather than guessing.`;
 
+// For a photo of something the user may buy: pieces on a shelf or a hanger count as much as worn
+// ones. The look prompt asked for worn items only, so shoes on a shop shelf came back as nothing
+// (owner's photos of slingbacks and UGGs, 2026-10-23).
+const SHOWN_PROMPT = `You read photos for a wardrobe app: the user shows a clothing item, pair of shoes, bag or accessory she is thinking of buying, photographed in a shop (on a shelf, a hanger, a mannequin, in a fitting room), on a product page or worn by someone. List every such piece that is clearly on show, so she can pick the one she means. Skip the shop fittings, the background and pieces cut off at the edges of the frame. A single shoe stands for its pair; the same model in two colours is two items. If there is no clothing, return an empty list.
+
+For each item fill in:
+${TAG_RULES}
+- box: the item's bounding box relative to the image, from 0 to 1: xMin and xMax from the left edge, yMin and yMax from the top edge. It covers the whole visible item and little else. A pair of shoes is one item with one box around both.
+
+When a field can't be read from the photo, use null rather than guessing.`;
+
 const COMPARE_PROMPT = `You compare an item cropped from an outfit photo with a few items from the user's wardrobe of the same category, to tell the user whether they already own it.
 
 - why: a few words on what you see.
@@ -182,9 +197,9 @@ export function createClaudeItemTagger(apiKey: string): ItemTagger {
     tag: async (image, lang) =>
       ask<TaggedPhoto>(SYSTEM_PROMPT, modelTags, await photoIn(image, lang)),
 
-    async findItems(image, lang) {
+    async findItems(image, lang, scene = "worn") {
       const { items } = await ask<z.infer<typeof modelLook>>(
-        LOOK_PROMPT,
+        scene === "shown" ? SHOWN_PROMPT : LOOK_PROMPT,
         modelLook,
         await photoIn(image, lang),
       );

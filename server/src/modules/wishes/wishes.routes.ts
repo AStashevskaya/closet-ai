@@ -49,13 +49,9 @@ export const wishesRoutes =
     });
 
     // Just the number waiting for an answer, for the menu row.
-    app.get(
-      "/wishes/due",
-      { schema: { response: { 200: wishesDue } } },
-      async (request) => ({
-        count: await wishes.countDue((request.user as SessionUser).id, clock()),
-      }),
-    );
+    app.get("/wishes/due", { schema: { response: { 200: wishesDue } } }, async (request) => ({
+      count: await wishes.countDue((request.user as SessionUser).id, clock()),
+    }));
 
     // Saves an item-from-a-photo's request to her wishes; saving it again is the same wish.
     app.post(

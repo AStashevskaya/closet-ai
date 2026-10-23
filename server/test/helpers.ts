@@ -12,7 +12,7 @@ import type {
 import type { BackgroundRemover } from "../src/ai/background-remover";
 import { EMBEDDING_DIMENSIONS } from "../src/ai/embedding-model";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
-import type { ItemTagger, MatchVerdict } from "../src/ai/item-tagger";
+import type { ItemTagger, LookScene, MatchVerdict } from "../src/ai/item-tagger";
 import type { BriefInput, ComposeInput, Stylist } from "../src/ai/stylist";
 import type { Env } from "../src/config/env";
 import {
@@ -688,7 +688,8 @@ export function createStubTagger(
     verdict = async (): Promise<MatchVerdict> => ({ how: "same", index: 0 }),
   } = {},
 ) {
-  const calls: { bytes: number; lang: AppLanguage; kind: "item" | "look" }[] = [];
+  const calls: { bytes: number; lang: AppLanguage; kind: "item" | "look"; scene?: LookScene }[] =
+    [];
   // The names of the wardrobe items each comparison was shown.
   const compared: string[][] = [];
   const tagger: ItemTagger = {
@@ -696,8 +697,8 @@ export function createStubTagger(
       calls.push({ bytes: image.length, lang, kind: "item" });
       return { ...(await answer()), onPerson };
     },
-    findItems: async (image, lang) => {
-      calls.push({ bytes: image.length, lang, kind: "look" });
+    findItems: async (image, lang, scene = "worn") => {
+      calls.push({ bytes: image.length, lang, kind: "look", scene });
       return look();
     },
     compare: async (_item, candidates) => {
