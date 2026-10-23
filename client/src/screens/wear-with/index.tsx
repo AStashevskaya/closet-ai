@@ -1,11 +1,13 @@
 import type { Outfit, OutfitReaction, WearWithRequest } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { FlatLay } from '@/components/flat-lay';
+import { ItemPhoto } from '@/components/item-photo';
 import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
 import { PartnerPiece } from '@/components/partner-piece';
@@ -22,7 +24,12 @@ const MAX_POLLS = 45;
 type State =
   | { status: 'pending' }
   | { status: 'failed' }
-  | { status: 'done'; outfits: Outfit[]; addable: WearWithRequest['addable'] };
+  | {
+      status: 'done';
+      outfits: Outfit[];
+      addable: WearWithRequest['addable'];
+      verdict: WearWithRequest['verdict'];
+    };
 
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
@@ -52,7 +59,12 @@ export function WearWith({ id }: { id: string }) {
           const request: WearWithRequest = await getWearWith(id, lang);
           if (cancelled) return;
           if (request.status === 'done') {
-            setState({ status: 'done', outfits: request.outfits, addable: request.addable });
+            setState({
+              status: 'done',
+              outfits: request.outfits,
+              addable: request.addable,
+              verdict: request.verdict,
+            });
             void Haptics.selectionAsync();
             return;
           }
@@ -127,6 +139,7 @@ export function WearWith({ id }: { id: string }) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      {state.verdict && <Verdict verdict={state.verdict} headers={headers} />}
       {state.addable && (
         <Button
           kind="outline"
@@ -192,6 +205,47 @@ export function WearWith({ id }: { id: string }) {
         );
       })}
     </ScrollView>
+  );
+}
+
+// Whether a piece she may buy is worth it for her wardrobe: the call, why, and the piece she
+// owns that it nearly repeats.
+function Verdict({
+  verdict,
+  headers,
+}: {
+  verdict: NonNullable<WearWithRequest['verdict']>;
+  headers: Record<string, string> | undefined;
+}) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { call, reason, twin } = verdict;
+  return (
+    <Animated.View
+      entering={rise}
+      style={[styles.verdict, call === 'buy' && styles.verdictBuy]}
+      accessibilityRole="summary"
+    >
+      <Text style={styles.verdictTitle}>{t('verdict.title')}</Text>
+      <Text style={styles.verdictCall}>{t(`verdict.${call}`)}</Text>
+      <Text style={styles.verdictReason}>{reason}</Text>
+      {twin && (
+        <PressableScale
+          style={styles.twin}
+          onPress={() => router.push({ pathname: '/item/[id]', params: { id: twin.id } })}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('verdict.twin')}: ${twin.name}`}
+        >
+          <ItemPhoto item={twin} headers={headers} style={styles.twinPhoto} />
+          <View style={styles.twinText}>
+            <Text style={styles.twinLabel}>{t('verdict.twin')}</Text>
+            <Text style={styles.twinName} numberOfLines={2}>
+              {twin.name}
+            </Text>
+          </View>
+        </PressableScale>
+      )}
+    </Animated.View>
   );
 }
 
@@ -289,6 +343,61 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: colors.textSecondary,
+    textAlign: 'left',
+  },
+  verdict: {
+    padding: 18,
+    gap: 6,
+    backgroundColor: colors.hero,
+  },
+  // A yes gets the one bright colour.
+  verdictBuy: {
+    backgroundColor: colors.highlight,
+  },
+  verdictTitle: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.text,
+    textAlign: 'left',
+  },
+  verdictCall: {
+    fontFamily: fonts.displayLight,
+    fontSize: 40,
+    lineHeight: 44,
+    color: colors.text,
+    textAlign: 'left',
+  },
+  verdictReason: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    lineHeight: 21,
+    color: colors.text,
+    textAlign: 'left',
+  },
+  twin: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  twinPhoto: {
+    width: 48,
+    aspectRatio: 3 / 4,
+  },
+  twinText: {
+    flex: 1,
+    gap: 2,
+  },
+  twinLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'left',
+  },
+  twinName: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: colors.text,
     textAlign: 'left',
   },
   reactions: {

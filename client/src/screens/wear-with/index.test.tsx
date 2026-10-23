@@ -35,6 +35,7 @@ const done: WearWithRequest = {
   id: 'req-1',
   status: 'done',
   addable: null,
+  verdict: null,
   outfits: [
     {
       id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a90',
@@ -64,7 +65,13 @@ describe('<WearWith />', () => {
   test('waits for the outfits, then shows each with what is missing', async () => {
     jest
       .mocked(getWearWith)
-      .mockResolvedValueOnce({ id: 'req-1', status: 'pending', outfits: [], addable: null })
+      .mockResolvedValueOnce({
+        id: 'req-1',
+        status: 'pending',
+        outfits: [],
+        addable: null,
+        verdict: null,
+      })
       .mockResolvedValue(done);
     await render(<WearWith id="req-1" />);
     expect(screen.getByText('Putting looks together from your closet…')).toBeOnTheScreen();
@@ -133,10 +140,31 @@ describe('<WearWith />', () => {
   test('says so when the outfits could not be put together', async () => {
     jest
       .mocked(getWearWith)
-      .mockResolvedValue({ id: 'req-1', status: 'failed', outfits: [], addable: null });
+      .mockResolvedValue({
+        id: 'req-1',
+        status: 'failed',
+        outfits: [],
+        addable: null,
+        verdict: null,
+      });
     await render(<WearWith id="req-1" />);
     expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
   });
+  test('says whether a piece is worth buying, and opens the one she already has', async () => {
+    jest.mocked(getWearWith).mockResolvedValue({
+      ...done,
+      verdict: { call: 'skip', reason: 'Almost your grey tee again.', twin: tee },
+    });
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText('Skip it')).toBeOnTheScreen();
+    expect(screen.getByText('Almost your grey tee again.')).toBeOnTheScreen();
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'You already have one like it: Grey tee' }),
+    );
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: tee.id } });
+  });
+
   test('adds an item from a photo to the closet', async () => {
     const addable = {
       name: 'Red leather skirt',

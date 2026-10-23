@@ -13,6 +13,7 @@ import {
   TAG_STATUSES,
   USAGE_ACTIONS,
   type AppLanguage,
+  type BuyVerdict,
   type ItemTags,
   type LookItem,
   type LookMatch,
@@ -178,6 +179,8 @@ export const outfitRequests = pgTable(
     wardrobeSize: integer("wardrobe_size").notNull(),
     // What the model call really cost, in millionths of a dollar.
     costMicros: integer("cost_micros"),
+    // For an item from a photo: whether it's worth buying for her wardrobe; null otherwise.
+    verdict: jsonb("verdict").$type<BuyVerdict>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("outfit_requests_user_item_idx").on(table.userId, table.itemId)],

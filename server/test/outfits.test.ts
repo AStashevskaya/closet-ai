@@ -6,12 +6,14 @@ import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import type { OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
 import { deleteUnattachedPhotos, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
+import type { ItemEmbedder } from "../src/ai/item-embedder";
 import { createMemoryStorage } from "../src/storage/storage";
 import {
   createInMemoryRepositories,
   createManualOutfitQueue,
   createManualPhotoQueue,
   createStubRemover,
+  createStubEmbedder,
   createStubStylist,
   createStubTagger,
   shirtTags,
@@ -22,7 +24,10 @@ import {
 type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
 
-async function setup({ stylistEnabled = true } = {}) {
+async function setup({
+  stylistEnabled = true,
+  embedder = null,
+}: { stylistEnabled?: boolean; embedder?: ItemEmbedder | null } = {}) {
   const repositories = createInMemoryRepositories();
   const storage = createMemoryStorage();
   const queue = createManualOutfitQueue();
@@ -49,7 +54,7 @@ async function setup({ stylistEnabled = true } = {}) {
     storage,
     stylist: stub.stylist,
     remover: cut.remover,
-    embedder: null,
+    embedder,
     catalog: repositories.catalogRepository,
     queue: queue.outfitQueue,
     clock: () => new Date("2026-10-21T12:00:00Z"),
@@ -248,6 +253,7 @@ describe("POST /api/wear-with", () => {
           look([lastTop], "Two tops"),
           look([skirtN, 999], "Made up"),
         ],
+        verdict: null,
         costMicros: 6_000,
       };
     };
@@ -556,6 +562,13 @@ describe("an item from a photo", () => {
     expect(other!.item!.id).toBe(top.id);
     expect(s.stub.composeCalls[0]!.hero.name).toBe("Blue wide-leg jeans");
     expect(done.addable).toMatchObject({ name: "Blue wide-leg jeans", category: "bottom" });
+    // No embedding without an embedder: nothing to weigh it against, and no twin.
+    expect(s.stub.composeCalls[0]!.buying).toEqual({ closest: [] });
+    expect(done.verdict).toEqual({
+      call: "think",
+      reason: "Close to a piece you own.",
+      twin: null,
+    });
 
     const picture = await s.server.inject({
       method: "GET",
@@ -574,6 +587,56 @@ describe("an item from a photo", () => {
     });
     expect(added.statusCode).toBe(201);
     expect((await view(s, anna.cookie, id)).addable).toBeNull();
+  });
+
+  it("weighs a piece she may buy against the closest she owns, and names its twin", async () => {
+    // Every photo embeds alike, so the jeans she owns are as close as can be.
+    const s = await setup({ embedder: createStubEmbedder().embedder });
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const jeans = await addItem(s, anna, "bottom");
+    await s.repositories.photosRepository.setEmbedding(
+      `photos/${anna.userId}/p${made}.webp`,
+      unitVector(1),
+    );
+    const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
+    await s.runPhotoJobs();
+    const { id } = (
+      await s.server.inject({
+        method: "POST",
+        url: "/api/wear-with",
+        headers: { cookie: anna.cookie },
+        payload: { photoKey, index: 1 },
+      })
+    ).json<{ id: string }>();
+    await s.runJobs();
+
+    const call = s.stub.composeCalls[0]!;
+    const jeansN = call.wardrobe.find((p) => p.name === jeans.name)!.n;
+    expect(call.buying).toEqual({
+      closest: [{ n: jeansN, similarity: expect.closeTo(1) as number }],
+    });
+    const done = await view(s, anna.cookie, id);
+    expect(done.verdict).toMatchObject({ call: "think", twin: { id: jeans.id } });
+
+    // A twin deleted since is left out; the verdict stays.
+    await s.server.inject({
+      method: "DELETE",
+      url: `/api/items/${jeans.id}`,
+      headers: { cookie: anna.cookie },
+    });
+    expect((await view(s, anna.cookie, id)).verdict).toMatchObject({ call: "think", twin: null });
+  });
+
+  it("gives no verdict for a piece she already owns", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top");
+    const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+    await s.runJobs();
+    expect(s.stub.composeCalls[0]!.buying).toBeNull();
+    expect((await view(s, anna.cookie, id)).verdict).toBeNull();
   });
 
   it("keeps the crop through the cleanup, and not the uploaded photo", async () => {

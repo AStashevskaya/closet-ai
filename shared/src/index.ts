@@ -314,12 +314,29 @@ export type WearWithInput = z.infer<typeof wearWithInput>;
 // The answer to POST /api/wear-with: the request to poll (an earlier one when it is reused).
 export const wearWithStarted = z.object({ id: z.string().uuid() });
 
+// For an item from a photo, one she is thinking of buying: whether it's worth it for her wardrobe.
+// buy: it makes strong looks and fills a gap; think: it works, with a but; skip: it nearly
+// repeats a piece she owns, or hardly goes with her wardrobe.
+export const BUY_CALLS = ["buy", "think", "skip"] as const;
+export const buyCall = z.enum(BUY_CALLS);
+export type BuyCall = z.infer<typeof buyCall>;
+// As stored with the request: twinItemId is the owned piece it nearly repeats.
+export const buyVerdict = z.object({
+  call: buyCall,
+  reason: z.string(),
+  twinItemId: z.string().uuid().nullable(),
+});
+export type BuyVerdict = z.infer<typeof buyVerdict>;
+
 export const wearWithRequest = z.object({
   id: z.string().uuid(),
   status: outfitRequestStatus,
   outfits: z.array(outfit),
   // For an item from a photo: what adding it to the wardrobe takes (POST /api/items).
   addable: createItemInput.extend({ photoKey: z.string() }).nullable(),
+  // For an item from a photo, once composed: the verdict, with the twin from her wardrobe (null
+  // when it repeats nothing, or the twin was deleted since). null for wardrobe items.
+  verdict: z.object({ call: buyCall, reason: z.string(), twin: item.nullable() }).nullable(),
 });
 export type WearWithRequest = z.infer<typeof wearWithRequest>;
 

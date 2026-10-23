@@ -76,6 +76,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const nOf = new Map(numbered.map(({ item, n }) => [item.id, n]));
   if (!nOf.has(hero.id)) nOf.set(hero.id, wardrobe.length + 1);
   const season = seasonOf(deps.clock?.() ?? new Date());
+  // An item from a photo is one she may buy: the verdict compares it with what she owns.
+  const buying = request.heroPhotoKey ? { closest: closestOwned(hero, wardrobe, nOf) } : null;
   const recent = await outfits.recentlyUsed(request.userId, RECENT_REQUESTS);
   const candidates = pickCandidates(hero, wardrobe, season, recent.pieces);
   const sheet = await contactSheet(
@@ -97,7 +99,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
         }
       : null;
 
-  const { looks, costMicros } = await stylist.compose({
+  const { looks, verdict, costMicros } = await stylist.compose({
     hero: { ...toStylistPiece(hero, nOf.get(hero.id)!), image: await asJpeg(heroFile.body, 512) },
     wardrobe: numbered
       .filter(({ item }) => item.id !== hero.id)
@@ -105,6 +107,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     sheet,
     brief: (await outfits.brief(request.userId))?.brief ?? null,
     shop,
+    buying,
     // Only the pieces on the sheet matter to the model; the most used first.
     recent: {
       pieces: candidates
@@ -156,10 +159,36 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       ],
     };
   });
-  await outfits.saveOutfits(requestId, request.userId, saved, costMicros);
+  await outfits.saveOutfits(
+    requestId,
+    request.userId,
+    saved,
+    costMicros,
+    verdict && {
+      call: verdict.call,
+      reason: verdict.reason,
+      twinItemId: (verdict.twin !== null && byN.get(verdict.twin)?.id) || null,
+    },
+  );
 
   const shown = saved.flatMap((look) => look.pieces.flatMap((p) => p.catalogItemId ?? []));
   await deps.catalog?.record(shown, request.userId, "shown");
+}
+
+// How many of her own pieces the verdict weighs the item against.
+const CLOSEST_OWNED = 3;
+
+// The pieces of the item's category she owns that are closest to it, by embedding.
+function closestOwned(hero: StylingItem, wardrobe: StylingItem[], nOf: Map<string, number>) {
+  if (!hero.embedding) return [];
+  return wardrobe
+    .filter((item) => item.category === hero.category && item.embedding)
+    .map((item) => ({
+      n: nOf.get(item.id)!,
+      similarity: item.embedding!.reduce((sum, x, i) => sum + x * hero.embedding![i]!, 0),
+    }))
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, CLOSEST_OWNED);
 }
 
 // Something to wear: a dress, or a top and a bottom.
