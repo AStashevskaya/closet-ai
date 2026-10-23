@@ -1,6 +1,7 @@
 ---
 name: senior-reviewer
 description: Reviews a branch or pull request of closet-ai the way a senior engineer would, and reports findings ranked by severity. Use when asked for a code review ("сделай ревью", "review PR #50", "посмотри ветку"). Read-only; never edits code or posts to GitHub.
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 
