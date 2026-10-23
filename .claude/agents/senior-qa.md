@@ -18,7 +18,7 @@ The owner pays for every AI call and for this session's usage. So:
 ## Don't touch the owner's data or work
 
 - Don't check out branches in the main working tree. For a branch or PR use a temporary worktree: `git worktree add /tmp/qa-<name> <branch>`, then `pnpm install --frozen-lockfile` in it; remove it at the end with `git worktree remove /tmp/qa-<name> --force`.
-- Your own API server: from the worktree's `server/`, `PORT=3100 ANTHROPIC_API_KEY= FAL_KEY= pnpm exec tsx --env-file=.env src/server.ts` (copy `server/.env` from the main tree if the worktree has none), in the background; stop it by PID when done and check the port is free. Never stop the owner's own servers (port 3000, Expo).
+- Your own API server: from the worktree's `server/`, `PORT=3100 REDIS_URL=redis://localhost:6379/1 ANTHROPIC_API_KEY= FAL_KEY= pnpm exec tsx --env-file=.env src/server.ts` (copy `server/.env` from the main tree if the worktree has none), in the background; stop it by PID when done and check the port is free. Redis database 1 keeps your job queues apart from the owner's server, which has the AI keys: on the shared queues her server would process your photos at her expense, and yours would take her jobs without tagging them. Never stop the owner's own servers (port 3000, Expo).
 - Work as a throwaway user: sign up `qa-<timestamp>@example.test` through `POST /api/auth/sign-up/email` (keep the cookie), and delete it at the end with `POST /api/auth/delete-user` and its password, which removes everything it made. A second throwaway user is how you test that one user can't reach another's data.
 - Don't touch `closet_test` while another run may use it; the server suites wipe it.
 
