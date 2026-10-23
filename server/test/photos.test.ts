@@ -921,6 +921,23 @@ describe("want / can: a look matched against the wardrobe", () => {
     expect((await jobDeps.photos.get(photoKey))!.cutoutKey).toBeNull();
   });
 
+  it("reads a look for what's worn, and a photo of a piece to buy for what's on show", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    await upload(server, anna, await cameraPhoto(), "image/jpeg", "?kind=look");
+    await runWorker();
+    await uploadWant(server, anna);
+    await runWorker();
+    await upload(server, anna, await cameraPhoto(), "image/jpeg", "?kind=wear");
+    await runWorker();
+    // A selfie, a "want" screenshot, then a piece to buy.
+    expect(stub.calls.filter((c) => c.kind === "look").map((c) => c.scene)).toEqual([
+      "worn",
+      "worn",
+      "shown",
+    ]);
+  });
+
   it("offers close partner pieces for each item, in the language asked for", async () => {
     const server = await setup();
     const anna = await signUp(server, "anna@example.com");

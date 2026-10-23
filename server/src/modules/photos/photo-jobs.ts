@@ -192,11 +192,13 @@ export async function tagPhoto(deps: PhotoJobDeps, key: string, lang: AppLanguag
   try {
     // A selfie, or a photo of an item to style: its items, with boxes, for the user to pick.
     if (photo.kind === "look" || photo.kind === "wear") {
-      await photos.setLookItems(photo.key, await tagger.findItems(file.body, lang));
+      // A "wear" photo shows a piece she may buy, often on a shop shelf, not on anyone.
+      const scene = photo.kind === "wear" ? "shown" : "worn";
+      await photos.setLookItems(photo.key, await tagger.findItems(file.body, lang, scene));
       return;
     }
     if (photo.kind === "want") {
-      const items = await tagger.findItems(file.body, lang);
+      const items = await tagger.findItems(file.body, lang, "worn");
       const matches = await matchLookItems(deps, photo.ownerId, file.body, items);
       await photos.setLookItems(photo.key, items, matches);
       const shown = matches.flatMap((match) => match.shop ?? []);
