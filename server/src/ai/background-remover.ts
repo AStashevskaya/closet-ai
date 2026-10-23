@@ -11,11 +11,12 @@ export interface BackgroundRemover {
   // The item on a transparent background, as a PNG the size of the input; null when the model
   // found no item in the photo. `name` asks for a particular item ("leather skirt") when the
   // photo shows several, as a worn look does. `pair` keeps every instance found (both shoes of
-  // a pair come back as separate masks, and one alone looks like half a pair).
+  // a pair come back as separate masks, and one alone looks like half a pair). `trim` also asks
+  // for "garment" and keeps the item's feathers, fringe or fur when the name alone leaves them out.
   removeBackground(
     image: Uint8Array,
     name?: string,
-    options?: { pair?: boolean },
+    options?: { pair?: boolean; trim?: boolean },
   ): Promise<Uint8Array | null>;
 }
 
@@ -33,6 +34,14 @@ const PAIR_SCORE_SHARE = 0.75;
 // not the other shoe of the pair.
 const PAIR_AREA_SHARE = 0.3;
 const MAX_MASKS = 4;
+
+// Asked by name, SAM 3 leaves out a trim: "sweater" without its feathers ("feather-trim sweater"
+// and "feathers" find nothing), "shirt" without its feather cuffs. One of the "garment" masks is
+// the whole piece (the sweater's best one, the shirt's fourth at 0.57). It counts as the same
+// piece when it holds nearly all of the named mask (both owner's photos: 97–100%) and isn't much
+// bigger (1.3× and 2.1× with the trim; the shorts beside the sweater hold none of it).
+const TRIM_CONTAINS = 0.9;
+const TRIM_MAX_GROWTH = 2.5;
 
 const fromDataUri = (url: string) => {
   if (!url.startsWith("data:")) throw new Error("background removal returned a URL, not data");
@@ -58,6 +67,32 @@ async function applyMasks(image: Uint8Array, masks: Buffer[]): Promise<Uint8Arra
   return sharp(rgba, { raw: { width, height, channels: 4 } })
     .png()
     .toBuffer();
+}
+
+const opaque = async (mask: Buffer, width: number, height: number) =>
+  (await sharp(mask).resize(width, height).extractChannel(0).raw().toBuffer()).map((v) =>
+    v > 127 ? 1 : 0,
+  );
+
+// The biggest of `candidates` that is the named piece with more around it (its trim), or null.
+export async function maskWithTrim(named: Buffer, candidates: Buffer[]): Promise<Buffer | null> {
+  const { width = 0, height = 0 } = await sharp(named).metadata();
+  const inside = await opaque(named, width, height);
+  const namedArea = inside.reduce((sum, v) => sum + v, 0);
+  if (namedArea === 0) return null;
+  let best: { mask: Buffer; area: number } | null = null;
+  for (const mask of candidates) {
+    const pixels = await opaque(mask, width, height);
+    let area = 0;
+    let shared = 0;
+    for (let i = 0; i < pixels.length; i++) {
+      area += pixels[i]!;
+      shared += pixels[i]! & inside[i]!;
+    }
+    const sameItem = shared >= namedArea * TRIM_CONTAINS && area <= namedArea * TRIM_MAX_GROWTH;
+    if (sameItem && area > namedArea && area > (best?.area ?? 0)) best = { mask, area };
+  }
+  return best?.mask ?? null;
 }
 
 export function createFalBackgroundRemover(apiKey: string): BackgroundRemover {
@@ -86,26 +121,43 @@ export function createFalBackgroundRemover(apiKey: string): BackgroundRemover {
     };
   };
 
+  const masksOf = async (image: Uint8Array, prompt: string) => {
+    const body = await ask(image, prompt, {
+      apply_mask: false,
+      return_multiple_masks: true,
+      max_masks: MAX_MASKS,
+      include_scores: true,
+    });
+    const masks = body.masks ?? [];
+    return masks.map((mask, i) => ({
+      mask: fromDataUri(mask.url),
+      score: body.metadata?.[i]?.score ?? 1,
+    }));
+  };
+
   return {
-    async removeBackground(image, name = PROMPT, { pair = false } = {}) {
+    async removeBackground(image, name = PROMPT, { pair = false, trim = false } = {}) {
+      if (trim && !pair && name !== PROMPT) {
+        const found = await masksOf(image, name);
+        if (found.length === 0) return null;
+        const named = found.reduce((a, b) => (b.score > a.score ? b : a)).mask;
+        // Only once the piece is found: a name that misses costs one call, as before.
+        const garments = await masksOf(image, PROMPT);
+        const whole = await maskWithTrim(
+          named,
+          garments.map((g) => g.mask),
+        );
+        return applyMasks(image, whole ? [named, whole] : [named]);
+      }
       if (!pair) {
         // The photo with everything but the best mask made transparent.
         const url = (await ask(image, name, { apply_mask: true })).image?.url;
         return url ? fromDataUri(url) : null;
       }
-      const body = await ask(image, name, {
-        apply_mask: false,
-        return_multiple_masks: true,
-        max_masks: MAX_MASKS,
-        include_scores: true,
-      });
-      const masks = body.masks ?? [];
+      const masks = await masksOf(image, name);
       if (masks.length === 0) return null;
-      const scores = masks.map((_, i) => body.metadata?.[i]?.score ?? 1);
-      const best = Math.max(...scores);
-      const sure = masks
-        .filter((_, i) => scores[i]! >= best * PAIR_SCORE_SHARE)
-        .map((mask) => fromDataUri(mask.url));
+      const best = Math.max(...masks.map((m) => m.score));
+      const sure = masks.filter((m) => m.score >= best * PAIR_SCORE_SHARE).map((m) => m.mask);
       const areas = await Promise.all(
         sure.map(async (mask) => (await sharp(mask).extractChannel(0).stats()).channels[0]!.sum),
       );
