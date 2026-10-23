@@ -1,13 +1,14 @@
+import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import type { BackgroundRemover } from "../src/ai/background-remover";
+import { maskWithTrim, type BackgroundRemover } from "../src/ai/background-remover";
 import { cutOutByName } from "../src/modules/photos/photo-jobs";
 
 // Finds the item only when asked by one of `finds`; records every name it was asked for.
 function remover(finds: (string | undefined)[]) {
-  const asked: { name: string | undefined; pair: boolean }[] = [];
+  const asked: { name: string | undefined; pair: boolean; trim: boolean }[] = [];
   const fake: BackgroundRemover = {
     removeBackground: async (_image, name, options) => {
-      asked.push({ name, pair: options?.pair ?? false });
+      asked.push({ name, pair: options?.pair ?? false, trim: options?.trim ?? false });
       return finds.includes(name) ? new Uint8Array([1]) : null;
     },
   };
@@ -35,8 +36,8 @@ describe("cutOutByName", () => {
     const boots = remover(["boots"]);
     await cutOutByName(boots.fake, image, { category: "shoes", noun: "ankle boots" });
     expect(boots.asked).toEqual([
-      { name: "ankle boots", pair: true },
-      { name: "boots", pair: true },
+      { name: "ankle boots", pair: true, trim: false },
+      { name: "boots", pair: true, trim: false },
     ]);
 
     const old = remover([]);
@@ -54,5 +55,32 @@ describe("cutOutByName", () => {
       { fromLook: true },
     );
     expect(look.asked.map((a) => a.name)).toEqual(["leather midi skirt", "skirt", undefined]);
+    // Asked by type, it keeps the trim the type leaves out ("garment" itself has it already).
+    expect(look.asked.map((a) => a.trim)).toEqual([true, true, false]);
+  });
+});
+
+// A white rectangle on black, as SAM 3 returns masks: x, y, width, height on a 100 × 100 photo.
+const rect = (left: number, top: number, width: number, height: number) =>
+  sharp({ create: { width: 100, height: 100, channels: 3, background: "black" } })
+    .composite([
+      {
+        input: { create: { width, height, channels: 3, background: "white" } },
+        left,
+        top,
+      },
+    ])
+    .png()
+    .toBuffer();
+
+describe("maskWithTrim", () => {
+  it("takes the piece with its trim, not a piece beside it or the whole look", async () => {
+    const sweater = await rect(20, 20, 40, 40);
+    const withFeathers = await rect(20, 20, 50, 60);
+    const shorts = await rect(60, 70, 30, 20);
+    const wholeLook = await rect(0, 0, 100, 100);
+    expect(await maskWithTrim(sweater, [shorts, withFeathers, wholeLook])).toBe(withFeathers);
+    // "garment" finds the sweater just as the name did: nothing to add.
+    expect(await maskWithTrim(sweater, [await rect(20, 20, 40, 40), shorts])).toBeNull();
   });
 });

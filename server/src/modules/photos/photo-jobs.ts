@@ -96,7 +96,8 @@ const FALLBACK_NOUNS: Record<string, string> = { shoes: "shoes", accessory: "bag
 // Asks for the item a few ways until one finds it: "garment" first for clothes, then its English
 // type ("sequin mini skirt"), then the type's last word ("skirt"). Each try is a fal call
 // (~$0.005), and most photos stop at the first. Shoes come back as a pair. A crop from a look
-// (fromLook) asks by type first: "garment" there may find the shirt over the skirt.
+// (fromLook) asks by type first: "garment" there may find the shirt over the skirt; a piece found
+// by type is then checked against "garment" for a trim the type left out (one more call).
 export async function cutOutByName(
   remover: BackgroundRemover,
   image: Uint8Array,
@@ -111,7 +112,10 @@ export async function cutOutByName(
   if (clothing && fromLook) names.push(undefined);
   if (tags && !clothing) names.push(FALLBACK_NOUNS[tags.category]);
   for (const name of new Set(names)) {
-    const png = await remover.removeBackground(image, name, { pair: tags?.category === "shoes" });
+    const png = await remover.removeBackground(image, name, {
+      pair: tags?.category === "shoes",
+      ...(clothing && fromLook && name ? { trim: true } : {}),
+    });
     if (png) return png;
   }
   return null;
