@@ -139,3 +139,57 @@ export async function thumbnail(image: Uint8Array): Promise<Uint8Array> {
     .webp({ quality: WEBP_QUALITY })
     .toBuffer();
 }
+
+// How much of a cut-out's opaque area its biggest piece (two biggest for a pair of shoes or of
+// earrings) must hold to count as one item. On the owner's wardrobe every cut-out of clothes
+// was 99–100% one piece and a pair of boots two of ~50%; a shirt worn under an arm, a phone and
+// feather cuffs came out as four pieces, the biggest 63% (2026-10-23).
+const WHOLE_SHARE = 0.8;
+const PAIR_SHARE = 0.9;
+// The mask is measured small: piece sizes, not edges, are what count.
+const MASK_SIDE = 160;
+
+// Whether a cut-out is the item in one piece rather than the bits around what covered it (an
+// arm, a phone, a bag strap). A broken one looks worse than the plain crop.
+export async function isWhole(cutout: Uint8Array, category: string): Promise<boolean> {
+  const { data, info } = await sharp(cutout)
+    .ensureAlpha()
+    .extractChannel(3)
+    .resize(MASK_SIDE, MASK_SIDE, { fit: "inside" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
+  const seen = new Uint8Array(width * height);
+  const sizes: number[] = [];
+  // Connected opaque areas, flood-filled one by one.
+  for (let start = 0; start < width * height; start++) {
+    if (seen[start] || data[start]! < 128) continue;
+    let size = 0;
+    const stack = [start];
+    seen[start] = 1;
+    while (stack.length > 0) {
+      const p = stack.pop()!;
+      size++;
+      const x = p % width;
+      const neighbours = [
+        x > 0 ? p - 1 : -1,
+        x < width - 1 ? p + 1 : -1,
+        p - width,
+        p + width < width * height ? p + width : -1,
+      ];
+      for (const q of neighbours) {
+        if (q >= 0 && !seen[q] && data[q]! >= 128) {
+          seen[q] = 1;
+          stack.push(q);
+        }
+      }
+    }
+    sizes.push(size);
+  }
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  if (total === 0) return false;
+  sizes.sort((a, b) => b - a);
+  const pair = category === "shoes" || category === "accessory";
+  const kept = pair ? sizes[0]! + (sizes[1] ?? 0) : sizes[0]!;
+  return kept / total >= (pair ? PAIR_SHARE : WHOLE_SHARE);
+}

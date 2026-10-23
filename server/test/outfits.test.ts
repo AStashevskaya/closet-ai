@@ -790,6 +790,42 @@ describe("an item from a photo", () => {
     ).toEqual([]);
   });
 
+  it("keeps the crop when the cut-out comes out in pieces", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    // Two halves, as when an arm crosses a worn garment.
+    const halves = () =>
+      sharp({
+        create: {
+          width: 200,
+          height: 200,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        },
+      })
+        .composite([
+          {
+            input: { create: { width: 80, height: 160, channels: 4, background: "#555" } },
+            left: 10,
+            top: 20,
+          },
+          {
+            input: { create: { width: 80, height: 160, channels: 4, background: "#555" } },
+            left: 110,
+            top: 20,
+          },
+        ])
+        .png()
+        .toBuffer();
+    s.cut.remover.removeBackground = halves;
+    const id = await styleFromPhoto(s, anna.cookie);
+
+    const [hero] = (await view(s, anna.cookie, id)).outfits[0]!.pieces;
+    expect(hero!.item).toMatchObject({ photoUrl: `/api/wear-with/${id}/photo` });
+    expect(hero!.item!.cutoutUrl).toBeUndefined();
+  });
+
   it("keeps the crop through the cleanup, and not the uploaded photo", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

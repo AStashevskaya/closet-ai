@@ -6,7 +6,7 @@ import type { Storage } from "../../storage/storage";
 import type { CatalogRepository } from "../catalog/catalog.repository";
 import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
-import { flattenOnWhite, processCutout } from "../photos/process-photo";
+import { flattenOnWhite, isWhole, processCutout } from "../photos/process-photo";
 import type { OutfitRequestRow, OutfitsRepository, StylingItem } from "./outfits.repository";
 import {
   asJpeg,
@@ -217,7 +217,8 @@ async function heroFromPhoto(
       { category: photo.tags.category, noun: request.heroNoun ?? photo.tags.noun },
       { fromLook: true },
     ).catch(() => null);
-    if (png) {
+    // A piece worn by someone often comes out in bits around the arms; the crop then looks better.
+    if (png && (await isWhole(png, photo.tags.category))) {
       cutoutKey = cutoutKeyFor(photo.key);
       await storage.put(cutoutKey, await processCutout(png), "image/webp");
       await photos.setCutout(photo.key, cutoutKey);
