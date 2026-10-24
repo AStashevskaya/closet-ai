@@ -80,7 +80,7 @@ describe('<Menu />', () => {
 
     test('opens a letter to support with the details to look into it', async () => {
       process.env.EXPO_PUBLIC_SUPPORT_EMAIL = 'help@closet.test';
-      const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+      const open = jest.spyOn(Linking, 'openURL').mockResolvedValue();
       await render(<Menu />);
       await fireEvent.press(screen.getByText('Report a problem'));
 
