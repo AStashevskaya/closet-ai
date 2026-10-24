@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StylingItem } from "./outfits.repository";
-import { kindOf, pickCandidates } from "./wardrobe-sheet";
+import { isShirt, kindOf, pickCandidates } from "./wardrobe-sheet";
 
 const piece = (id: string, category: string, embedding: number[]): StylingItem => ({
   id,
@@ -58,5 +58,20 @@ describe("bags on the sheet", () => {
     expect(kindOf("accessory", "Голубая замшевая сумка")).toBe("bag");
     expect(kindOf("accessory", "felt fedora hat")).toBe("accessory");
     expect(kindOf("shoes", "bag-like loafers")).toBe("shoes");
+  });
+});
+
+describe("isShirt", () => {
+  const top = (name: string) => piece(name, "top", [1, 0]);
+
+  it("tells a shirt from a T-shirt and an overshirt", () => {
+    expect(isShirt(top("Light blue striped shirt"))).toBe(true);
+    expect(isShirt(top("Розовая клетчатая рубашка"))).toBe(true);
+    expect(isShirt(top("Grey cotton t-shirt"))).toBe(false);
+    expect(isShirt(top("White t shirt"))).toBe(false);
+    expect(isShirt(top("Black tee shirt"))).toBe(false);
+    expect(isShirt(top("Grey sweatshirt"))).toBe(false);
+    expect(isShirt(top("White corduroy overshirt"))).toBe(false);
+    expect(isShirt(piece("Shirt dress", "dress", [1, 0]))).toBe(false);
   });
 });

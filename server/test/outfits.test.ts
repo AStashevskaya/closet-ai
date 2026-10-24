@@ -389,6 +389,37 @@ describe("POST /api/wear-with", () => {
     expect(done.outfits[0]!.pieces.map((p) => p.item?.id)).not.toContain(sneakers.id);
   });
 
+  it("keeps one shirt in a look", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const plaid = await addItem(s, anna, "top", "plaid shirt");
+    const striped = await addItem(s, anna, "top", "striped shirt");
+    // A tube top under the open shirt is a look she likes.
+    const tube = await addItem(s, anna, "top", "tube top");
+    await addItem(s, anna, "bottom");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Two shirts",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, plaid.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    const ids = done.outfits[0]!.pieces.map((p) => p.item?.id);
+    expect(ids).toContain(tube.id);
+    expect(ids).not.toContain(striped.id);
+  });
+
   it("never puts a dress with a top or a skirt being styled", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
@@ -452,10 +483,11 @@ describe("POST /api/wear-with", () => {
   it("keeps a wardrobe piece the model took off the sheet, and drops a look without a bottom", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
-    const top = await addItem(s, anna, "top");
+    // Tanks, not shirts: a look keeps one shirt.
+    const top = await addItem(s, anna, "top", "tank top");
     // More tops than the sheet has room for next to a top: some stay off it.
     const tops = [];
-    for (let i = 0; i < 6; i++) tops.push(await addItem(s, anna, "top"));
+    for (let i = 0; i < 6; i++) tops.push(await addItem(s, anna, "top", "tank top"));
     const offSheet = tops.at(-1)!;
     const skirt = await addItem(s, anna, "bottom");
     s.stub.stylist.compose = async (input) => {
