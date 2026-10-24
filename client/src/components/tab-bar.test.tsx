@@ -30,9 +30,12 @@ function setup(index = 0) {
   const descriptors = Object.fromEntries(
     routes.map((r) => [r.key, { options: { title: titles[r.name] } }]),
   );
-  const props = { state: { index, routes }, descriptors, emitter, navigateToTab } as unknown as Parameters<
-    typeof TabBar
-  >[0];
+  const props = {
+    state: { index, routes },
+    descriptors,
+    emitter,
+    navigateToTab,
+  } as unknown as Parameters<typeof TabBar>[0];
   return { navigateToTab, props };
 }
 
