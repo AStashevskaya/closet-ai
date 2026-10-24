@@ -801,8 +801,8 @@ export function createStubStylist() {
         looks: Array.from({ length: input.looks }, (_, i) => ({
           // A number the model made up (999) is dropped by the job.
           items: [others[i % others.length]!, 999].filter((n) => n !== undefined),
-          // Asks for a shop piece in three looks (the job keeps two) and makes one up in the last.
-          partner: input.shop ? (i < 3 ? input.shop.pieces[0]!.n : 12345) : null,
+          // Asks for the first shop piece in three looks and makes one up in the last.
+          partners: input.shop ? [i < 3 ? input.shop.pieces[0]!.n : 12345] : [],
           missing:
             i === 0 ? { category: "shoes" as const, description: "black leather boots" } : null,
           caption: `Look ${i + 1}`,

@@ -181,8 +181,9 @@ export function WearWith({ id }: { id: string }) {
       {state.outfits.length === 0 && <Text style={styles.message}>{t('wearWith.empty')}</Text>}
       {state.outfits.map((outfit, index) => {
         const pieces = outfit.pieces.flatMap((p) => (p.item ? [p.item] : []));
-        // At most one, and labelled: a partner brand's piece where the closet had nothing as good.
-        const partner = outfit.pieces.find((p) => p.catalogItem)?.catalogItem;
+        // Labelled: partner shoes or a bag where the closet had none for the look, and now and
+        // then a brand's piece shown for its own sake.
+        const partners = outfit.pieces.flatMap((p) => (p.catalogItem ? [p.catalogItem] : []));
         return (
           <Animated.View
             key={outfit.id}
@@ -194,14 +195,16 @@ export function WearWith({ id }: { id: string }) {
               {String(index + 1).padStart(2, '0')} / {String(state.outfits.length).padStart(2, '0')}
             </Text>
             <FlatLay
-              pieces={partner ? [...pieces, { ...partner, cutoutUrl: partner.imageUrl }] : pieces}
+              pieces={[...pieces, ...partners.map((p) => ({ ...p, cutoutUrl: p.imageUrl }))]}
               headers={headers}
               caption={outfit.caption}
             />
             <Text style={styles.occasion}>{outfit.occasion}</Text>
             <Text style={styles.why}>{outfit.why}</Text>
             <Text style={styles.pieces}>{pieces.map((p) => p.name).join(' · ')}</Text>
-            {partner && <PartnerPiece item={partner} headers={headers} />}
+            {partners.map((partner) => (
+              <PartnerPiece key={partner.id} item={partner} headers={headers} />
+            ))}
             {outfit.missing && (
               <View style={styles.missing}>
                 <Text style={styles.missingText}>
