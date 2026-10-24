@@ -17,6 +17,7 @@ import {
   asJpeg,
   catalogKind,
   contactSheet,
+  isShirt,
   itemKind,
   kindOf,
   pickCandidates,
@@ -151,11 +152,16 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     const dress = [hero, ...picked].some((item) => item.category === "dress");
     const heroKind = itemKind(hero);
     // Nor a second pair or bag next to the item when it is one (taken from her list, off the sheet).
-    const items = picked.filter(
-      (item) =>
-        !(dress && item.category === "top") &&
-        !(FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind),
-    );
+    // And one shirt: the model put a striped shirt with the feather-trim shirt in all four looks
+    // despite "one top" (owner: "опять две рубашки", 2026-10-24). The item's shirt wins.
+    let shirt = isShirt(hero);
+    const items = picked.filter((item) => {
+      if (dress && item.category === "top") return false;
+      if (FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind) return false;
+      if (!isShirt(item)) return true;
+      if (shirt) return false;
+      return (shirt = true);
+    });
     const kinds = new Set([heroKind, ...items.map(itemKind)]);
     // Partner shoes or a bag where she has none (never a second pair next to hers), and one
     // promoted piece of a brand's at most.
@@ -165,7 +171,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       const kind = catalogKind(row);
       if (kinds.has(kind) && FINISHING_KINDS.includes(kind)) continue;
       if (FINISHING_KINDS.includes(kind) && !ownKinds.has(kind)) finishing.push(row);
-      else if (promoted) continue;
+      else if (promoted || (shirt && isShirt(row))) continue;
       else promoted = row;
       kinds.add(kind);
     }

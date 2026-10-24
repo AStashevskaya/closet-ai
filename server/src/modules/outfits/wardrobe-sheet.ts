@@ -23,6 +23,12 @@ const PER_KIND: Record<string, number> = {
 // ("shoulder bag"), or by the name when there is none.
 const BAG = /\b(bag|tote|clutch|backpack|purse|satchel|crossbody)\b|сумк|клатч|рюкзак|шоппер|תיק/i;
 
+// A shirt, by its English type or name: not a T-shirt, nor an overshirt worn as a jacket.
+const SHIRT = /(?<!t-)\bshirt\b|рубашк/i;
+export const isShirt = (piece: StylingItem | CatalogRow) =>
+  piece.category === "top" &&
+  SHIRT.test("names" in piece ? (piece.names.en ?? "") : `${piece.tags?.noun ?? ""} ${piece.name}`);
+
 // A category, or "bag" for an accessory that is one.
 export const kindOf = (category: string, name: string) =>
   category === "accessory" && BAG.test(name) ? "bag" : category;
