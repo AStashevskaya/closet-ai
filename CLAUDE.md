@@ -18,6 +18,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - Run `pnpm typecheck`, `pnpm lint` and `pnpm test` before saying something is done.
 - If a task is ambiguous or touches the data model in a way that's hard to undo, ask first.
 - One topic per PR, kept small; open it as soon as the topic is done and checked.
+- Once a PR is open, run the `senior-reviewer` agent on it and fix what blocks before handing it over. Run `senior-qa` every fourth PR or so (on the newest, which carries the ones before it), and always before a build for testers.
 
 ## Where things are
 
