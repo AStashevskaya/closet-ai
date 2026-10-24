@@ -31,7 +31,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 
 - pnpm monorepo (`client`, `server`, `shared`), TypeScript ~6.0 strict everywhere (keep one TypeScript version: two make pnpm install `expo` twice), Node 22. pnpm may not be on PATH: `corepack enable` once, or `corepack pnpm …`.
 - Server: Fastify 5 + Zod, Drizzle on Postgres 17 + pgvector, Better Auth, BullMQ on Redis, S3 storage (SeaweedFS locally, Cloudflare R2 in production). AI: Claude Haiku (tags, outfits), Opus via the Batch API (style brief), SAM 3 on fal (cut-outs), Marqo-FashionSigLIP locally (embeddings).
-- Client: Expo SDK 57 (not 58 until Expo Go for 58 is in the App Store; then upgrade with the `expo-upgrade` skill and unpin `test-renderer`), Expo Router, Reanimated 4, i18next (en, he, ru).
+- Client: Expo SDK 58 (React Native 0.88, React 19.3), Expo Router, Reanimated 4, Gesture Handler 3, i18next (en, he, ru).
 - Shared: Zod schemas and types, raw TS, no build step.
 - No `node-linker=hoisted`: Expo supports pnpm isolated installs since SDK 54. Switch to `nodeLinker: hoisted` in `pnpm-workspace.yaml` only if a native library breaks.
 - `docker-compose.yml`: Postgres 17 + pgvector, Redis and SeaweedFS (S3 API on 8333, development keys in `docker/seaweedfs/s3.json`), published on 127.0.0.1 only. `docker/postgres/init.sql` creates `closet_test` when the volume is first created (`docker compose down -v` to recreate). On the owner's Mac Docker runs in OrbStack.
@@ -45,7 +45,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - Don't edit `server/src/db/auth-schema.ts` by hand: the Better Auth CLI generates it.
 - Client: use `colors` / `fonts` from `src/theme.ts`, never raw hex or `fontWeight`; build screens from `src/components/maison.tsx` and `rise` / `STAGGER_STEP`.
 - Client code uses single quotes (`client/.prettierrc`); server and shared use double quotes (root `.prettierrc`): run Prettier from the right package.
-- The global `fetch` in SDK 57 is `expo/fetch`: files go into FormData as `new File(uri)` from `expo-file-system`.
+- The global `fetch` (since SDK 57) is `expo/fetch`: files go into FormData as `new File(uri)` from `expo-file-system`.
 
 ## Tests
 

@@ -35,7 +35,7 @@ beforeEach(async () => {
 describe('<CatalogItemScreen />', () => {
   test("shows a partner's piece and leads to the brand's site", async () => {
     jest.mocked(getCatalogItem).mockResolvedValue(boots);
-    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue();
     await render(<CatalogItemScreen id={boots.id} />);
 
     expect(await screen.findByRole('header', { name: 'Ankle boots' })).toBeOnTheScreen();

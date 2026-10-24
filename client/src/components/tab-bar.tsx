@@ -24,7 +24,7 @@ const ICONS: Record<string, IconName> = {
 
 // A frosted capsule floating over the content, with thin icons and no labels (as on Loewe's
 // site), and "+" in the middle to add an item. Screen readers get each tab's title.
-export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -42,12 +42,12 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         accessibilityState={{ selected: focused }}
         accessibilityLabel={options.title}
         onPress={() => {
-          const event = navigation.emit({
+          const event = emitter.emit({
             type: 'tabPress',
             target: route.key,
             canPreventDefault: true,
           });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+          if (!focused && !event.defaultPrevented) navigateToTab(route.key);
         }}
       >
         <Icon

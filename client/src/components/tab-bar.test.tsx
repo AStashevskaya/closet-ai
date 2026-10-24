@@ -25,14 +25,18 @@ const titles: Record<string, string> = {
 };
 
 function setup(index = 0) {
-  const navigation = { emit: jest.fn(() => ({ defaultPrevented: false })), navigate: jest.fn() };
+  const emitter = { emit: jest.fn(() => ({ defaultPrevented: false })) };
+  const navigateToTab = jest.fn();
   const descriptors = Object.fromEntries(
     routes.map((r) => [r.key, { options: { title: titles[r.name] } }]),
   );
-  const props = { state: { index, routes }, descriptors, navigation } as unknown as Parameters<
-    typeof TabBar
-  >[0];
-  return { navigation, props };
+  const props = {
+    state: { index, routes },
+    descriptors,
+    emitter,
+    navigateToTab,
+  } as unknown as Parameters<typeof TabBar>[0];
+  return { navigateToTab, props };
 }
 
 beforeEach(async () => {
@@ -50,10 +54,10 @@ describe('<TabBar />', () => {
   });
 
   test('goes to another tab, and opens the add-item form from the middle', async () => {
-    const { props, navigation } = setup(0);
+    const { props, navigateToTab } = setup(0);
     await render(<TabBar {...props} />);
     await fireEvent.press(screen.getByRole('tab', { name: 'Inspiration' }));
-    expect(navigation.navigate).toHaveBeenCalledWith('inspiration');
+    expect(navigateToTab).toHaveBeenCalledWith('inspiration-key');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Add item' }));
     expect(mockPush).toHaveBeenCalledWith('/add-item');
