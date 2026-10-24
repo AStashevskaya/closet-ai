@@ -152,16 +152,23 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     const dress = [hero, ...picked].some((item) => item.category === "dress");
     const heroKind = itemKind(hero);
     // Nor a second pair or bag next to the item when it is one (taken from her list, off the sheet).
+    // A dress next to a top or a skirt being styled is the same mistake the other way round
+    // (QA, 2026-10-24): the dress goes, the item stays.
+    const heroWithDress = hero.category === "top" || hero.category === "bottom";
     // And one shirt: the model put a striped shirt with the feather-trim shirt in all four looks
     // despite "one top" (owner: "опять две рубашки", 2026-10-24). The item's shirt wins.
     let shirt = isShirt(hero);
-    const items = picked.filter((item) => {
-      if (dress && item.category === "top") return false;
-      if (FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind) return false;
-      if (!isShirt(item)) return true;
-      if (shirt) return false;
-      return (shirt = true);
-    });
+    const items: StylingItem[] = [];
+    for (const item of picked) {
+      if (dress && item.category === "top") continue;
+      if (heroWithDress && item.category === "dress") continue;
+      if (FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind) continue;
+      if (isShirt(item)) {
+        if (shirt) continue;
+        shirt = true;
+      }
+      items.push(item);
+    }
     const kinds = new Set([heroKind, ...items.map(itemKind)]);
     // Partner shoes or a bag where she has none (never a second pair next to hers), and one
     // promoted piece of a brand's at most.
@@ -200,7 +207,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     const { missing } = look.look;
     return {
       caption: withoutNumbers(look.look.caption),
-      occasion: look.look.occasion,
+      occasion: withoutNumbers(look.look.occasion),
       why: withoutNumbers(look.look.why),
       // A piece of the look fills that slot already.
       missing:

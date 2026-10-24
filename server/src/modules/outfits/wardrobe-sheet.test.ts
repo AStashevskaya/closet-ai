@@ -52,6 +52,9 @@ describe("bags on the sheet", () => {
 
   it("tells a bag by its type, in any of the app's languages", () => {
     expect(kindOf("accessory", "shoulder bag")).toBe("bag");
+    expect(kindOf("accessory", "leather handbag")).toBe("bag");
+    expect(kindOf("accessory", "Mini bags")).toBe("bag");
+    expect(kindOf("accessory", "canvas tote")).toBe("bag");
     expect(kindOf("accessory", "Голубая замшевая сумка")).toBe("bag");
     expect(kindOf("accessory", "felt fedora hat")).toBe("accessory");
     expect(kindOf("shoes", "bag-like loafers")).toBe("shoes");
@@ -65,6 +68,9 @@ describe("isShirt", () => {
     expect(isShirt(top("Light blue striped shirt"))).toBe(true);
     expect(isShirt(top("Розовая клетчатая рубашка"))).toBe(true);
     expect(isShirt(top("Grey cotton t-shirt"))).toBe(false);
+    expect(isShirt(top("White t shirt"))).toBe(false);
+    expect(isShirt(top("Black tee shirt"))).toBe(false);
+    expect(isShirt(top("Grey sweatshirt"))).toBe(false);
     expect(isShirt(top("White corduroy overshirt"))).toBe(false);
     expect(isShirt(piece("Shirt dress", "dress", [1, 0]))).toBe(false);
   });
