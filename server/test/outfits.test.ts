@@ -418,6 +418,37 @@ describe("POST /api/wear-with", () => {
     expect(ids).not.toContain(dress.id);
   });
 
+  it("keeps piece numbers out of every text she reads", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top", "tank top");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: { category: "outerwear", description: "a jacket like #5" },
+          caption: "Tank #2 and skirt",
+          occasion: "brunch with #3",
+          why: "Your tank #2 softens the skirt.",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+    await s.runJobs();
+    const [look] = (await view(s, anna.cookie, id)).outfits;
+    expect([look!.caption, look!.occasion, look!.why, look!.missing?.description]).toEqual([
+      "Tank and skirt",
+      "brunch with",
+      "Your tank softens the skirt.",
+      "a jacket like",
+    ]);
+  });
+
   it("keeps a wardrobe piece the model took off the sheet, and drops a look without a bottom", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

@@ -198,7 +198,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     const { missing } = look.look;
     return {
       caption: withoutNumbers(look.look.caption),
-      occasion: look.look.occasion,
+      occasion: withoutNumbers(look.look.occasion),
       why: withoutNumbers(look.look.why),
       // A piece of the look fills that slot already.
       missing:
