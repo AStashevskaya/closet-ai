@@ -4,7 +4,7 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
-import type { OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
+import { checkBrief, refreshBrief, type OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
 import { deleteUnattachedPhotos, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
 import { createMemoryStorage } from "../src/storage/storage";
@@ -48,6 +48,8 @@ async function setup({
     taggingEnabled: true,
     stylistEnabled,
   });
+  // Moved on by tests: a brief is written at most once a day.
+  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   const deps: OutfitJobDeps = {
     outfits: repositories.outfitsRepository,
     photos: repositories.photosRepository,
@@ -59,8 +61,6 @@ async function setup({
     queue: queue.outfitQueue,
     clock: () => clock.now,
   };
-  // Moved on by tests: a brief is written at most once a day.
-  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   const photoDeps: PhotoJobDeps = {
     photos: repositories.photosRepository,
     storage,
@@ -77,6 +77,7 @@ async function setup({
     stub,
     cut,
     clock,
+    deps,
     photoDeps,
     runJobs: () => queue.runAll(deps),
     runPhotoJobs: () => photoQueue.runAll(photoDeps),
@@ -794,7 +795,7 @@ describe("style brief", () => {
 
   it("waits a day after a batch that failed instead of sending another", async () => {
     const s = await setup();
-    s.stub.briefFails.next = true;
+    s.stub.briefBatch.status = "failed";
     const { anna, pieces } = await withBrief(s);
     expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBeNull();
 
@@ -804,7 +805,7 @@ describe("style brief", () => {
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(1);
 
-    s.stub.briefFails.next = false;
+    s.stub.briefBatch.status = "done";
     s.clock.now = new Date("2026-10-22T12:30:00Z");
     await ask(s, anna.cookie, pieces[2]!.id);
     await s.runJobs();
@@ -812,6 +813,24 @@ describe("style brief", () => {
     expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBe(
       "High-low with a wink.",
     );
+  });
+
+  it("gives up on a batch still running after a day, and sends a new one", async () => {
+    const s = await setup();
+    // The brief check is run straight away by the test queue: it finds the batch running.
+    const anna = await signUp(s, "anna@example.com");
+    for (let i = 0; i < 8; i++) await addItem(s, anna, i % 2 ? "bottom" : "top");
+    // Jobs run one by one here: the test queue would run a "still running" check forever.
+    s.stub.briefBatch.status = "pending";
+    await refreshBrief(s.deps, anna.userId);
+    await checkBrief(s.deps, anna.userId);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.batchId).toBe("batch-1");
+
+    s.clock.now = new Date("2026-10-22T12:01:00Z");
+    await checkBrief(s.deps, anna.userId);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.batchId).toBeNull();
+    await refreshBrief(s.deps, anna.userId);
+    expect(s.stub.briefCalls).toHaveLength(2);
   });
 
   it("isn't made stale by tapping like on one outfit over and over", async () => {

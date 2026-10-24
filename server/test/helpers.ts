@@ -798,8 +798,8 @@ export function createManualOutfitQueue() {
 export function createStubStylist() {
   const composeCalls: ComposeInput[] = [];
   const briefCalls: BriefInput[] = [];
-  // Set `next` to make the batches end without a brief.
-  const briefFails = { next: false };
+  // How the brief batches end: set `status` to make them fail or keep running.
+  const briefBatch: { status: "done" | "failed" | "pending" } = { status: "done" };
   const stylist: Stylist = {
     async compose(input) {
       composeCalls.push(input);
@@ -832,9 +832,10 @@ export function createStubStylist() {
       return `batch-${briefCalls.length}`;
     },
     async briefResult() {
-      if (briefFails.next) return { status: "failed", reason: "errored" };
+      if (briefBatch.status === "failed") return { status: "failed", reason: "errored" };
+      if (briefBatch.status === "pending") return { status: "pending" };
       return { status: "done", brief: "High-low with a wink.", costMicros: 50_000 };
     },
   };
-  return { stylist, composeCalls, briefCalls, briefFails };
+  return { stylist, composeCalls, briefCalls, briefBatch };
 }

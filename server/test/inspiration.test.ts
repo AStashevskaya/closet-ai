@@ -48,6 +48,8 @@ async function setup() {
     remover: null,
     queue: photoQueue.photoQueue,
   };
+  // Moved on by tests: a brief is written at most once a day.
+  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   const outfitDeps: OutfitJobDeps = {
     outfits: repositories.outfitsRepository,
     photos: repositories.photosRepository,
@@ -59,8 +61,6 @@ async function setup() {
     queue: outfitQueue.outfitQueue,
     clock: () => clock.now,
   };
-  // Moved on by tests: a brief is written at most once a day.
-  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   return {
     clock,
     server: app,
