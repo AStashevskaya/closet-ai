@@ -21,7 +21,9 @@ const PER_KIND: Record<string, number> = {
 
 // Bags are accessories, as are hats and belts: told apart by the English type the tagger gives
 // ("shoulder bag"), or by the name when there is none.
-const BAG = /\b(bag|tote|clutch|backpack|purse|satchel|crossbody)\b|сумк|клатч|рюкзак|шоппер|תיק/i;
+// Any word ending in "bag" ("handbag", "bumbag", "bags") counts.
+const BAG =
+  /bags?\b|\b(totes?|clutch|backpack|purse|satchel|crossbody)\b|сумк|клатч|рюкзак|шоппер|תיק/i;
 
 // A category, or "bag" for an accessory that is one.
 export const kindOf = (category: string, name: string) =>
@@ -33,9 +35,9 @@ export const catalogKind = (row: CatalogRow) =>
 // What the item leaves room for: a skirt needs no second bottom, a dress no bottoms at all and
 // only a top to layer, shoes or a bag no second one.
 function slotsAround(heroKind: string): Record<string, number> {
-  if (heroKind === "bottom") return { ...PER_KIND, bottom: 0 };
+  if (heroKind === "bottom") return { ...PER_KIND, bottom: 0, dress: 0 };
   if (heroKind === "dress") return { ...PER_KIND, bottom: 0, dress: 0, top: 3 };
-  if (heroKind === "top") return { ...PER_KIND, top: 4 };
+  if (heroKind === "top") return { ...PER_KIND, top: 4, dress: 0 };
   if (heroKind === "outerwear") return { ...PER_KIND, outerwear: 0 };
   if (heroKind === "shoes") return { ...PER_KIND, shoes: 0 };
   if (heroKind === "bag") return { ...PER_KIND, bag: 0 };
