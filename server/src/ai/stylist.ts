@@ -188,7 +188,7 @@ const buyingText = ({ closest }: NonNullable<ComposeInput["buying"]>) =>
 const shopText = (pieces: StylistPiece[]) =>
   `\nThe third image is a shop sheet: pieces from partner brands she doesn't own.\n${pieces.map(describe).join("\n")}\nShop pieces go in the look's partners, never in items, in two cases:
 - Shoes or a bag, only when no pair or bag of hers on the contact sheet could go with that look. Hers come first; never a second pair or bag next to hers.
-- To show her a brand's piece she'd love: in about two of the looks, one piece that truly suits the look and that her wardrobe has nothing as good for. Quietly: the look is still hers.
+- To show her a brand's piece: only one she would pick herself for that look, in her taste as the brief reads it, and that her wardrobe has nothing as good for; one per look, in two looks at most. Most requests have none, and that is fine: a piece that doesn't fit spoils the look for her and for the brand.
 A look with a shop piece needs no missing for that slot.`;
 
 const jpegBlock = (image: Uint8Array): Anthropic.ImageBlockParam => ({
