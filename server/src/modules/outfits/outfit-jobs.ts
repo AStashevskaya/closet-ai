@@ -151,9 +151,13 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     const dress = [hero, ...picked].some((item) => item.category === "dress");
     const heroKind = itemKind(hero);
     // Nor a second pair or bag next to the item when it is one (taken from her list, off the sheet).
+    // A dress next to a top or a skirt being styled is the same mistake the other way round
+    // (QA, 2026-10-24): the dress goes, the item stays.
+    const heroWithDress = hero.category === "top" || hero.category === "bottom";
     const items = picked.filter(
       (item) =>
         !(dress && item.category === "top") &&
+        !(heroWithDress && item.category === "dress") &&
         !(FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind),
     );
     const kinds = new Set([heroKind, ...items.map(itemKind)]);

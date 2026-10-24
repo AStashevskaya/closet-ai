@@ -143,7 +143,7 @@ You get her whole wardrobe in words, a contact sheet of the numbered pieces wort
 Compose the asked number of looks built around the item:
 - The item is in every look; list the wardrobe numbers that go with it, from the contact sheet (another piece from her wardrobe list only when it is clearly better). Every piece you mention in why is in the look's numbers.
 - A complete look: with a dress, nothing else is required; otherwise a top and a bottom (the item counts as its category).
-- One top per look. A shirt is a top, not a layer: never a shirt or a vest over another top. A second layer only when the season calls for one: a jacket, coat or cardigan over the top. A dress, or a light top that is the point of the look, stands alone: nothing over it, and never a top over a dress.
+- One top per look. A shirt is a top, not a layer: never a shirt or a vest over another top. A second layer only when the season calls for one: a jacket, coat or cardigan over the top. A dress, or a light top that is the point of the look, stands alone: no top, shirt or vest with it, and a coat or jacket only when the season calls for one.
 - One idea per look: every piece tells the same story, in the same register (not half a shirt-and-sneakers look and half a top-and-sandals one).
 - Fabrics and shoes agree in weight and season: no boots or a puffer with linen and a mini, no heavy sneakers and a jacket with a light linen top, bare legs in a short skirt only when it's warm.
 - A statement piece (tweed, sequins, feathers, a bold print) goes in only where its colour and texture suit the item, never just to add interest. Next to a precious piece the rest is plain but fine: a ribbed tank cheapens a satin or embroidered skirt.
