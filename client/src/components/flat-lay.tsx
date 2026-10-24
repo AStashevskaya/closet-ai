@@ -25,12 +25,14 @@ const spot = (start: number, top: number, width: number, turn: number): Spot => 
   turn,
 });
 const SPOTS: Record<Item['category'], Spot[]> = {
-  outerwear: [spot(2, 6, 40, -6)],
+  // A second layer or accessory (a partner jacket next to hers, a hat next to the bag) gets a
+  // place of its own instead of lying on the first.
+  outerwear: [spot(2, 6, 40, -6), spot(58, 2, 38, 6)],
   top: [spot(30, 0, 40, -2), spot(62, 8, 34, 6)],
   dress: [spot(28, 2, 46, -1)],
   bottom: [spot(32, 34, 38, 2)],
   shoes: [spot(64, 54, 28, -4)],
-  accessory: [spot(4, 58, 24, 5)],
+  accessory: [spot(4, 58, 24, 5), spot(4, 30, 20, -8)],
 };
 
 // Layers first, so the base pieces lie on top of them.
