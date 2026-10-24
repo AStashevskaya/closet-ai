@@ -193,12 +193,14 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     const filled = new Set([...items.map(itemKind), ...shop.map(catalogKind)]);
     const { missing } = look.look;
     return {
-      caption: look.look.caption,
+      caption: withoutNumbers(look.look.caption),
       occasion: look.look.occasion,
-      why: look.look.why,
+      why: withoutNumbers(look.look.why),
       // A piece of the look fills that slot already.
       missing:
-        missing && filled.has(kindOf(missing.category, missing.description)) ? null : missing,
+        missing && !filled.has(kindOf(missing.category, missing.description))
+          ? { ...missing, description: withoutNumbers(missing.description) }
+          : null,
       pieces: [
         { hero: true, itemId: request.heroPhotoKey ? null : hero.id },
         ...items.map((item) => ({ hero: false, itemId: item.id })),
@@ -218,7 +220,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     costMicros,
     verdict && {
       call: verdict.call,
-      reason: verdict.reason,
+      reason: withoutNumbers(verdict.reason),
       twinItemId: (verdict.twin !== null && byN.get(verdict.twin)?.id) || null,
     },
   );
@@ -226,6 +228,11 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const shown = saved.flatMap((look) => look.pieces.flatMap((p) => p.catalogItemId ?? []));
   await deps.catalog?.record(shown, request.userId, "shown");
 }
+
+// The model is told to name pieces, never their numbers, yet "your white shirt #55" crept into
+// 11 of 175 looks (2026-10-23/24): the numbers go, the names stay.
+export const withoutNumbers = (text: string) =>
+  text.replace(/\s*\(?#\d+\)?/g, "").replace(/\s+([,.;:!?])/g, "$1");
 
 // Every look has shoes and a bag (the owner's rule, 2026-10-23).
 const FINISHING_KINDS = ["shoes", "bag"];
