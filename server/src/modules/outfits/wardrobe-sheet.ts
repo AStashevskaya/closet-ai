@@ -21,7 +21,9 @@ const PER_KIND: Record<string, number> = {
 
 // Bags are accessories, as are hats and belts: told apart by the English type the tagger gives
 // ("shoulder bag"), or by the name when there is none.
-const BAG = /\b(bag|tote|clutch|backpack|purse|satchel|crossbody)\b|сумк|клатч|рюкзак|шоппер|תיק/i;
+// Any word ending in "bag" ("handbag", "bumbag", "bags") counts.
+const BAG =
+  /bags?\b|\b(totes?|clutch|backpack|purse|satchel|crossbody)\b|сумк|клатч|рюкзак|шоппер|תיק/i;
 
 // A category, or "bag" for an accessory that is one.
 export const kindOf = (category: string, name: string) =>
