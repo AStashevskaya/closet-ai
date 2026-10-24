@@ -142,17 +142,21 @@ You get her whole wardrobe in words, a contact sheet of the numbered pieces wort
 
 Compose the asked number of looks built around the item:
 - The item is in every look; list the wardrobe numbers that go with it, from the contact sheet (another piece from her wardrobe list only when it is clearly better). Every piece you mention in why is in the look's numbers.
-- A complete look: with a dress, nothing else is required; otherwise a top and a bottom (the item counts as its category). A shirt, vest, cardigan or jacket may be layered over a top or a dress when it helps; never a top worn over a dress.
+- A complete look: with a dress, nothing else is required; otherwise a top and a bottom (the item counts as its category).
+- One top per look. A shirt is a top, not a layer: never a shirt or a vest over another top. A second layer only when the season calls for one: a jacket, coat or cardigan over the top. A dress, or a light top that is the point of the look, stands alone: no top, shirt or vest with it, and a coat or jacket only when the season calls for one.
+- One idea per look: every piece tells the same story, in the same register (not half a shirt-and-sneakers look and half a top-and-sandals one).
+- Fabrics and shoes agree in weight and season: no boots or a puffer with linen and a mini, no heavy sneakers and a jacket with a light linen top, bare legs in a short skirt only when it's warm.
+- A statement piece (tweed, sequins, feathers, a bold print) goes in only where its colour and texture suit the item, never just to add interest. Next to a precious piece the rest is plain but fine: a ribbed tank cheapens a satin or embroidered skirt.
 - Every look has shoes and a bag (the item counts if it is one): the pair and the bag from her wardrobe that suit that look best. One pair and one bag per look.
 - The looks go in different directions, in this order: (1) her core style; (2) one of the looks she saved, recreated: take a recipe from the brief's "recreating her saves" that works with the item, or build the closest one, and say in why which saved look it echoes; (3) a step out of her comfort zone that still flatters her; (4) an unexpected mix of moods or textures. With fewer looks asked, take them from the start of this list. Each look has its own idea (a colour story, a play of proportions), different occasions across the looks, and none a stylist would call obvious or shapeless.
 - why speaks only of the item and the pieces listed in the look; a piece she doesn't own belongs in missing, never in why.
-- Don't lean on the same pieces: no wardrobe piece in more than two looks, and if the sheet has an alternative, use it. Four looks that share their top, jacket or shoes read as one look.
-- Without a brief, read her taste from the wardrobe itself. With one, its hero pieces explain her taste; they are not pieces to put in every look.
+- Don't lean on the same pieces: no wardrobe piece in more than two looks, and if the sheet has an alternative, use it. Four looks that share their top, jacket or shoes read as one look. A statement texture (tweed, sequins, feathers, leather) other than the item's own goes in one look of the four at most, whichever pieces carry it.
+- Without a brief, read her taste from the wardrobe itself. With one, its hero pieces explain her taste; they are not pieces to put in every look: each in one look at most.
 - She asks often, so freshness matters: prefer pieces her recent looks didn't use, and new names and ideas, whenever they work about as well.
 - partners: numbers from the shop sheet when one is given (see the request); otherwise empty.
 - missing: if one more piece she doesn't own would clearly make the look, describe it as a shop search would need it (type, colour, material, shape), with its category; otherwise null. At most one per look, and not in every look.
 - verdict: only when the request says she is thinking of buying the item; otherwise null. See the request.
-- caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces. All three, and missing.description, in the language asked.
+- caption: a short scrapbook-style name for the look, 2–4 words, with some wit. occasion: a few words. why: one sentence, the stylist's idea, not a list of the pieces; if you can't say honestly why the pieces work together, compose another look. All three, and missing.description, in the language asked.
 - Every text she reads (why, caption, verdict.reason) speaks to her directly: "you", in Russian the informal «ты», in Hebrew the plural form the app uses; never "she" or "the client". Name pieces by what they are ("your grey ribbed tank"), never by their numbers.`;
 
 const BRIEF_PROMPT = `You are a sought-after personal stylist. Write a working brief for a junior stylist who will put together this client's outfits every day from her wardrobe (numbered contact sheets and the list below). In English, compact, under 500 words:
@@ -214,7 +218,9 @@ export function createClaudeStylist(
     async compose(input) {
       const response = await client.messages.parse({
         model: composingModel,
-        max_tokens: 4000,
+        // Room for thinking: 4000 cut the answer off mid-JSON on every try for a shoe from a
+        // photo (2026-10-23). Only the tokens used are paid for.
+        max_tokens: 8000,
         system: COMPOSE_PROMPT,
         // Low effort: the hard thinking is in the brief.
         output_config: { effort: "low", format: zodOutputFormat(composed) },
