@@ -36,6 +36,8 @@ import {
   type UserProfile,
   styledList,
   type StyledEntry,
+  styleState,
+  type StyleState,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
@@ -116,6 +118,15 @@ export function updateItem(id: string, patch: UpdateItemInput): Promise<ItemDeta
 // How much of the free tier is used: the wardrobe size and this month's screenshots and selfies.
 export function getUsage(): Promise<Usage> {
   return request('/api/usage', usage);
+}
+
+// Her style summary, and whether the "great shopping" card should offer an update.
+export function getStyle(lang: AppLanguage): Promise<StyleState> {
+  return request(`/api/style?lang=${lang}`, styleState);
+}
+
+export function refreshStyle(lang: AppLanguage): Promise<StyleState> {
+  return request(`/api/style/refresh?lang=${lang}`, styleState, { method: 'POST' });
 }
 
 // "What do I wear this with?" for a wardrobe item, or an item found on an uploaded "wear" photo:

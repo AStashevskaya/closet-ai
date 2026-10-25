@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HangerLoader } from '@/components/hanger-loader';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
+import { StyleCard } from '@/components/style-card';
 import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
 import { durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -192,6 +193,7 @@ export function Closet() {
         </View>
         {editButton}
       </View>
+      {!isEditing && <StyleCard />}
       {newest && !isEditing && (
         <NewIn
           item={newest}

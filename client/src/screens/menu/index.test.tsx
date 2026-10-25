@@ -28,6 +28,12 @@ jest.mock('@/lib/api', () => ({
     wear_with: { used: 1, limit: 30, resetsAt: '2026-10-22T00:00:00.000Z' },
   }),
   countDueWishes: jest.fn().mockResolvedValue(1),
+  getStyle: jest.fn().mockResolvedValue({
+    summary: 'High-low with a wink.',
+    writtenAt: '2026-10-21T12:00:00.000Z',
+    updating: false,
+    suggest: null,
+  }),
 }));
 jest.mock('@/lib/language', () => ({ setLanguage: jest.fn() }));
 jest.mock('@/lib/auth-client', () => ({
@@ -130,5 +136,11 @@ describe('<Menu />', () => {
         await screen.findByRole('radio', { name: 'As on my phone', checked: true }),
       ).toBeOnTheScreen();
     });
+  });
+
+  test('shows her style in a few sentences', async () => {
+    await render(<Menu />);
+    expect(await screen.findByText('High-low with a wink.')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Your style' })).toBeOnTheScreen();
   });
 });
