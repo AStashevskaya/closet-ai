@@ -592,17 +592,29 @@ describe.skipIf(!url)("on Postgres", () => {
     await outfits.setBriefBatch(user!.id, "batch-1", new Date());
     expect(await outfits.brief(user!.id)).toMatchObject({ brief: null, batchId: "batch-1" });
     const writtenAt = new Date("2026-10-21T12:00:00Z");
+    const summary = { en: "High-low", ru: "Дорогое с простым", he: "יוקרה ופשטות" };
     await outfits.saveBrief(
       user!.id,
-      "High-low",
+      { brief: "High-low", summary },
       { itemCount: 2, reactionCount: 1, inspirationCount: 0 },
       writtenAt,
     );
     expect(await outfits.brief(user!.id)).toMatchObject({
       brief: "High-low",
+      summary,
       itemCount: 2,
       batchId: null,
       writtenAt,
+    });
+
+    // Asking for an update keeps the brief; what she added is counted from a moment on.
+    const askedAt = new Date("2026-10-22T09:00:00Z");
+    await outfits.askBrief(user!.id, askedAt);
+    expect(await outfits.brief(user!.id)).toMatchObject({ brief: "High-low", askedAt });
+    expect((await outfits.addedSince(user!.id, new Date(0))).looks).toBe(1);
+    expect(await outfits.addedSince(user!.id, new Date(Date.now() + 60_000))).toEqual({
+      items: 0,
+      looks: 0,
     });
 
     // A failed batch is dropped but keeps when it was asked for, so the next try waits.

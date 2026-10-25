@@ -1,4 +1,4 @@
-import type { Inspiration } from "@closet-ai/shared";
+import type { Inspiration, StyleState } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -22,7 +22,9 @@ type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
 
 async function setup() {
-  const repositories = createInMemoryRepositories();
+  // Moved on by tests: the jobs, the routes and new rows all read it.
+  const clock = { now: new Date("2026-10-21T12:00:00Z") };
+  const repositories = createInMemoryRepositories(() => clock.now);
   const storage = createMemoryStorage();
   const outfitQueue = createManualOutfitQueue();
   const photoQueue = createManualPhotoQueue();
@@ -40,6 +42,7 @@ async function setup() {
     storage,
     taggingEnabled: true,
     stylistEnabled: true,
+    clock: () => clock.now,
   });
   const photoDeps: PhotoJobDeps = {
     photos: repositories.photosRepository,
@@ -49,8 +52,6 @@ async function setup() {
     remover: null,
     queue: photoQueue.photoQueue,
   };
-  // Moved on by tests: a brief is written at most once a day.
-  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   const outfitDeps: OutfitJobDeps = {
     outfits: repositories.outfitsRepository,
     photos: repositories.photosRepository,
@@ -169,7 +170,7 @@ describe("inspiration", () => {
     expect(await s.storage.get(key)).toBeNull();
   });
 
-  it("rewrites the style brief from the saved looks after a few new ones", async () => {
+  it("offers to update her style after three saved looks, and the update reads them", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
     for (let i = 0; i < 8; i++) {
@@ -199,15 +200,34 @@ describe("inspiration", () => {
     expect(s.stub.briefCalls).toHaveLength(1);
     expect(s.stub.briefCalls[0]!.inspiration).toHaveLength(0);
 
+    const style = async () =>
+      (
+        await s.server.inject({
+          method: "GET",
+          url: "/api/style",
+          headers: { cookie: anna.cookie },
+        })
+      ).json<StyleState>();
+    // The next day, two new looks: nothing offered, and nothing rewritten on its own.
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
     for (let i = 0; i < 2; i++) await save(s, anna.cookie);
     await s.photoQueue.runAll(s.photoDeps);
     await s.outfitQueue.runAll(s.outfitDeps);
-    // Two new looks: not yet.
-    expect(s.stub.briefCalls).toHaveLength(1);
+    expect((await style()).suggest).toBeNull();
 
-    s.clock.now = new Date("2026-10-22T13:00:00Z");
+    // A third makes it worth an update.
     await save(s, anna.cookie);
     await s.photoQueue.runAll(s.photoDeps);
+    await s.outfitQueue.runAll(s.outfitDeps);
+    expect(s.stub.briefCalls).toHaveLength(1);
+    expect((await style()).suggest).toEqual({ items: 0, looks: 3 });
+
+    const asked = await s.server.inject({
+      method: "POST",
+      url: "/api/style/refresh",
+      headers: { cookie: anna.cookie },
+    });
+    expect(asked.statusCode).toBe(202);
     await s.outfitQueue.runAll(s.outfitDeps);
     expect(s.stub.briefCalls).toHaveLength(2);
     expect(s.stub.briefCalls[1]!.inspiration).toHaveLength(3);

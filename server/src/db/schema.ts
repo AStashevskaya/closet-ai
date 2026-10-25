@@ -18,6 +18,7 @@ import {
   type LookItem,
   type LookMatch,
   type MissingPiece,
+  type StyleSummary,
 } from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
 import {
@@ -150,6 +151,8 @@ export const styleBriefs = pgTable("style_briefs", {
     .references(() => user.id, { onDelete: "cascade" }),
   // null until the first brief is back.
   brief: text("brief"),
+  // What the user reads about her style, in each language; written with the brief.
+  summary: jsonb("summary").$type<StyleSummary>(),
   // What it was written from, to tell when it is stale.
   itemCount: integer("item_count").notNull().default(0),
   reactionCount: integer("reaction_count").notNull().default(0),
@@ -158,6 +161,8 @@ export const styleBriefs = pgTable("style_briefs", {
   // The batch writing the next one; null when none is running.
   batchId: text("batch_id"),
   requestedAt: timestamp("requested_at", { withTimezone: true }),
+  // When she last asked to update it ("great shopping" card); the brief job honours it once.
+  askedAt: timestamp("asked_at", { withTimezone: true }),
 });
 
 // One "what do I wear this with?": the item it was asked about and how it went.

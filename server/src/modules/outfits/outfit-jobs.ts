@@ -347,12 +347,12 @@ async function heroFromPhoto(
 
 // A brief needs something to read; below this the stylist works from the wardrobe directly.
 export const MIN_ITEMS_FOR_BRIEF = 8;
-// Rewritten after this many new items or outfits reacted to, or after a month.
-const STALE_AFTER_CHANGES = 5;
-const STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
-// At most one Opus brief a day per user, written or failed: a brief costs ~10 ¢, and a wardrobe
-// filled in one evening would otherwise rewrite it every few items.
-const BRIEF_EVERY_MS = 24 * 60 * 60 * 1000;
+// After the first one, a brief is rewritten when she asks (the app offers it after a day of new
+// pieces, src/modules/style) or, if anything changed, once a month (decided 2026-10-25: most
+// users don't care to, and a brief is ~10 ¢).
+const REFRESH_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+// At most one Opus brief a day per user, written or failed.
+export const BRIEF_EVERY_MS = 24 * 60 * 60 * 1000;
 // Batches usually end in minutes; one that runs for a day is given up on.
 const BATCH_GIVE_UP_MS = 24 * 60 * 60 * 1000;
 export const BRIEF_CHECK_EVERY_MS = 2 * 60 * 1000;
@@ -360,11 +360,10 @@ export const BRIEF_CHECK_EVERY_MS = 2 * 60 * 1000;
 const BRIEF_SHEET_ITEMS = 48;
 // The newest saved looks: they say most about where her taste is going.
 const BRIEF_INSPIRATION = 12;
-// A few new saved looks are enough to rewrite it: they are the strongest signal of taste.
-const STALE_AFTER_INSPIRATIONS = 3;
 const BRIEF_REACTED = 20;
 
-// Job "brief": starts a new brief through the Batch API when there is none or it's stale.
+// Job "brief": starts a new brief through the Batch API: the first one, one she asked for, or
+// the monthly one when something changed.
 export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   const { outfits, storage, stylist, queue } = deps;
   if (!stylist) return;
@@ -378,14 +377,14 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   if (wardrobe.length < MIN_ITEMS_FOR_BRIEF) return;
   const reactions = await outfits.reactedOutfitCount(userId);
   const saved = (await deps.photos.listInspiration(userId)).length;
-  const stale =
-    !current?.brief ||
-    Math.abs(wardrobe.length - current.itemCount) >= STALE_AFTER_CHANGES ||
-    reactions - current.reactionCount >= STALE_AFTER_CHANGES ||
-    Math.abs(saved - current.inspirationCount) >= STALE_AFTER_INSPIRATIONS ||
-    !current.writtenAt ||
-    now.getTime() - current.writtenAt.getTime() > STALE_AFTER_MS;
-  if (!stale) return;
+  const asked = current?.askedAt != null && (!lastTry || current.askedAt > lastTry);
+  const monthly =
+    current?.writtenAt != null &&
+    now.getTime() - current.writtenAt.getTime() > REFRESH_AFTER_MS &&
+    (wardrobe.length !== current.itemCount ||
+      reactions !== current.reactionCount ||
+      saved !== current.inspirationCount);
+  if (current?.brief && !asked && !monthly) return;
   // Past her monthly cap (or the server's day) the stylist keeps the brief it has.
   if (!(await deps.limits.allows(userId, BRIEF_COST_MICROS, now))) return;
 
@@ -416,6 +415,7 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
     inspiration,
     liked: reacted.filter((o) => o.opinion === "like" || o.wore).map((o) => o.description),
     disliked: reacted.filter((o) => o.opinion === "dislike").map((o) => o.description),
+    previous: current?.brief ?? null,
   });
   await outfits.setBriefBatch(userId, batchId, now);
   await queue.enqueueBriefCheck(userId, BRIEF_CHECK_EVERY_MS);
@@ -441,7 +441,7 @@ export async function checkBrief(deps: OutfitJobDeps, userId: string) {
   }
   await outfits.saveBrief(
     userId,
-    result.brief,
+    { brief: result.brief, summary: result.summary },
     {
       itemCount: await outfits.wardrobeSize(userId),
       reactionCount: await outfits.reactedOutfitCount(userId),

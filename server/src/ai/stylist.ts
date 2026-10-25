@@ -7,6 +7,7 @@ import {
   type MissingPiece,
   type OutfitMood,
   type Season,
+  type StyleSummary,
 } from "@closet-ai/shared";
 import * as z from "zod/v4";
 
@@ -102,11 +103,13 @@ export interface BriefInput {
   // Outfits they reacted to, in words.
   liked: string[];
   disliked: string[];
+  // The brief this one replaces, so the summary can say what changed; null for the first.
+  previous: string | null;
 }
 
 export type BriefResult =
   | { status: "pending" }
-  | { status: "done"; brief: string; costMicros: number }
+  | { status: "done"; brief: string; summary: StyleSummary; costMicros: number }
   | { status: "failed"; reason: string };
 
 export interface Stylist {
@@ -164,7 +167,16 @@ const BRIEF_PROMPT = `You are a sought-after personal stylist. Write a working b
 2. Hero pieces (by number) and what each one wants next to it.
 3. Pairings and colour stories that work in this wardrobe, with numbers.
 4. Traps: combinations that look obvious, dated or shapeless here, and anything she rejected.
-5. Gaps: up to three pieces she doesn't own that would unlock the most looks.`;
+5. Gaps: up to three pieces she doesn't own that would unlock the most looks.
+
+Put that brief in "brief". Then "summary": what she reads about her own style in the app, in English, Russian and Hebrew. Two or three short sentences to her ("you"; in Russian the informal «ты»; in Hebrew the plural form), concrete and warm, naming pieces by what they are, never by number. If the previous brief is given, end with one sentence on what changed since ("New: …").`;
+
+// The brief's answer: the working brief for the stylist and the summary the user reads.
+const briefOutput = z.object({
+  brief: z.string(),
+  summary: z.object({ en: z.string(), ru: z.string(), he: z.string() }),
+});
+const briefFormat = zodOutputFormat(briefOutput);
 
 const describe = (p: StylistPiece) =>
   `#${p.n} ${p.name} | ${p.category} | ${p.colors.join("/")} | ${p.seasons.join("/") || "?"}${p.details ? ` | ${p.details}` : ""}`;
@@ -273,6 +285,7 @@ export function createClaudeStylist(
             input.disliked.length
               ? `Outfits she rejected:\n${input.disliked.map((l) => `- ${l}`).join("\n")}`
               : "",
+            input.previous ? `The previous brief:\n${input.previous}` : "",
           ]
             .filter(Boolean)
             .join("\n\n"),
@@ -286,7 +299,11 @@ export function createClaudeStylist(
               model: BRIEF_MODEL,
               max_tokens: 16000,
               thinking: { type: "adaptive" },
-              output_config: { effort: "high" },
+              // The batch takes the format as plain JSON; its parse runs on the result below.
+              output_config: {
+                effort: "high",
+                format: { type: briefFormat.type, schema: briefFormat.schema },
+              },
               system: BRIEF_PROMPT,
               messages: [{ role: "user", content }],
             },
@@ -303,11 +320,20 @@ export function createClaudeStylist(
         if (entry.result.type !== "succeeded")
           return { status: "failed", reason: entry.result.type };
         const message = entry.result.message;
-        const brief = message.content
-          .flatMap((b) => (b.type === "text" ? [b.text] : []))
-          .join("\n");
-        if (!brief) return { status: "failed", reason: `empty (${message.stop_reason})` };
-        return { status: "done", brief, costMicros: costOf(BRIEF_MODEL, message.usage, true) };
+        const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+        if (!text) return { status: "failed", reason: `empty (${message.stop_reason})` };
+        let answer: z.infer<typeof briefOutput>;
+        try {
+          answer = briefFormat.parse(text);
+        } catch {
+          return { status: "failed", reason: `not the brief's shape (${message.stop_reason})` };
+        }
+        return {
+          status: "done",
+          brief: answer.brief,
+          summary: answer.summary,
+          costMicros: costOf(BRIEF_MODEL, message.usage, true),
+        };
       }
       return { status: "failed", reason: "no result" };
     },
