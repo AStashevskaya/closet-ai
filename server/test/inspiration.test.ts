@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
+import { createLimits } from "../src/modules/usage/limits";
 import type { OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
 import { deleteUnattachedPhotos, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
 import { createMemoryStorage } from "../src/storage/storage";
@@ -59,6 +60,7 @@ async function setup() {
     embedder: null,
     catalog: repositories.catalogRepository,
     queue: outfitQueue.outfitQueue,
+    limits: createLimits(repositories.usageRepository, { dailyUsd: 3, userMonthlyUsd: 5 }),
     clock: () => clock.now,
   };
   return {

@@ -2,6 +2,7 @@ import {
   FREE_LIMITS,
   MONTHLY_SAFETY_LIMITS,
   limitMessage,
+  type SpendAction,
   type Usage,
   type UsageAction,
   type UsagePeriod,
@@ -12,15 +13,20 @@ import type { UsageRepository } from "./usage.repository";
 // What one counted action roughly costs us, in millionths of a dollar (October 2026 prices):
 // an item photo is tagged (Haiku) and cut out (SAM 3); a "want" screenshot is also cut out
 // and compared item by item; a selfie is only read; outfits around an item are one Haiku call
-// with the stable part of the prompt cached. The outfit job records the real cost on its request.
+// with the stable part of the prompt cached. The outfit job records the real cost on its request:
+// 2.5 ¢ on average over the owner's 72 requests, 3.2 ¢ over the last 20 (2026-10-24).
 export const ESTIMATED_COST_MICROS: Record<UsageAction, number> = {
   item_photo: 6_000,
   want: 10_000,
   look: 2_000,
-  wear_with: 13_000,
+  wear_with: 30_000,
   // Stored only; the brief that reads it is paid for separately.
   inspiration: 0,
 };
+
+// An Opus brief through the Batch API, to check the room for one before sending it; what it
+// really cost is recorded once it's back.
+export const BRIEF_COST_MICROS = 100_000;
 
 // Periods are calendar ones in UTC: a day from midnight, a week from Monday, a month from the 1st.
 export function periodStart(period: UsagePeriod, now: Date): Date {
@@ -54,11 +60,27 @@ export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
 // the app turns into its own words.
 export function createLimits(
   usage: UsageRepository,
-  dailyBudgetUsd: number,
+  budgets: {
+    // The server's daily safety stop, for everyone together.
+    dailyUsd: number;
+    // What one user's AI may cost us in a calendar month, background briefs included.
+    userMonthlyUsd: number;
+  },
   testers: ReadonlySet<string> = new Set(),
   clock: () => Date = () => new Date(),
 ) {
-  const budgetMicros = Math.round(dailyBudgetUsd * 1_000_000);
+  const budgetMicros = Math.round(budgets.dailyUsd * 1_000_000);
+  const userMonthlyMicros = Math.round(budgets.userMonthlyUsd * 1_000_000);
+
+  // The spend caps, checked before anything that costs `costMicros`: the user's month first,
+  // since that's the one they can do something about (wait for the 1st).
+  async function roomFor(userId: string, costMicros: number, now: Date) {
+    if ((await usage.spentBy(userId, periodStart("month", now))) + costMicros > userMonthlyMicros)
+      return "monthly";
+    if ((await usage.spentSince(periodStart("day", now))) + costMicros > budgetMicros)
+      return "budget";
+    return null;
+  }
   // The count allowed per period: the free tier's, or a tester's.
   const allowed = (userId: string, action: UsageAction) =>
     (testers.has(userId) ? TESTER_LIMITS[action] : undefined) ?? FREE_LIMITS[action].count;
@@ -81,10 +103,18 @@ export function createLimits(
       ) {
         throw httpError(429, limitMessage(action));
       }
-      const spent = await usage.spentSince(periodStart("day", now));
-      if (spent + ESTIMATED_COST_MICROS[action] > budgetMicros) {
-        throw httpError(429, limitMessage("budget"));
-      }
+      const over = await roomFor(userId, ESTIMATED_COST_MICROS[action], now);
+      if (over) throw httpError(429, limitMessage(over));
+    },
+
+    // For background work no request asked for (the style brief): whether both caps have room.
+    async allows(userId: string, costMicros: number) {
+      return (await roomFor(userId, costMicros, clock())) === null;
+    },
+
+    // What background work really cost, once it's known.
+    spent(userId: string, action: SpendAction, costMicros: number) {
+      return usage.record(userId, action, costMicros);
     },
 
     // Once the action went through (the photo is stored and queued).

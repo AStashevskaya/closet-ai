@@ -111,10 +111,31 @@ describe("free-tier limits", () => {
   });
 });
 
+describe("monthly spend per user", () => {
+  it("stops a user at $5 of AI in the month, and no one else", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    const limits = createLimits(usageRepository, { dailyUsd: 100, userMonthlyUsd: 5 });
+    // Briefs and outfits so far this month.
+    await limits.spent("anna", "brief", 4_990_000);
+
+    await limits.check("anna", "item_photo");
+    await limits.record("anna", "item_photo");
+    await expect(limits.check("anna", "item_photo")).rejects.toThrow("limit:monthly");
+    await limits.check("maya", "item_photo");
+    // A brief needs more room than a photo.
+    expect(await limits.allows("anna", 100_000)).toBe(false);
+    expect(await limits.allows("maya", 100_000)).toBe(true);
+  });
+});
+
 describe("testers", () => {
   it("get 30 outfit requests a day and no monthly cap; others keep 5", async () => {
     const { usageRepository } = createInMemoryRepositories();
-    const limits = createLimits(usageRepository, 3, new Set(["tester"]));
+    const limits = createLimits(
+      usageRepository,
+      { dailyUsd: 3, userMonthlyUsd: 5 },
+      new Set(["tester"]),
+    );
     for (let i = 0; i < 30; i++) {
       await limits.check("tester", "wear_with");
       await limits.record("tester", "wear_with");
