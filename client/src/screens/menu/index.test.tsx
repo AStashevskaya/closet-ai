@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Linking } from 'react-native';
 
 import i18n from '@/i18n';
 
+import { getStyle } from '@/lib/api';
 import { setLanguage } from '@/lib/language';
 
 import { Menu } from '.';
@@ -28,6 +29,12 @@ jest.mock('@/lib/api', () => ({
     wear_with: { used: 1, limit: 30, resetsAt: '2026-10-22T00:00:00.000Z' },
   }),
   countDueWishes: jest.fn().mockResolvedValue(1),
+  getStyle: jest.fn().mockResolvedValue({
+    summary: 'High-low with a wink.',
+    writtenAt: '2026-10-21T12:00:00.000Z',
+    updating: false,
+    suggest: null,
+  }),
 }));
 jest.mock('@/lib/language', () => ({ setLanguage: jest.fn() }));
 jest.mock('@/lib/auth-client', () => ({
@@ -130,5 +137,18 @@ describe('<Menu />', () => {
         await screen.findByRole('radio', { name: 'As on my phone', checked: true }),
       ).toBeOnTheScreen();
     });
+  });
+
+  test('shows her style in a few sentences', async () => {
+    await render(<Menu />);
+    expect(await screen.findByText('High-low with a wink.')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Your style' })).toBeOnTheScreen();
+  });
+
+  test("leaves her style out when it can't be loaded", async () => {
+    jest.mocked(getStyle).mockRejectedValueOnce(new Error('offline'));
+    await render(<Menu />);
+    await waitFor(() => expect(getStyle).toHaveBeenCalled());
+    expect(screen.queryByRole('header', { name: 'Your style' })).toBeNull();
   });
 });

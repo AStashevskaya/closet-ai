@@ -224,7 +224,7 @@
     "intro": "Save looks you like: screenshots from Instagram, Pinterest, shops. The app learns your taste from them and puts your outfits together bolder and closer to you.",
     "add": "Add looks",
     "saving": "Saving…",
-    "taste": "Every 3 new looks update your style",
+    "taste": "Saved looks teach the app your taste",
     "deleteTitle": "Delete this look?",
     "delete": "Delete",
     "wantText": "A screenshot of a look: I'll find its pieces and show which ones already hang in your closet.",
@@ -392,5 +392,21 @@
     "failed": "Couldn't open your wishes. Try again.",
     "saved": "Saved {{date}}",
     "answerFailed": "Couldn't save the answer. Try again."
+  },
+  "style": {
+    "title": "Your style",
+    "shoppingTitle": "Great shopping!",
+    "shoppingBody": "New today: {{added}}. Update your style with them?",
+    "looks_one": "{{count}} saved look",
+    "looks_other": "{{count}} saved looks",
+    "both": "{{items}} and {{looks}}",
+    "update": "Update my style",
+    "notNow": "Not now",
+    "updatingTitle": "Updating your style",
+    "updating": "It takes a few minutes. Your closet works as usual meanwhile.",
+    "slow": "Your style is taking longer than usual. It will be in your profile when it's ready.",
+    "updated": "Your style is updated",
+    "ok": "Nice",
+    "failed": "Couldn't update your style. Try again later."
   }
 }

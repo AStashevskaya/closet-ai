@@ -19,7 +19,8 @@ import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
 import { chosenLanguage, type Language } from '@/i18n';
-import { countDueWishes } from '@/lib/api';
+import { countDueWishes, getStyle } from '@/lib/api';
+import { appLanguage } from '@/lib/app-language';
 import { authClient } from '@/lib/auth-client';
 import { setLanguage } from '@/lib/language';
 import { useUsage } from '@/lib/limits';
@@ -57,6 +58,8 @@ export function Menu() {
   const { usage } = useUsage();
   // Wishes waiting for "still want it?", shown on their row; reloaded when the tab comes back.
   const [due, setDue] = useState(0);
+  // Her style in a few sentences, once the first brief is written.
+  const [style, setStyle] = useState<string | null>(null);
   // null: the phone's languages.
   const [language, setChoice] = useState(chosenLanguage);
   // While a pick is saved (or the app reloads into it), the rows wait.
@@ -70,8 +73,16 @@ export function Menu() {
           // Only a hint: the row works without it.
         }
       };
+      const loadStyle = async () => {
+        try {
+          setStyle((await getStyle(appLanguage(i18n.language))).summary);
+        } catch {
+          // Nice to read, not needed.
+        }
+      };
       void load();
-    }, []),
+      void loadStyle();
+    }, [i18n.language]),
   );
 
   async function pickLanguage(choice: Language | null) {
@@ -117,6 +128,13 @@ export function Menu() {
         </Text>
         <Text style={maison.note}>{t('app.tagline')}</Text>
       </Animated.View>
+
+      {style && (
+        <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.style]}>
+          <SectionLabel>{t('style.title')}</SectionLabel>
+          <Text style={maison.body}>{style}</Text>
+        </Animated.View>
+      )}
 
       {usage && (
         <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.usage]}>
@@ -213,6 +231,9 @@ const styles = StyleSheet.create({
   },
   usage: {
     gap: 2,
+  },
+  style: {
+    gap: 8,
   },
   usageRow: {
     minHeight: 40,

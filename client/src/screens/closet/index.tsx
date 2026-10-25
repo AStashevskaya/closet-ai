@@ -17,7 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HangerLoader } from '@/components/hanger-loader';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
+import { StyleCard } from '@/components/style-card';
 import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
+import { useStyle } from '@/lib/style';
 import { durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -39,7 +41,7 @@ const STAGGERED = 8;
 const NEW_IN_FROM = 6;
 
 export function Closet() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [state, setState] = useState<State>({ status: 'loading' });
@@ -50,6 +52,8 @@ export function Closet() {
   const [entered, setEntered] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const scrollY = useSharedValue(0);
+  // Held here, not in the card: the card unmounts with a filter or edit mode.
+  const styleCard = useStyle(i18n.language);
 
   const load = useCallback(async () => {
     try {
@@ -192,6 +196,7 @@ export function Closet() {
         </View>
         {editButton}
       </View>
+      {!isEditing && <StyleCard {...styleCard} />}
       {newest && !isEditing && (
         <NewIn
           item={newest}
