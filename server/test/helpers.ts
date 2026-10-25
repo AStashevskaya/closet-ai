@@ -74,7 +74,11 @@ export const testEnv: Env = {
 
 // In-memory stand-ins for the Drizzle repositories. They share state the way the tables do:
 // an item's photo status comes from the photos store, and a photo is unattached when no item points to it.
-export function createInMemoryRepositories() {
+// `clock` stamps new items and photos, so a test that moves time on sees them as made then.
+export function createInMemoryRepositories(clock: () => Date = () => new Date()) {
+  // A millisecond apart, so rows made in one test keep their order.
+  let ticks = 0;
+  const stamp = () => new Date(clock().getTime() + ticks++);
   type ItemRow = { id: string; ownerId: string; input: CreateItemInput; createdAt: Date };
   const itemRows: ItemRow[] = [];
   const photoRows = new Map<string, Photo & { createdAt: Date; embedding?: number[] }>();
@@ -106,7 +110,7 @@ export function createInMemoryRepositories() {
   const itemsRepository: ItemsRepository = {
     list: async (ownerId) => itemRows.filter((row) => row.ownerId === ownerId).map(toApiItem),
     create: async (ownerId, input) => {
-      const row = { id: randomUUID(), ownerId, input, createdAt: new Date() };
+      const row = { id: randomUUID(), ownerId, input, createdAt: stamp() };
       itemRows.push(row);
       return toApiItem(row);
     },
@@ -170,7 +174,7 @@ export function createInMemoryRepositories() {
         lookItems: null,
         matches: null,
         cutoutKey: null,
-        createdAt: new Date(),
+        createdAt: stamp(),
       });
     },
     createReady: async (photo) => {
@@ -183,7 +187,7 @@ export function createInMemoryRepositories() {
         lookItems: null,
         matches: null,
         cutoutKey: null,
-        createdAt: new Date(),
+        createdAt: stamp(),
       });
     },
     setLookItems: async (key, lookItems, matches) => {
@@ -298,6 +302,19 @@ export function createInMemoryRepositories() {
     createdAt: Date;
   }[] = [];
   const briefs = new Map<string, StyleBrief>();
+  // The user's row as it is, or a new one, as an upsert would find it.
+  const emptyBrief = (userId: string): StyleBrief =>
+    briefs.get(userId) ?? {
+      brief: null,
+      summary: null,
+      itemCount: 0,
+      reactionCount: 0,
+      inspirationCount: 0,
+      writtenAt: null,
+      batchId: null,
+      requestedAt: null,
+      askedAt: null,
+    };
   const readyItems = (userId: string) =>
     itemRows.filter((row) => {
       const key = row.input.photoKey;
@@ -436,24 +453,36 @@ export function createInMemoryRepositories() {
     isAttached: async (photoKey) => itemRows.some((row) => row.input.photoKey === photoKey),
     brief: async (userId) => briefs.get(userId) ?? null,
     setBriefBatch: async (userId, batchId, requestedAt) => {
-      const current = briefs.get(userId) ?? {
-        brief: null,
-        itemCount: 0,
-        reactionCount: 0,
-        inspirationCount: 0,
-        writtenAt: null,
-        batchId: null,
-        requestedAt: null,
-      };
-      briefs.set(userId, { ...current, batchId, requestedAt });
+      briefs.set(userId, { ...emptyBrief(userId), batchId, requestedAt });
     },
     dropBriefBatch: async (userId) => {
       const current = briefs.get(userId);
       if (current) briefs.set(userId, { ...current, batchId: null });
     },
-    saveBrief: async (userId, brief, counts, writtenAt) => {
+    askBrief: async (userId, askedAt) => {
+      briefs.set(userId, { ...emptyBrief(userId), askedAt });
+    },
+    addedSince: async (userId, since) => ({
+      items: itemRows.filter(
+        (r) =>
+          r.ownerId === userId &&
+          r.createdAt > since &&
+          r.input.photoKey !== undefined &&
+          photoRows.get(r.input.photoKey)?.status === "ready",
+      ).length,
+      looks: [...photoRows.values()].filter(
+        (p) =>
+          p.ownerId === userId &&
+          p.kind === "inspiration" &&
+          p.status === "ready" &&
+          p.createdAt > since,
+      ).length,
+    }),
+    saveBrief: async (userId, { brief, summary }, counts, writtenAt) => {
       briefs.set(userId, {
+        ...emptyBrief(userId),
         brief,
+        summary,
         ...counts,
         writtenAt,
         batchId: null,
@@ -804,7 +833,7 @@ export function createStubStylist() {
   const composeCalls: ComposeInput[] = [];
   const briefCalls: BriefInput[] = [];
   // How the brief batches end: set `status` to make them fail or keep running.
-  const briefBatch: { status: "done" | "failed" | "pending" } = { status: "done" };
+  const briefBatch: { status: "done" | "failed" | "pending" | "malformed" } = { status: "done" };
   const stylist: Stylist = {
     async compose(input) {
       composeCalls.push(input);
@@ -839,7 +868,18 @@ export function createStubStylist() {
     async briefResult() {
       if (briefBatch.status === "failed") return { status: "failed", reason: "errored" };
       if (briefBatch.status === "pending") return { status: "pending" };
-      return { status: "done", brief: "High-low with a wink.", costMicros: 50_000 };
+      if (briefBatch.status === "malformed")
+        return { status: "failed", reason: "not the brief's shape", costMicros: 40_000 };
+      return {
+        status: "done",
+        brief: "High-low with a wink.",
+        summary: {
+          en: "High-low with a wink.",
+          ru: "Дорогое с простым и с изюминкой.",
+          he: "יוקרה ופשטות, עם קריצה.",
+        },
+        costMicros: 50_000,
+      };
     },
   };
   return { stylist, composeCalls, briefCalls, briefBatch };

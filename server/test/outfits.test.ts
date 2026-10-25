@@ -1,4 +1,11 @@
-import type { Item, StyledEntry, Usage, WearWithRequest, Wish } from "@closet-ai/shared";
+import type {
+  Item,
+  StyledEntry,
+  StyleState,
+  Usage,
+  WearWithRequest,
+  Wish,
+} from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -29,7 +36,9 @@ async function setup({
   stylistEnabled = true,
   embedder = null,
 }: { stylistEnabled?: boolean; embedder?: ItemEmbedder | null } = {}) {
-  const repositories = createInMemoryRepositories();
+  // Moved on by tests: the jobs, the routes and new rows all read it.
+  const clock = { now: new Date("2026-10-21T12:00:00Z") };
+  const repositories = createInMemoryRepositories(() => clock.now);
   const storage = createMemoryStorage();
   const queue = createManualOutfitQueue();
   const photoQueue = createManualPhotoQueue();
@@ -48,9 +57,8 @@ async function setup({
     storage,
     taggingEnabled: true,
     stylistEnabled,
+    clock: () => clock.now,
   });
-  // Moved on by tests: a brief is written at most once a day.
-  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   const deps: OutfitJobDeps = {
     outfits: repositories.outfitsRepository,
     photos: repositories.photosRepository,
@@ -599,7 +607,7 @@ describe("POST /api/wear-with", () => {
     // A new brief (her taste changed) composes again too.
     await s.repositories.outfitsRepository.saveBrief(
       anna.userId,
-      "New taste",
+      { brief: "New taste", summary: { en: "New", ru: "Новое", he: "חדש" } },
       { itemCount: 2, reactionCount: 0, inspirationCount: 3 },
       new Date(),
     );
@@ -738,6 +746,17 @@ describe("reactions", () => {
   });
 });
 
+// Eight items and a first brief, as in the style brief test.
+async function withBrief(s: Setup) {
+  const anna = await signUp(s, "anna@example.com");
+  const pieces = [];
+  for (let i = 0; i < 8; i++) pieces.push(await addItem(s, anna, i % 2 ? "bottom" : "top"));
+  await ask(s, anna.cookie, pieces[0]!.id);
+  await s.runJobs();
+  expect(s.stub.briefCalls).toHaveLength(1);
+  return { anna, pieces };
+}
+
 describe("style brief", () => {
   it("is written in the background once the wardrobe is big enough, and used from then on", async () => {
     const s = await setup();
@@ -768,31 +787,22 @@ describe("style brief", () => {
     expect(s.stub.composeCalls.at(-1)!.brief).toBe("High-low with a wink.");
   });
 
-  // Eight items and a first brief, as the test above.
-  async function withBrief(s: Setup) {
-    const anna = await signUp(s, "anna@example.com");
-    const pieces = [];
-    for (let i = 0; i < 8; i++) pieces.push(await addItem(s, anna, i % 2 ? "bottom" : "top"));
-    await ask(s, anna.cookie, pieces[0]!.id);
-    await s.runJobs();
-    expect(s.stub.briefCalls).toHaveLength(1);
-    return { anna, pieces };
-  }
-
-  it("is rewritten at most once a day, however fast the wardrobe grows", async () => {
+  it("isn't rewritten on its own as the wardrobe grows, only a month on", async () => {
     const s = await setup();
     const { anna, pieces } = await withBrief(s);
 
-    // Five new items make it stale, but the day isn't over.
     for (let i = 0; i < 5; i++) await addItem(s, anna, "top");
+    s.clock.now = new Date("2026-10-25T12:00:00Z");
     await ask(s, anna.cookie, pieces[1]!.id);
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(1);
 
-    s.clock.now = new Date("2026-10-22T12:30:00Z");
+    // A month later, with the wardrobe changed: rewritten, from the brief it replaces.
+    s.clock.now = new Date("2026-11-21T12:30:00Z");
     await ask(s, anna.cookie, pieces[2]!.id);
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(2);
+    expect(s.stub.briefCalls[1]!.previous).toBe("High-low with a wink.");
   });
 
   it("waits a day after a batch that failed instead of sending another", async () => {
@@ -854,30 +864,114 @@ describe("style brief", () => {
     await refreshBrief(s.deps, anna.userId);
     expect(s.stub.briefCalls).toHaveLength(2);
   });
+});
 
-  it("isn't made stale by tapping like on one outfit over and over", async () => {
+describe("her style", () => {
+  const style = async ({ server }: Setup, cookie: string, lang = "en") =>
+    server.inject({ method: "GET", url: `/api/style?lang=${lang}`, headers: { cookie } });
+  const refresh = ({ server }: Setup, cookie: string) =>
+    server.inject({ method: "POST", url: "/api/style/refresh", headers: { cookie } });
+
+  it("shows the summary in her language, and offers an update after a day of shopping", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    expect((await style(s, anna.cookie)).json<StyleState>()).toEqual({
+      summary: null,
+      writtenAt: null,
+      updating: false,
+      suggest: null,
+    });
+    // No brief yet: the first one comes on its own.
+    expect((await refresh(s, anna.cookie)).json<{ message: string }>().message).toBe("style:none");
+
+    const pieces = [];
+    for (let i = 0; i < 8; i++) pieces.push(await addItem(s, anna, i % 2 ? "bottom" : "top"));
+    await ask(s, anna.cookie, pieces[0]!.id);
+    await s.runJobs();
+    expect((await style(s, anna.cookie, "ru")).json<StyleState>()).toMatchObject({
+      summary: "Дорогое с простым и с изюминкой.",
+      updating: false,
+      suggest: null,
+    });
+
+    // The next day, four new pieces aren't a shopping day yet; five are.
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
+    for (let i = 0; i < 4; i++) await addItem(s, anna, "shoes");
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).toBeNull();
+    await addItem(s, anna, "accessory", "shoulder bag");
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).toEqual({
+      items: 5,
+      looks: 0,
+    });
+
+    // She taps "update": no more offers while it's written, then the new brief.
+    const asked = await refresh(s, anna.cookie);
+    expect(asked.statusCode).toBe(202);
+    expect(asked.json<StyleState>()).toMatchObject({ updating: true, suggest: null });
+    expect((await refresh(s, anna.cookie)).json<{ message: string }>().message).toBe(
+      "style:updating",
+    );
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(2);
+    expect(s.stub.briefCalls[1]!.wardrobe).toHaveLength(13);
+    expect((await style(s, anna.cookie)).json<StyleState>()).toMatchObject({
+      updating: false,
+      suggest: null,
+    });
+    // Once a day at most.
+    expect((await refresh(s, anna.cookie)).json<{ message: string }>().message).toBe("style:wait");
+  });
+
+  it("drops a request the job can't answer, instead of writing it on a later trigger", async () => {
     const s = await setup();
     const { anna, pieces } = await withBrief(s);
-    const id = (await ask(s, anna.cookie, pieces[1]!.id)).json<{ id: string }>().id;
-    await s.runJobs();
-    const [first, second] = (await view(s, anna.cookie, id)).outfits;
-    const react = (outfitId: string, reaction: string) =>
-      s.server.inject({
-        method: "POST",
-        url: `/api/outfits/${outfitId}/reactions`,
-        headers: { cookie: anna.cookie },
-        payload: { reaction },
-      });
-    s.clock.now = new Date("2026-10-22T12:30:00Z");
-
-    // Ten taps on one outfit and one on another: two outfits reacted to, not stale.
-    for (let i = 0; i < 5; i++) {
-      await react(first!.id, "like");
-      await react(first!.id, "none");
-    }
-    await react(second!.id, "dislike");
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
+    expect((await refresh(s, anna.cookie)).statusCode).toBe(202);
+    // Too few pieces by the time the job gets to it.
+    await s.server.inject({
+      method: "DELETE",
+      url: `/api/items/${pieces[7]!.id}`,
+      headers: { cookie: anna.cookie },
+    });
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(1);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.askedAt).toBeNull();
+
+    // Enough again, and a later trigger (a like, a saved look) writes nothing she didn't ask for.
+    await addItem(s, anna, "top");
+    await s.queue.outfitQueue.enqueueBrief(anna.userId);
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(1);
+  });
+
+  it("counts what a brief in the wrong shape cost", async () => {
+    const s = await setup();
+    s.stub.briefBatch.status = "malformed";
+    const { anna } = await withBrief(s);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBeNull();
+    expect(
+      await s.repositories.usageRepository.spentBy(anna.userId, periodStart("month", s.clock.now)),
+    ).toBe(ESTIMATED_COST_MICROS.wear_with + 40_000);
+  });
+
+  it("offers no update past her monthly cap", async () => {
+    const s = await setup();
+    const { anna } = await withBrief(s);
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
+    for (let i = 0; i < 5; i++) await addItem(s, anna, "top");
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).not.toBeNull();
+    await s.repositories.usageRepository.record(anna.userId, "brief", 4_950_000);
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).toBeNull();
+  });
+
+  it("isn't updated past her monthly AI cap", async () => {
+    const s = await setup();
+    const { anna } = await withBrief(s);
+    await s.repositories.usageRepository.record(anna.userId, "brief", 4_950_000);
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
+    const res = await refresh(s, anna.cookie);
+    expect(res.statusCode).toBe(429);
+    expect(res.json<{ message: string }>().message).toBe("limit:monthly");
   });
 });
 

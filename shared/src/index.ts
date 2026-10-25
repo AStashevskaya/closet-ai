@@ -442,4 +442,25 @@ export type UserProfile = z.infer<typeof userProfile>;
 export const updateProfileInput = userProfile.partial();
 export type UpdateProfileInput = z.infer<typeof updateProfileInput>;
 
+// The user's style as the stylist reads it (the brief), in a few sentences in each language.
+export const styleSummary = z.object({
+  en: z.string().min(1),
+  ru: z.string().min(1),
+  he: z.string().min(1),
+});
+export type StyleSummary = z.infer<typeof styleSummary>;
+
+// GET /api/style?lang=: the style summary in the language asked, and whether to offer an
+// update after a day of new pieces (a "great shopping" card).
+export const styleState = z.object({
+  // null until the first brief is back.
+  summary: z.string().nullable(),
+  writtenAt: z.string().datetime().nullable(),
+  // A brief is being written (asked for, or running).
+  updating: z.boolean(),
+  // What's new since the brief, when it's worth an update now; null otherwise.
+  suggest: z.object({ items: z.number().int(), looks: z.number().int() }).nullable(),
+});
+export type StyleState = z.infer<typeof styleState>;
+
 export * from "./limits";

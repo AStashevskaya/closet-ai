@@ -6,9 +6,10 @@ import type {
   MissingPiece,
   Outfit,
   OutfitReaction,
+  StyleSummary,
   WearWithRequest,
 } from "@closet-ai/shared";
-import { and, asc, count, countDistinct, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import {
   catalogItems,
@@ -65,12 +66,14 @@ export interface NewOutfit {
 
 export interface StyleBrief {
   brief: string | null;
+  summary: StyleSummary | null;
   itemCount: number;
   reactionCount: number;
   inspirationCount: number;
   writtenAt: Date | null;
   batchId: string | null;
   requestedAt: Date | null;
+  askedAt: Date | null;
 }
 
 // An outfit the user reacted to, in words, for the brief.
@@ -136,10 +139,14 @@ export interface OutfitsRepository {
   dropBriefBatch(userId: string): Promise<void>;
   saveBrief(
     userId: string,
-    brief: string,
+    written: { brief: string; summary: StyleSummary },
     counts: { itemCount: number; reactionCount: number; inspirationCount: number },
     writtenAt: Date,
   ): Promise<void>;
+  // She asked for her style to be updated; null once the job has declined it.
+  askBrief(userId: string, askedAt: Date | null): Promise<void>;
+  // Wardrobe items (with their photo ready) and saved looks she added since `since`.
+  addedSince(userId: string, since: Date): Promise<{ items: number; looks: number }>;
 }
 
 // The current opinion is the latest like / dislike / none; "wore" is counted.
@@ -452,9 +459,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       await db.update(styleBriefs).set({ batchId: null }).where(eq(styleBriefs.userId, userId));
     },
 
-    async saveBrief(userId, brief, counts, writtenAt) {
+    async saveBrief(userId, { brief, summary }, counts, writtenAt) {
       const set = {
         brief,
+        summary,
         ...counts,
         writtenAt,
         batchId: null,
@@ -464,6 +472,35 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .insert(styleBriefs)
         .values({ userId, ...set })
         .onConflictDoUpdate({ target: styleBriefs.userId, set });
+    },
+
+    async askBrief(userId, askedAt) {
+      await db
+        .insert(styleBriefs)
+        .values({ userId, askedAt })
+        .onConflictDoUpdate({ target: styleBriefs.userId, set: { askedAt } });
+    },
+
+    async addedSince(userId, since) {
+      const [added] = await db
+        .select({ n: count() })
+        .from(items)
+        .innerJoin(photos, eq(photos.key, items.photoKey))
+        .where(
+          and(eq(items.ownerId, userId), eq(photos.status, "ready"), gt(items.createdAt, since)),
+        );
+      const [saved] = await db
+        .select({ n: count() })
+        .from(photos)
+        .where(
+          and(
+            eq(photos.ownerId, userId),
+            eq(photos.kind, "inspiration"),
+            eq(photos.status, "ready"),
+            gt(photos.createdAt, since),
+          ),
+        );
+      return { items: added?.n ?? 0, looks: saved?.n ?? 0 };
     },
   };
 }

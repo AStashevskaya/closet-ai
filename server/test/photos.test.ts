@@ -891,6 +891,7 @@ describe("want / can: a look matched against the wardrobe", () => {
       await upload(server, cookie, await cameraPhoto(), "image/jpeg", "?kind=want")
     ).json<UploadedPhoto>().photoKey;
 
+  // Many images through sharp: ~1 s on a Mac, 3-5 s on CI runners.
   it("finds the look's items and the wardrobe items that match them", async () => {
     const cut = createStubRemover();
     const server = await setup({ remover: cut.remover });
@@ -919,7 +920,7 @@ describe("want / can: a look matched against the wardrobe", () => {
     // Each look item is cut out before it is embedded; the look itself is neither.
     expect(cut.calls).toHaveLength(2);
     expect((await jobDeps.photos.get(photoKey))!.cutoutKey).toBeNull();
-  });
+  }, 15_000);
 
   it("reads a look for what's worn, and a photo of a piece to buy for what's on show", async () => {
     const server = await setup();

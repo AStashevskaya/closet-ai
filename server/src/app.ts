@@ -23,6 +23,7 @@ import { inspirationRoutes } from "./modules/inspiration/inspiration.routes";
 import { outfitsRoutes } from "./modules/outfits/outfits.routes";
 import type { ProfileRepository } from "./modules/profile/profile.repository";
 import { profileRoutes } from "./modules/profile/profile.routes";
+import { styleRoutes } from "./modules/style/style.routes";
 import type { WishesRepository } from "./modules/wishes/wishes.repository";
 import { wishesRoutes } from "./modules/wishes/wishes.routes";
 import type { PhotoQueue } from "./queue/photo-queue";
@@ -48,6 +49,8 @@ export interface AppDeps {
   taggingEnabled: boolean;
   // Whether a stylist is configured (ANTHROPIC_API_KEY); the outfit worker asks it.
   stylistEnabled: boolean;
+  // Tests move time on; the background jobs take the same clock.
+  clock?: () => Date;
 }
 
 // The app sends a photo already shrunk to ~1600 px JPEG (well under 1 MB); the limit only
@@ -69,6 +72,7 @@ export async function buildApp({
   storage,
   taggingEnabled,
   stylistEnabled,
+  clock = () => new Date(),
 }: AppDeps) {
   const app = Fastify({
     logger:
@@ -140,6 +144,12 @@ export async function buildApp({
       stylistEnabled,
     ),
     { prefix: "/api" },
+  );
+  await app.register(
+    styleRoutes(outfitsRepository, outfitQueue, limits, auth, stylistEnabled, clock),
+    {
+      prefix: "/api",
+    },
   );
   await app.register(wishesRoutes(wishesRepository, outfitsRepository, photosRepository, auth), {
     prefix: "/api",
