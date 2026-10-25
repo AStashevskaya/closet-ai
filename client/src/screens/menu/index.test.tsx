@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Linking } from 'react-native';
 
 import i18n from '@/i18n';
 
+import { getStyle } from '@/lib/api';
 import { setLanguage } from '@/lib/language';
 
 import { Menu } from '.';
@@ -142,5 +143,12 @@ describe('<Menu />', () => {
     await render(<Menu />);
     expect(await screen.findByText('High-low with a wink.')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Your style' })).toBeOnTheScreen();
+  });
+
+  test("leaves her style out when it can't be loaded", async () => {
+    jest.mocked(getStyle).mockRejectedValueOnce(new Error('offline'));
+    await render(<Menu />);
+    await waitFor(() => expect(getStyle).toHaveBeenCalled());
+    expect(screen.queryByRole('header', { name: 'Your style' })).toBeNull();
   });
 });

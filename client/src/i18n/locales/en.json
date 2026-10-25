@@ -399,11 +399,12 @@
     "shoppingBody": "New today: {{added}}. Update your style with them?",
     "looks_one": "{{count}} saved look",
     "looks_other": "{{count}} saved looks",
-    "and": " and ",
+    "both": "{{items}} and {{looks}}",
     "update": "Update my style",
     "notNow": "Not now",
     "updatingTitle": "Updating your style",
     "updating": "It takes a few minutes. Your closet works as usual meanwhile.",
+    "slow": "Your style is taking longer than usual. It will be in your profile when it's ready.",
     "updated": "Your style is updated",
     "ok": "Nice",
     "failed": "Couldn't update your style. Try again later."

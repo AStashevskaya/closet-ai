@@ -5,18 +5,29 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Button, maison } from '@/components/maison';
+import { ApiError, OfflineError } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { limitText } from '@/lib/limits';
-import { useStyle } from '@/lib/style';
+import type { StyleCardState } from '@/lib/style';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // The "great shopping" card at the top of the closet (decided 2026-10-25): after a day of new
 // pieces it offers to update her style, shows that it's being written, then the new summary.
-// The brief costs ~10 ¢, so it's written when she wants it rather than on its own.
-export function StyleCard() {
+// The brief costs ~10 ¢, so it's written when she wants it rather than on its own. The state
+// lives in the closet (useStyle), so the card can unmount with a filter or edit mode.
+export function StyleCard({
+  style,
+  dismissed,
+  asked,
+  updated,
+  slow,
+  load,
+  update,
+  dismiss,
+  done,
+}: StyleCardState) {
   const { t, i18n } = useTranslation();
-  const { style, dismissed, asked, updated, update, dismiss, done } = useStyle(i18n.language);
   const [busy, setBusy] = useState(false);
 
   async function onUpdate() {
@@ -26,7 +37,11 @@ export function StyleCard() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (cause) {
       const code = limitReached(cause);
-      Alert.alert(code ? limitText(t, i18n.language, code) : t('style.failed'));
+      if (code) Alert.alert(limitText(t, i18n.language, code));
+      else if (cause instanceof OfflineError) Alert.alert(t('common.offline'));
+      // Already being written (another tap, another phone), or not allowed now: show what is.
+      else if (cause instanceof ApiError && cause.status === 409) void load();
+      else Alert.alert(t('style.failed'));
     } finally {
       setBusy(false);
     }
@@ -38,15 +53,22 @@ export function StyleCard() {
   if (updated && style.summary) {
     body = (
       <>
-        <Text style={styles.title}>{t('style.updated')}</Text>
+        <Title>{t('style.updated')}</Title>
         <Text style={styles.text}>{style.summary}</Text>
+        <Button label={t('style.ok')} onPress={done} kind="ink" />
+      </>
+    );
+  } else if (slow) {
+    body = (
+      <>
+        <Text style={styles.text}>{t('style.slow')}</Text>
         <Button label={t('style.ok')} onPress={done} kind="ink" />
       </>
     );
   } else if (asked && style.updating) {
     body = (
       <>
-        <Text style={styles.title}>{t('style.updatingTitle')}</Text>
+        <Title>{t('style.updatingTitle')}</Title>
         <Text style={styles.text}>{t('style.updating')}</Text>
       </>
     );
@@ -60,15 +82,17 @@ export function StyleCard() {
     );
   } else if (style.suggest && !dismissed) {
     const { items, looks } = style.suggest;
-    const added = [
-      items > 0 ? t('items.count', { count: items }) : null,
-      looks > 0 ? t('style.looks', { count: looks }) : null,
-    ]
-      .filter(Boolean)
-      .join(t('style.and'));
+    const itemsText = t('items.count', { count: items });
+    const looksText = t('style.looks', { count: looks });
+    const added =
+      items > 0 && looks > 0
+        ? t('style.both', { items: itemsText, looks: looksText })
+        : items > 0
+          ? itemsText
+          : looksText;
     body = (
       <>
-        <Text style={styles.title}>{t('style.shoppingTitle')}</Text>
+        <Title>{t('style.shoppingTitle')}</Title>
         <Text style={styles.text}>{t('style.shoppingBody', { added })}</Text>
         <Button label={t('style.update')} onPress={onUpdate} busy={busy} kind="ink" />
         <Pressable onPress={dismiss} hitSlop={8} accessibilityRole="button" style={styles.later}>
@@ -81,10 +105,19 @@ export function StyleCard() {
   if (!body) return null;
   return (
     <Animated.View entering={FadeIn.duration(durations.enter)} style={maison.gutter}>
-      <View style={styles.card} accessibilityRole="summary">
+      {/* Screen readers hear each new state (updating, updated) as it comes. */}
+      <View style={styles.card} accessibilityRole="summary" accessibilityLiveRegion="polite">
         {body}
       </View>
     </Animated.View>
+  );
+}
+
+function Title({ children }: { children: string }) {
+  return (
+    <Text style={styles.title} accessibilityRole="header">
+      {children}
+    </Text>
   );
 }
 
