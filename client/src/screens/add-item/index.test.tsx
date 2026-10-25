@@ -118,6 +118,34 @@ describe('<AddItem />', () => {
     ).not.toBeOnTheScreen();
   });
 
+  test('shows the photo and that it is recognising as soon as the gallery closes', async () => {
+    // Shrinking takes a moment on a phone: held here until the test lets it go.
+    let shrunk: (uri: string) => void = () => {};
+    jest.mocked(shrinkPhoto).mockReturnValue(new Promise((resolve) => (shrunk = resolve)));
+    await render(<AddItem />);
+    // Not awaited: the press finishes only once the photo is shrunk.
+    const pressing = fireEvent.press(screen.getByText('Choose from gallery'));
+    expect(await screen.findByText('Recognising the item from the photo…')).toBeOnTheScreen();
+    expect(uploadPhoto).not.toHaveBeenCalled();
+    shrunk('file:///small.jpg');
+    await pressing;
+    expect(uploadPhoto).toHaveBeenCalledWith('file:///small.jpg', 'en');
+  });
+
+  test('keeps the photo she had when a new one cannot be opened', async () => {
+    await render(<AddItem />);
+    await fillForm();
+    jest.mocked(shrinkPhoto).mockRejectedValueOnce(new Error('unsupported image'));
+    await fireEvent.press(screen.getByText('Change photo'));
+    expect(screen.getByText("Couldn't open this photo. Try another one.")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByText('Save'));
+    expect(uploadPhoto).toHaveBeenCalledTimes(1);
+    expect(createItem).toHaveBeenCalledWith(
+      expect.objectContaining({ photoKey: 'photos/u1/p1.webp' }),
+    );
+  });
+
   test('shrinks the photo, uploads it, then creates the item', async () => {
     await render(<AddItem />);
     await fillForm();

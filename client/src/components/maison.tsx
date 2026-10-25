@@ -52,7 +52,14 @@ type ButtonProps = {
 export function Button({ label, onPress, disabled, busy, kind = 'ink', style }: ButtonProps) {
   return (
     <PressableScale
-      style={[styles.button, styles[kind], (disabled || busy) && styles.disabled, style]}
+      style={[
+        styles.button,
+        styles[kind],
+        busy && styles.dim,
+        // Off reads as off: half-transparent ink still looked like a button to tap (2026-10-25).
+        disabled && !busy && (kind === 'bright' ? styles.dim : styles.off),
+        style,
+      ]}
       onPress={onPress}
       disabled={disabled || busy}
       accessibilityRole="button"
@@ -62,7 +69,15 @@ export function Button({ label, onPress, disabled, busy, kind = 'ink', style }: 
       {busy ? (
         <ActivityIndicator color={kind === 'ink' ? colors.onAccent : colors.text} />
       ) : (
-        <Text style={[styles.buttonText, kind === 'ink' && styles.buttonTextInk]}>{label}</Text>
+        <Text
+          style={[
+            styles.buttonText,
+            kind === 'ink' && styles.buttonTextInk,
+            disabled && kind !== 'bright' && styles.buttonTextOff,
+          ]}
+        >
+          {label}
+        </Text>
       )}
     </PressableScale>
   );
@@ -147,8 +162,12 @@ const styles = StyleSheet.create({
   bright: {
     backgroundColor: colors.highlight,
   },
-  disabled: {
+  dim: {
     opacity: 0.5,
+  },
+  off: {
+    backgroundColor: colors.hero,
+    borderColor: colors.border,
   },
   buttonText: {
     fontFamily: fonts.bodyMedium,
@@ -157,5 +176,9 @@ const styles = StyleSheet.create({
   },
   buttonTextInk: {
     color: colors.onAccent,
+  },
+  // 4.8:1 on the studio grey.
+  buttonTextOff: {
+    color: colors.textMuted,
   },
 });

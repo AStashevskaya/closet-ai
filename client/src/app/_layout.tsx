@@ -30,7 +30,9 @@ export default function RootLayout() {
 
   // Protected screens exist only while their guard is true; Expo Router redirects away otherwise.
   return (
-    <Stack>
+    // No long-press history on the back button: the stack is shallow, and the tabs screen has
+    // no title of its own to show there (it read "(tabs)").
+    <Stack screenOptions={{ headerBackButtonMenuEnabled: false }}>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen

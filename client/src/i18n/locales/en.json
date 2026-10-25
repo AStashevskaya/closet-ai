@@ -61,7 +61,8 @@
       "colors": "Pick at least one color",
       "cameraPermission": "Allow camera access in Settings to take a photo",
       "save": "Couldn't save the item. Try again.",
-      "price": "Check the price: just the number, like 349.90"
+      "price": "Check the price: just the number, like 349.90",
+      "unreadable": "Couldn't open this photo. Try another one."
     },
     "brand": "Brand",
     "brandPlaceholder": "e.g. COS",

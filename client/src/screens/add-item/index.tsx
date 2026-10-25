@@ -52,6 +52,7 @@ type ErrorKey =
   | 'addItem.errors.colors'
   | 'addItem.errors.price'
   | 'addItem.errors.cameraPermission'
+  | 'addItem.errors.unreadable'
   | 'addItem.errors.save';
 
 export function AddItem() {
@@ -114,12 +115,27 @@ export function AddItem() {
     const asset = result.canceled ? undefined : result.assets[0];
     if (!asset) return;
 
+    // The photo and "recognizing" show at once: shrinking a 12 MP HEIC and uploading it take a
+    // second or two, which read as a freeze after the gallery closed.
+    const previous = { uri: photoUri, key: photoKey, tagging };
+    setPhotoUri(asset.uri);
+    // The old photo's tags mustn't land on the new one while it's shrunk.
+    setPhotoKey(null);
+    setError(null);
+    setTagging('waiting');
     setBusy(true);
     let uri: string;
     try {
       uri = await shrinkPhoto(asset);
       setPhotoUri(uri);
-      setError(null);
+    } catch (cause) {
+      // Back to the photo she had, if any.
+      setPhotoUri(previous.uri);
+      setPhotoKey(previous.key);
+      setTagging(previous.uri ? previous.tagging : 'idle');
+      if (__DEV__) console.warn('Shrinking the photo failed', cause);
+      setError('addItem.errors.unreadable');
+      return;
     } finally {
       setBusy(false);
     }
@@ -159,7 +175,8 @@ export function AddItem() {
 
   async function startUpload(uri: string) {
     setPhotoKey(null);
-    setTagging('idle');
+    // Recognizing starts with the upload, as far as she can tell.
+    setTagging('waiting');
     const started = uploadPhoto(uri, lang);
     upload.current = started;
     try {
@@ -169,7 +186,8 @@ export function AddItem() {
       setPhotoKey(key);
       setTagging('waiting');
     } catch (cause) {
-      // Nothing to show yet: saving tries the upload again and reports a failure then.
+      // Nothing to recognize: saving tries the upload again and reports a failure then.
+      if (upload.current === started) setTagging('idle');
       if (__DEV__) console.warn('Uploading the photo failed', cause);
     }
   }
