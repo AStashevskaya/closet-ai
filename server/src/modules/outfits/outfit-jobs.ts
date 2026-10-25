@@ -57,7 +57,9 @@ export interface OutfitJobDeps {
 // A request that can never be composed (its item is gone): marked failed without retrying.
 export class PermanentOutfitError extends Error {}
 
-export const LOOKS_PER_REQUEST = 4;
+// Three (decided 2026-10-25): quicker to read and to compose; the prompt drops its last
+// direction, the unexpected mix.
+export const LOOKS_PER_REQUEST = 3;
 // A brand's piece shown for its own sake stays the exception: never in every look (docs/product.md,
 // partner items). Partner shoes and bags that finish a look her wardrobe can't are not counted.
 export const MAX_PARTNER_LOOKS = 2;

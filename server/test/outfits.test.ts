@@ -198,7 +198,7 @@ describe("POST /api/wear-with", () => {
     const [call] = s.stub.composeCalls;
     expect(call!.hero.name).toBe(skirt.name);
     expect(call!.wardrobe.map((p) => p.name)).not.toContain(skirt.name);
-    expect(call!).toMatchObject({ lang: "ru", season: "autumn", looks: 4, brief: null });
+    expect(call!).toMatchObject({ lang: "ru", season: "autumn", looks: 3, brief: null });
     // No embedding for the item, so nothing to pick partner pieces by.
     expect(call!.shop).toBeNull();
   });
