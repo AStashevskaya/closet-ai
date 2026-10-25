@@ -100,7 +100,7 @@ export async function buildApp({
   await app.register(authRoutes(auth), { prefix: "/api" });
   const limits = createLimits(
     usageRepository,
-    env.AI_DAILY_BUDGET_USD,
+    { dailyUsd: env.AI_DAILY_BUDGET_USD, userMonthlyUsd: env.USER_MONTHLY_BUDGET_USD },
     new Set(env.TESTER_USER_IDS),
   );
   await app.register(

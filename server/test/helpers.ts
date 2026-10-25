@@ -6,7 +6,7 @@ import type {
   ItemTags,
   LookItem,
   OutfitReaction,
-  UsageAction,
+  SpendAction,
   UserProfile,
 } from "@closet-ai/shared";
 import type { BackgroundRemover } from "../src/ai/background-remover";
@@ -65,6 +65,7 @@ export const testEnv: Env = {
   S3_SECRET_ACCESS_KEY: "unused",
   REDIS_URL: "redis://localhost:6379",
   AI_DAILY_BUDGET_USD: 3,
+  USER_MONTHLY_BUDGET_USD: 5,
   TESTER_USER_IDS: [],
   MODEL_CACHE_DIR: ".models",
   WORKERS_IN_API: true,
@@ -268,7 +269,7 @@ export function createInMemoryRepositories() {
         .map(({ key, createdAt }) => ({ key, createdAt })),
   };
 
-  const usageRows: { userId: string; action: UsageAction; costMicros: number; createdAt: Date }[] =
+  const usageRows: { userId: string; action: SpendAction; costMicros: number; createdAt: Date }[] =
     [];
   const usageRepository: UsageRepository = {
     record: async (userId, action, costMicros) => {
@@ -279,6 +280,10 @@ export function createInMemoryRepositories() {
         .length,
     spentSince: async (since) =>
       usageRows.filter((r) => r.createdAt >= since).reduce((sum, r) => sum + r.costMicros, 0),
+    spentBy: async (userId, since) =>
+      usageRows
+        .filter((r) => r.userId === userId && r.createdAt >= since)
+        .reduce((sum, r) => sum + r.costMicros, 0),
   };
 
   // Outfits keep their own rows and read items and photos from the stores above.

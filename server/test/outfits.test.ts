@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
+import { createLimits, ESTIMATED_COST_MICROS, periodStart } from "../src/modules/usage/limits";
 import { checkBrief, refreshBrief, type OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
 import { deleteUnattachedPhotos, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
@@ -59,6 +60,7 @@ async function setup({
     embedder,
     catalog: repositories.catalogRepository,
     queue: queue.outfitQueue,
+    limits: createLimits(repositories.usageRepository, { dailyUsd: 3, userMonthlyUsd: 5 }),
     clock: () => clock.now,
   };
   const photoDeps: PhotoJobDeps = {
@@ -813,6 +815,26 @@ describe("style brief", () => {
     expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBe(
       "High-low with a wink.",
     );
+  });
+
+  it("records what the brief cost, and sends none past her monthly cap", async () => {
+    const s = await setup();
+    const { anna } = await withBrief(s);
+    const usage = s.repositories.usageRepository;
+    const monthStart = periodStart("month", s.clock.now);
+    // The stub's brief: 5 ¢, on top of the request's estimate.
+    expect(await usage.spentBy(anna.userId, monthStart)).toBe(
+      ESTIMATED_COST_MICROS.wear_with + 50_000,
+    );
+
+    const maya = await signUp(s, "maya@example.com");
+    await usage.record(maya.userId, "brief", 4_950_000);
+    const pieces = [];
+    for (let i = 0; i < 8; i++) pieces.push(await addItem(s, maya, i % 2 ? "bottom" : "top"));
+    await ask(s, maya.cookie, pieces[0]!.id);
+    await s.runJobs();
+    // Still only Anna's brief.
+    expect(s.stub.briefCalls).toHaveLength(1);
   });
 
   it("gives up on a batch still running after a day, and sends a new one", async () => {

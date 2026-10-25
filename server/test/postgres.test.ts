@@ -71,6 +71,7 @@ describe.skipIf(!url)("on Postgres", () => {
       S3_SECRET_ACCESS_KEY: "unused",
       REDIS_URL: "redis://localhost:6379",
       AI_DAILY_BUDGET_USD: 3,
+      USER_MONTHLY_BUDGET_USD: 5,
       TESTER_USER_IDS: [],
       MODEL_CACHE_DIR: ".models",
       WORKERS_IN_API: true,

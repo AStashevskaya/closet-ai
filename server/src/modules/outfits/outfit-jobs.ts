@@ -7,6 +7,7 @@ import type { CatalogRepository, CatalogRow } from "../catalog/catalog.repositor
 import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { flattenOnWhite, isWhole, processCutout } from "../photos/process-photo";
+import { BRIEF_COST_MICROS, type Limits } from "../usage/limits";
 import type {
   NewOutfit,
   OutfitRequestRow,
@@ -48,6 +49,8 @@ export interface OutfitJobDeps {
   // Partner items the stylist may finish a look with; null when they are switched off.
   catalog: CatalogRepository | null;
   queue: OutfitQueue;
+  // The spend caps the brief keeps to, and where its cost is recorded.
+  limits: Limits;
   clock?: () => Date;
 }
 
@@ -383,6 +386,8 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
     !current.writtenAt ||
     now.getTime() - current.writtenAt.getTime() > STALE_AFTER_MS;
   if (!stale) return;
+  // Past her monthly cap (or the server's day) the stylist keeps the brief it has.
+  if (!(await deps.limits.allows(userId, BRIEF_COST_MICROS, now))) return;
 
   // The newest pieces when the wardrobe is big: they say most about her taste now.
   const numbered = wardrobe.map((item, i) => ({ item, n: i + 1 }));
@@ -444,4 +449,6 @@ export async function checkBrief(deps: OutfitJobDeps, userId: string) {
     },
     now,
   );
+  // After the save: a retried job finds no batch and records nothing twice.
+  await deps.limits.spent(userId, "brief", result.costMicros);
 }

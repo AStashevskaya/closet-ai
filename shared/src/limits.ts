@@ -12,10 +12,13 @@ export type UsagePeriod = (typeof USAGE_PERIODS)[number];
 // Counted AI actions, as stored in usage_events.
 export const USAGE_ACTIONS = ["item_photo", "want", "look", "wear_with", "inspiration"] as const;
 export type UsageAction = (typeof USAGE_ACTIONS)[number];
+// Everything whose cost is recorded: the counted actions and the background style brief.
+export const SPEND_ACTIONS = [...USAGE_ACTIONS, "brief"] as const;
+export type SpendAction = (typeof SPEND_ACTIONS)[number];
 
 export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeriod }> = {
   // A safety cap against abuse rather than a product limit.
-  item_photo: { count: 100, period: "day" },
+  item_photo: { count: 50, period: "day" },
   want: { count: 5, period: "month" },
   look: { count: 3, period: "month" },
   // "What do I wear this with?" is meant to be opened every day, so it's generous.
@@ -25,7 +28,9 @@ export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeri
 };
 
 // Hidden monthly caps on top, so one account can't cost more than it could ever be worth.
-export const MONTHLY_SAFETY_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 80 };
+// The per-user spend cap (USER_MONTHLY_BUDGET_USD, $5) is the real bound; these keep one
+// feature from using all of it.
+export const MONTHLY_SAFETY_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 60 };
 
 // Not built yet: daily outfits 3 a week (4 looks each), "make it nice" 3 to try, listings 3 a
 // month.
@@ -45,8 +50,8 @@ export const usage = z.object({
 export type Usage = z.infer<typeof usage>;
 
 // The message of a 429 when a limit is reached, so the app can say which one. "budget" is the
-// server's daily safety stop for everyone.
-export const LIMIT_CODES = [...USAGE_ACTIONS, "budget"] as const;
+// server's daily safety stop for everyone; "monthly" is the user's own AI spend for the month.
+export const LIMIT_CODES = [...USAGE_ACTIONS, "budget", "monthly"] as const;
 export type LimitCode = (typeof LIMIT_CODES)[number];
 export const limitMessage = (code: LimitCode) => `limit:${code}`;
 export function limitCodeOf(message: string): LimitCode | null {

@@ -15,6 +15,13 @@ export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: U
     return t(`limits.${code}`, { limit: FREE_LIMITS[code].count, date });
   }
   if (code === 'wear_with') return t('limits.wear_with', { limit: FREE_LIMITS.wear_with.count });
+  if (code === 'monthly') {
+    // The server's months are calendar ones in UTC, so it opens again on the 1st.
+    const now = new Date();
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const date = next.toLocaleDateString(lang, { day: 'numeric', month: 'long' });
+    return t('limits.monthly', { date });
+  }
   return t(`limits.${code}`);
 }
 

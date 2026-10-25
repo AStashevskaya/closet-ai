@@ -7,6 +7,8 @@ import type { Db } from "./db/client";
 import { createCatalogRepository } from "./modules/catalog/catalog.repository";
 import { createOutfitsRepository } from "./modules/outfits/outfits.repository";
 import { createPhotosRepository } from "./modules/photos/photos.repository";
+import { createLimits } from "./modules/usage/limits";
+import { createUsageRepository } from "./modules/usage/usage.repository";
 import { createOutfitQueue, createOutfitWorker } from "./queue/outfit-queue";
 import { createPhotoQueue, createPhotoWorker } from "./queue/photo-queue";
 import type { Storage } from "./storage/storage";
@@ -45,6 +47,10 @@ export async function startWorkers(env: Env, db: Db, storage: Storage) {
     stylist,
     catalog,
     queue: outfitQueue.outfitQueue,
+    limits: createLimits(createUsageRepository(db), {
+      dailyUsd: env.AI_DAILY_BUDGET_USD,
+      userMonthlyUsd: env.USER_MONTHLY_BUDGET_USD,
+    }),
   });
 
   return {

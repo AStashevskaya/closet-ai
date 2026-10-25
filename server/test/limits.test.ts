@@ -111,10 +111,56 @@ describe("free-tier limits", () => {
   });
 });
 
+describe("monthly spend per user", () => {
+  it("stops a user at $5 of AI in the month, and no one else", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    const limits = createLimits(usageRepository, { dailyUsd: 100, userMonthlyUsd: 5 });
+    // Briefs and outfits so far this month.
+    await limits.spent("anna", "brief", 4_990_000);
+
+    await limits.check("anna", "item_photo");
+    await limits.record("anna", "item_photo");
+    await expect(limits.check("anna", "item_photo")).rejects.toThrow("limit:monthly");
+    await limits.check("maya", "item_photo");
+    // A brief needs more room than a photo.
+    expect(await limits.allows("anna", 100_000)).toBe(false);
+    expect(await limits.allows("maya", 100_000)).toBe(true);
+    // Saving a look is free, so it isn't stopped.
+    await limits.check("anna", "inspiration");
+  });
+
+  it("opens again on the 1st", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    let now = new Date("2026-10-31T23:00:00Z");
+    const limits = createLimits(
+      usageRepository,
+      { dailyUsd: 100, userMonthlyUsd: 5 },
+      new Set(),
+      () => now,
+    );
+    await limits.spent("anna", "brief", 5_000_000);
+    expect(await limits.allows("anna", 100_000)).toBe(false);
+    // The in-memory rows are stamped with the real time, so look from a month after it.
+    now = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1, 0, 1));
+    expect(await limits.allows("anna", 100_000)).toBe(true);
+  });
+
+  it("lets a brief through only while the server's day has room too", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    const limits = createLimits(usageRepository, { dailyUsd: 0.15, userMonthlyUsd: 5 });
+    await limits.spent("maya", "brief", 100_000);
+    expect(await limits.allows("anna", 100_000)).toBe(false);
+  });
+});
+
 describe("testers", () => {
   it("get 30 outfit requests a day and no monthly cap; others keep 5", async () => {
     const { usageRepository } = createInMemoryRepositories();
-    const limits = createLimits(usageRepository, 3, new Set(["tester"]));
+    const limits = createLimits(
+      usageRepository,
+      { dailyUsd: 3, userMonthlyUsd: 5 },
+      new Set(["tester"]),
+    );
     for (let i = 0; i < 30; i++) {
       await limits.check("tester", "wear_with");
       await limits.record("tester", "wear_with");

@@ -11,7 +11,7 @@ import {
   PHOTO_STATUSES,
   SEASONS,
   TAG_STATUSES,
-  USAGE_ACTIONS,
+  SPEND_ACTIONS,
   type AppLanguage,
   type BuyVerdict,
   type ItemTags,
@@ -44,7 +44,8 @@ export const itemColorEnum = pgEnum("item_color", ITEM_COLORS);
 export const photoStatusEnum = pgEnum("photo_status", PHOTO_STATUSES);
 export const tagStatusEnum = pgEnum("tag_status", TAG_STATUSES);
 export const photoKindEnum = pgEnum("photo_kind", PHOTO_KINDS);
-export const usageActionEnum = pgEnum("usage_action", USAGE_ACTIONS);
+// New values go at the end, as `ALTER TYPE ... ADD VALUE` adds them (0019 added "brief").
+export const usageActionEnum = pgEnum("usage_action", SPEND_ACTIONS);
 export const currencyEnum = pgEnum("currency", CURRENCIES);
 export const bodyShapeEnum = pgEnum("body_shape", BODY_SHAPES);
 export const catalogEventEnum = pgEnum("catalog_event", CATALOG_EVENTS);
@@ -115,8 +116,9 @@ export const items = pgTable(
   (table) => [index("items_owner_id_idx").on(table.ownerId)],
 );
 
-// One row per counted AI action (an item photo, a "want" screenshot, a selfie): the free-tier
-// limits count these, and the estimated cost adds up to the server's daily safety stop.
+// One row per counted AI action (an item photo, a "want" screenshot, a selfie) and per style
+// brief written: the free-tier limits count the actions, and the cost adds up to the server's
+// daily safety stop and the user's monthly cap.
 export const usageEvents = pgTable(
   "usage_events",
   {
@@ -125,7 +127,7 @@ export const usageEvents = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     action: usageActionEnum("action").notNull(),
-    // Estimated, in millionths of a dollar (0.6 ¢ = 6000).
+    // In millionths of a dollar (0.6 ¢ = 6000): estimated for actions, real for a brief.
     costMicros: integer("cost_micros").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
