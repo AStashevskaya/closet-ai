@@ -32,7 +32,7 @@ export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeri
 // feature from using all of it.
 export const MONTHLY_SAFETY_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 60 };
 
-// Not built yet: daily outfits 3 a week (4 looks each), "make it nice" 3 to try, listings 3 a
+// Not built yet: daily outfits 3 a week (3 looks each), "make it nice" 3 to try, listings 3 a
 // month.
 
 // GET /api/usage: what the app shows next to the counted actions.
