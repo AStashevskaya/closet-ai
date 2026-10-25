@@ -59,6 +59,8 @@ export function Menu() {
   const [due, setDue] = useState(0);
   // null: the phone's languages.
   const [language, setChoice] = useState(chosenLanguage);
+  // While a pick is saved (or the app reloads into it), the rows wait.
+  const [switching, setSwitching] = useState(false);
   useFocusEffect(
     useCallback(() => {
       const load = async () => {
@@ -73,12 +75,17 @@ export function Menu() {
   );
 
   async function pickLanguage(choice: Language | null) {
+    if (switching || choice === language) return;
+    const before = language;
     setChoice(choice);
+    setSwitching(true);
     try {
       await setLanguage(choice);
     } catch {
-      // The phone couldn't keep the choice: stay as it was.
-      setChoice(chosenLanguage());
+      // It didn't go through: show what the app is still in.
+      setChoice(before);
+    } finally {
+      setSwitching(false);
     }
   }
 
@@ -131,7 +138,7 @@ export function Menu() {
           {[{ code: null, name: t('menu.languageAuto') }, ...LANGUAGES].map(({ code, name }) => (
             <Pressable
               key={code ?? 'auto'}
-              style={styles.usageRow}
+              style={styles.languageRow}
               onPress={() => pickLanguage(code)}
               accessibilityRole="radio"
               accessibilityState={{ checked: language === code }}
@@ -222,6 +229,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'left',
+  },
+  languageRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
   },
   languageLabel: {
     flexShrink: 1,

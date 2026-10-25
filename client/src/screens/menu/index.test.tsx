@@ -121,5 +121,14 @@ describe('<Menu />', () => {
         screen.getByRole('radio', { name: 'As on my phone', checked: false }),
       ).toBeOnTheScreen();
     });
+
+    test("goes back to what it was when the pick doesn't go through", async () => {
+      jest.mocked(setLanguage).mockRejectedValueOnce(new Error('no keychain'));
+      await render(<Menu />);
+      await fireEvent.press(screen.getByRole('radio', { name: 'English' }));
+      expect(
+        await screen.findByRole('radio', { name: 'As on my phone', checked: true }),
+      ).toBeOnTheScreen();
+    });
   });
 });
