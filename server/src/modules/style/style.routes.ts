@@ -41,11 +41,17 @@ export const styleRoutes =
       const waiting = lastTry !== null && now.getTime() - lastTry.getTime() < BRIEF_EVERY_MS;
 
       let suggest: StyleState["suggest"] = null;
-      // The first brief is written on its own; after that, new pieces since it, within a day.
-      if (brief?.brief && brief.writtenAt && !updating && !waiting) {
+      // The first brief is written on its own; after that, new pieces since it, within a day,
+      // offered only when an update could go now (not past her monthly cap).
+      if (stylistEnabled && brief?.brief && brief.writtenAt && !updating && !waiting) {
         const since = new Date(Math.max(brief.writtenAt.getTime(), now.getTime() - DAY_MS));
         const added = await outfits.addedSince(userId, since);
-        if (added.items >= SHOPPING_ITEMS || added.looks >= SHOPPING_LOOKS) suggest = added;
+        if (
+          (added.items >= SHOPPING_ITEMS || added.looks >= SHOPPING_LOOKS) &&
+          (await limits.allows(userId, BRIEF_COST_MICROS, now))
+        ) {
+          suggest = added;
+        }
       }
       return {
         summary: brief?.summary?.[lang] ?? null,

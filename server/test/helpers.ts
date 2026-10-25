@@ -463,7 +463,13 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       briefs.set(userId, { ...emptyBrief(userId), askedAt });
     },
     addedSince: async (userId, since) => ({
-      items: itemRows.filter((r) => r.ownerId === userId && r.createdAt > since).length,
+      items: itemRows.filter(
+        (r) =>
+          r.ownerId === userId &&
+          r.createdAt > since &&
+          r.input.photoKey !== undefined &&
+          photoRows.get(r.input.photoKey)?.status === "ready",
+      ).length,
       looks: [...photoRows.values()].filter(
         (p) =>
           p.ownerId === userId &&
@@ -827,7 +833,7 @@ export function createStubStylist() {
   const composeCalls: ComposeInput[] = [];
   const briefCalls: BriefInput[] = [];
   // How the brief batches end: set `status` to make them fail or keep running.
-  const briefBatch: { status: "done" | "failed" | "pending" } = { status: "done" };
+  const briefBatch: { status: "done" | "failed" | "pending" | "malformed" } = { status: "done" };
   const stylist: Stylist = {
     async compose(input) {
       composeCalls.push(input);
@@ -862,6 +868,8 @@ export function createStubStylist() {
     async briefResult() {
       if (briefBatch.status === "failed") return { status: "failed", reason: "errored" };
       if (briefBatch.status === "pending") return { status: "pending" };
+      if (briefBatch.status === "malformed")
+        return { status: "failed", reason: "not the brief's shape", costMicros: 40_000 };
       return {
         status: "done",
         brief: "High-low with a wink.",

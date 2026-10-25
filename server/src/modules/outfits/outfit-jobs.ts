@@ -373,11 +373,15 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   const lastTry = current?.requestedAt ?? current?.writtenAt;
   if (lastTry && now.getTime() - lastTry.getTime() < BRIEF_EVERY_MS) return;
 
+  const asked = current?.askedAt != null && (!lastTry || current.askedAt > lastTry);
+  // A request she made is answered once: by this brief, or by not writing one now.
+  const decline = async () => {
+    if (asked) await outfits.askBrief(userId, null);
+  };
   const wardrobe = await outfits.wardrobe(userId);
-  if (wardrobe.length < MIN_ITEMS_FOR_BRIEF) return;
+  if (wardrobe.length < MIN_ITEMS_FOR_BRIEF) return decline();
   const reactions = await outfits.reactedOutfitCount(userId);
   const saved = (await deps.photos.listInspiration(userId)).length;
-  const asked = current?.askedAt != null && (!lastTry || current.askedAt > lastTry);
   const monthly =
     current?.writtenAt != null &&
     now.getTime() - current.writtenAt.getTime() > REFRESH_AFTER_MS &&
@@ -386,7 +390,7 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
       saved !== current.inspirationCount);
   if (current?.brief && !asked && !monthly) return;
   // Past her monthly cap (or the server's day) the stylist keeps the brief it has.
-  if (!(await deps.limits.allows(userId, BRIEF_COST_MICROS, now))) return;
+  if (!(await deps.limits.allows(userId, BRIEF_COST_MICROS, now))) return decline();
 
   // The newest pieces when the wardrobe is big: they say most about her taste now.
   const numbered = wardrobe.map((item, i) => ({ item, n: i + 1 }));
@@ -437,6 +441,8 @@ export async function checkBrief(deps: OutfitJobDeps, userId: string) {
   }
   if (result.status === "failed") {
     await outfits.dropBriefBatch(userId);
+    // An answer in the wrong shape was still paid for.
+    if (result.costMicros) await deps.limits.spent(userId, "brief", result.costMicros);
     return;
   }
   await outfits.saveBrief(

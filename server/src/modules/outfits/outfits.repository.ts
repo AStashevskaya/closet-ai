@@ -143,9 +143,9 @@ export interface OutfitsRepository {
     counts: { itemCount: number; reactionCount: number; inspirationCount: number },
     writtenAt: Date,
   ): Promise<void>;
-  // She asked for her style to be updated.
-  askBrief(userId: string, askedAt: Date): Promise<void>;
-  // Wardrobe items and saved looks she added since `since`.
+  // She asked for her style to be updated; null once the job has declined it.
+  askBrief(userId: string, askedAt: Date | null): Promise<void>;
+  // Wardrobe items (with their photo ready) and saved looks she added since `since`.
   addedSince(userId: string, since: Date): Promise<{ items: number; looks: number }>;
 }
 
@@ -485,7 +485,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       const [added] = await db
         .select({ n: count() })
         .from(items)
-        .where(and(eq(items.ownerId, userId), gt(items.createdAt, since)));
+        .innerJoin(photos, eq(photos.key, items.photoKey))
+        .where(
+          and(eq(items.ownerId, userId), eq(photos.status, "ready"), gt(items.createdAt, since)),
+        );
       const [saved] = await db
         .select({ n: count() })
         .from(photos)

@@ -922,6 +922,48 @@ describe("her style", () => {
     expect((await refresh(s, anna.cookie)).json<{ message: string }>().message).toBe("style:wait");
   });
 
+  it("drops a request the job can't answer, instead of writing it on a later trigger", async () => {
+    const s = await setup();
+    const { anna, pieces } = await withBrief(s);
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
+    expect((await refresh(s, anna.cookie)).statusCode).toBe(202);
+    // Too few pieces by the time the job gets to it.
+    await s.server.inject({
+      method: "DELETE",
+      url: `/api/items/${pieces[7]!.id}`,
+      headers: { cookie: anna.cookie },
+    });
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(1);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.askedAt).toBeNull();
+
+    // Enough again, and a later trigger (a like, a saved look) writes nothing she didn't ask for.
+    await addItem(s, anna, "top");
+    await s.queue.outfitQueue.enqueueBrief(anna.userId);
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(1);
+  });
+
+  it("counts what a brief in the wrong shape cost", async () => {
+    const s = await setup();
+    s.stub.briefBatch.status = "malformed";
+    const { anna } = await withBrief(s);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBeNull();
+    expect(
+      await s.repositories.usageRepository.spentBy(anna.userId, periodStart("month", s.clock.now)),
+    ).toBe(ESTIMATED_COST_MICROS.wear_with + 40_000);
+  });
+
+  it("offers no update past her monthly cap", async () => {
+    const s = await setup();
+    const { anna } = await withBrief(s);
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
+    for (let i = 0; i < 5; i++) await addItem(s, anna, "top");
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).not.toBeNull();
+    await s.repositories.usageRepository.record(anna.userId, "brief", 4_950_000);
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).toBeNull();
+  });
+
   it("isn't updated past her monthly AI cap", async () => {
     const s = await setup();
     const { anna } = await withBrief(s);

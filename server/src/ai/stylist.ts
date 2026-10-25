@@ -110,7 +110,8 @@ export interface BriefInput {
 export type BriefResult =
   | { status: "pending" }
   | { status: "done"; brief: string; summary: StyleSummary; costMicros: number }
-  | { status: "failed"; reason: string };
+  // costMicros when the model answered (and was paid for) but not in the brief's shape.
+  | { status: "failed"; reason: string; costMicros?: number };
 
 export interface Stylist {
   compose(
@@ -169,12 +170,12 @@ const BRIEF_PROMPT = `You are a sought-after personal stylist. Write a working b
 4. Traps: combinations that look obvious, dated or shapeless here, and anything she rejected.
 5. Gaps: up to three pieces she doesn't own that would unlock the most looks.
 
-Put that brief in "brief". Then "summary": what she reads about her own style in the app, in English, Russian and Hebrew. Two or three short sentences to her ("you"; in Russian the informal «ты»; in Hebrew the plural form), concrete and warm, naming pieces by what they are, never by number. If the previous brief is given, end with one sentence on what changed since ("New: …").`;
+Put that brief in "brief". Then "summary": what she reads about her own style in the app, in English, Russian and Hebrew. Two or three short sentences to her ("you"; in Russian the informal «ты»; in Hebrew the plural form), concrete and warm, naming pieces by what they are, never by number. If the previous brief is given, end with one sentence on what changed since, starting with the word for "new" in that language. The previous brief's piece numbers are out of date: use only the numbers above.`;
 
 // The brief's answer: the working brief for the stylist and the summary the user reads.
 const briefOutput = z.object({
   brief: z.string(),
-  summary: z.object({ en: z.string(), ru: z.string(), he: z.string() }),
+  summary: z.object({ en: z.string().min(1), ru: z.string().min(1), he: z.string().min(1) }),
 });
 const briefFormat = zodOutputFormat(briefOutput);
 
@@ -326,7 +327,11 @@ export function createClaudeStylist(
         try {
           answer = briefFormat.parse(text);
         } catch {
-          return { status: "failed", reason: `not the brief's shape (${message.stop_reason})` };
+          return {
+            status: "failed",
+            reason: `not the brief's shape (${message.stop_reason})`,
+            costMicros: costOf(BRIEF_MODEL, message.usage, true),
+          };
         }
         return {
           status: "done",

@@ -444,9 +444,9 @@ export type UpdateProfileInput = z.infer<typeof updateProfileInput>;
 
 // The user's style as the stylist reads it (the brief), in a few sentences in each language.
 export const styleSummary = z.object({
-  en: z.string(),
-  ru: z.string(),
-  he: z.string(),
+  en: z.string().min(1),
+  ru: z.string().min(1),
+  he: z.string().min(1),
 });
 export type StyleSummary = z.infer<typeof styleSummary>;
 
