@@ -407,7 +407,8 @@ export function createInMemoryRepositories() {
       }
       return { pieces, captions: looks.map((o) => o.caption) };
     },
-    reactionCount: async (userId) => reactions.filter((r) => r.userId === userId).length,
+    reactedOutfitCount: async (userId) =>
+      new Set(reactions.filter((r) => r.userId === userId).map((r) => r.outfitId)).size,
     reactedOutfits: async (userId, limit) =>
       [...new Set(reactions.filter((r) => r.userId === userId).map((r) => r.outfitId))]
         .slice(0, limit)
@@ -429,7 +430,7 @@ export function createInMemoryRepositories() {
         .map((p) => p.key),
     isAttached: async (photoKey) => itemRows.some((row) => row.input.photoKey === photoKey),
     brief: async (userId) => briefs.get(userId) ?? null,
-    setBriefBatch: async (userId, batchId) => {
+    setBriefBatch: async (userId, batchId, requestedAt) => {
       const current = briefs.get(userId) ?? {
         brief: null,
         itemCount: 0,
@@ -439,13 +440,17 @@ export function createInMemoryRepositories() {
         batchId: null,
         requestedAt: null,
       };
-      briefs.set(userId, { ...current, batchId, requestedAt: batchId ? new Date() : null });
+      briefs.set(userId, { ...current, batchId, requestedAt });
     },
-    saveBrief: async (userId, brief, counts) => {
+    dropBriefBatch: async (userId) => {
+      const current = briefs.get(userId);
+      if (current) briefs.set(userId, { ...current, batchId: null });
+    },
+    saveBrief: async (userId, brief, counts, writtenAt) => {
       briefs.set(userId, {
         brief,
         ...counts,
-        writtenAt: new Date(),
+        writtenAt,
         batchId: null,
         requestedAt: null,
       });
@@ -793,6 +798,8 @@ export function createManualOutfitQueue() {
 export function createStubStylist() {
   const composeCalls: ComposeInput[] = [];
   const briefCalls: BriefInput[] = [];
+  // How the brief batches end: set `status` to make them fail or keep running.
+  const briefBatch: { status: "done" | "failed" | "pending" } = { status: "done" };
   const stylist: Stylist = {
     async compose(input) {
       composeCalls.push(input);
@@ -825,8 +832,10 @@ export function createStubStylist() {
       return `batch-${briefCalls.length}`;
     },
     async briefResult() {
+      if (briefBatch.status === "failed") return { status: "failed", reason: "errored" };
+      if (briefBatch.status === "pending") return { status: "pending" };
       return { status: "done", brief: "High-low with a wink.", costMicros: 50_000 };
     },
   };
-  return { stylist, composeCalls, briefCalls };
+  return { stylist, composeCalls, briefCalls, briefBatch };
 }

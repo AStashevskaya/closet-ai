@@ -48,6 +48,8 @@ async function setup() {
     remover: null,
     queue: photoQueue.photoQueue,
   };
+  // Moved on by tests: a brief is written at most once a day.
+  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   const outfitDeps: OutfitJobDeps = {
     outfits: repositories.outfitsRepository,
     photos: repositories.photosRepository,
@@ -57,8 +59,10 @@ async function setup() {
     embedder: null,
     catalog: repositories.catalogRepository,
     queue: outfitQueue.outfitQueue,
+    clock: () => clock.now,
   };
   return {
+    clock,
     server: app,
     repositories,
     storage,
@@ -199,6 +203,7 @@ describe("inspiration", () => {
     // Two new looks: not yet.
     expect(s.stub.briefCalls).toHaveLength(1);
 
+    s.clock.now = new Date("2026-10-22T13:00:00Z");
     await save(s, anna.cookie);
     await s.photoQueue.runAll(s.photoDeps);
     await s.outfitQueue.runAll(s.outfitDeps);

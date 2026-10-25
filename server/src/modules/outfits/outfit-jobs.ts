@@ -344,9 +344,12 @@ async function heroFromPhoto(
 
 // A brief needs something to read; below this the stylist works from the wardrobe directly.
 export const MIN_ITEMS_FOR_BRIEF = 8;
-// Rewritten after this many new items or reactions, or after a month.
+// Rewritten after this many new items or outfits reacted to, or after a month.
 const STALE_AFTER_CHANGES = 5;
 const STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+// At most one Opus brief a day per user, written or failed: a brief costs ~10 ¢, and a wardrobe
+// filled in one evening would otherwise rewrite it every few items.
+const BRIEF_EVERY_MS = 24 * 60 * 60 * 1000;
 // Batches usually end in minutes; one that runs for a day is given up on.
 const BATCH_GIVE_UP_MS = 24 * 60 * 60 * 1000;
 export const BRIEF_CHECK_EVERY_MS = 2 * 60 * 1000;
@@ -364,17 +367,13 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   if (!stylist) return;
   const now = deps.clock?.() ?? new Date();
   const current = await outfits.brief(userId);
-  if (
-    current?.batchId &&
-    current.requestedAt &&
-    now.getTime() - current.requestedAt.getTime() < BATCH_GIVE_UP_MS
-  ) {
-    return;
-  }
+  // The last try: a running or failed batch has its requestedAt, a written brief its writtenAt.
+  const lastTry = current?.requestedAt ?? current?.writtenAt;
+  if (lastTry && now.getTime() - lastTry.getTime() < BRIEF_EVERY_MS) return;
 
   const wardrobe = await outfits.wardrobe(userId);
   if (wardrobe.length < MIN_ITEMS_FOR_BRIEF) return;
-  const reactions = await outfits.reactionCount(userId);
+  const reactions = await outfits.reactedOutfitCount(userId);
   const saved = (await deps.photos.listInspiration(userId)).length;
   const stale =
     !current?.brief ||
@@ -413,7 +412,7 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
     liked: reacted.filter((o) => o.opinion === "like" || o.wore).map((o) => o.description),
     disliked: reacted.filter((o) => o.opinion === "dislike").map((o) => o.description),
   });
-  await outfits.setBriefBatch(userId, batchId);
+  await outfits.setBriefBatch(userId, batchId, now);
   await queue.enqueueBriefCheck(userId, BRIEF_CHECK_EVERY_MS);
 }
 
@@ -428,16 +427,21 @@ export async function checkBrief(deps: OutfitJobDeps, userId: string) {
   if (result.status === "pending") {
     const age = current.requestedAt ? now.getTime() - current.requestedAt.getTime() : 0;
     if (age < BATCH_GIVE_UP_MS) await queue.enqueueBriefCheck(userId, BRIEF_CHECK_EVERY_MS);
-    else await outfits.setBriefBatch(userId, null);
+    else await outfits.dropBriefBatch(userId);
     return;
   }
   if (result.status === "failed") {
-    await outfits.setBriefBatch(userId, null);
+    await outfits.dropBriefBatch(userId);
     return;
   }
-  await outfits.saveBrief(userId, result.brief, {
-    itemCount: await outfits.wardrobeSize(userId),
-    reactionCount: await outfits.reactionCount(userId),
-    inspirationCount: (await deps.photos.listInspiration(userId)).length,
-  });
+  await outfits.saveBrief(
+    userId,
+    result.brief,
+    {
+      itemCount: await outfits.wardrobeSize(userId),
+      reactionCount: await outfits.reactedOutfitCount(userId),
+      inspirationCount: (await deps.photos.listInspiration(userId)).length,
+    },
+    now,
+  );
 }

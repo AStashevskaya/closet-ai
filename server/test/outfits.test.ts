@@ -4,7 +4,7 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
-import type { OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
+import { checkBrief, refreshBrief, type OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
 import { deleteUnattachedPhotos, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
 import { createMemoryStorage } from "../src/storage/storage";
@@ -48,6 +48,8 @@ async function setup({
     taggingEnabled: true,
     stylistEnabled,
   });
+  // Moved on by tests: a brief is written at most once a day.
+  const clock = { now: new Date("2026-10-21T12:00:00Z") };
   const deps: OutfitJobDeps = {
     outfits: repositories.outfitsRepository,
     photos: repositories.photosRepository,
@@ -57,7 +59,7 @@ async function setup({
     embedder,
     catalog: repositories.catalogRepository,
     queue: queue.outfitQueue,
-    clock: () => new Date("2026-10-21T12:00:00Z"),
+    clock: () => clock.now,
   };
   const photoDeps: PhotoJobDeps = {
     photos: repositories.photosRepository,
@@ -74,6 +76,8 @@ async function setup({
     queue,
     stub,
     cut,
+    clock,
+    deps,
     photoDeps,
     runJobs: () => queue.runAll(deps),
     runPhotoJobs: () => photoQueue.runAll(photoDeps),
@@ -591,11 +595,12 @@ describe("POST /api/wear-with", () => {
     expect(usage.wear_with).toMatchObject({ used: 1, limit: 5 });
 
     // A new brief (her taste changed) composes again too.
-    await s.repositories.outfitsRepository.saveBrief(anna.userId, "New taste", {
-      itemCount: 2,
-      reactionCount: 0,
-      inspirationCount: 3,
-    });
+    await s.repositories.outfitsRepository.saveBrief(
+      anna.userId,
+      "New taste",
+      { itemCount: 2, reactionCount: 0, inspirationCount: 3 },
+      new Date(),
+    );
     expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
     await s.runJobs();
 
@@ -759,6 +764,98 @@ describe("style brief", () => {
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(1);
     expect(s.stub.composeCalls.at(-1)!.brief).toBe("High-low with a wink.");
+  });
+
+  // Eight items and a first brief, as the test above.
+  async function withBrief(s: Setup) {
+    const anna = await signUp(s, "anna@example.com");
+    const pieces = [];
+    for (let i = 0; i < 8; i++) pieces.push(await addItem(s, anna, i % 2 ? "bottom" : "top"));
+    await ask(s, anna.cookie, pieces[0]!.id);
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(1);
+    return { anna, pieces };
+  }
+
+  it("is rewritten at most once a day, however fast the wardrobe grows", async () => {
+    const s = await setup();
+    const { anna, pieces } = await withBrief(s);
+
+    // Five new items make it stale, but the day isn't over.
+    for (let i = 0; i < 5; i++) await addItem(s, anna, "top");
+    await ask(s, anna.cookie, pieces[1]!.id);
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(1);
+
+    s.clock.now = new Date("2026-10-22T12:30:00Z");
+    await ask(s, anna.cookie, pieces[2]!.id);
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(2);
+  });
+
+  it("waits a day after a batch that failed instead of sending another", async () => {
+    const s = await setup();
+    s.stub.briefBatch.status = "failed";
+    const { anna, pieces } = await withBrief(s);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBeNull();
+
+    // Still no brief, so it's stale, yet the next request sends no batch.
+    s.clock.now = new Date("2026-10-21T18:00:00Z");
+    await ask(s, anna.cookie, pieces[1]!.id);
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(1);
+
+    s.stub.briefBatch.status = "done";
+    s.clock.now = new Date("2026-10-22T12:30:00Z");
+    await ask(s, anna.cookie, pieces[2]!.id);
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(2);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBe(
+      "High-low with a wink.",
+    );
+  });
+
+  it("gives up on a batch still running after a day, and sends a new one", async () => {
+    const s = await setup();
+    // The brief check is run straight away by the test queue: it finds the batch running.
+    const anna = await signUp(s, "anna@example.com");
+    for (let i = 0; i < 8; i++) await addItem(s, anna, i % 2 ? "bottom" : "top");
+    // Jobs run one by one here: the test queue would run a "still running" check forever.
+    s.stub.briefBatch.status = "pending";
+    await refreshBrief(s.deps, anna.userId);
+    await checkBrief(s.deps, anna.userId);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.batchId).toBe("batch-1");
+
+    s.clock.now = new Date("2026-10-22T12:01:00Z");
+    await checkBrief(s.deps, anna.userId);
+    expect((await s.repositories.outfitsRepository.brief(anna.userId))?.batchId).toBeNull();
+    await refreshBrief(s.deps, anna.userId);
+    expect(s.stub.briefCalls).toHaveLength(2);
+  });
+
+  it("isn't made stale by tapping like on one outfit over and over", async () => {
+    const s = await setup();
+    const { anna, pieces } = await withBrief(s);
+    const id = (await ask(s, anna.cookie, pieces[1]!.id)).json<{ id: string }>().id;
+    await s.runJobs();
+    const [first, second] = (await view(s, anna.cookie, id)).outfits;
+    const react = (outfitId: string, reaction: string) =>
+      s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${outfitId}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload: { reaction },
+      });
+    s.clock.now = new Date("2026-10-22T12:30:00Z");
+
+    // Ten taps on one outfit and one on another: two outfits reacted to, not stale.
+    for (let i = 0; i < 5; i++) {
+      await react(first!.id, "like");
+      await react(first!.id, "none");
+    }
+    await react(second!.id, "dislike");
+    await s.runJobs();
+    expect(s.stub.briefCalls).toHaveLength(1);
   });
 });
 

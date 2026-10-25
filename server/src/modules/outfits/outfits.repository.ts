@@ -8,7 +8,7 @@ import type {
   OutfitReaction,
   WearWithRequest,
 } from "@closet-ai/shared";
-import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import {
   catalogItems,
@@ -122,18 +122,23 @@ export interface OutfitsRepository {
     userId: string,
     requests: number,
   ): Promise<{ pieces: Map<string, number>; captions: string[] }>;
-  reactionCount(userId: string): Promise<number>;
+  // How many of her outfits she reacted to: toggling a like on one outfit counts once, so taps
+  // alone can't make the brief stale.
+  reactedOutfitCount(userId: string): Promise<number>;
   reactedOutfits(userId: string, limit: number): Promise<ReactedOutfit[]>;
   // Storage keys of the looks the user saved (and "want" screenshots still around), newest first.
   inspirationKeys(userId: string, limit: number): Promise<string[]>;
   // Whether a wardrobe item uses this photo (an item from a photo, added to the wardrobe).
   isAttached(photoKey: string): Promise<boolean>;
   brief(userId: string): Promise<StyleBrief | null>;
-  setBriefBatch(userId: string, batchId: string | null): Promise<void>;
+  setBriefBatch(userId: string, batchId: string, requestedAt: Date): Promise<void>;
+  // The batch failed or was given up on: `requestedAt` stays, so the next try waits its turn.
+  dropBriefBatch(userId: string): Promise<void>;
   saveBrief(
     userId: string,
     brief: string,
     counts: { itemCount: number; reactionCount: number; inspirationCount: number },
+    writtenAt: Date,
   ): Promise<void>;
 }
 
@@ -370,9 +375,9 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return { pieces, captions: looks.map((look) => look.caption) };
     },
 
-    async reactionCount(userId) {
+    async reactedOutfitCount(userId) {
       const [row] = await db
-        .select({ n: count() })
+        .select({ n: countDistinct(outfitReactions.outfitId) })
         .from(outfitReactions)
         .where(eq(outfitReactions.userId, userId));
       return row?.n ?? 0;
@@ -436,19 +441,22 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return brief;
     },
 
-    async setBriefBatch(userId, batchId) {
-      const requestedAt = batchId ? new Date() : null;
+    async setBriefBatch(userId, batchId, requestedAt) {
       await db
         .insert(styleBriefs)
         .values({ userId, batchId, requestedAt })
         .onConflictDoUpdate({ target: styleBriefs.userId, set: { batchId, requestedAt } });
     },
 
-    async saveBrief(userId, brief, counts) {
+    async dropBriefBatch(userId) {
+      await db.update(styleBriefs).set({ batchId: null }).where(eq(styleBriefs.userId, userId));
+    },
+
+    async saveBrief(userId, brief, counts, writtenAt) {
       const set = {
         brief,
         ...counts,
-        writtenAt: new Date(),
+        writtenAt,
         batchId: null,
         requestedAt: null,
       };

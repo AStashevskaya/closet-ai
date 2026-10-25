@@ -549,7 +549,8 @@ describe.skipIf(!url)("on Postgres", () => {
       opinion: "like",
       woreCount: 1,
     });
-    expect(await outfits.reactionCount(user!.id)).toBe(2);
+    // A like and a "wore" on one outfit: one outfit reacted to.
+    expect(await outfits.reactedOutfitCount(user!.id)).toBe(1);
     expect(await outfits.reactedOutfits(user!.id, 5)).toEqual([
       { opinion: "like", wore: true, description: '"Tee and satin": bottom + top' },
     ]);
@@ -587,17 +588,30 @@ describe.skipIf(!url)("on Postgres", () => {
     ).not.toContain(look);
     expect(await outfits.inspirationKeys(user!.id, 5)).toContain(look);
 
-    await outfits.setBriefBatch(user!.id, "batch-1");
+    await outfits.setBriefBatch(user!.id, "batch-1", new Date());
     expect(await outfits.brief(user!.id)).toMatchObject({ brief: null, batchId: "batch-1" });
-    await outfits.saveBrief(user!.id, "High-low", {
-      itemCount: 2,
-      reactionCount: 2,
-      inspirationCount: 0,
-    });
+    const writtenAt = new Date("2026-10-21T12:00:00Z");
+    await outfits.saveBrief(
+      user!.id,
+      "High-low",
+      { itemCount: 2, reactionCount: 1, inspirationCount: 0 },
+      writtenAt,
+    );
     expect(await outfits.brief(user!.id)).toMatchObject({
       brief: "High-low",
       itemCount: 2,
       batchId: null,
+      writtenAt,
+    });
+
+    // A failed batch is dropped but keeps when it was asked for, so the next try waits.
+    const requestedAt = new Date("2026-10-22T12:00:00Z");
+    await outfits.setBriefBatch(user!.id, "batch-2", requestedAt);
+    await outfits.dropBriefBatch(user!.id);
+    expect(await outfits.brief(user!.id)).toMatchObject({
+      brief: "High-low",
+      batchId: null,
+      requestedAt,
     });
   });
 
