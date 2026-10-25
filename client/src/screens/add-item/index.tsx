@@ -52,6 +52,7 @@ type ErrorKey =
   | 'addItem.errors.colors'
   | 'addItem.errors.price'
   | 'addItem.errors.cameraPermission'
+  | 'addItem.errors.unreadable'
   | 'addItem.errors.save';
 
 export function AddItem() {
@@ -116,7 +117,10 @@ export function AddItem() {
 
     // The photo and "recognizing" show at once: shrinking a 12 MP HEIC and uploading it take a
     // second or two, which read as a freeze after the gallery closed.
+    const previous = { uri: photoUri, key: photoKey, tagging };
     setPhotoUri(asset.uri);
+    // The old photo's tags mustn't land on the new one while it's shrunk.
+    setPhotoKey(null);
     setError(null);
     setTagging('waiting');
     setBusy(true);
@@ -125,9 +129,13 @@ export function AddItem() {
       uri = await shrinkPhoto(asset);
       setPhotoUri(uri);
     } catch (cause) {
-      setPhotoUri(null);
-      setTagging('idle');
-      throw cause;
+      // Back to the photo she had, if any.
+      setPhotoUri(previous.uri);
+      setPhotoKey(previous.key);
+      setTagging(previous.uri ? previous.tagging : 'idle');
+      if (__DEV__) console.warn('Shrinking the photo failed', cause);
+      setError('addItem.errors.unreadable');
+      return;
     } finally {
       setBusy(false);
     }

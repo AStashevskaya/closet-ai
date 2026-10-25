@@ -55,9 +55,9 @@ export function Button({ label, onPress, disabled, busy, kind = 'ink', style }: 
       style={[
         styles.button,
         styles[kind],
-        busy && styles.busy,
+        busy && styles.dim,
         // Off reads as off: half-transparent ink still looked like a button to tap (2026-10-25).
-        disabled && !busy && (kind === 'bright' ? styles.busy : styles.off),
+        disabled && !busy && (kind === 'bright' ? styles.dim : styles.off),
         style,
       ]}
       onPress={onPress}
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   bright: {
     backgroundColor: colors.highlight,
   },
-  busy: {
+  dim: {
     opacity: 0.5,
   },
   off: {
