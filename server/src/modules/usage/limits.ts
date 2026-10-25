@@ -49,7 +49,7 @@ export function nextPeriodStart(period: UsagePeriod, now: Date): Date {
 export type Limits = ReturnType<typeof createLimits>;
 
 // People testing the app (TESTER_USER_IDS) get roomier limits, so a test session doesn't stop
-// halfway; the server's daily budget still applies to them.
+// halfway; the server's daily budget and the $5 a month per user still apply to them.
 export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
   wear_with: 30,
   want: 30,
@@ -95,7 +95,7 @@ export function createLimits(
       ) {
         throw httpError(429, limitMessage(action));
       }
-      // Testers have no hidden monthly cap.
+      // Testers have no hidden monthly count; their spend is capped like everyone's.
       const monthly = testers.has(userId) ? undefined : MONTHLY_SAFETY_LIMITS[action];
       if (
         monthly !== undefined &&
@@ -103,13 +103,16 @@ export function createLimits(
       ) {
         throw httpError(429, limitMessage(action));
       }
-      const over = await roomFor(userId, ESTIMATED_COST_MICROS[action], now);
+      // Saving a look costs nothing, so a user past her cap can still save one.
+      const cost = ESTIMATED_COST_MICROS[action];
+      const over = cost > 0 ? await roomFor(userId, cost, now) : null;
       if (over) throw httpError(429, limitMessage(over));
     },
 
-    // For background work no request asked for (the style brief): whether both caps have room.
-    async allows(userId: string, costMicros: number) {
-      return (await roomFor(userId, costMicros, clock())) === null;
+    // For background work no request asked for (the style brief): whether both caps have room,
+    // at the job's time. Nothing is reserved, so a brief can go past the cap by its own cost.
+    async allows(userId: string, costMicros: number, now = clock()) {
+      return (await roomFor(userId, costMicros, now)) === null;
     },
 
     // What background work really cost, once it's known.

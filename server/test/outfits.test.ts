@@ -4,7 +4,7 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
-import { createLimits } from "../src/modules/usage/limits";
+import { createLimits, ESTIMATED_COST_MICROS, periodStart } from "../src/modules/usage/limits";
 import { checkBrief, refreshBrief, type OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
 import { deleteUnattachedPhotos, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
@@ -821,9 +821,11 @@ describe("style brief", () => {
     const s = await setup();
     const { anna } = await withBrief(s);
     const usage = s.repositories.usageRepository;
-    const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+    const monthStart = periodStart("month", s.clock.now);
     // The stub's brief: 5 ¢, on top of the request's estimate.
-    expect(await usage.spentBy(anna.userId, monthStart)).toBe(30_000 + 50_000);
+    expect(await usage.spentBy(anna.userId, monthStart)).toBe(
+      ESTIMATED_COST_MICROS.wear_with + 50_000,
+    );
 
     const maya = await signUp(s, "maya@example.com");
     await usage.record(maya.userId, "brief", 4_950_000);
@@ -831,6 +833,7 @@ describe("style brief", () => {
     for (let i = 0; i < 8; i++) pieces.push(await addItem(s, maya, i % 2 ? "bottom" : "top"));
     await ask(s, maya.cookie, pieces[0]!.id);
     await s.runJobs();
+    // Still only Anna's brief.
     expect(s.stub.briefCalls).toHaveLength(1);
   });
 

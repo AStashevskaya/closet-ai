@@ -125,6 +125,31 @@ describe("monthly spend per user", () => {
     // A brief needs more room than a photo.
     expect(await limits.allows("anna", 100_000)).toBe(false);
     expect(await limits.allows("maya", 100_000)).toBe(true);
+    // Saving a look is free, so it isn't stopped.
+    await limits.check("anna", "inspiration");
+  });
+
+  it("opens again on the 1st", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    let now = new Date("2026-10-31T23:00:00Z");
+    const limits = createLimits(
+      usageRepository,
+      { dailyUsd: 100, userMonthlyUsd: 5 },
+      new Set(),
+      () => now,
+    );
+    await limits.spent("anna", "brief", 5_000_000);
+    expect(await limits.allows("anna", 100_000)).toBe(false);
+    // The in-memory rows are stamped with the real time, so look from a month after it.
+    now = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1, 0, 1));
+    expect(await limits.allows("anna", 100_000)).toBe(true);
+  });
+
+  it("lets a brief through only while the server's day has room too", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    const limits = createLimits(usageRepository, { dailyUsd: 0.15, userMonthlyUsd: 5 });
+    await limits.spent("maya", "brief", 100_000);
+    expect(await limits.allows("anna", 100_000)).toBe(false);
   });
 });
 

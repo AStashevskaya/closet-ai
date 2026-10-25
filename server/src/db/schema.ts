@@ -44,6 +44,7 @@ export const itemColorEnum = pgEnum("item_color", ITEM_COLORS);
 export const photoStatusEnum = pgEnum("photo_status", PHOTO_STATUSES);
 export const tagStatusEnum = pgEnum("tag_status", TAG_STATUSES);
 export const photoKindEnum = pgEnum("photo_kind", PHOTO_KINDS);
+// New values go at the end, as `ALTER TYPE ... ADD VALUE` adds them (0019 added "brief").
 export const usageActionEnum = pgEnum("usage_action", SPEND_ACTIONS);
 export const currencyEnum = pgEnum("currency", CURRENCIES);
 export const bodyShapeEnum = pgEnum("body_shape", BODY_SHAPES);
