@@ -61,7 +61,7 @@ Reason: server and client use different test runners and environments (Node vs R
 
 ## RTL
 
-- RTL is enabled with `supportsRTL: true` in the `expo-localization` plugin (`app.json`); on iOS it only applies to locales listed in `supportedLocales` (en, he, ru).
+- The language follows the phone (`supportedLocales` en, he, ru in the `expo-localization` plugin) until one is picked in Profile → Language (`src/lib/language.ts`, kept in SecureStore). `supportsRTL` is deliberately not set: the plugin would re-allow RTL on every launch and a Hebrew phone couldn't pick English. A fresh install allows RTL once by default, and `setLanguage` sets `allowRTL` / `forceRTL` itself and reloads the app when Hebrew comes in or goes.
 - Use `start`/`end` (`marginStart`, `paddingEnd`, …) instead of `left`/`right` in styles.
 - `textAlign` has no `start`/`end` in React Native: `'left'` follows the layout direction and acts as start.
 - Changing direction at runtime (`I18nManager`) needs an app restart and does not work in Expo Go.

@@ -18,8 +18,10 @@ import Animated from 'react-native-reanimated';
 import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
+import { chosenLanguage, type Language } from '@/i18n';
 import { countDueWishes } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
+import { setLanguage } from '@/lib/language';
 import { useUsage } from '@/lib/limits';
 import { problemReportUrl, supportEmail } from '@/lib/report-problem';
 import { rise, STAGGER_STEP } from '@/motion';
@@ -30,6 +32,13 @@ type Section = {
   icon: IconName;
   href: '/' | '/style' | '/want-can' | '/wishes' | '/the-edit';
 };
+
+// Each language by its own name, so it can be found whatever the app is in now.
+const LANGUAGES: { code: Language; name: string }[] = [
+  { code: 'en', name: 'English' },
+  { code: 'ru', name: 'Русский' },
+  { code: 'he', name: 'עברית' },
+];
 
 // Only what the app has: sections not built yet aren't shown at all.
 const SECTIONS: Section[] = [
@@ -48,6 +57,10 @@ export function Menu() {
   const { usage } = useUsage();
   // Wishes waiting for "still want it?", shown on their row; reloaded when the tab comes back.
   const [due, setDue] = useState(0);
+  // null: the phone's languages.
+  const [language, setChoice] = useState(chosenLanguage);
+  // While a pick is saved (or the app reloads into it), the rows wait.
+  const [switching, setSwitching] = useState(false);
   useFocusEffect(
     useCallback(() => {
       const load = async () => {
@@ -60,6 +73,21 @@ export function Menu() {
       void load();
     }, []),
   );
+
+  async function pickLanguage(choice: Language | null) {
+    if (switching || choice === language) return;
+    const before = language;
+    setChoice(choice);
+    setSwitching(true);
+    try {
+      await setLanguage(choice);
+    } catch {
+      // It didn't go through: show what the app is still in.
+      setChoice(before);
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   async function report() {
     const url = problemReportUrl({
@@ -103,6 +131,24 @@ export function Menu() {
           ))}
         </Animated.View>
       )}
+
+      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={maison.gutter}>
+        <SectionLabel>{t('menu.language')}</SectionLabel>
+        <View accessibilityRole="radiogroup">
+          {[{ code: null, name: t('menu.languageAuto') }, ...LANGUAGES].map(({ code, name }) => (
+            <Pressable
+              key={code ?? 'auto'}
+              style={styles.languageRow}
+              onPress={() => pickLanguage(code)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: language === code }}
+            >
+              <Text style={styles.languageLabel}>{name}</Text>
+              {language === code && <Icon name="check" color={colors.text} size={18} />}
+            </Pressable>
+          ))}
+        </View>
+      </Animated.View>
 
       <View accessibilityRole="menu" style={styles.list}>
         <Pressable
@@ -182,6 +228,22 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.textSecondary,
+    textAlign: 'left',
+  },
+  languageRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
+  },
+  languageLabel: {
+    flexShrink: 1,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.text,
     textAlign: 'left',
   },
   usageValue: {
