@@ -3,6 +3,8 @@ import { Linking } from 'react-native';
 
 import i18n from '@/i18n';
 
+import { setLanguage } from '@/lib/language';
+
 import { Menu } from '.';
 
 // The `mock` prefix lets the jest.mock factory below use it.
@@ -27,6 +29,7 @@ jest.mock('@/lib/api', () => ({
   }),
   countDueWishes: jest.fn().mockResolvedValue(1),
 }));
+jest.mock('@/lib/language', () => ({ setLanguage: jest.fn() }));
 jest.mock('@/lib/auth-client', () => ({
   authClient: {
     useSession: () => ({ data: { user: { id: 'user-1', name: 'Anna' } } }),
@@ -102,5 +105,21 @@ describe('<Menu />', () => {
     expect(mockPush).toHaveBeenCalledWith('/profile-details');
     expect(screen.queryByText('Sign out')).toBeNull();
     expect(screen.queryByText('Delete account')).toBeNull();
+  });
+
+  describe('language', () => {
+    test('follows the phone until one is picked, and keeps the pick checked', async () => {
+      await render(<Menu />);
+      expect(
+        screen.getByRole('radio', { name: 'As on my phone', checked: true }),
+      ).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('radio', { name: 'Русский' }));
+      expect(setLanguage).toHaveBeenCalledWith('ru');
+      expect(screen.getByRole('radio', { name: 'Русский', checked: true })).toBeOnTheScreen();
+      expect(
+        screen.getByRole('radio', { name: 'As on my phone', checked: false }),
+      ).toBeOnTheScreen();
+    });
   });
 });
