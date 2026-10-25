@@ -118,6 +118,20 @@ describe('<AddItem />', () => {
     ).not.toBeOnTheScreen();
   });
 
+  test('shows the photo and that it is recognising as soon as the gallery closes', async () => {
+    // Shrinking takes a moment on a phone: held here until the test lets it go.
+    let shrunk: (uri: string) => void = () => {};
+    jest.mocked(shrinkPhoto).mockReturnValue(new Promise((resolve) => (shrunk = resolve)));
+    await render(<AddItem />);
+    // Not awaited: the press finishes only once the photo is shrunk.
+    const pressing = fireEvent.press(screen.getByText('Choose from gallery'));
+    expect(await screen.findByText('Recognising the item from the photo…')).toBeOnTheScreen();
+    expect(uploadPhoto).not.toHaveBeenCalled();
+    shrunk('file:///small.jpg');
+    await pressing;
+    expect(uploadPhoto).toHaveBeenCalledWith('file:///small.jpg', 'en');
+  });
+
   test('shrinks the photo, uploads it, then creates the item', async () => {
     await render(<AddItem />);
     await fillForm();

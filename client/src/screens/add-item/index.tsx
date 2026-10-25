@@ -114,12 +114,20 @@ export function AddItem() {
     const asset = result.canceled ? undefined : result.assets[0];
     if (!asset) return;
 
+    // The photo and "recognizing" show at once: shrinking a 12 MP HEIC and uploading it take a
+    // second or two, which read as a freeze after the gallery closed.
+    setPhotoUri(asset.uri);
+    setError(null);
+    setTagging('waiting');
     setBusy(true);
     let uri: string;
     try {
       uri = await shrinkPhoto(asset);
       setPhotoUri(uri);
-      setError(null);
+    } catch (cause) {
+      setPhotoUri(null);
+      setTagging('idle');
+      throw cause;
     } finally {
       setBusy(false);
     }
@@ -159,7 +167,8 @@ export function AddItem() {
 
   async function startUpload(uri: string) {
     setPhotoKey(null);
-    setTagging('idle');
+    // Recognizing starts with the upload, as far as she can tell.
+    setTagging('waiting');
     const started = uploadPhoto(uri, lang);
     upload.current = started;
     try {
@@ -169,7 +178,8 @@ export function AddItem() {
       setPhotoKey(key);
       setTagging('waiting');
     } catch (cause) {
-      // Nothing to show yet: saving tries the upload again and reports a failure then.
+      // Nothing to recognize: saving tries the upload again and reports a failure then.
+      if (upload.current === started) setTagging('idle');
       if (__DEV__) console.warn('Uploading the photo failed', cause);
     }
   }
