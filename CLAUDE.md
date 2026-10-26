@@ -25,6 +25,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `docs/server.md`: the server module by module (auth, items, photo pipeline, tagging, embeddings, cut-outs, looks, Want / Can, limits, outfits, Inspiration, account deletion, brand and price, profile details, partner catalog, workers, migrations).
 - `docs/client.md`: the app (screens, the "Maison" look, motion, i18n, API and photo loading, tests).
 - `docs/product.md`: roadmap, Free / Premium, outfit taste, feature boundaries, partner items, Want / Can, the brand demo.
+- `.claude/skills/fashion-creative-director`: the creative-director skill for UI work (new screens, redesigns, motion): three directions and approval before building anything significant.
 - Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
 ## Stack
