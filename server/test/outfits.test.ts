@@ -316,9 +316,9 @@ describe("POST /api/wear-with", () => {
     });
     s.stub.stylist.compose = async (input) => ({
       looks: [1, 2, 3, 4].map((i) => ({
-        // Her top and shoes, and the partner's bag in every look.
-        items: input.wardrobe.filter((p) => p.category !== "accessory").map((p) => p.n),
-        partners: [input.shop!.pieces.find((p) => p.category === "accessory")!.n],
+        // Her top and shoes, and the partner's bag in three looks; her tote in the last.
+        items: input.wardrobe.filter((p) => i === 4 || p.category !== "accessory").map((p) => p.n),
+        partners: i < 4 ? [input.shop!.pieces.find((p) => p.category === "accessory")!.n] : [],
         missing: null,
         caption: `Look ${i}`,
         occasion: "coffee",
@@ -336,14 +336,54 @@ describe("POST /api/wear-with", () => {
         o.pieces.find((p) => p.catalogItem)?.catalogItem?.id ??
         o.pieces.find((p) => p.item?.id === tote.id)?.item?.id,
     );
-    expect(bags).toEqual([partnerBag.id, partnerBag.id, tote.id, tote.id]);
+    // The third look's "why" speaks of the partner's bag past the cap: it isn't shown with her
+    // tote instead.
+    expect(done.outfits.map((o) => o.caption)).toEqual(["Look 1", "Look 2", "Look 4"]);
+    expect(bags).toEqual([partnerBag.id, partnerBag.id, tote.id]);
     // One bag a look: hers isn't added next to the partner's.
     expect(done.outfits.map((o) => o.pieces.some((p) => p.item?.id === tote.id))).toEqual([
       false,
       false,
       true,
-      true,
     ]);
+  });
+
+  it("doesn't show a look that lost a piece its why may name, unless every look did", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const sneakers = await addItem(s, anna, "shoes", "white sneakers");
+    const boots = await addItem(s, anna, "shoes", "pink boots");
+    await addItem(s, anna, "top");
+    await addItem(s, anna, "bottom");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          // Her pink boots next to the sneakers being styled: the boots go.
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Two pairs",
+          occasion: "coffee",
+          why: "the pink boots make it",
+        },
+        {
+          items: input.wardrobe.filter((p) => p.category !== "shoes").map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Sneakers",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, sneakers.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    expect(done.outfits.map((o) => o.caption)).toEqual(["Sneakers"]);
+    expect(done.outfits[0]!.pieces.map((p) => p.item?.id)).not.toContain(boots.id);
   });
 
   it("never puts a top over a dress", async () => {
