@@ -69,14 +69,18 @@ export function NewIn({ item, headers, onPress }: Props) {
           <Text style={styles.link}>{t('wearWith.button')}</Text>
         </View>
         {url && headers ? (
-          <Animated.View style={[styles.picture, item.cutoutUrl && styles.shadow, breathing]}>
-            <Image
-              source={{ uri: absoluteUrl(url), headers }}
-              style={styles.image}
-              contentFit={item.cutoutUrl ? 'contain' : 'cover'}
-              transition={300}
-              accessibilityIgnoresInvertColors
-            />
+          <Animated.View style={[styles.picture, breathing]}>
+            {/* The shadowed piece is drawn once into a cache on iOS and only the cache breathes,
+                so the outline shadow isn't worked out again every frame. */}
+            <View style={[styles.image, item.cutoutUrl && styles.shadow]} shouldRasterizeIOS>
+              <Image
+                source={{ uri: absoluteUrl(url), headers }}
+                style={styles.image}
+                contentFit={item.cutoutUrl ? 'contain' : 'cover'}
+                transition={300}
+                accessibilityIgnoresInvertColors
+              />
+            </View>
           </Animated.View>
         ) : null}
       </PressableScale>

@@ -10,7 +10,8 @@ import { colors } from '@/theme';
 // - Android: `elevation` and `boxShadow` are always rectangles, so it's the `dropShadow` filter, which
 //   follows the alpha; Android 12+ and the new architecture only, older phones show the piece without
 //   a shadow. It draws into its own layer with no cache, so watch long lists on mid-range phones.
-// On iOS the shadow is recomputed while what's inside moves (New in's breathing): fine for one piece.
+// On iOS the shadow is recomputed whenever what's inside the view changes; where a piece moves on its
+// own (New in's breathing), rasterise the shadowed view and move its parent instead.
 // `hanging`: a piece on a rail or standing on its own, lit from above; `flat`: lying on paper.
 const SHADOWS = {
   hanging: { y: 8, blur: 10, opacity: 0.22 },
