@@ -24,7 +24,7 @@ const FITS: Record<ItemCategory, Fit> = {
 };
 
 // Pieces on a rail overlap a little, the way clothes are packed on a real one.
-export const PIECE_OVERLAP = 12;
+const PIECE_OVERLAP = 12;
 
 const badgeIn = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.85 }] },
@@ -183,9 +183,10 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
+  // Clear of the overlap, where the next piece lies on top and would take the tap.
   badgeSlot: {
     position: 'absolute',
-    end: 4,
+    end: PIECE_OVERLAP + 4,
   },
   // A milky disc with a hairline edge: it sits on any piece without shouting.
   badge: {

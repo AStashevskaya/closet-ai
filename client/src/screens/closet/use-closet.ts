@@ -25,6 +25,8 @@ export function useCloset() {
   const [headers, setHeaders] = useState<Record<string, string>>();
   // The server confirmed the delete; the piece fades out before it leaves the list.
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(new Set());
+  // With "See all" open over the closet both screens use this hook; only the one in view polls.
+  const [focused, setFocused] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -40,7 +42,9 @@ export function useCloset() {
   // The callback may only return a cleanup function, not a promise.
   useFocusEffect(
     useCallback(() => {
+      setFocused(true);
       void load();
+      return () => setFocused(false);
     }, [load]),
   );
 
@@ -62,6 +66,7 @@ export function useCloset() {
   useEffect(() => {
     const now = Date.now();
     const waiting =
+      focused &&
       state.status === 'ready' &&
       state.items.some(
         (item) =>
@@ -73,7 +78,7 @@ export function useCloset() {
     if (!waiting) return;
     const timer = setTimeout(() => void load(), PHOTO_POLL_MS);
     return () => clearTimeout(timer);
-  }, [state, load]);
+  }, [state, load, focused]);
 
   const retry = () => {
     setState({ status: 'loading' });
