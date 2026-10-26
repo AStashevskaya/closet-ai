@@ -119,7 +119,9 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
     const { x, width: w } = event.nativeEvent.layout;
     setSpots((current) => {
       const old = current[index];
-      return old && old.x === x && old.width === w ? current : { ...current, [index]: { x, width: w } };
+      return old && old.x === x && old.width === w
+        ? current
+        : { ...current, [index]: { x, width: w } };
     });
   };
 

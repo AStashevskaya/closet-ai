@@ -2,6 +2,7 @@ import type { Item } from '@closet-ai/shared';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { cutoutShadow } from '@/components/cutout-shadow';
 import { absoluteUrl } from '@/lib/api';
 import { colors, fonts } from '@/theme';
 
@@ -61,7 +62,7 @@ export function FlatLay({ pieces, headers, caption }: Props) {
             key={piece.id}
             style={[
               styles.piece,
-              !piece.cutoutUrl && styles.print,
+              !piece.cutoutUrl ? styles.print : styles.cutout,
               {
                 start: `${start}%`,
                 top: `${top}%`,
@@ -102,6 +103,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     aspectRatio: 3 / 4,
   },
+  // Lying on the paper, a cut-out casts a small soft shadow.
+  cutout: cutoutShadow('flat'),
   print: {
     padding: 5,
     backgroundColor: colors.paper,

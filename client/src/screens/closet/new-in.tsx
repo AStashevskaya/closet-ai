@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { cutoutShadow } from '@/components/cutout-shadow';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { durations, EASE_OUT } from '@/motion';
@@ -69,13 +70,17 @@ export function NewIn({ item, headers, onPress }: Props) {
         </View>
         {url && headers ? (
           <Animated.View style={[styles.picture, breathing]}>
-            <Image
-              source={{ uri: absoluteUrl(url), headers }}
-              style={styles.image}
-              contentFit={item.cutoutUrl ? 'contain' : 'cover'}
-              transition={300}
-              accessibilityIgnoresInvertColors
-            />
+            {/* The shadowed piece is drawn once into a cache on iOS and only the cache breathes,
+                so the outline shadow isn't worked out again every frame. */}
+            <View style={[styles.image, item.cutoutUrl && styles.shadow]} shouldRasterizeIOS>
+              <Image
+                source={{ uri: absoluteUrl(url), headers }}
+                style={styles.image}
+                contentFit={item.cutoutUrl ? 'contain' : 'cover'}
+                transition={300}
+                accessibilityIgnoresInvertColors
+              />
+            </View>
           </Animated.View>
         ) : null}
       </PressableScale>
@@ -127,4 +132,5 @@ const styles = StyleSheet.create({
   image: {
     flex: 1,
   },
+  shadow: cutoutShadow('hanging'),
 });
