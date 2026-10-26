@@ -28,7 +28,7 @@ const SETTLE_MS = 240;
 // made the pieces jerk (2026-10-26).
 const STILL_MS = 50;
 
-// A pendulum's stiffness: about 0.7 s a swing. Damped lightly, so a piece swings past the middle
+// A pendulum's stiffness: about 0.7 s a swing for an average piece. Damped lightly, so a piece swings past the middle
 // several times before it settles, like a hanger nudged on a rail.
 const STIFFNESS = 80;
 const DAMPING_RATIO = 0.06;
@@ -109,8 +109,11 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[]) {
   }, [moving]);
 
   const frames = useFrameCallback((frame) => {
-    const ms = frame.timeSincePreviousFrame;
-    if (!ms) return;
+    // The first frame after the loop starts may report a long pause, which would read as a slow
+    // rail and swallow the start of a fling; no frame counts for more than 1/30 s.
+    const frameMs = frame.timeSincePreviousFrame;
+    if (!frameMs) return;
+    const ms = Math.min(frameMs, 34);
 
     const delta = offset.get() - last.get();
     idle.set(idle.get() + ms);
@@ -128,8 +131,7 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[]) {
     usual.set(Math.abs(follow - speed.get()) < 0.001 ? speed.get() : follow);
     const lean = leanFor(speed.get() - usual.get(), rtl);
 
-    // A dropped frame doesn't throw the pendulums: never more than 1/30 s in one step.
-    const dt = Math.min(ms, 34) / 1000;
+    const dt = ms / 1000;
     const before = swing.get();
     const after: Record<string, Pendulum> = {};
     let resting = !moving.get() && speed.get() === 0 && usual.get() === 0;
