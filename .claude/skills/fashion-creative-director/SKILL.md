@@ -68,7 +68,7 @@ If the result looks generic, rework the composition before implementing.
 
 ## Signature identity
 
-Look for chances to build recognizable product signatures: a distinctive way of showing wardrobe items, outfit-composition interactions, unexpected navigation, an editorial type system, memorable empty states, signature transitions, a distinctive treatment of clothing imagery. A signature is reusable and recognizable across screens, not a one-off gimmick. Existing candidates to build on or challenge: the collage pages (cut-outs on paper, tape, handwritten captions), `HangerLoader`, the one bright `colors.highlight` block, the slow rise-and-settle stagger.
+Look for chances to build recognizable product signatures: a distinctive way of showing wardrobe items, outfit-composition interactions, unexpected navigation, an editorial type system, memorable empty states, signature transitions, a distinctive treatment of clothing imagery. A signature is reusable and recognizable across screens, not a one-off gimmick. Existing candidates to build on or challenge: the collage pages (cut-outs on paper, tape, handwritten captions), `HangerLoader`, the thread (the rails and tab bar line that always means a connection), the hand-drawn heart "where love" is, the cherry `colors.bead`, the slow rise-and-settle stagger.
 
 ## Critical behaviour
 

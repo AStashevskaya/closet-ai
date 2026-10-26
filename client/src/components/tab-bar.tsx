@@ -1,33 +1,94 @@
-import { BlurView } from 'expo-blur';
 import { Tabs, useRouter } from 'expo-router';
-import type { ComponentProps } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import Animated, {
+  useAnimatedProps,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
-import { Icon, type IconName } from '@/components/icon';
+import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
-import { colors } from '@/theme';
+import { EASE_OUT } from '@/motion';
+import { colors, fonts } from '@/theme';
 
 // What expo-router's Tabs hands a custom bar (its vendored react-navigation isn't a dependency of ours).
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-// How much room screens leave at the bottom so their last row clears the floating bar.
+// How much room screens leave at the bottom so their last row clears the bar.
 export const TAB_BAR_CLEARANCE = 104;
 
-const ICONS: Record<string, IconName> = {
-  index: 'hanger',
-  style: 'spark',
-  inspiration: 'heart',
-  profile: 'user',
-};
+// Where the thread runs across the bar, how far it sags under the current tab, and the bar's height.
+const THREAD_Y = 22;
+const SAG = 28;
+const BAR_HEIGHT = 64;
+// The sag sliding to another tab: long enough to read as weight moving along a line.
+const SLIDE = 600;
 
-// A frosted capsule floating over the content, with thin icons and no labels (as on Loewe's
-// site), and "+" in the middle to add an item. Screen readers get each tab's title.
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+type Spot = { x: number; width: number };
+
+// "The Thread" (2026-10-26): the bar is the same ink line as the closet rails, with the tabs as words
+// on it. Under the current one the thread sags as if the word hung there, and the sag slides to the
+// next tab; "+" is a bright bead knotted into the thread, opening the add-item form.
 export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
+  const [width, setWidth] = useState(0);
+  // Where each tab's word sits, by route index, from layout (physical x, so RTL needs nothing more).
+  const [spots, setSpots] = useState<Record<number, Spot>>({});
+
+  const center = useSharedValue(-1);
+  const half = useSharedValue(0);
+  // 0 → 1 while sliding: the sag dips a little deeper on the way, like weight settling.
+  const travel = useSharedValue(1);
+
+  const spot = spots[state.index];
+  useEffect(() => {
+    if (!spot) return;
+    const target = spot.x + spot.width / 2;
+    const targetHalf = spot.width / 2 + 10;
+    // The first placement, and every move with reduced motion, is immediate.
+    if (center.value < 0 || reduceMotion) {
+      center.value = target;
+      half.value = targetHalf;
+      return;
+    }
+    const timing = { duration: SLIDE, easing: EASE_OUT };
+    center.value = withTiming(target, timing);
+    half.value = withTiming(targetHalf, timing);
+    travel.value = 0;
+    travel.value = withTiming(1, timing);
+  }, [spot, reduceMotion, center, half, travel]);
+
+  const thread = useAnimatedProps(() => {
+    const y = THREAD_Y;
+    if (center.value < 0) return { d: `M0 ${y}L${width} ${y}` };
+    const c = center.value;
+    const h = half.value;
+    const low = y + SAG + Math.sin(travel.value * Math.PI) * 6;
+    return {
+      d:
+        `M0 ${y}L${c - h - 30} ${y}` +
+        `C${c - h} ${y} ${c - h} ${low} ${c} ${low}` +
+        `C${c + h} ${low} ${c + h} ${y} ${c + h + 30} ${y}L${width} ${y}`,
+    };
+  });
+
+  const place = (index: number) => (event: LayoutChangeEvent) => {
+    const { x, width: w } = event.nativeEvent.layout;
+    setSpots((current) => {
+      const old = current[index];
+      return old && old.x === x && old.width === w ? current : { ...current, [index]: { x, width: w } };
+    });
+  };
 
   const tab = (index: number) => {
     const route = state.routes[index]!;
@@ -37,7 +98,8 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
       <PressableScale
         key={route.key}
         style={styles.tab}
-        hitSlop={6}
+        onLayout={place(index)}
+        hitSlop={4}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
         accessibilityLabel={options.title}
@@ -50,86 +112,104 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
           if (!focused && !event.defaultPrevented) navigateToTab(route.key);
         }}
       >
-        <Icon
-          name={ICONS[route.name] ?? 'home'}
-          color={focused ? colors.text : colors.tabInactive}
-          size={21}
-          strokeWidth={focused ? 1.5 : 1.15}
-        />
-        <View style={[styles.dot, focused && styles.dotOn]} />
+        <Text
+          style={[styles.word, focused && styles.wordOn]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={1.3}
+        >
+          {options.title}
+        </Text>
       </PressableScale>
     );
   };
 
-  const half = Math.ceil(state.routes.length / 2);
+  const middle = Math.ceil(state.routes.length / 2);
   return (
     <View
-      style={[styles.wrap, { bottom: Math.max(insets.bottom, 12) + 6 }]}
-      pointerEvents="box-none"
+      style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
     >
-      <BlurView
-        intensity={80}
-        tint="light"
-        experimentalBlurMethod="dimezisBlurView"
-        style={styles.capsule}
+      <Svg
+        width={width}
+        height={BAR_HEIGHT}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
       >
-        {state.routes.slice(0, half).map((_, i) => tab(i))}
+        <AnimatedPath
+          animatedProps={thread}
+          fill="none"
+          stroke={colors.text}
+          strokeWidth={1.2}
+          strokeLinecap="round"
+        />
+      </Svg>
+      <View style={styles.row}>
+        {state.routes.slice(0, middle).map((_, i) => tab(i))}
         <PressableScale
-          style={styles.plus}
+          style={styles.bead}
           onPress={() => router.push('/add-item')}
           accessibilityRole="button"
           accessibilityLabel={t('closet.add')}
         >
-          <Icon name="plus" color={colors.text} size={20} strokeWidth={1.5} />
+          <View style={styles.beadDot}>
+            <Icon name="plus" color={colors.onBead} size={16} strokeWidth={1.6} />
+          </View>
         </PressableScale>
-        {state.routes.slice(half).map((_, i) => tab(half + i))}
-      </BlurView>
+        {state.routes.slice(middle).map((_, i) => tab(middle + i))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  bar: {
     position: 'absolute',
     left: 0,
     right: 0,
-    alignItems: 'center',
+    bottom: 0,
+    backgroundColor: colors.background,
   },
-  capsule: {
+  row: {
+    height: BAR_HEIGHT,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 18,
-    paddingHorizontal: 22,
-    paddingVertical: 10,
-    borderRadius: 32,
-    overflow: 'hidden',
-    // Just milky enough for the icons to read; what scrolls under it shows through, blurred.
-    backgroundColor: 'rgba(255, 255, 255, 0.38)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
-    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
   },
+  // 44 pt tall from just above the thread, so the word sits in the sag under it.
   tab: {
-    width: 40,
+    marginTop: THREAD_Y - 10,
+    minWidth: 44,
     height: 44,
+    paddingTop: 14,
+    paddingHorizontal: 3,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
   },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
+  word: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
   },
-  dotOn: {
-    backgroundColor: colors.text,
+  wordOn: {
+    fontFamily: fonts.bodyMedium,
+    color: colors.text,
   },
-  plus: {
+  // A 44 pt target centred on the thread, the bead itself smaller.
+  bead: {
+    marginTop: THREAD_Y - 22,
     width: 44,
     height: 44,
-    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.highlight,
+  },
+  beadDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bead,
+    borderWidth: 1.2,
+    borderColor: colors.text,
   },
 });

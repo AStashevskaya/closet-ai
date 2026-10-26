@@ -53,6 +53,12 @@ describe('<TabBar />', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(4);
   });
 
+  test('writes every tab as a word on the thread', async () => {
+    const { props } = setup(0);
+    await render(<TabBar {...props} />);
+    for (const title of Object.values(titles)) expect(screen.getByText(title)).toBeOnTheScreen();
+  });
+
   test('goes to another tab, and opens the add-item form from the middle', async () => {
     const { props, navigateToTab } = setup(0);
     await render(<TabBar {...props} />);
