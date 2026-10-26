@@ -247,8 +247,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
     textDecorationLine: 'underline',
   },
-  content: {
-  },
+  content: {},
   // The frosted bar over the rails once the big title has scrolled away.
   bar: {
     position: 'absolute',
