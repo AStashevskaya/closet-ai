@@ -16,7 +16,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HangerLoader } from '@/components/hanger-loader';
-import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
+import { useTabBarClearance } from '@/components/tab-bar';
 import { StyleCard } from '@/components/style-card';
 import { useStyle } from '@/lib/style';
 import { durations, STAGGER_STEP } from '@/motion';
@@ -33,6 +33,7 @@ const NEW_IN_FROM = 6;
 export function Closet() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
   const router = useRouter();
   const { state, items, headers, leaving, retry, confirmDelete } = useCloset();
   const [editing, setEditing] = useState(false);
@@ -140,7 +141,7 @@ export function Closet() {
 
       {items.length > 0 && (
         <Animated.ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
           onScroll={onScroll}
           scrollEventThrottle={16}
         >
@@ -247,7 +248,6 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   content: {
-    paddingBottom: TAB_BAR_CLEARANCE,
   },
   // The frosted bar over the rails once the big title has scrolled away.
   bar: {

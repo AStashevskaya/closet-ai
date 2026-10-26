@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
 import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
-import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
+import { useTabBarClearance } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
 import { chosenLanguage, type Language } from '@/i18n';
 import { countDueWishes, getStyle } from '@/lib/api';
@@ -54,6 +54,7 @@ export function Menu() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
   const { data: session } = authClient.useSession();
   const { usage } = useUsage();
   // Wishes waiting for "still want it?", shown on their row; reloaded when the tab comes back.
@@ -119,7 +120,10 @@ export function Menu() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + 12, paddingBottom: clearance },
+      ]}
     >
       <Animated.View entering={rise} style={[maison.gutter, styles.profile]}>
         <ScreenTitle title={t('menu.title')} />
@@ -215,7 +219,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   container: {
-    paddingBottom: TAB_BAR_CLEARANCE,
     gap: 28,
   },
   profile: {

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { TabBar } from '@/components/tab-bar';
 
-// JS tabs rather than NativeTabs, so the bar can be our own frosted capsule (src/components/tab-bar.tsx).
+// JS tabs rather than NativeTabs, so the bar can be our own thread (src/components/tab-bar.tsx).
 const TABS = [
   { name: 'index', label: 'closet' },
   { name: 'style', label: 'style' },

@@ -13,7 +13,7 @@ import { ItemPhoto } from '@/components/item-photo';
 import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
 import { PressableScale } from '@/components/pressable-scale';
-import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
+import { useTabBarClearance } from '@/components/tab-bar';
 import { ApiError, askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
@@ -30,6 +30,7 @@ const ROW_LIMIT = 24;
 export function StyleIt() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
   const router = useRouter();
   const lang = appLanguage(i18n.language);
   const { usage, refresh: refreshUsage } = useUsage();
@@ -100,7 +101,10 @@ export function StyleIt() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 20, paddingBottom: clearance },
+      ]}
     >
       <Animated.View entering={rise} style={maison.gutter}>
         <ScreenTitle title={t('styleIt.title')} subtitle={t('styleIt.subtitle')} />
@@ -226,7 +230,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingBottom: TAB_BAR_CLEARANCE,
     gap: 28,
   },
   blockButton: {

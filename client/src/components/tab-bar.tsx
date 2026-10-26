@@ -1,5 +1,5 @@
 import { Tabs, useRouter } from 'expo-router';
-import { useEffect, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
@@ -19,15 +19,27 @@ import { colors, fonts } from '@/theme';
 // What expo-router's Tabs hands a custom bar (its vendored react-navigation isn't a dependency of ours).
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-// How much room screens leave at the bottom so their last row clears the bar.
-export const TAB_BAR_CLEARANCE = 104;
-
 // Where the thread runs across the bar, how far it sags under the current tab, and the bar's height.
 const THREAD_Y = 22;
 const SAG = 28;
 const BAR_HEIGHT = 64;
+// How far the sag reaches past the word on each side, and the straight run before it curves down.
+const SAG_MARGIN = 10;
+const SAG_RUN = 30;
+// How much deeper the sag dips halfway through a slide.
+const SAG_DIP = 6;
 // The sag sliding to another tab: long enough to read as weight moving along a line.
 const SLIDE = 600;
+
+// The bar's bottom padding: the home indicator or Android's buttons, or a little room without them.
+const bottomPadding = (inset: number) => Math.max(inset, 12);
+
+// How much room tab screens leave at the bottom so their last row clears the bar, with some air.
+// A hook because the bar grows with the bottom inset (Android's three-button navigation is tall).
+export function useTabBarClearance() {
+  const insets = useSafeAreaInsets();
+  return BAR_HEIGHT + bottomPadding(insets.bottom) + 24;
+}
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -41,22 +53,28 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
-  const [width, setWidth] = useState(0);
   // Where each tab's word sits, by route index, from layout (physical x, so RTL needs nothing more).
   const [spots, setSpots] = useState<Record<number, Spot>>({});
 
+  // The bar's width, as a shared value so the worklet below sees it change (first layout, rotation).
+  const width = useSharedValue(0);
   const center = useSharedValue(-1);
   const half = useSharedValue(0);
   // 0 → 1 while sliding: the sag dips a little deeper on the way, like weight settling.
   const travel = useSharedValue(1);
 
   const spot = spots[state.index];
+  // The tab the sag last went to: it slides only to another tab, and a word that only changed size
+  // (a new font scale or language) has it follow at once.
+  const placedFor = useRef(-1);
   useEffect(() => {
     if (!spot) return;
     const target = spot.x + spot.width / 2;
-    const targetHalf = spot.width / 2 + 10;
-    // The first placement, and every move with reduced motion, is immediate.
-    if (center.value < 0 || reduceMotion) {
+    const targetHalf = spot.width / 2 + SAG_MARGIN;
+    const sameTab = placedFor.current === state.index;
+    placedFor.current = state.index;
+    // The first placement, every move with reduced motion and a resize of the same word are immediate.
+    if (center.value < 0 || reduceMotion || sameTab) {
       center.value = target;
       half.value = targetHalf;
       return;
@@ -66,19 +84,20 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
     half.value = withTiming(targetHalf, timing);
     travel.value = 0;
     travel.value = withTiming(1, timing);
-  }, [spot, reduceMotion, center, half, travel]);
+  }, [spot, state.index, reduceMotion, center, half, travel]);
 
   const thread = useAnimatedProps(() => {
     const y = THREAD_Y;
-    if (center.value < 0) return { d: `M0 ${y}L${width} ${y}` };
+    const w = width.value;
+    if (center.value < 0) return { d: `M0 ${y}L${w} ${y}` };
     const c = center.value;
     const h = half.value;
-    const low = y + SAG + Math.sin(travel.value * Math.PI) * 6;
+    const low = y + SAG + Math.sin(travel.value * Math.PI) * SAG_DIP;
     return {
       d:
-        `M0 ${y}L${c - h - 30} ${y}` +
+        `M0 ${y}L${c - h - SAG_RUN} ${y}` +
         `C${c - h} ${y} ${c - h} ${low} ${c} ${low}` +
-        `C${c + h} ${low} ${c + h} ${y} ${c + h + 30} ${y}L${width} ${y}`,
+        `C${c + h} ${low} ${c + h} ${y} ${c + h + SAG_RUN} ${y}L${w} ${y}`,
     };
   });
 
@@ -126,15 +145,12 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
   const middle = Math.ceil(state.routes.length / 2);
   return (
     <View
-      style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) }]}
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      style={[styles.bar, { paddingBottom: bottomPadding(insets.bottom) }]}
+      onLayout={(event) => {
+        width.value = event.nativeEvent.layout.width;
+      }}
     >
-      <Svg
-        width={width}
-        height={BAR_HEIGHT}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      >
+      <Svg width="100%" height={BAR_HEIGHT} style={styles.thread}>
         <AnimatedPath
           animatedProps={thread}
           fill="none"
@@ -143,7 +159,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
           strokeLinecap="round"
         />
       </Svg>
-      <View style={styles.row}>
+      <View style={styles.row} accessibilityRole="tablist">
         {state.routes.slice(0, middle).map((_, i) => tab(i))}
         <PressableScale
           style={styles.bead}
@@ -168,6 +184,13 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: colors.background,
+  },
+  thread: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    pointerEvents: 'none',
   },
   row: {
     height: BAR_HEIGHT,

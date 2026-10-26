@@ -43,7 +43,8 @@ type ButtonProps = {
   onPress: () => void;
   disabled?: boolean;
   busy?: boolean;
-  // ink: the main action; outline: a second one next to it; bright: on an ink or photo ground.
+  // ink: the main action; outline: a second one next to it; bright: the cherry bead, on white or a
+  // photo (never on ink: cherry on the thread colour doesn't read).
   kind?: 'ink' | 'outline' | 'bright';
   style?: StyleProp<ViewStyle>;
 };
