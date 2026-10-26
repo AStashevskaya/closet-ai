@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { FlatLay } from '@/components/flat-lay';
+import { seedFrom } from '@/components/hand-drawn';
 import { ItemPhoto } from '@/components/item-photo';
 import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
@@ -199,7 +200,7 @@ export function WearWith({ id }: { id: string }) {
               headers={headers}
               caption={outfit.caption}
               loved={outfit.opinion === 'like'}
-              seed={seedOf(outfit.id)}
+              seed={seedFrom(outfit.id)}
             />
             <Text style={styles.occasion}>{outfit.occasion}</Text>
             <Text style={styles.why}>{outfit.why}</Text>
@@ -244,13 +245,6 @@ export function WearWith({ id }: { id: string }) {
 
 // Whether a piece she may buy is worth it for her wardrobe: the call, why, and the piece she
 // owns that it nearly repeats.
-// A stable number from an id, so each look's heart has its own shape and keeps it.
-function seedOf(id: string) {
-  let seed = 0;
-  for (const char of id) seed = (seed * 31 + char.charCodeAt(0)) % 997;
-  return seed + 1;
-}
-
 function Verdict({
   verdict,
   headers,

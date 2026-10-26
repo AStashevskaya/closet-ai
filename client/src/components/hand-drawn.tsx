@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -63,30 +64,63 @@ export function loopPoints(w: number, h: number, seed: number): Point[] {
   return points;
 }
 
-// A smooth line through the points (Catmull-Rom, as cubic Béziers).
-export function smoothPath(points: Point[]): string {
-  const f = (n: number) => n.toFixed(1);
-  let d = `M${f(points[0]![0])} ${f(points[0]![1])}`;
+type Segment = [Point, Point, Point, Point];
+
+// A smooth line through the points (Catmull-Rom), as cubic Béziers: start, two controls, end.
+function segments(points: Point[]): Segment[] {
+  const out: Segment[] = [];
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i - 1] ?? points[i]!;
     const p1 = points[i]!;
     const p2 = points[i + 1]!;
     const p3 = points[i + 2] ?? p2;
-    d +=
-      `C${f(p1[0] + (p2[0] - p0[0]) / 6)} ${f(p1[1] + (p2[1] - p0[1]) / 6)} ` +
-      `${f(p2[0] - (p3[0] - p1[0]) / 6)} ${f(p2[1] - (p3[1] - p1[1]) / 6)} ${f(p2[0])} ${f(p2[1])}`;
+    out.push([
+      p1,
+      [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6],
+      [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6],
+      p2,
+    ]);
   }
-  return d;
+  return out;
 }
 
-// The line's length, from the points it runs through: the curve is a touch longer, hence the margin.
-// Used as the dash, so the line can be drawn in by sliding the dash along it.
+export function smoothPath(points: Point[]): string {
+  const f = (n: number) => n.toFixed(1);
+  const parts = segments(points).map(
+    ([, c1, c2, end]) =>
+      `C${f(c1[0])} ${f(c1[1])} ${f(c2[0])} ${f(c2[1])} ${f(end[0])} ${f(end[1])}`,
+  );
+  return `M${f(points[0]![0])} ${f(points[0]![1])}${parts.join('')}`;
+}
+
+// The line's length, measured along the curve itself (each Bézier sampled finely), with a hair of
+// margin. Used as the dash, so the line can be drawn in by sliding the dash along it.
 export function lineLength(points: Point[]): number {
+  const at = ([a, b, c, d]: Segment, t: number): Point => {
+    const u = 1 - t;
+    const k = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t] as const;
+    return [
+      k[0] * a[0] + k[1] * b[0] + k[2] * c[0] + k[3] * d[0],
+      k[0] * a[1] + k[1] * b[1] + k[2] * c[1] + k[3] * d[1],
+    ];
+  };
   let length = 0;
-  for (let i = 1; i < points.length; i++) {
-    length += Math.hypot(points[i]![0] - points[i - 1]![0], points[i]![1] - points[i - 1]![1]);
+  for (const segment of segments(points)) {
+    let last = segment[0];
+    for (let i = 1; i <= 12; i++) {
+      const next = at(segment, i / 12);
+      length += Math.hypot(next[0] - last[0], next[1] - last[1]);
+      last = next;
+    }
   }
-  return Math.ceil(length * 1.08);
+  return Math.ceil(length) + 2;
+}
+
+// A stable number from an id, so each look's shape is its own and stays the same.
+export function seedFrom(id: string): number {
+  let seed = 0;
+  for (const char of id) seed = (seed * 31 + char.charCodeAt(0)) % 9973;
+  return seed + 1;
 }
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -110,60 +144,95 @@ type Props = {
 };
 
 // A shape drawn by hand with the thread: the line draws itself in, then the inside fills softly.
+// Drawn in only when `drawn` turns true while on screen; one already true when it appears (a look liked
+// before) is simply there, so "liked earlier" doesn't look like "just liked".
+// Nothing is mounted until it's first drawn, so a list of looks costs nothing for the unliked ones.
 // Decoration only (what it means is told by the control that caused it), so screen readers skip it.
-export function HandDrawn({ shape, drawn, seed, fill = false, delay = 0, style }: Props) {
+export function HandDrawn(props: Props) {
+  // Whether it was already drawn when it appeared; and whether it has been drawn at all yet.
+  const [appearedDrawn] = useState(props.drawn);
+  const [ever, setEver] = useState(props.drawn);
+  // Derived during render rather than in an effect: React re-renders at once with the new value.
+  if (props.drawn && !ever) setEver(true);
+  return ever ? <Shape {...props} appearedDrawn={appearedDrawn} /> : null;
+}
+
+function Shape({
+  shape,
+  drawn,
+  seed,
+  fill = false,
+  delay = 0,
+  style,
+  appearedDrawn,
+}: Props & { appearedDrawn: boolean }) {
   const reduceMotion = useReducedMotion();
   const [box, setBox] = useState<{ w: number; h: number } | null>(null);
 
-  const w = box ? box.w - PAD * 2 : 0;
-  const h = box ? box.h - PAD * 2 : 0;
-  const points = box ? (shape === 'heart' ? heartPoints : loopPoints)(w, h, seed) : [];
-  const length = box ? lineLength(points) : 0;
+  const geometry = useMemo(() => {
+    if (!box) return null;
+    const points = (shape === 'heart' ? heartPoints : loopPoints)(
+      box.w - PAD * 2,
+      box.h - PAD * 2,
+      seed,
+    );
+    return { d: smoothPath(points), length: lineLength(points) };
+  }, [box, shape, seed]);
+  const length = geometry?.length ?? 0;
 
   // How much of the line is drawn (0…1), how visible the whole shape is, and the fill after the line.
-  // Shared values only, so the worklet below always sees the latest ones.
-  const shown = drawn && reduceMotion ? 1 : 0;
-  const progress = useSharedValue(shown);
-  const opacity = useSharedValue(shown);
-  const filled = useSharedValue(shown);
-  const dash = useSharedValue(length);
+  // A shape that was already drawn when it first appeared starts complete.
+  const startedDrawn = appearedDrawn;
+  const progress = useSharedValue(startedDrawn ? 1 : 0);
+  const opacity = useSharedValue(startedDrawn ? 1 : 0);
+  const filled = useSharedValue(startedDrawn ? 1 : 0);
+  const first = useRef(true);
 
   useEffect(() => {
-    dash.value = length;
-  }, [length, dash]);
-
-  useEffect(() => {
+    // Nothing to draw until the box is measured; the first run only settles what's already there.
+    if (!length) return;
+    if (first.current) {
+      first.current = false;
+      if (startedDrawn) return;
+    }
+    cancelAnimation(progress);
+    cancelAnimation(opacity);
+    cancelAnimation(filled);
     if (reduceMotion) {
       progress.value = drawn ? 1 : 0;
       opacity.value = drawn ? 1 : 0;
       filled.value = drawn ? 1 : 0;
       return;
     }
-    const draw = { duration: DRAW, easing: EASE_OUT };
-    const fillIn = { duration: durations.settle, easing: EASE_OUT };
     if (drawn) {
       // Drawn in from nothing: the line slides along its dash, then the inside fills.
       progress.value = 0;
       filled.value = 0;
       opacity.value = 1;
-      progress.value = withDelay(delay, withTiming(1, draw));
-      filled.value = withDelay(delay + DRAW * 0.8, withTiming(1, fillIn));
+      progress.value = withDelay(delay, withTiming(1, { duration: DRAW, easing: EASE_OUT }));
+      filled.value = withDelay(
+        delay + DRAW * 0.8,
+        withTiming(1, { duration: durations.settle, easing: EASE_OUT }),
+      );
     } else {
       // Taken away quietly: the whole shape fades rather than undrawing.
       opacity.value = withTiming(0, { duration: durations.leave });
     }
-  }, [drawn, delay, reduceMotion, progress, opacity, filled]);
+  }, [drawn, length, delay, reduceMotion, startedDrawn, progress, opacity, filled]);
 
-  const line = useAnimatedProps(() => ({
-    strokeDashoffset: dash.value * (1 - progress.value),
-    strokeOpacity: opacity.value,
-    fillOpacity: opacity.value * filled.value,
-  }));
+  const line = useAnimatedProps(
+    () => ({
+      strokeDashoffset: length * (1 - progress.value),
+      // Hidden outright at the very start, or the round cap would leave a dot.
+      strokeOpacity: progress.value > 0 ? opacity.value : 0,
+      fillOpacity: opacity.value * filled.value,
+    }),
+    [length],
+  );
 
   return (
     <View
       style={[styles.fill, style]}
-      pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       onLayout={(event) => {
@@ -173,10 +242,10 @@ export function HandDrawn({ shape, drawn, seed, fill = false, delay = 0, style }
         );
       }}
     >
-      {box && (
+      {box && geometry && (
         <Svg width={box.w} height={box.h}>
           <AnimatedPath
-            d={smoothPath(points)}
+            d={geometry.d}
             transform={`translate(${PAD} ${PAD})`}
             animatedProps={line}
             fill={fill ? colors.ground : 'none'}
@@ -200,5 +269,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     start: 0,
     end: 0,
+    pointerEvents: 'none',
   },
 });

@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react-native';
 
-import { HandDrawn, heartPoints, lineLength, loopPoints, smoothPath } from './hand-drawn';
+import { HandDrawn, heartPoints, lineLength, loopPoints, seedFrom, smoothPath } from './hand-drawn';
 
 describe('hand-drawn shapes', () => {
   test('the same seed draws the same heart, another seed a slightly different one', () => {
@@ -26,10 +26,29 @@ describe('hand-drawn shapes', () => {
     expect(Math.hypot(first[0] - last[0], first[1] - last[1])).toBeGreaterThan(5);
   });
 
-  test("the dash is at least the line's length, so drawing it in shows the whole line", () => {
+  test('the dash covers the whole curve: at least the polyline through its points', () => {
     const points = loopPoints(100, 100, 1);
-    // A circle-ish loop of 100 runs about π·94 plus the overlap.
-    expect(lineLength(points)).toBeGreaterThan(Math.PI * 94);
+    let polyline = 0;
+    for (let i = 1; i < points.length; i++) {
+      polyline += Math.hypot(points[i]![0] - points[i - 1]![0], points[i]![1] - points[i - 1]![1]);
+    }
+    expect(lineLength(points)).toBeGreaterThanOrEqual(polyline);
+    // …and not much more, or the drawing would stall at the end.
+    expect(lineLength(points)).toBeLessThan(polyline * 1.05);
+  });
+
+  test('a seed from an id is stable and differs between ids', () => {
+    expect(seedFrom('outfit-1')).toBe(seedFrom('outfit-1'));
+    expect(seedFrom('outfit-1')).not.toBe(seedFrom('outfit-2'));
+  });
+
+  test('mounts nothing until it is first drawn, then stays to fade out', async () => {
+    const view = await render(<HandDrawn shape="heart" drawn={false} seed={1} />);
+    expect(view.toJSON()).toBeNull();
+    await view.rerender(<HandDrawn shape="heart" drawn seed={1} />);
+    expect(view.toJSON()).not.toBeNull();
+    await view.rerender(<HandDrawn shape="heart" drawn={false} seed={1} />);
+    expect(view.toJSON()).not.toBeNull();
   });
 
   test('is hidden from screen readers', async () => {
