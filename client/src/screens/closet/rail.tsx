@@ -1,13 +1,17 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 
 import { HANGER_PIVOT_Y } from '@/components/hanger';
-import { rise } from '@/motion';
+import { durations, EASE_OUT, rise } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { RailPiece } from './rail-piece';
+import { useRailSwing } from './swing';
+
+// Once a deleted piece has dropped, the rest slide together to close its gap.
+const closeUp = LinearTransition.duration(durations.state).easing(EASE_OUT);
 
 // Room above the hooks, and where the rail line runs through them.
 const TRACK_TOP = 9;
@@ -28,7 +32,7 @@ type Props = {
 };
 
 // One category of the closet as a clothes rail: an ink line across the screen with the pieces
-// hanging from it, scrolled sideways. Shoes stand on a floor line instead.
+// hanging from it, scrolled sideways; they swing as it moves. Shoes stand on a floor line instead.
 // "See all" opens the whole category, so a big closet isn't stuck behind sideways scrolling.
 export function Rail({
   category,
@@ -45,6 +49,7 @@ export function Rail({
   const { t } = useTranslation();
   const title = t(`closet.filters.${category}`);
   const shoes = category === 'shoes';
+  const { onScroll, lean } = useRailSwing();
 
   return (
     <Animated.View
@@ -89,8 +94,11 @@ export function Rail({
             </>
           )}
         </View>
-        <FlatList
+        <Animated.FlatList
           horizontal
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          itemLayoutAnimation={closeUp}
           data={items}
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
@@ -98,12 +106,14 @@ export function Rail({
           initialNumToRender={5}
           windowSize={5}
           extraData={{ editing, leaving, headers }}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <RailPiece
               item={item}
               headers={headers}
               editing={editing}
               leaving={leaving.has(item.id)}
+              lean={lean}
+              seed={index * 13 + 7}
               onPress={editing ? undefined : () => onOpen(item)}
               onLongPress={onLongPress}
               onDelete={() => onDelete(item)}

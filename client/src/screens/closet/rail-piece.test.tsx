@@ -1,5 +1,6 @@
 import type { Item } from '@closet-ai/shared';
 import { render, screen } from '@testing-library/react-native';
+import { makeMutable } from 'react-native-reanimated';
 
 import { RailPiece } from './rail-piece';
 
@@ -23,6 +24,8 @@ async function photoOf(item: Item) {
       headers={{ cookie: 'session=1' }}
       editing={false}
       leaving={false}
+      lean={makeMutable(0)}
+      seed={7}
       onLongPress={() => {}}
       onDelete={() => {}}
     />,

@@ -1,15 +1,22 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
-import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-reanimated';
+import { I18nManager, StyleSheet, View } from 'react-native';
+import Animated, {
+  FadeOut,
+  Keyframe,
+  useReducedMotion,
+  type SharedValue,
+} from 'react-native-reanimated';
 
-import { Hanger, HANGER_WIDTH, type HangerKind } from '@/components/hanger';
+import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, type HangerKind } from '@/components/hanger';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
-import { CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
+import { CSS_EASE_IN, CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';
+
+import { usePieceSwing } from './swing';
 
 // How a piece of each category sits on its rail: the size of its slot, where the picture starts
 // under the hanger and how tall it may be. Shoes have no hanger: they stand on the floor line.
@@ -25,6 +32,9 @@ const FITS: Record<ItemCategory, Fit> = {
 
 // Pieces on a rail overlap a little, the way clothes are packed on a real one.
 const PIECE_OVERLAP = 12;
+// How far a deleted piece drops, and how much it tips over on the way.
+const FALL_DISTANCE = 160;
+const FALL_TURN = 18;
 
 const badgeIn = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.85 }] },
@@ -35,8 +45,12 @@ type Props = {
   item: Item;
   headers: Record<string, string> | undefined;
   editing: boolean;
-  // The server confirmed the delete; the piece fades out before it leaves the rail.
+  // The server confirmed the delete; the piece drops off the rail before it leaves the list.
   leaving: boolean;
+  // The rail's lean, which the piece swings after (see swing.ts).
+  lean: SharedValue<number>;
+  // Makes this piece swing a little differently from its neighbours.
+  seed: number;
   // Opens the item screen; not set in edit mode, where the badge is the action.
   onPress?: () => void;
   onLongPress: () => void;
@@ -50,6 +64,8 @@ export function RailPiece({
   headers,
   editing,
   leaving,
+  lean,
+  seed,
   onPress,
   onLongPress,
   onDelete,
@@ -60,8 +76,11 @@ export function RailPiece({
   const print = !item.cutoutUrl;
   const url = item.cutoutUrl ?? item.photoUrl;
   const standing = !fit.hanger;
+  const swing = usePieceSwing(lean, item.category, seed);
   // In edit mode the pieces step back a little, like icons on the home screen.
-  const scale = reduced ? 1 : leaving ? 0.92 : editing ? 0.96 : 1;
+  const scale = reduced ? 1 : editing ? 0.96 : 1;
+  // A deleted piece drops off the rail, tipping over as it goes; with reduced motion it just fades.
+  const fall = leaving && !reduced;
 
   return (
     <Animated.View
@@ -71,10 +90,14 @@ export function RailPiece({
           width: fit.width,
           height: fit.height,
           opacity: leaving ? 0 : 1,
-          transform: [{ scale }],
+          transform: [
+            { translateY: fall ? FALL_DISTANCE : 0 },
+            { rotate: fall ? `${I18nManager.isRTL ? -FALL_TURN : FALL_TURN}deg` : '0deg' },
+            { scale },
+          ],
           transitionProperty: ['opacity', 'transform'],
           transitionDuration: leaving ? durations.leave : durations.state,
-          transitionTimingFunction: CSS_EASE_OUT,
+          transitionTimingFunction: leaving ? CSS_EASE_IN : CSS_EASE_OUT,
         },
       ]}
     >
@@ -90,34 +113,37 @@ export function RailPiece({
           if (event.nativeEvent.actionName === 'delete') onDelete();
         }}
       >
-        {fit.hanger && (
-          <View style={styles.hanger}>
-            <Hanger kind={print ? 'print' : fit.hanger} />
+        {/* Hanging pieces turn around the hook, on the rail line; shoes stand still. */}
+        <Animated.View style={[StyleSheet.absoluteFill, !standing && [styles.pivot, swing]]}>
+          {fit.hanger && (
+            <View style={styles.hanger}>
+              <Hanger kind={print ? 'print' : fit.hanger} />
+            </View>
+          )}
+          <View
+            style={[
+              print ? styles.print : styles.cutout,
+              print
+                ? standing
+                  ? styles.printStanding
+                  : styles.printHanging
+                : { top: fit.top, height: fit.image },
+            ]}
+          >
+            {url && headers ? (
+              <Image
+                source={{ uri: absoluteUrl(url), headers }}
+                style={styles.fill}
+                contentFit={print ? 'cover' : 'contain'}
+                // Hung from the top, stood on the bottom, whatever the picture's own proportions.
+                contentPosition={print ? 'center' : standing ? 'bottom' : 'top'}
+                transition={200}
+                accessibilityIgnoresInvertColors
+                testID="item-photo"
+              />
+            ) : null}
           </View>
-        )}
-        <View
-          style={[
-            print ? styles.print : styles.cutout,
-            print
-              ? standing
-                ? styles.printStanding
-                : styles.printHanging
-              : { top: fit.top, height: fit.image },
-          ]}
-        >
-          {url && headers ? (
-            <Image
-              source={{ uri: absoluteUrl(url), headers }}
-              style={styles.fill}
-              contentFit={print ? 'cover' : 'contain'}
-              // Hung from the top, stood on the bottom, whatever the picture's own proportions.
-              contentPosition={print ? 'center' : standing ? 'bottom' : 'top'}
-              transition={200}
-              accessibilityIgnoresInvertColors
-              testID="item-photo"
-            />
-          ) : null}
-        </View>
+        </Animated.View>
       </PressableScale>
 
       {editing && (
@@ -144,6 +170,9 @@ export function RailPiece({
 const styles = StyleSheet.create({
   cell: {
     marginEnd: -PIECE_OVERLAP,
+  },
+  pivot: {
+    transformOrigin: ['50%', HANGER_PIVOT_Y, 0],
   },
   // Centred over the piece, the hook on the rail.
   hanger: {
