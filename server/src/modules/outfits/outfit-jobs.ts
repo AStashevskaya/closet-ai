@@ -52,6 +52,8 @@ export interface OutfitJobDeps {
   // The spend caps the brief keeps to, and where its cost is recorded.
   limits: Limits;
   clock?: () => Date;
+  // A line about a job worth counting later; the worker writes it to stdout as JSON.
+  log?: (line: Record<string, unknown>) => void;
 }
 
 // A request that can never be composed (its item is gone): marked failed without retrying.
@@ -152,6 +154,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const ownKinds = new Set(candidates.map(itemKind));
   const resolved = looks.map((look) => {
     const picked = [...new Set(look.items)].flatMap((n) => byN.get(n) ?? []);
+    // A piece the model chose that the rules below take out: "why" may still speak of it.
+    let lost = false;
     // A top over a dress scored 0.1 of 1 with the owner and the model still did it now and then
     // despite the prompt: a dress look keeps no top (the item itself stays).
     const dress = [hero, ...picked].some((item) => item.category === "dress");
@@ -165,13 +169,17 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     let shirt = isShirt(hero);
     const items: StylingItem[] = [];
     for (const item of picked) {
-      if (dress && item.category === "top") continue;
-      if (heroWithDress && item.category === "dress") continue;
-      if (FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind) continue;
-      if (isShirt(item)) {
-        if (shirt) continue;
-        shirt = true;
+      const extraShirt = isShirt(item) && shirt;
+      if (
+        (dress && item.category === "top") ||
+        (heroWithDress && item.category === "dress") ||
+        (FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind) ||
+        extraShirt
+      ) {
+        lost = true;
+        continue;
       }
+      if (isShirt(item)) shirt = true;
       items.push(item);
     }
     const kinds = new Set([heroKind, ...items.map(itemKind)]);
@@ -181,24 +189,42 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     let promoted: CatalogRow | undefined;
     for (const row of [...new Set(look.partners)].flatMap((n) => shopByN.get(n) ?? [])) {
       const kind = catalogKind(row);
-      if (kinds.has(kind) && FINISHING_KINDS.includes(kind)) continue;
-      if (FINISHING_KINDS.includes(kind) && !ownKinds.has(kind)) finishing.push(row);
-      else if (promoted || (shirt && isShirt(row))) continue;
+      const secondPair = kinds.has(kind) && FINISHING_KINDS.includes(kind);
+      const finishes = FINISHING_KINDS.includes(kind) && !ownKinds.has(kind);
+      if (secondPair || (!finishes && (promoted || (shirt && isShirt(row))))) {
+        lost = true;
+        continue;
+      }
+      if (finishes) finishing.push(row);
       else promoted = row;
       kinds.add(kind);
     }
-    return { look, items, finishing, promoted };
+    return { look, items, finishing, promoted, lost };
   });
   // A look without a bottom (or a dress) isn't one; shown only if every look came out so.
   const complete = resolved.filter(({ items, promoted }) =>
     isComplete([hero.category, ...items.map((item) => item.category), promoted?.category]),
   );
+  // A look whose "why" may name a piece it doesn't show (the owner's pink boots in the text,
+  // her white sneakers in the look, 2026-10-25) isn't shown, unless every look lost one. Those
+  // go first, so a hidden look takes none of the brand's places below.
+  const pool = complete.length > 0 ? complete : resolved;
+  const kept = pool.some((look) => !look.lost) ? pool.filter((look) => !look.lost) : pool;
+  // A brand's piece past the cap is taken out, and the look is marked lost: its why may name it.
+  let promotedLooks = 0;
+  const capped = kept.map((look) => {
+    if (!look.promoted) return look;
+    if (promotedLooks < MAX_PARTNER_LOOKS) {
+      promotedLooks += 1;
+      return look;
+    }
+    return { ...look, promoted: undefined, lost: true };
+  });
+  const intact = capped.filter((look) => !look.lost);
   // How many looks each wardrobe piece is in so far, so an added pair or bag is spread around.
   const used = new Map<string, number>();
-  let promotedLooks = 0;
-  const saved = (complete.length > 0 ? complete : resolved).map((look): NewOutfit => {
-    const promoted = look.promoted && promotedLooks < MAX_PARTNER_LOOKS ? look.promoted : undefined;
-    if (promoted) promotedLooks += 1;
+  const saved = (intact.length > 0 ? intact : capped).map((look): NewOutfit => {
+    const { promoted } = look;
     // A promoted partner bag is the look's bag: no second one of hers next to it.
     const { items, finishing: shop } = withShoesAndBag(
       hero,
@@ -242,6 +268,18 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       twinItemId: (verdict.twin !== null && byN.get(verdict.twin)?.id) || null,
     },
   );
+
+  // How often she gets fewer looks than asked for because of the hidden ones (PR #73's trade-off).
+  if (saved.length < looks.length) {
+    (deps.log ?? ((line) => console.log(JSON.stringify(line))))({
+      msg: "looks hidden",
+      requestId,
+      asked: looks.length,
+      shown: saved.length,
+      incomplete: looks.length - pool.length,
+      lost: pool.length - saved.length,
+    });
+  }
 
   const shown = saved.flatMap((look) => look.pieces.flatMap((p) => p.catalogItemId ?? []));
   await deps.catalog?.record(shown, request.userId, "shown");
