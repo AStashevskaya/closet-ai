@@ -28,9 +28,9 @@ const SETTLE_MS = 240;
 // made the pieces jerk (2026-10-26).
 const STILL_MS = 50;
 
-// A pendulum's stiffness: about 0.7 s a swing for an average piece. Damped lightly, so a piece swings past the middle
+// A pendulum's stiffness: about 0.95 s a swing for an average piece. Damped lightly, so a piece swings past the middle
 // several times before it settles, like a hanger nudged on a rail.
-const STIFFNESS = 80;
+const STIFFNESS = 45;
 const DAMPING_RATIO = 0.06;
 // Longer pieces swing slower, small ones quicker.
 const LENGTH: Partial<Record<ItemCategory, number>> = { dress: 0.7, accessory: 1.25 };
