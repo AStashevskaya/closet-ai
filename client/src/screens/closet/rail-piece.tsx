@@ -6,8 +6,8 @@ import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-rean
 
 import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, type HangerKind } from '@/components/hanger';
 import { Icon } from '@/components/icon';
-import { PressableScale } from '@/components/pressable-scale';
 import { cutoutShadow } from '@/components/cutout-shadow';
+import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { CSS_EASE_IN, CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';

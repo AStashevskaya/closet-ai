@@ -15,7 +15,8 @@ type Props = {
 
 // An item's photo: the cut-out, whole and centred on the card colour, once the server has
 // removed the background; the photo itself, filling the frame, until then (or when removal is
-// off). The two crossfade when the cut-out arrives. The cut-out casts a soft shadow.
+// off). The two crossfade when the cut-out arrives: the image always sits in the same wrapper (a new
+// parent would remount it and skip the crossfade), which only gets air and a soft shadow for a cut-out.
 export function ItemPhoto({ item, headers, style }: Props) {
   const url = item.cutoutUrl ?? item.photoUrl;
   const image =
@@ -31,7 +32,7 @@ export function ItemPhoto({ item, headers, style }: Props) {
     ) : null;
   return (
     <View style={[styles.frame, style]}>
-      {item.cutoutUrl ? <View style={styles.cutout}>{image}</View> : image}
+      <View style={item.cutoutUrl ? styles.cutout : styles.fill}>{image}</View>
     </View>
   );
 }
@@ -44,10 +45,13 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
-  // Air around the item, as on a catalogue page.
+  // Air around the item, as on a catalogue page; a little more below, so the shadow isn't cut off by
+  // the frame on small tiles.
   cutout: {
     flex: 1,
-    margin: '13%',
+    marginHorizontal: '13%',
+    marginTop: '10%',
+    marginBottom: '16%',
     ...cutoutShadow('hanging'),
   },
 });

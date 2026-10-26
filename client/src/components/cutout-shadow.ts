@@ -8,7 +8,9 @@ import { colors } from '@/theme';
 // - iOS: a layer shadow on a view without a background follows the alpha of what's inside it. Pair it
 //   with `shouldRasterizeIOS` where the piece moves (the rails swing), so the shadow is drawn once.
 // - Android: `elevation` and `boxShadow` are always rectangles, so it's the `dropShadow` filter, which
-//   follows the alpha; Android 12+ only, older phones show the piece without a shadow.
+//   follows the alpha; Android 12+ and the new architecture only, older phones show the piece without
+//   a shadow. It draws into its own layer with no cache, so watch long lists on mid-range phones.
+// On iOS the shadow is recomputed while what's inside moves (New in's breathing): fine for one piece.
 // `hanging`: a piece on a rail or standing on its own, lit from above; `flat`: lying on paper.
 const SHADOWS = {
   hanging: { y: 8, blur: 10, opacity: 0.22 },
@@ -26,6 +28,7 @@ export function cutoutShadow(kind: keyof typeof SHADOWS): ViewStyle {
     };
   }
   if (Platform.OS === 'android') {
+    // colors.text is a 6-digit hex (a test holds it to that), so the alpha goes on the end.
     const alpha = Math.round(opacity * 255)
       .toString(16)
       .padStart(2, '0');

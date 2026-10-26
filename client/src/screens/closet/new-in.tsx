@@ -13,8 +13,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { PressableScale } from '@/components/pressable-scale';
 import { cutoutShadow } from '@/components/cutout-shadow';
+import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
