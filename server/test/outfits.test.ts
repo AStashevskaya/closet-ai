@@ -44,6 +44,7 @@ async function setup({
   const photoQueue = createManualPhotoQueue();
   const stub = createStubStylist();
   const cut = createStubRemover();
+  const logged: Record<string, unknown>[] = [];
   const auth = createAuth(
     env,
     memoryAdapter({ user: [], session: [], account: [], verification: [] }),
@@ -70,6 +71,7 @@ async function setup({
     queue: queue.outfitQueue,
     limits: createLimits(repositories.usageRepository, { dailyUsd: 3, userMonthlyUsd: 5 }),
     clock: () => clock.now,
+    log: (line) => logged.push(line),
   };
   const photoDeps: PhotoJobDeps = {
     photos: repositories.photosRepository,
@@ -89,6 +91,7 @@ async function setup({
     clock,
     deps,
     photoDeps,
+    logged,
     runJobs: () => queue.runAll(deps),
     runPhotoJobs: () => photoQueue.runAll(photoDeps),
   };
@@ -419,6 +422,9 @@ describe("POST /api/wear-with", () => {
     expect(done.outfits.map((o) => [o.caption, o.pieces.some((p) => p.catalogItem)])).toEqual([
       ["Look 2", true],
       ["Look 3", true],
+    ]);
+    expect(s.logged).toEqual([
+      { msg: "looks hidden", requestId: id, asked: 3, shown: 2, incomplete: 0, lost: 1 },
     ]);
 
     // Every look lost its second shirt: all are shown, the jacket in two.

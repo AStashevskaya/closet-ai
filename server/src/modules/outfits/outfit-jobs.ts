@@ -52,6 +52,8 @@ export interface OutfitJobDeps {
   // The spend caps the brief keeps to, and where its cost is recorded.
   limits: Limits;
   clock?: () => Date;
+  // A line about a job worth counting later; the worker writes it to stdout as JSON.
+  log?: (line: Record<string, unknown>) => void;
 }
 
 // A request that can never be composed (its item is gone): marked failed without retrying.
@@ -266,6 +268,18 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       twinItemId: (verdict.twin !== null && byN.get(verdict.twin)?.id) || null,
     },
   );
+
+  // How often she gets fewer looks than asked for because of the hidden ones (PR #73's trade-off).
+  if (saved.length < looks.length) {
+    (deps.log ?? ((line) => console.log(JSON.stringify(line))))({
+      msg: "looks hidden",
+      requestId,
+      asked: looks.length,
+      shown: saved.length,
+      incomplete: looks.length - pool.length,
+      lost: pool.length - saved.length,
+    });
+  }
 
   const shown = saved.flatMap((look) => look.pieces.flatMap((p) => p.catalogItemId ?? []));
   await deps.catalog?.record(shown, request.userId, "shown");
