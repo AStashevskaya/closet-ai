@@ -4,6 +4,8 @@ import { cubicBezier, Easing, Keyframe } from 'react-native-reanimated';
 // CSS transitions take `cubicBezier`, layout animations and withTiming take `Easing.bezier`.
 export const CSS_EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
 export const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+// Ease-in, for the rare thing that falls away: it starts slowly and leaves fast, like a drop.
+export const CSS_EASE_IN = cubicBezier(0.55, 0, 0.9, 0.4);
 
 // Touch feedback stays quick; everything that appears is deliberately slow, as on Dior's site.
 export const durations = {
