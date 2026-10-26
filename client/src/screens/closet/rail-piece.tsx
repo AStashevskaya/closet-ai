@@ -2,12 +2,7 @@ import type { Item, ItemCategory } from '@closet-ai/shared';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { I18nManager, StyleSheet, View } from 'react-native';
-import Animated, {
-  FadeOut,
-  Keyframe,
-  useReducedMotion,
-  type SharedValue,
-} from 'react-native-reanimated';
+import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-reanimated';
 
 import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, type HangerKind } from '@/components/hanger';
 import { Icon } from '@/components/icon';
@@ -16,7 +11,7 @@ import { absoluteUrl } from '@/lib/api';
 import { CSS_EASE_IN, CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';
 
-import { usePieceSwing } from './swing';
+import { usePieceSwing, type Swing } from './swing';
 
 // How a piece of each category sits on its rail: the size of its slot, where the picture starts
 // under the hanger and how tall it may be. Shoes have no hanger: they stand on the floor line.
@@ -47,8 +42,8 @@ type Props = {
   editing: boolean;
   // The server confirmed the delete; the piece drops off the rail before it leaves the list.
   leaving: boolean;
-  // The rail's lean, which the piece swings after (see swing.ts).
-  lean: SharedValue<number>;
+  // The rail's pendulums, this piece's among them (see swing.ts).
+  swing: Swing;
   // Opens the item screen; not set in edit mode, where the badge is the action.
   onPress?: () => void;
   onLongPress: () => void;
@@ -62,7 +57,7 @@ export function RailPiece({
   headers,
   editing,
   leaving,
-  lean,
+  swing,
   onPress,
   onLongPress,
   onDelete,
@@ -73,7 +68,7 @@ export function RailPiece({
   const print = !item.cutoutUrl;
   const url = item.cutoutUrl ?? item.photoUrl;
   const standing = !fit.hanger;
-  const swing = usePieceSwing(lean, item.category, item.id);
+  const turn = usePieceSwing(swing, item.id);
   // In edit mode the pieces step back a little, like icons on the home screen.
   const scale = reduced ? 1 : editing ? 0.96 : 1;
   // A deleted piece drops off the rail, tipping over as it goes; with reduced motion it just fades.
@@ -112,7 +107,7 @@ export function RailPiece({
         }}
       >
         {/* Hanging pieces turn around the hook, on the rail line; shoes stand still. */}
-        <Animated.View style={[StyleSheet.absoluteFill, !standing && [styles.pivot, swing]]}>
+        <Animated.View style={[StyleSheet.absoluteFill, !standing && [styles.pivot, turn]]}>
           {fit.hanger && (
             <View style={styles.hanger}>
               <Hanger kind={print ? 'print' : fit.hanger} />

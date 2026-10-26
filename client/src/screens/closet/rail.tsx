@@ -49,7 +49,8 @@ export function Rail({
   const { t } = useTranslation();
   const title = t(`closet.filters.${category}`);
   const shoes = category === 'shoes';
-  const { onScroll, lean } = useRailSwing();
+  // Shoes stand still, so their rail has no pendulums to step.
+  const { onScroll, swing } = useRailSwing(category, shoes ? [] : items.map((item) => item.id));
 
   return (
     <Animated.View
@@ -112,7 +113,7 @@ export function Rail({
               headers={headers}
               editing={editing}
               leaving={leaving.has(item.id)}
-              lean={lean}
+              swing={swing}
               onPress={editing ? undefined : () => onOpen(item)}
               onLongPress={onLongPress}
               onDelete={() => onDelete(item)}

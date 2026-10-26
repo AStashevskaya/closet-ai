@@ -1,9 +1,9 @@
 import type { Item } from '@closet-ai/shared';
 import { render, screen } from '@testing-library/react-native';
 import * as Reanimated from 'react-native-reanimated';
-import { makeMutable } from 'react-native-reanimated';
 
 import { RailPiece } from './rail-piece';
+import type { Swing } from './swing';
 
 jest.mock('@/lib/api', () => ({ absoluteUrl: (path: string) => `http://api.test${path}` }));
 
@@ -16,6 +16,8 @@ const shirt: Item = {
   photoUrl: '/api/items/6b1f7c3e-0000-4000-8000-000000000201/photo',
   createdAt: '2026-10-18T10:00:00.000Z',
 };
+// A rail standing still: no piece has a swing yet.
+const still = { get: () => ({}) } as unknown as Swing;
 const cutoutUrl = `${shirt.photoUrl}?variant=cutout`;
 
 async function renderPiece(item: Item, leaving = false) {
@@ -25,7 +27,7 @@ async function renderPiece(item: Item, leaving = false) {
       headers={{ cookie: 'session=1' }}
       editing={false}
       leaving={leaving}
-      lean={makeMutable(0)}
+      swing={still}
       onLongPress={() => {}}
       onDelete={() => {}}
     />,
