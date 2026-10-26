@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
   Extrapolation,
@@ -18,142 +18,49 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HangerLoader } from '@/components/hanger-loader';
 import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
 import { StyleCard } from '@/components/style-card';
-import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
 import { useStyle } from '@/lib/style';
 import { durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-import { ClosetCard } from './card';
-import { CategoryFilter, type Filter } from './category-filter';
 import { NewIn } from './new-in';
+import { Rail } from './rail';
+import { useCloset } from './use-closet';
 
-const PHOTO_POLL_MS = 1500;
-// The cut-out follows a few seconds after the photo. A new item without one is checked again
-// for this long; after that removal is off or failed, and the photo stays as it is.
-const CUTOUT_WAIT_MS = 20_000;
-
-type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: Item[] };
-
-// The first screenful staggers in on the first load, one after another, slowly; later cards and
-// reloads just appear.
-const STAGGERED = 8;
-// From this many items the newest gets the bright block above the grid.
+// From this many items the newest gets the bright block above the rails.
 const NEW_IN_FROM = 6;
 
+// The closet: one clothes rail per category the user has, in the canonical order.
 export function Closet() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [state, setState] = useState<State>({ status: 'loading' });
-  // Photos are served by the API to their owner only, so the image requests carry the session cookie.
-  const [headers, setHeaders] = useState<Record<string, string>>();
+  const { state, items, headers, leaving, retry, confirmDelete } = useCloset();
   const [editing, setEditing] = useState(false);
-  const [leaving, setLeaving] = useState<ReadonlySet<string>>(new Set());
   const [entered, setEntered] = useState(false);
-  const [filter, setFilter] = useState<Filter>('all');
   const scrollY = useSharedValue(0);
-  // Held here, not in the card: the card unmounts with a filter or edit mode.
+  // Held here, not in the card: the card unmounts in edit mode.
   const styleCard = useStyle(i18n.language);
 
-  const load = useCallback(async () => {
-    try {
-      const items = await listItems();
-      setState({ status: 'ready', items });
-    } catch {
-      // A failed reload keeps the closet already shown; only a first load shows the error.
-      setState((current) => (current.status === 'ready' ? current : { status: 'error' }));
-    }
-  }, []);
+  // Leave edit mode when the tab goes out of view.
+  useFocusEffect(useCallback(() => () => setEditing(false), []));
 
-  // Reload whenever the tab comes into view, e.g. after adding an item, and leave edit mode
-  // when it goes out of view. The callback may only return a cleanup function, not a promise.
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-      return () => setEditing(false);
-    }, [load]),
-  );
-
-  useEffect(() => {
-    // An effect can't be async itself, so the async work goes in an inner function.
-    const loadHeaders = async () => {
-      try {
-        setHeaders(await sessionHeaders());
-      } catch {
-        setHeaders({});
-      }
-    };
-    void loadHeaders();
-  }, []);
-
-  // The server shrinks new photos in the background, usually within a second or two, then
-  // removes their background. While any is still processing, or a new one has no cut-out yet,
-  // check again shortly; each load schedules the next one.
-  useEffect(() => {
-    const now = Date.now();
-    const waiting =
-      state.status === 'ready' &&
-      state.items.some(
-        (item) =>
-          item.photoStatus === 'processing' ||
-          (item.photoStatus === 'ready' &&
-            !item.cutoutUrl &&
-            now - Date.parse(item.createdAt) < CUTOUT_WAIT_MS),
-      );
-    if (!waiting) return;
-    const timer = setTimeout(() => void load(), PHOTO_POLL_MS);
-    return () => clearTimeout(timer);
-  }, [state, load]);
-
-  // Once the first cards have played their entrance, cards mounted later (scrolling, reloads) skip it.
+  // Once the rails have played their entrance, rails mounted later (a new category) skip it.
   const ready = state.status === 'ready';
   useEffect(() => {
     if (!ready) return;
-    const timer = setTimeout(() => setEntered(true), STAGGERED * STAGGER_STEP + durations.enter);
+    const timer = setTimeout(
+      () => setEntered(true),
+      ITEM_CATEGORIES.length * STAGGER_STEP + durations.enter,
+    );
     return () => clearTimeout(timer);
   }, [ready]);
 
-  const items = state.status === 'ready' ? state.items : [];
   // Nothing left to edit: leave edit mode by itself.
   const isEditing = editing && items.length > 0;
-  // Chips only for categories the closet has, in the canonical order. If the last item of the
-  // chosen category is deleted, the filter falls back to everything.
-  const categories = ITEM_CATEGORIES.filter((c) => items.some((item) => item.category === c));
-  const activeFilter = filter !== 'all' && categories.includes(filter) ? filter : 'all';
-  const visible =
-    activeFilter === 'all' ? items : items.filter((item) => item.category === activeFilter);
-
-  // The card disappears once the server confirms, so a failed delete never hides an item.
-  // It fades out first and only then leaves the list.
-  const remove = async (id: string) => {
-    try {
-      await deleteItem(id);
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setLeaving((current) => new Set(current).add(id));
-      setTimeout(() => {
-        setState((current) =>
-          current.status === 'ready'
-            ? { status: 'ready', items: current.items.filter((item) => item.id !== id) }
-            : current,
-        );
-        setLeaving((current) => {
-          const next = new Set(current);
-          next.delete(id);
-          return next;
-        });
-      }, durations.leave);
-    } catch {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t('closet.deleteError'));
-    }
-  };
-
-  const confirmDelete = (item: Item) => {
-    Alert.alert(t('closet.deleteTitle', { name: item.name }), t('closet.deleteMessage'), [
-      { text: t('closet.cancel'), style: 'cancel' },
-      { text: t('closet.delete'), style: 'destructive', onPress: () => void remove(item.id) },
-    ]);
-  };
+  const rails = ITEM_CATEGORIES.map((category) => ({
+    category,
+    items: items.filter((item) => item.category === category),
+  })).filter((rail) => rail.items.length > 0);
 
   // A long press is a shortcut into edit mode, the way it is on the home screen.
   const startEditing = () => {
@@ -161,6 +68,8 @@ export function Closet() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditing(true);
   };
+
+  const open = (item: Item) => router.push({ pathname: '/item/[id]', params: { id: item.id } });
 
   const editButton = items.length > 0 && (
     <Pressable
@@ -173,17 +82,17 @@ export function Closet() {
     </Pressable>
   );
 
-  // The big title scrolls away; a frosted bar with the small one comes in over the grid.
+  // The big title scrolls away; a frosted bar with the small one comes in over the rails.
   const bar = useAnimatedStyle(() => ({
     opacity: interpolate(scrollY.get(), [60, 120], [0, 1], Extrapolation.CLAMP),
   }));
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.set(event.contentOffset.y);
   });
-  // A closet of a few items has nothing to feature; the banner would only repeat the grid.
-  const newest = activeFilter === 'all' && items.length >= NEW_IN_FROM ? items[0] : undefined;
+  // A closet of a few items has nothing to feature; the banner would only repeat the rails.
+  const newest = items.length >= NEW_IN_FROM ? items[0] : undefined;
 
-  const listHeader = (
+  const header = (
     <>
       <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
         <View style={styles.heading}>
@@ -198,15 +107,7 @@ export function Closet() {
       </View>
       {!isEditing && <StyleCard {...styleCard} />}
       {newest && !isEditing && (
-        <NewIn
-          item={newest}
-          headers={headers}
-          onPress={() => router.push({ pathname: '/item/[id]', params: { id: newest.id } })}
-        />
-      )}
-      {/* A single category has nothing to filter. */}
-      {categories.length > 1 && (
-        <CategoryFilter categories={categories} value={activeFilter} onChange={setFilter} />
+        <NewIn item={newest} headers={headers} onPress={() => open(newest)} />
       )}
     </>
   );
@@ -222,13 +123,7 @@ export function Closet() {
       {state.status === 'error' && (
         <View style={styles.center}>
           <Text style={styles.message}>{t('closet.loadError')}</Text>
-          <Pressable
-            onPress={() => {
-              setState({ status: 'loading' });
-              void load();
-            }}
-            accessibilityRole="button"
-          >
+          <Pressable onPress={retry} accessibilityRole="button">
             <Text style={styles.link}>{t('closet.retry')}</Text>
           </Pressable>
         </View>
@@ -236,7 +131,7 @@ export function Closet() {
 
       {state.status === 'ready' && items.length === 0 && (
         <>
-          {listHeader}
+          {header}
           <Animated.View style={styles.center} entering={FadeIn.duration(durations.enter)}>
             <Text style={styles.message}>{t('closet.empty')}</Text>
           </Animated.View>
@@ -244,37 +139,30 @@ export function Closet() {
       )}
 
       {items.length > 0 && (
-        // Keyed by the filter: a new filter brings a fresh grid that fades in, instead of cards
-        // jumping between rows. The first load has its own staggered entrance.
-        <Animated.FlatList
-          key={activeFilter}
-          entering={entered ? FadeIn.duration(durations.enter) : undefined}
-          data={visible}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          ListHeaderComponent={listHeader}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
+        <Animated.ScrollView
+          contentContainerStyle={styles.content}
           onScroll={onScroll}
           scrollEventThrottle={16}
-          extraData={{ isEditing, leaving, headers }}
-          renderItem={({ item, index }) => (
-            <ClosetCard
-              item={item}
+        >
+          {header}
+          {rails.map((rail, index) => (
+            <Rail
+              key={rail.category}
+              category={rail.category}
+              items={rail.items}
               headers={headers}
               editing={isEditing}
-              leaving={leaving.has(item.id)}
-              enterDelay={!entered && index < STAGGERED ? index * STAGGER_STEP : undefined}
-              onPress={
-                isEditing
-                  ? undefined
-                  : () => router.push({ pathname: '/item/[id]', params: { id: item.id } })
-              }
+              leaving={leaving}
+              enterDelay={entered ? undefined : index * STAGGER_STEP}
+              onOpen={open}
               onLongPress={startEditing}
-              onDelete={() => confirmDelete(item)}
+              onDelete={confirmDelete}
+              onSeeAll={() =>
+                router.push({ pathname: '/closet/[category]', params: { category: rail.category } })
+              }
             />
-          )}
-        />
+          ))}
+        </Animated.ScrollView>
       )}
 
       {/* Decoration only: the big title above is the heading screen readers get. */}
@@ -358,15 +246,10 @@ const styles = StyleSheet.create({
     color: colors.accent,
     textDecorationLine: 'underline',
   },
-  grid: {
-    paddingHorizontal: 10,
+  content: {
     paddingBottom: TAB_BAR_CLEARANCE,
-    gap: 10,
   },
-  row: {
-    gap: 10,
-  },
-  // The frosted bar over the grid once the big title has scrolled away.
+  // The frosted bar over the rails once the big title has scrolled away.
   bar: {
     position: 'absolute',
     top: 0,

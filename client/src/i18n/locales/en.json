@@ -37,7 +37,9 @@
     "deleteMessage": "The item and its photo will be removed from your closet.",
     "cancel": "Cancel",
     "deleteError": "Couldn't delete the item. Try again.",
-    "newIn": "New in your closet"
+    "newIn": "New in your closet",
+    "seeAll": "See all",
+    "seeAllOf": "See all {{category}}"
   },
   "addItem": {
     "title": "New item",
