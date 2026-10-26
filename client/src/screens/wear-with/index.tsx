@@ -198,6 +198,8 @@ export function WearWith({ id }: { id: string }) {
               pieces={[...pieces, ...partners.map((p) => ({ ...p, cutoutUrl: p.imageUrl }))]}
               headers={headers}
               caption={outfit.caption}
+              loved={outfit.opinion === 'like'}
+              seed={seedOf(outfit.id)}
             />
             <Text style={styles.occasion}>{outfit.occasion}</Text>
             <Text style={styles.why}>{outfit.why}</Text>
@@ -242,6 +244,13 @@ export function WearWith({ id }: { id: string }) {
 
 // Whether a piece she may buy is worth it for her wardrobe: the call, why, and the piece she
 // owns that it nearly repeats.
+// A stable number from an id, so each look's heart has its own shape and keeps it.
+function seedOf(id: string) {
+  let seed = 0;
+  for (const char of id) seed = (seed * 31 + char.charCodeAt(0)) % 997;
+  return seed + 1;
+}
+
 function Verdict({
   verdict,
   headers,
