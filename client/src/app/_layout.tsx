@@ -122,6 +122,16 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="closet/[category]"
+          options={{
+            title: '',
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
           name="the-edit"
           options={{
             title: '',
