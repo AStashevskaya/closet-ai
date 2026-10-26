@@ -43,7 +43,8 @@ type ButtonProps = {
   onPress: () => void;
   disabled?: boolean;
   busy?: boolean;
-  // ink: the main action; outline: a second one next to it; bright: on an ink or photo ground.
+  // ink: the main action; outline: a second one next to it; bright: the cherry bead, on white or a
+  // photo (never on ink: cherry on the thread colour doesn't read).
   kind?: 'ink' | 'outline' | 'bright';
   style?: StyleProp<ViewStyle>;
 };
@@ -67,12 +68,12 @@ export function Button({ label, onPress, disabled, busy, kind = 'ink', style }: 
       accessibilityState={{ disabled: disabled || busy, busy }}
     >
       {busy ? (
-        <ActivityIndicator color={kind === 'ink' ? colors.onAccent : colors.text} />
+        <ActivityIndicator color={kind === 'outline' ? colors.text : colors.onAccent} />
       ) : (
         <Text
           style={[
             styles.buttonText,
-            kind === 'ink' && styles.buttonTextInk,
+            kind !== 'outline' && styles.buttonTextInk,
             disabled && kind !== 'bright' && styles.buttonTextOff,
           ]}
         >
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   bright: {
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
   },
   dim: {
     opacity: 0.5,

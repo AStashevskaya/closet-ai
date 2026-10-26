@@ -281,12 +281,12 @@ const styles = StyleSheet.create({
     color: colors.onAccent,
   },
   done: {
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
   },
   doneText: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 15,
-    color: colors.text,
+    color: colors.onBead,
   },
   // Room around the photo so the corners can be reached at its edges.
   area: {
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: BRACKET,
     height: BRACKET,
-    borderColor: colors.highlight,
+    borderColor: colors.ground,
   },
   bracketTopLeft: { left: INSET, top: INSET, borderTopWidth: LINE, borderLeftWidth: LINE },
   bracketTopRight: { right: INSET, top: INSET, borderTopWidth: LINE, borderRightWidth: LINE },

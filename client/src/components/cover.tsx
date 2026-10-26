@@ -39,7 +39,7 @@ type Props = {
 };
 
 // The editorial block at the top of a screen: the user's saved look as a photo with the words
-// on a frosted strip over it, or the bright block when she has saved none.
+// on a frosted strip over it, or the powder-blue block when she has saved none.
 export function EditorialCover({ eyebrow, title, text, children }: Props) {
   const cover = useCover();
 
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     paddingTop: 26,
     paddingBottom: 22,
     gap: 8,
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.ground,
   },
   photo: {
     minHeight: 460,

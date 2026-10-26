@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     // The one bright colour, kept for editorial moments like this one.
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.ground,
   },
   title: {
     fontFamily: fonts.display,

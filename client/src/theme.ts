@@ -1,31 +1,36 @@
 import i18n from '@/i18n';
 
 // "Maison" look (decided 2026-10-21, after the owner's look at Loewe, Prada, Dior, Bottega):
-// a white page, near-black ink, hairlines instead of cards, items on a neutral studio grey as in
-// every brand's catalogue, and one bright colour kept for the big editorial blocks only.
+// a white page, hairlines instead of cards, items on a neutral studio grey as in every brand's
+// catalogue. Recoloured as "The Thread" (2026-10-26): the ink is a deep cherry thread, soft blocks
+// sit on powder blue, and one bright cherry bead marks the small things to act on.
 export const colors = {
   background: '#FFFFFF',
   surface: '#FFFFFF',
   // Studio grey under items: photo frames, item tiles, soft panels.
   hero: '#F3F2EF',
-  text: '#121212',
-  textSecondary: '#4A4A47',
-  // 5.3:1 on white, 4.8:1 on the studio grey.
-  textMuted: '#6B6B67',
+  // The thread: text, lines, rails, hangers. 15:1 on white, 12:1 on the ground.
+  text: '#4A1520',
+  textSecondary: '#5A4247',
+  // 6.3:1 on white, 4.9:1 on the ground.
+  textMuted: '#6F5A5E',
   // Ink: primary buttons, links, selected chips.
-  accent: '#121212',
-  accentDark: '#000000',
+  accent: '#4A1520',
+  accentDark: '#2E0C13',
   onAccent: '#FFFFFF',
   border: '#E4E3DF',
   // Hairlines between grid cells and rows.
   divider: '#EBEBE8',
   accentSoft: '#F3F2EF',
-  // The one bright colour: editorial blocks (a look, the home hero), never under items or text.
-  highlight: '#F2D64B',
+  // Powder blue: the soft editorial blocks (a cover, New in, a verdict), with thread-coloured text.
+  ground: '#D6E4F1',
+  // The bright cherry bead: selected chips, small labels, "+", a yes. Never a big block.
+  bead: '#9E1F32',
+  // Text and icons on the bead: 7.8:1.
+  onBead: '#FFFFFF',
   // White border of a photo print in a collage.
   paper: '#FFFFFF',
   iconMuted: '#9A9A96',
-  tabInactive: '#8B8B87',
   error: '#A3261E',
 } as const;
 

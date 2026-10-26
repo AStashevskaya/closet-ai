@@ -72,7 +72,7 @@ export function HangerLoader({ size = 'large' }: Props) {
         <Animated.View style={[styles.tag, { width, height }, tagSwing]}>
           <Svg width={width} height={height} viewBox="0 0 48 40">
             <Path d="M33 31.2v2.6" stroke={colors.text} strokeWidth={stroke * 0.6} />
-            <Rect x={30.2} y={33.6} width={5.6} height={6} rx={1} fill={colors.highlight} />
+            <Rect x={30.2} y={33.6} width={5.6} height={6} rx={1} fill={colors.bead} />
           </Svg>
         </Animated.View>
       </Animated.View>

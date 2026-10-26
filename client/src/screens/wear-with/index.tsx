@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   },
   // A yes gets the one bright colour.
   verdictBuy: {
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.ground,
   },
   verdictTitle: {
     fontFamily: fonts.bodyMedium,
@@ -447,8 +447,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   reactionOn: {
-    borderColor: colors.highlight,
-    backgroundColor: colors.highlight,
+    borderColor: colors.bead,
+    backgroundColor: colors.bead,
   },
   reactionText: {
     fontFamily: fonts.body,
@@ -456,6 +456,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   reactionTextOn: {
-    color: colors.text,
+    color: colors.onBead,
   },
 });

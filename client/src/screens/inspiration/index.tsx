@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EditorialCover } from '@/components/cover';
 import { HangerLoader } from '@/components/hanger-loader';
 import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
-import { TAB_BAR_CLEARANCE } from '@/components/tab-bar';
+import { useTabBarClearance } from '@/components/tab-bar';
 import { PressableScale } from '@/components/pressable-scale';
 import {
   absoluteUrl,
@@ -37,6 +37,7 @@ const PARALLEL_UPLOADS = 3;
 export function Inspiration() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
   const router = useRouter();
   const [looks, setLooks] = useState<SavedLook[] | null>(null);
   // Local photos on their way up, shown greyed out in the grid until the list catches up.
@@ -130,7 +131,10 @@ export function Inspiration() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 20, paddingBottom: clearance },
+      ]}
     >
       <Animated.View entering={rise} style={[maison.gutter, styles.intro]}>
         <ScreenTitle title={t('inspiration.title')} />
@@ -211,7 +215,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingBottom: TAB_BAR_CLEARANCE,
     gap: 24,
   },
   intro: {
