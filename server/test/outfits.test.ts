@@ -273,8 +273,8 @@ describe("POST /api/wear-with", () => {
       return {
         looks: [1, 2, 3, 4].map((i) => ({
           items: pieces,
-          // Partner boots next to her sneakers in every look, the jacket in three.
-          partners: i < 4 ? [boots!, denim!] : [boots!],
+          // Partner boots next to her sneakers in the last look, the jacket in the first three.
+          partners: i < 4 ? [denim!] : [boots!],
           missing: null,
           caption: `Look ${i}`,
           occasion: "coffee",
@@ -288,11 +288,10 @@ describe("POST /api/wear-with", () => {
     const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
     await s.runJobs();
     const done = await view(s, anna.cookie, id);
+    // The third look loses its jacket to the cap and the fourth the boots: both hidden.
     expect(done.outfits.map((o) => o.pieces.flatMap((p) => p.catalogItem?.id ?? []))).toEqual([
       [jacket.id],
       [jacket.id],
-      [],
-      [],
     ]);
     for (const outfit of done.outfits) {
       expect(outfit.pieces.map((p) => p.item?.id)).toContain(sneakers.id);
@@ -348,7 +347,7 @@ describe("POST /api/wear-with", () => {
     ]);
   });
 
-  it("doesn't show a look that lost a piece its why may name, unless every look did", async () => {
+  it("doesn't show a look that lost a piece its why may name", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
     const sneakers = await addItem(s, anna, "shoes", "white sneakers");
@@ -384,6 +383,55 @@ describe("POST /api/wear-with", () => {
     const done = await view(s, anna.cookie, id);
     expect(done.outfits.map((o) => o.caption)).toEqual(["Sneakers"]);
     expect(done.outfits[0]!.pieces.map((p) => p.item?.id)).not.toContain(boots.id);
+  });
+
+  it("gives a brand's places to the looks it shows, and shows every look when all lost a piece", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const plaid = await addItem(s, anna, "top", "plaid shirt");
+    await s.repositories.photosRepository.setEmbedding(
+      `photos/${anna.userId}/p${made}.webp`,
+      unitVector(1),
+    );
+    await addItem(s, anna, "top", "striped shirt");
+    await addItem(s, anna, "bottom");
+    await s.repositories.catalogRepository.add({ category: "outerwear" });
+    let shirts = [1];
+    s.stub.stylist.compose = async (input) => ({
+      looks: [1, 2, 3].map((i) => ({
+        // A brand's jacket in every look, and a second shirt in the ones in `shirts`.
+        items: input.wardrobe
+          .filter((p) => shirts.includes(i) || p.category !== "top")
+          .map((p) => p.n),
+        partners: [input.shop!.pieces[0]!.n],
+        missing: null,
+        caption: `Look ${i}`,
+        occasion: "coffee",
+        why: "because",
+      })),
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, plaid.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    expect(done.outfits.map((o) => [o.caption, o.pieces.some((p) => p.catalogItem)])).toEqual([
+      ["Look 2", true],
+      ["Look 3", true],
+    ]);
+
+    // Every look lost its second shirt: all are shown, the jacket in two.
+    shirts = [1, 2, 3];
+    await addItem(s, anna, "bottom");
+    const again = (await ask(s, anna.cookie, plaid.id)).json<{ id: string }>();
+    await s.runJobs();
+    const all = await view(s, anna.cookie, again.id);
+    expect(all.outfits.map((o) => [o.caption, o.pieces.some((p) => p.catalogItem)])).toEqual([
+      ["Look 1", true],
+      ["Look 2", true],
+      ["Look 3", false],
+    ]);
   });
 
   it("never puts a top over a dress", async () => {

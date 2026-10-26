@@ -203,9 +203,14 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   const complete = resolved.filter(({ items, promoted }) =>
     isComplete([hero.category, ...items.map((item) => item.category), promoted?.category]),
   );
-  // A brand's piece past the cap is taken out of the look, and the look loses it too.
+  // A look whose "why" may name a piece it doesn't show (the owner's pink boots in the text,
+  // her white sneakers in the look, 2026-10-25) isn't shown, unless every look lost one. Those
+  // go first, so a hidden look takes none of the brand's places below.
+  const pool = complete.length > 0 ? complete : resolved;
+  const kept = pool.some((look) => !look.lost) ? pool.filter((look) => !look.lost) : pool;
+  // A brand's piece past the cap is taken out, and the look is marked lost: its why may name it.
   let promotedLooks = 0;
-  const capped = (complete.length > 0 ? complete : resolved).map((look) => {
+  const capped = kept.map((look) => {
     if (!look.promoted) return look;
     if (promotedLooks < MAX_PARTNER_LOOKS) {
       promotedLooks += 1;
@@ -213,8 +218,6 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     }
     return { ...look, promoted: undefined, lost: true };
   });
-  // A look whose "why" may name a piece it doesn't show (the owner's pink boots in the text,
-  // her white sneakers in the look, 2026-10-25) isn't shown, unless every look lost one.
   const intact = capped.filter((look) => !look.lost);
   // How many looks each wardrobe piece is in so far, so an added pair or bag is spread around.
   const used = new Map<string, number>();
