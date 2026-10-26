@@ -153,7 +153,9 @@ export function Wishes() {
                     accessibilityRole="button"
                     accessibilityState={{ disabled: busy !== null, busy: busy === wish.id }}
                   >
-                    <Text style={styles.answerText}>{t(`wishes.${value}`)}</Text>
+                    <Text style={[styles.answerText, value === 'still' && styles.answerTextYes]}>
+                      {t(`wishes.${value}`)}
+                    </Text>
                   </PressableScale>
                 ))}
               </View>
@@ -258,8 +260,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   answerYes: {
-    borderColor: colors.highlight,
-    backgroundColor: colors.highlight,
+    borderColor: colors.bead,
+    backgroundColor: colors.bead,
   },
   answerBusy: {
     opacity: 0.5,
@@ -274,5 +276,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
     color: colors.text,
+  },
+  answerTextYes: {
+    color: colors.onBead,
   },
 });

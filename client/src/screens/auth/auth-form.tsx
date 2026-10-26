@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 36,
     gap: 6,
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.ground,
   },
   wordmark: {
     fontFamily: fonts.displayLight,

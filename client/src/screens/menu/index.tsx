@@ -295,10 +295,10 @@ const styles = StyleSheet.create({
   due: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
-    color: colors.text,
+    color: colors.onBead,
   },
   // The chevron points toward the end of the row, so it flips in right-to-left layouts.
   chevron: {

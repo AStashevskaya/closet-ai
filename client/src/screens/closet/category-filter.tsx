@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   selected: {
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
   },
   label: {
     fontFamily: fonts.body,
@@ -88,6 +88,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   labelSelected: {
-    color: colors.text,
+    color: colors.onBead,
   },
 });

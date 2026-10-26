@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     flexDirection: 'row',
     overflow: 'hidden',
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.ground,
   },
   text: {
     flex: 1,

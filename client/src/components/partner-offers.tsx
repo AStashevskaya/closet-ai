@@ -82,10 +82,10 @@ const styles = StyleSheet.create({
   label: {
     paddingHorizontal: 6,
     paddingVertical: 1,
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
-    color: colors.text,
+    color: colors.onBead,
   },
   title: {
     flexShrink: 1,

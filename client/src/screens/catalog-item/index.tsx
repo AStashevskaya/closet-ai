@@ -132,10 +132,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
-    color: colors.text,
+    color: colors.onBead,
     textAlign: 'left',
   },
   brand: {

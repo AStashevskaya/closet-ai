@@ -163,10 +163,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 6,
     paddingVertical: 1,
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
-    color: colors.text,
+    color: colors.onBead,
   },
   brand: {
     marginTop: 6,

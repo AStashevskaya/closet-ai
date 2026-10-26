@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     paddingTop: 26,
     paddingBottom: 22,
     gap: 8,
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.ground,
   },
   photo: {
     minHeight: 460,

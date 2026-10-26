@@ -67,12 +67,12 @@ export function Button({ label, onPress, disabled, busy, kind = 'ink', style }: 
       accessibilityState={{ disabled: disabled || busy, busy }}
     >
       {busy ? (
-        <ActivityIndicator color={kind === 'ink' ? colors.onAccent : colors.text} />
+        <ActivityIndicator color={kind === 'outline' ? colors.text : colors.onAccent} />
       ) : (
         <Text
           style={[
             styles.buttonText,
-            kind === 'ink' && styles.buttonTextInk,
+            kind !== 'outline' && styles.buttonTextInk,
             disabled && kind !== 'bright' && styles.buttonTextOff,
           ]}
         >
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   bright: {
-    backgroundColor: colors.highlight,
+    backgroundColor: colors.bead,
   },
   dim: {
     opacity: 0.5,

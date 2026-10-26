@@ -81,10 +81,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  // The Maison accent, as on the closet's filters.
+  // The cherry bead, as on The Edit's filters.
   selected: {
-    borderColor: colors.highlight,
-    backgroundColor: colors.highlight,
+    borderColor: colors.bead,
+    backgroundColor: colors.bead,
   },
   dot: {
     width: 14,
@@ -106,6 +106,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   labelSelected: {
-    color: colors.text,
+    color: colors.onBead,
   },
 });
