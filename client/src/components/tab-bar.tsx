@@ -3,9 +3,12 @@ import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
-  useAnimatedProps,
+  Easing,
+  useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +16,6 @@ import Svg, { Path } from 'react-native-svg';
 
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
-import { EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // What expo-router's Tabs hands a custom bar (its vendored react-navigation isn't a dependency of ours).
@@ -23,13 +25,14 @@ type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tab
 const THREAD_Y = 22;
 const SAG = 28;
 const BAR_HEIGHT = 64;
-// How far the sag reaches past the word on each side, and the straight run before it curves down.
+// How far the sag reaches past an average word on each side, and the straight run before it curves.
 const SAG_MARGIN = 10;
 const SAG_RUN = 30;
-// How much deeper the sag dips halfway through a slide.
-const SAG_DIP = 6;
-// The sag sliding to another tab: long enough to read as weight moving along a line.
-const SLIDE = 600;
+// On the way to another tab the sag stretches this much deeper, then settles back with a little bounce.
+const SAG_DIP = 0.22;
+// The sag's slide: a spring a touch under critical damping, so it eases off and lands like a weight.
+const SLIDE_SPRING = { damping: 20, stiffness: 140 };
+const SETTLE_SPRING = { damping: 9, stiffness: 110 };
 
 // The bar's bottom padding: the home indicator or Android's buttons, or a little room without them.
 const bottomPadding = (inset: number) => Math.max(inset, 12);
@@ -41,9 +44,21 @@ export function useTabBarClearance() {
   return BAR_HEIGHT + bottomPadding(insets.bottom) + 24;
 }
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-
 type Spot = { x: number; width: number };
+
+// The thread drawn once, twice the bar's width with the sag in the middle: moving it sideways moves
+// the sag, and stretching it down from the thread's line deepens the sag. Only transform changes per
+// frame, so the slide runs on the UI thread without redrawing the path.
+function threadPath(width: number, half: number) {
+  const y = THREAD_Y;
+  const low = y + SAG;
+  const c = width;
+  return (
+    `M0 ${y}L${c - half - SAG_RUN} ${y}` +
+    `C${c - half} ${y} ${c - half} ${low} ${c} ${low}` +
+    `C${c + half} ${low} ${c + half} ${y} ${c + half + SAG_RUN} ${y}L${width * 2} ${y}`
+  );
+}
 
 // "The Thread" (2026-10-26): the bar is the same ink line as the closet rails, with the tabs as words
 // on it. Under the current one the thread sags as if the word hung there, and the sag slides to the
@@ -53,53 +68,52 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
+  const [width, setWidth] = useState(0);
   // Where each tab's word sits, by route index, from layout (physical x, so RTL needs nothing more).
   const [spots, setSpots] = useState<Record<number, Spot>>({});
 
-  // The bar's width, as a shared value so the worklet below sees it change (first layout, rotation).
-  const width = useSharedValue(0);
   const center = useSharedValue(-1);
-  const half = useSharedValue(0);
-  // 0 → 1 while sliding: the sag dips a little deeper on the way, like weight settling.
-  const travel = useSharedValue(1);
+  const stretch = useSharedValue(1);
 
-  const spot = spots[state.index];
+  // One sag width for all tabs, from the words' average, so the path never has to change while moving.
+  const words = Object.values(spots);
+  const half = words.length
+    ? Math.max(26, words.reduce((sum, w) => sum + w.width, 0) / words.length / 2 + SAG_MARGIN)
+    : 0;
+
   // The tab the sag last went to: it slides only to another tab, and a word that only changed size
   // (a new font scale or language) has it follow at once.
   const placedFor = useRef(-1);
-  useEffect(() => {
+  const moveTo = (index: number) => {
+    const spot = spots[index];
     if (!spot) return;
     const target = spot.x + spot.width / 2;
-    const targetHalf = spot.width / 2 + SAG_MARGIN;
-    const sameTab = placedFor.current === state.index;
-    placedFor.current = state.index;
+    const sameTab = placedFor.current === index;
+    placedFor.current = index;
     // The first placement, every move with reduced motion and a resize of the same word are immediate.
     if (center.value < 0 || reduceMotion || sameTab) {
       center.value = target;
-      half.value = targetHalf;
       return;
     }
-    const timing = { duration: SLIDE, easing: EASE_OUT };
-    center.value = withTiming(target, timing);
-    half.value = withTiming(targetHalf, timing);
-    travel.value = 0;
-    travel.value = withTiming(1, timing);
-  }, [spot, state.index, reduceMotion, center, half, travel]);
+    center.value = withSpring(target, SLIDE_SPRING);
+    stretch.value = withSequence(
+      withTiming(1 + SAG_DIP, { duration: 220, easing: Easing.out(Easing.quad) }),
+      withSpring(1, SETTLE_SPRING),
+    );
+  };
 
-  const thread = useAnimatedProps(() => {
-    const y = THREAD_Y;
-    const w = width.value;
-    if (center.value < 0) return { d: `M0 ${y}L${w} ${y}` };
-    const c = center.value;
-    const h = half.value;
-    const low = y + SAG + Math.sin(travel.value * Math.PI) * SAG_DIP;
-    return {
-      d:
-        `M0 ${y}L${c - h - SAG_RUN} ${y}` +
-        `C${c - h} ${y} ${c - h} ${low} ${c} ${low}` +
-        `C${c + h} ${low} ${c + h} ${y} ${c + h + SAG_RUN} ${y}L${w} ${y}`,
-    };
-  });
+  // Also when the tab changes from elsewhere (a link, the back button) and once the words are laid out.
+  const spot = spots[state.index];
+  useEffect(() => {
+    moveTo(state.index);
+    // moveTo reads the latest spots through `spot`; listing it would rerun on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spot, state.index, reduceMotion]);
+
+  const mover = useAnimatedStyle(() => ({
+    opacity: center.value < 0 ? 0 : 1,
+    transform: [{ translateX: center.value - width }, { scaleY: stretch.value }],
+  }));
 
   const place = (index: number) => (event: LayoutChangeEvent) => {
     const { x, width: w } = event.nativeEvent.layout;
@@ -128,7 +142,10 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
             target: route.key,
             canPreventDefault: true,
           });
-          if (!focused && !event.defaultPrevented) navigateToTab(route.key);
+          if (focused || event.defaultPrevented) return;
+          // The sag starts at the touch, not after the next screen has rendered.
+          moveTo(index);
+          navigateToTab(route.key);
         }}
       >
         <Text
@@ -146,19 +163,23 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
   return (
     <View
       style={[styles.bar, { paddingBottom: bottomPadding(insets.bottom) }]}
-      onLayout={(event) => {
-        width.value = event.nativeEvent.layout.width;
-      }}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
     >
-      <Svg width="100%" height={BAR_HEIGHT} style={styles.thread}>
-        <AnimatedPath
-          animatedProps={thread}
-          fill="none"
-          stroke={colors.text}
-          strokeWidth={1.2}
-          strokeLinecap="round"
-        />
-      </Svg>
+      <View style={styles.thread}>
+        {width > 0 && half > 0 && (
+          <Animated.View style={[styles.mover, { width: width * 2 }, mover]}>
+            <Svg width={width * 2} height={BAR_HEIGHT}>
+              <Path
+                d={threadPath(width, half)}
+                fill="none"
+                stroke={colors.text}
+                strokeWidth={1.2}
+                strokeLinecap="round"
+              />
+            </Svg>
+          </Animated.View>
+        )}
+      </View>
       <View style={styles.row} accessibilityRole="tablist">
         {state.routes.slice(0, middle).map((_, i) => tab(i))}
         <PressableScale
@@ -185,12 +206,24 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: colors.background,
   },
+  // Laid out left to right in every language: the thread is placed by physical x.
   thread: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    height: BAR_HEIGHT,
+    direction: 'ltr',
+    overflow: 'hidden',
     pointerEvents: 'none',
+  },
+  // Stretched down from the thread's own line, so only the sag deepens.
+  mover: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: BAR_HEIGHT,
+    transformOrigin: ['50%', THREAD_Y, 0],
   },
   row: {
     height: BAR_HEIGHT,
