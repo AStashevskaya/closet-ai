@@ -7,6 +7,7 @@ import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-rean
 import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, type HangerKind } from '@/components/hanger';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
+import { cutoutShadow } from '@/components/cutout-shadow';
 import { absoluteUrl } from '@/lib/api';
 import { CSS_EASE_IN, CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';
@@ -114,6 +115,8 @@ export function RailPiece({
             </View>
           )}
           <View
+            // The pieces swing: the outline shadow is drawn once and turned with the piece.
+            shouldRasterizeIOS={!print}
             style={[
               print ? styles.print : styles.cutout,
               print
@@ -179,6 +182,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     start: 0,
     end: 0,
+    ...cutoutShadow('hanging'),
   },
   // A small photo print with a white border, as in the collages.
   print: {

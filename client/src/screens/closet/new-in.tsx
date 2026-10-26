@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/pressable-scale';
+import { cutoutShadow } from '@/components/cutout-shadow';
 import { absoluteUrl } from '@/lib/api';
 import { durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -68,7 +69,7 @@ export function NewIn({ item, headers, onPress }: Props) {
           <Text style={styles.link}>{t('wearWith.button')}</Text>
         </View>
         {url && headers ? (
-          <Animated.View style={[styles.picture, breathing]}>
+          <Animated.View style={[styles.picture, item.cutoutUrl && styles.shadow, breathing]}>
             <Image
               source={{ uri: absoluteUrl(url), headers }}
               style={styles.image}
@@ -127,4 +128,5 @@ const styles = StyleSheet.create({
   image: {
     flex: 1,
   },
+  shadow: cutoutShadow('hanging'),
 });
