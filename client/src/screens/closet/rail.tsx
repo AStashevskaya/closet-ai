@@ -106,14 +106,13 @@ export function Rail({
           initialNumToRender={5}
           windowSize={5}
           extraData={{ editing, leaving, headers }}
-          renderItem={({ item, index }) => (
+          renderItem={({ item }) => (
             <RailPiece
               item={item}
               headers={headers}
               editing={editing}
               leaving={leaving.has(item.id)}
               lean={lean}
-              seed={index * 13 + 7}
               onPress={editing ? undefined : () => onOpen(item)}
               onLongPress={onLongPress}
               onDelete={() => onDelete(item)}

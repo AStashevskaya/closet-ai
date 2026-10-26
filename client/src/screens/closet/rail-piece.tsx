@@ -49,8 +49,6 @@ type Props = {
   leaving: boolean;
   // The rail's lean, which the piece swings after (see swing.ts).
   lean: SharedValue<number>;
-  // Makes this piece swing a little differently from its neighbours.
-  seed: number;
   // Opens the item screen; not set in edit mode, where the badge is the action.
   onPress?: () => void;
   onLongPress: () => void;
@@ -65,7 +63,6 @@ export function RailPiece({
   editing,
   leaving,
   lean,
-  seed,
   onPress,
   onLongPress,
   onDelete,
@@ -76,7 +73,7 @@ export function RailPiece({
   const print = !item.cutoutUrl;
   const url = item.cutoutUrl ?? item.photoUrl;
   const standing = !fit.hanger;
-  const swing = usePieceSwing(lean, item.category, seed);
+  const swing = usePieceSwing(lean, item.category, item.id);
   // In edit mode the pieces step back a little, like icons on the home screen.
   const scale = reduced ? 1 : editing ? 0.96 : 1;
   // A deleted piece drops off the rail, tipping over as it goes; with reduced motion it just fades.
@@ -84,6 +81,7 @@ export function RailPiece({
 
   return (
     <Animated.View
+      testID="rail-piece"
       style={[
         styles.cell,
         {

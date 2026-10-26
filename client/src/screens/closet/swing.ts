@@ -1,4 +1,5 @@
 import type { ItemCategory } from '@closet-ai/shared';
+import { useCallback, useEffect, useRef } from 'react';
 import { I18nManager } from 'react-native';
 import {
   useAnimatedReaction,
@@ -10,6 +11,7 @@ import {
   withSpring,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 // How far the pieces lean for how fast their rail moves: degrees per px/ms of scroll, and the
 // most they lean. Tuned on the prototype (wrinkle-lab/design-rail, "Natural").
@@ -29,6 +31,8 @@ export function leanFor(speed: number, rtl: boolean) {
 
 // The swing of one rail: its scroll handler, and the lean it sets for its pieces each frame.
 // Read on the UI thread from the scroll position, so it never waits for JavaScript.
+// The frame loop only runs while the rail moves under a finger or coasts, and until the lean is
+// back to nothing; the pieces' springs then settle on their own. With reduced motion it never starts.
 export function useRailSwing() {
   const reduced = useReducedMotion();
   const rtl = I18nManager.isRTL;
@@ -36,25 +40,65 @@ export function useRailSwing() {
   const last = useSharedValue(0);
   const speed = useSharedValue(0);
   const lean = useSharedValue(0);
+  // A finger is on the rail, or it is still coasting after one.
+  const moving = useSharedValue(false);
 
-  const onScroll = useAnimatedScrollHandler((event) => {
-    offset.set(event.contentOffset.x);
-  });
+  // The loop switches itself off from the JS thread, a frame or so after it asks; by then a new
+  // touch may have started the rail again. Held in a ref: the loop is created before it exists.
+  const switchLoop = useRef<(on: boolean) => void>(() => {});
+  const stop = useCallback(() => {
+    if (!moving.get()) switchLoop.current(false);
+  }, [moving]);
 
-  // Every frame, but next to nothing once the rail is still: a subtraction and two comparisons.
-  useFrameCallback((frame) => {
+  const frames = useFrameCallback((frame) => {
     const dt = frame.timeSincePreviousFrame;
     if (!dt) return;
     const v = (offset.get() - last.get()) / dt;
     last.set(offset.get());
     const smoothed = speed.get() + (v - speed.get()) * SMOOTHING;
     speed.set(Math.abs(smoothed) < 0.001 ? 0 : smoothed);
-    const next = reduced ? 0 : leanFor(speed.get(), rtl);
-    // Only real changes reach the pieces; each one restarts their springs.
+    const next = leanFor(speed.get(), rtl);
+    // Only real changes reach the pieces; each one restarts their springs. The second check
+    // brings a lean that has crept below the threshold back to exactly nothing.
     if (Math.abs(next - lean.get()) > 0.01 || (next === 0 && lean.get() !== 0)) lean.set(next);
+    if (!moving.get() && speed.get() === 0 && lean.get() === 0) scheduleOnRN(stop);
+  }, false);
+
+  useEffect(() => {
+    switchLoop.current = frames.setActive;
+  }, [frames]);
+  const start = useCallback(() => frames.setActive(true), [frames]);
+
+  const begin = () => {
+    'worklet';
+    if (reduced) return;
+    moving.set(true);
+    // The offset may have changed while the loop was off (a deleted piece shortens the rail),
+    // and that jump isn't motion.
+    last.set(offset.get());
+    scheduleOnRN(start);
+  };
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      offset.set(event.contentOffset.x);
+    },
+    onBeginDrag: begin,
+    onMomentumBegin: begin,
+    onEndDrag: () => {
+      moving.set(false);
+    },
+    onMomentumEnd: () => {
+      moving.set(false);
+    },
   });
 
   return { onScroll, lean };
+}
+
+function charSum(text: string) {
+  let sum = 0;
+  for (let i = 0; i < text.length; i++) sum += text.charCodeAt(i);
+  return sum;
 }
 
 // A pendulum's stiffness: about 0.9 s a swing. Damped lightly, so a piece swings past the middle
@@ -66,9 +110,10 @@ const LENGTH: Partial<Record<ItemCategory, number>> = { dress: 0.7, accessory: 1
 
 // One piece's swing: its angle chases the rail's lean on a spring. A spring that is retargeted
 // keeps its speed, so the piece trails while the rail moves and overshoots when it stops.
-export function usePieceSwing(lean: SharedValue<number>, category: ItemCategory, seed: number) {
-  // A little different for every piece, so a rail never moves in lockstep.
-  const stiffness = STIFFNESS * (0.82 + (seed % 36) / 100) * (LENGTH[category] ?? 1);
+export function usePieceSwing(lean: SharedValue<number>, category: ItemCategory, id: string) {
+  // A little different for every piece, and always the same for one piece, so a rail never moves
+  // in lockstep and a piece keeps its character when its neighbours change.
+  const stiffness = STIFFNESS * (0.82 + (charSum(id) % 36) / 100) * (LENGTH[category] ?? 1);
   const angle = useSharedValue(0);
 
   useAnimatedReaction(
