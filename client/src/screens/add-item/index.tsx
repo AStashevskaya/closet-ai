@@ -30,6 +30,7 @@ import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
 import { defaultCurrency, parsePrice } from '@/lib/price';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
+import { styledParams } from '@/lib/styled';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { durations } from '@/motion';
 import type { PickedPhoto } from '@/screens/add-items';
@@ -269,7 +270,9 @@ export function AddItem() {
       if (andStyle) {
         try {
           const { id } = await askWearWith({ itemId: created.id }, lang);
-          leave(() => router.replace({ pathname: '/wear-with/[id]', params: { id } }));
+          leave(() =>
+            router.replace({ pathname: '/styled/[id]', params: styledParams(id, created, null) }),
+          );
           return;
         } catch (cause) {
           // The item is saved either way; only the outfits didn't start.

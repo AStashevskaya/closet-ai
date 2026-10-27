@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useState } from 'react';
 
 import { getUsage } from './api';
+import { ApiError, limitReached } from './api-error';
 
 // What the user sees when a limit stops them: which limit, how many, and when it resets.
 export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: Usage | null) {
@@ -23,6 +24,14 @@ export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: U
     return t('limits.monthly', { date });
   }
   return t(`limits.${code}`);
+}
+
+// Why asking for outfits didn't start: a limit, the outfits switched off, or anything else.
+export function askFailedText(t: TFunction, lang: string, cause: unknown, usage?: Usage | null) {
+  const code = limitReached(cause);
+  if (code) return limitText(t, lang, code, usage);
+  if (cause instanceof ApiError && cause.status === 503) return t('wearWith.off');
+  return t('wearWith.failed');
 }
 
 // The free-tier usage, loaded once and reloaded after a counted action. null until it loads

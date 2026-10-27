@@ -49,10 +49,10 @@ import {
   sessionHeaders,
   updateItem,
 } from '@/lib/api';
-import { ApiError, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { limitText, useUsage } from '@/lib/limits';
+import { askFailedText, useUsage } from '@/lib/limits';
 import { defaultCurrency, parsePrice, priceText } from '@/lib/price';
+import { styledParams } from '@/lib/styled';
 import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -213,6 +213,8 @@ export function ItemScreen({ id }: { id: string }) {
   }
 
   async function wearWith() {
+    if (state.status !== 'ready') return;
+    const { item } = state;
     setBusy(true);
     try {
       const { id: requestId } = await askWearWith(
@@ -220,15 +222,11 @@ export function ItemScreen({ id }: { id: string }) {
         appLanguage(i18n.language),
       );
       void refreshUsage();
-      router.push({ pathname: '/wear-with/[id]', params: { id: requestId } });
+      // Its outfits grow on Style it's thread, over this screen: back returns to the piece.
+      router.push({ pathname: '/styled/[id]', params: styledParams(requestId, item, mood) });
     } catch (cause) {
-      const code = limitReached(cause);
-      if (code) Alert.alert(limitText(t, i18n.language, code, usage));
-      else if (cause instanceof ApiError && cause.status === 503) Alert.alert(t('wearWith.off'));
-      else {
-        if (__DEV__) console.warn('Asking for outfits failed', cause);
-        Alert.alert(t('wearWith.failed'));
-      }
+      if (__DEV__) console.warn('Asking for outfits failed', cause);
+      Alert.alert(askFailedText(t, i18n.language, cause, usage));
     } finally {
       setBusy(false);
     }

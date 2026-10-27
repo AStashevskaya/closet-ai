@@ -16,35 +16,25 @@ import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EditorialCover } from '@/components/cover';
-import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { HangerLoader } from '@/components/hanger-loader';
 import { ItemPhoto } from '@/components/item-photo';
 import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
 import { PressableScale } from '@/components/pressable-scale';
 import { useTabBarClearance } from '@/components/tab-bar';
-import { ApiError, askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
-import { limitReached } from '@/lib/api-error';
+import { askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
-import { limitText, useUsage } from '@/lib/limits';
+import { askFailedText, useUsage } from '@/lib/limits';
 import { rise, STAGGER_STEP } from '@/motion';
-import { OutfitCard } from '@/screens/wear-with/outfit-card';
-import { useWearWith } from '@/screens/wear-with/use-wear-with';
 import { colors, fonts } from '@/theme';
 
-import { ThreadRow } from './thread-row';
+import { StyleThread, type Chosen as StyledPiece } from './style-thread';
 
 // Wardrobe pieces offered in the row; the rest are a scroll of the closet away.
 const ROW_LIMIT = 24;
 
 // The piece being styled: from the closet row (so it can be asked about again) or styled before.
-type Chosen = {
-  requestId: string;
-  name: string;
-  photoUrl?: string;
-  cutoutUrl?: string;
-  item?: Item;
-};
+type Chosen = StyledPiece & { item?: Item };
 
 // "Style it": the feature that puts outfits together around one piece, on a tab of its own.
 // A piece from a photo (a shop screenshot) on the cover, one from the closet in a row with the
@@ -64,10 +54,6 @@ export function StyleIt() {
   // The piece whose outfits are being asked for.
   const [asking, setAsking] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Chosen | null>(null);
-  const { state: looks, react, retry } = useWearWith(chosen?.requestId ?? null);
-  // A heart around the piece once one of its outfits is liked (owner's call, 2026-10-27).
-  const loved = looks.status === 'done' && looks.outfits.some((o) => o.opinion === 'like');
-
   // Brings the thread into view when a piece is chosen; on the first choice the thread isn't laid
   // out yet, so it scrolls once it is.
   const scroll = useRef<ScrollViewInstance>(null);
@@ -132,18 +118,15 @@ export function StyleIt() {
         item,
       });
     } catch (cause) {
-      const code = limitReached(cause);
-      if (code) Alert.alert(limitText(t, i18n.language, code, usage));
-      else if (cause instanceof ApiError && cause.status === 503) Alert.alert(t('wearWith.off'));
-      else {
-        if (__DEV__) console.warn('Asking for outfits failed', cause);
-        Alert.alert(t('wearWith.failed'));
-      }
+      if (__DEV__) console.warn('Asking for outfits failed', cause);
+      Alert.alert(askFailedText(t, i18n.language, cause, usage));
     } finally {
       setAsking(null);
     }
   }
 
+  // A closet piece can be asked about afresh; one styled before has its request polled again.
+  const asked = chosen?.item;
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
 
   return (
@@ -230,7 +213,6 @@ export function StyleIt() {
 
       {chosen && (
         <View
-          style={styles.thread}
           onLayout={(event) => {
             threadY.current = event.nativeEvent.layout.y;
             if (!scrollWhenLaidOut.current) return;
@@ -238,78 +220,12 @@ export function StyleIt() {
             scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
           }}
         >
-          {/* Keyed by the request, so a new piece draws its thread afresh. */}
-          <ThreadRow key={`root-${chosen.requestId}`} kind="root">
-            <View style={styles.chosen}>
-              <View style={styles.chosenPiece}>
-                <HandDrawn
-                  shape="heart"
-                  drawn={loved}
-                  seed={seedFrom(chosen.requestId)}
-                  fill
-                  style={styles.chosenHeart}
-                />
-                <ItemPhoto
-                  item={{ photoUrl: chosen.photoUrl, cutoutUrl: chosen.cutoutUrl }}
-                  headers={headers}
-                  style={styles.chosenImage}
-                />
-              </View>
-              <Text style={styles.chosenTitle} accessibilityRole="header">
-                {t('styleIt.open', { name: chosen.name })}
-              </Text>
-            </View>
-          </ThreadRow>
-          {looks.status === 'pending' && (
-            <ThreadRow key={`wait-${chosen.requestId}`} kind="branch" last>
-              <View style={styles.waiting} accessibilityLiveRegion="polite">
-                <HangerLoader size="small" />
-                <Text style={maison.body}>{t('wearWith.composing')}</Text>
-              </View>
-            </ThreadRow>
-          )}
-          {looks.status === 'failed' && (
-            <ThreadRow key={`failed-${chosen.requestId}`} kind="branch" last>
-              <View style={styles.waiting}>
-                <Text style={maison.body}>{t('wearWith.failed')}</Text>
-                {/* A closet piece is asked about afresh; one styled before (maybe from a photo
-                    no longer at hand) has its request polled again. */}
-                <Button
-                  kind="outline"
-                  label={t('wearWith.retry')}
-                  onPress={() => (chosen.item ? style(chosen.item) : retry())}
-                  busy={asking !== null}
-                />
-              </View>
-            </ThreadRow>
-          )}
-          {looks.status === 'done' && looks.outfits.length === 0 && (
-            <ThreadRow key={`empty-${chosen.requestId}`} kind="branch" last>
-              <Text style={[maison.body, styles.waiting]}>{t('wearWith.empty')}</Text>
-            </ThreadRow>
-          )}
-          {looks.status === 'done' &&
-            looks.outfits.map((outfit, index) => (
-              <ThreadRow
-                key={outfit.id}
-                kind="branch"
-                last={index === looks.outfits.length - 1}
-                delay={index * STAGGER_STEP * 3}
-              >
-                <Animated.View
-                  entering={rise.delay(index * STAGGER_STEP * 3)}
-                  style={styles.outfit}
-                >
-                  <OutfitCard
-                    outfit={outfit}
-                    index={index}
-                    total={looks.outfits.length}
-                    headers={headers}
-                    onReact={react}
-                  />
-                </Animated.View>
-              </ThreadRow>
-            ))}
+          <StyleThread
+            chosen={chosen}
+            headers={headers}
+            onAskAgain={asked ? () => style(asked) : undefined}
+            asking={asking !== null}
+          />
         </View>
       )}
 
@@ -416,50 +332,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: colors.text,
     textAlign: 'left',
-  },
-  // The thread runs 20 pt in from the screen edge, as the gutter does.
-  thread: {
-    paddingStart: 6,
-    paddingEnd: 20,
-  },
-  chosen: {
-    paddingBottom: 28,
-    gap: 14,
-  },
-  chosenPiece: {
-    width: 200,
-  },
-  // Around the piece, a little wider than it and below it, so the piece sits in the heart's top.
-  chosenHeart: {
-    top: -14,
-    bottom: -40,
-    start: -26,
-    end: -26,
-  },
-  // No grey card under the piece: it hangs in the heart.
-  chosenImage: {
-    width: 200,
-    aspectRatio: 3 / 4,
-    backgroundColor: 'transparent',
-  },
-  chosenTitle: {
-    marginTop: 20,
-    fontFamily: fonts.displayLight,
-    fontSize: 30,
-    lineHeight: 34,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  waiting: {
-    paddingTop: 12,
-    paddingBottom: 28,
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-  // Level with the branch, and room before the next outfit.
-  outfit: {
-    paddingTop: 14,
-    paddingBottom: 40,
   },
   entry: {
     flexDirection: 'row',
