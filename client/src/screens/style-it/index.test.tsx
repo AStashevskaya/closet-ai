@@ -1,9 +1,16 @@
-import type { Item, StyledEntry } from '@closet-ai/shared';
+import type { Item, StyledEntry, WearWithRequest } from '@closet-ai/shared';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import i18n from '@/i18n';
-import { askWearWith, getUsage, listItems, listStyled } from '@/lib/api';
+import {
+  askWearWith,
+  getUsage,
+  getWearWith,
+  listItems,
+  listStyled,
+  reactToOutfit,
+} from '@/lib/api';
 import { ApiError } from '@/lib/api-error';
 
 import { StyleIt } from '.';
@@ -28,6 +35,8 @@ jest.mock('@/lib/api', () => ({
   listItems: jest.fn(),
   listStyled: jest.fn(),
   askWearWith: jest.fn(),
+  getWearWith: jest.fn(),
+  reactToOutfit: jest.fn(),
   getUsage: jest.fn(),
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
   absoluteUrl: (path: string) => `http://api.test${path}`,
@@ -54,16 +63,38 @@ const styled: StyledEntry = {
   cutoutUrl: null,
 };
 
+const looks = (id: string): WearWithRequest => ({
+  id,
+  status: 'done',
+  addable: null,
+  verdict: null,
+  wishId: null,
+  outfits: [
+    {
+      id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a90',
+      caption: 'Сатин после спорта',
+      occasion: 'weekend in town',
+      why: 'The tee makes the satin offhand.',
+      missing: null,
+      pieces: [{ hero: true, item: skirt, catalogItem: null }],
+      opinion: null,
+      woreCount: 0,
+    },
+  ],
+});
+
 beforeEach(async () => {
   jest.clearAllMocks();
   await i18n.changeLanguage('en');
   jest.mocked(listItems).mockResolvedValue([skirt]);
   jest.mocked(listStyled).mockResolvedValue([styled]);
   jest.mocked(getUsage).mockRejectedValue(new Error('offline'));
+  jest.mocked(getWearWith).mockImplementation(async (id) => looks(id));
+  jest.mocked(reactToOutfit).mockResolvedValue();
 });
 
 describe('<StyleIt />', () => {
-  test('styles a closet piece in the mood picked and opens its outfits', async () => {
+  test('styles a closet piece in the mood picked, its outfits growing right here', async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     await render(<StyleIt />);
     await fireEvent.press(screen.getByText('Evening'));
@@ -71,13 +102,31 @@ describe('<StyleIt />', () => {
       await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
     );
 
-    await waitFor(() =>
-      expect(mockPush).toHaveBeenCalledWith({
-        pathname: '/wear-with/[id]',
-        params: { id: 'req-1' },
-      }),
-    );
     expect(askWearWith).toHaveBeenCalledWith({ itemId: skirt.id, mood: 'evening' }, 'en');
+    expect(
+      await screen.findByRole('header', { name: 'Outfits with Satin midi skirt' }),
+    ).toBeOnTheScreen();
+    expect(await screen.findByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    expect(getWearWith).toHaveBeenCalledWith('req-1', 'en');
+    expect(mockPush).not.toHaveBeenCalled();
+
+    // Reactions work here as on the outfits screen.
+    await fireEvent.press(screen.getByRole('button', { name: 'Like' }));
+    expect(reactToOutfit).toHaveBeenLastCalledWith(looks('req-1').outfits[0]!.id, 'like');
+    expect(screen.getByRole('button', { name: 'Like' })).toBeSelected();
+  });
+
+  test('says so when the outfits could not be put together, and asks again', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    jest
+      .mocked(getWearWith)
+      .mockResolvedValueOnce({ ...looks('req-1'), status: 'failed', outfits: [] });
+    await render(<StyleIt />);
+    await fireEvent.press(
+      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
+    );
+    await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(askWearWith).toHaveBeenCalledTimes(2));
   });
 
   test('opens a piece from a photo, and outfits asked for before', async () => {
@@ -86,10 +135,10 @@ describe('<StyleIt />', () => {
     expect(mockPush).toHaveBeenCalledWith('/wear-with-pick');
 
     await fireEvent.press(await screen.findByLabelText('Outfits with Leather jacket'));
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/wear-with/[id]',
-      params: { id: styled.id },
-    });
+    expect(
+      await screen.findByRole('header', { name: 'Outfits with Leather jacket' }),
+    ).toBeOnTheScreen();
+    await waitFor(() => expect(getWearWith).toHaveBeenCalledWith(styled.id, 'en'));
   });
 
   test('says when the outfits are off', async () => {

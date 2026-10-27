@@ -1,13 +1,14 @@
 import type { Item, OutfitMood, StyledEntry } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EditorialCover } from '@/components/cover';
+import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { HangerLoader } from '@/components/hanger-loader';
 import { ItemPhoto } from '@/components/item-photo';
 import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
@@ -19,14 +20,28 @@ import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
 import { rise, STAGGER_STEP } from '@/motion';
+import { OutfitCard } from '@/screens/wear-with/outfit-card';
+import { useWearWith } from '@/screens/wear-with/use-wear-with';
 import { colors, fonts } from '@/theme';
+
+import { ThreadRow } from './thread-row';
 
 // Wardrobe pieces offered in the row; the rest are a scroll of the closet away.
 const ROW_LIMIT = 24;
 
+// The piece being styled: from the closet row (so it can be asked about again) or styled before.
+type Chosen = {
+  requestId: string;
+  name: string;
+  photoUrl?: string;
+  cutoutUrl?: string;
+  item?: Item;
+};
+
 // "Style it": the feature that puts outfits together around one piece, on a tab of its own.
-// A piece from a photo (a shop screenshot) on the bright block, one from the closet in a row
-// with the mood to keep to, and the pieces styled before, to open their outfits again.
+// A piece from a photo (a shop screenshot) on the cover, one from the closet in a row with the
+// mood to keep to, and the pieces styled before. The chosen piece's outfits grow on a thread right
+// here (2026-10-26, "The Thread"): the piece on top, each outfit full width hanging off the thread.
 export function StyleIt() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -40,6 +55,19 @@ export function StyleIt() {
   const [mood, setMood] = useState<OutfitMood | null>(null);
   // The piece whose outfits are being asked for.
   const [asking, setAsking] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<Chosen | null>(null);
+  const { state: looks, react } = useWearWith(chosen?.requestId ?? null);
+
+  // Brings the thread into view when a piece is chosen; on the first choice the thread isn't laid
+  // out yet, so it scrolls once it is.
+  const scroll = useRef<ScrollViewInstance>(null);
+  const threadY = useRef<number | null>(null);
+  const scrollWhenLaidOut = useRef(false);
+  function choose(next: Chosen) {
+    setChosen(next);
+    if (threadY.current === null) scrollWhenLaidOut.current = true;
+    else scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
+  }
 
   // Reloads when the tab comes into view: a piece added or styled elsewhere shows up.
   useFocusEffect(
@@ -82,7 +110,13 @@ export function StyleIt() {
         lang,
       );
       void refreshUsage();
-      router.push({ pathname: '/wear-with/[id]', params: { id } });
+      choose({
+        requestId: id,
+        name: item.name,
+        photoUrl: item.photoUrl ?? undefined,
+        cutoutUrl: item.cutoutUrl ?? undefined,
+        item,
+      });
     } catch (cause) {
       const code = limitReached(cause);
       if (code) Alert.alert(limitText(t, i18n.language, code, usage));
@@ -100,6 +134,7 @@ export function StyleIt() {
 
   return (
     <ScrollView
+      ref={scroll}
       style={styles.screen}
       contentContainerStyle={[
         styles.content,
@@ -179,6 +214,92 @@ export function StyleIt() {
         )}
       </Animated.View>
 
+      {chosen && (
+        <View
+          style={styles.thread}
+          onLayout={(event) => {
+            threadY.current = event.nativeEvent.layout.y;
+            if (!scrollWhenLaidOut.current) return;
+            scrollWhenLaidOut.current = false;
+            scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
+          }}
+        >
+          {/* Keyed by the request, so a new piece draws its thread afresh. */}
+          <ThreadRow key={`root-${chosen.requestId}`} kind="root">
+            <View style={styles.chosen}>
+              <View style={styles.chosenPiece}>
+                {/* A heart once its outfits are found: the piece is loved. */}
+                <HandDrawn
+                  shape="heart"
+                  drawn={looks.status === 'done' && looks.outfits.length > 0}
+                  seed={seedFrom(chosen.requestId)}
+                  fill
+                  style={styles.chosenHeart}
+                />
+                <ItemPhoto
+                  item={{ photoUrl: chosen.photoUrl, cutoutUrl: chosen.cutoutUrl }}
+                  headers={headers}
+                  style={styles.chosenImage}
+                />
+              </View>
+              <Text style={styles.chosenTitle} accessibilityRole="header">
+                {t('styleIt.open', { name: chosen.name })}
+              </Text>
+            </View>
+          </ThreadRow>
+          {looks.status === 'pending' && (
+            <ThreadRow key={`wait-${chosen.requestId}`} kind="branch" last>
+              <View style={styles.waiting} accessibilityLiveRegion="polite">
+                <HangerLoader size="small" />
+                <Text style={maison.body}>{t('wearWith.composing')}</Text>
+              </View>
+            </ThreadRow>
+          )}
+          {looks.status === 'failed' && (
+            <ThreadRow key={`failed-${chosen.requestId}`} kind="branch" last>
+              <View style={styles.waiting}>
+                <Text style={maison.body}>{t('wearWith.failed')}</Text>
+                {chosen.item && (
+                  <Button
+                    kind="outline"
+                    label={t('wearWith.retry')}
+                    onPress={() => style(chosen.item!)}
+                    busy={asking !== null}
+                  />
+                )}
+              </View>
+            </ThreadRow>
+          )}
+          {looks.status === 'done' && looks.outfits.length === 0 && (
+            <ThreadRow key={`empty-${chosen.requestId}`} kind="branch" last>
+              <Text style={[maison.body, styles.waiting]}>{t('wearWith.empty')}</Text>
+            </ThreadRow>
+          )}
+          {looks.status === 'done' &&
+            looks.outfits.map((outfit, index) => (
+              <ThreadRow
+                key={outfit.id}
+                kind="branch"
+                last={index === looks.outfits.length - 1}
+                delay={index * STAGGER_STEP * 3}
+              >
+                <Animated.View
+                  entering={rise.delay(index * STAGGER_STEP * 3)}
+                  style={styles.outfit}
+                >
+                  <OutfitCard
+                    outfit={outfit}
+                    index={index}
+                    total={looks.outfits.length}
+                    headers={headers}
+                    onReact={react}
+                  />
+                </Animated.View>
+              </ThreadRow>
+            ))}
+        </View>
+      )}
+
       <Animated.View
         entering={rise.delay(STAGGER_STEP * 3)}
         style={[maison.gutter, styles.section]}
@@ -191,7 +312,14 @@ export function StyleIt() {
             <PressableScale
               key={entry.id}
               style={styles.entry}
-              onPress={() => router.push({ pathname: '/wear-with/[id]', params: { id: entry.id } })}
+              onPress={() =>
+                choose({
+                  requestId: entry.id,
+                  name: entry.name,
+                  photoUrl: entry.photoUrl ?? undefined,
+                  cutoutUrl: entry.cutoutUrl ?? undefined,
+                })
+              }
               accessibilityRole="button"
               accessibilityLabel={t('styleIt.open', { name: entry.name })}
             >
@@ -273,6 +401,50 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: colors.text,
     textAlign: 'left',
+  },
+  // The thread runs 20 pt in from the screen edge, as the gutter does.
+  thread: {
+    paddingStart: 6,
+    paddingEnd: 20,
+  },
+  chosen: {
+    paddingBottom: 28,
+    gap: 14,
+  },
+  chosenPiece: {
+    width: 200,
+  },
+  // Around the piece, a little wider than it and below it, so the piece sits in the heart's top.
+  chosenHeart: {
+    top: -14,
+    bottom: -40,
+    start: -26,
+    end: -26,
+  },
+  // No grey card under the piece: it hangs in the heart.
+  chosenImage: {
+    width: 200,
+    aspectRatio: 3 / 4,
+    backgroundColor: 'transparent',
+  },
+  chosenTitle: {
+    marginTop: 20,
+    fontFamily: fonts.displayLight,
+    fontSize: 30,
+    lineHeight: 34,
+    color: colors.text,
+    textAlign: 'left',
+  },
+  waiting: {
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  // Level with the branch, and room before the next outfit.
+  outfit: {
+    paddingTop: 14,
+    paddingBottom: 40,
   },
   entry: {
     flexDirection: 'row',
