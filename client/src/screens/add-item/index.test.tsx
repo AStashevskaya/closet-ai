@@ -364,7 +364,9 @@ describe('<AddItem />', () => {
     expect(screen.getByRole('header', { name: 'Crop to the item' })).toBeOnTheScreen();
   });
   test('saves the item and goes on to the outfits for it', async () => {
-    jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+    jest
+      .mocked(createItem)
+      .mockResolvedValue({ id: 'new-item', name: 'Linen shirt', photoUrl: '/p' } as never);
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
@@ -375,8 +377,8 @@ describe('<AddItem />', () => {
 
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith({
-        pathname: '/wear-with/[id]',
-        params: { id: 'req-1' },
+        pathname: '/styled/[id]',
+        params: { id: 'req-1', item: 'new-item', name: 'Linen shirt', photoUrl: '/p' },
       }),
     );
     expect(askWearWith).toHaveBeenCalledWith({ itemId: 'new-item' }, 'en');

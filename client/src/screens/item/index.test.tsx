@@ -199,14 +199,17 @@ describe('<ItemScreen />', () => {
       expect.objectContaining({ uri: `http://api.test${turnedUrl}` }),
     ]);
   });
-  test('asks what to wear the item with and opens the outfits', async () => {
+  test('asks what to wear the item with and opens its outfits on the thread', async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     await render(<ItemScreen id={shirt.id} />);
     expect(await screen.findByText('3 of 5 left today')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'What do I wear this with?' }));
 
     expect(askWearWith).toHaveBeenCalledWith({ itemId: shirt.id }, 'en');
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/wear-with/[id]', params: { id: 'req-1' } });
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/styled/[id]',
+      params: { id: 'req-1', item: shirt.id, name: shirt.name, photoUrl: shirt.photoUrl },
+    });
   });
 
   test('asks in the mood picked, and in any mood once it is taken back', async () => {

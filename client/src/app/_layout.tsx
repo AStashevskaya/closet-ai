@@ -111,6 +111,17 @@ export default function RootLayout() {
             headerShadowVisible: false,
           }}
         />
+        {/* A closet piece's outfits on the thread; the piece's name heads the page. */}
+        <Stack.Screen
+          name="styled/[id]"
+          options={{
+            title: '',
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.accent,
+            headerShadowVisible: false,
+          }}
+        />
         <Stack.Screen
           name="wishes"
           options={{
