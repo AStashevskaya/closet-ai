@@ -282,7 +282,10 @@
       "evening": "Evening",
       "sporty": "Sporty-chic",
       "surprise": "Surprise me"
-    }
+    },
+    "ready_one": "One look is ready.",
+    "ready_other": "{{count}} looks are ready.",
+    "reactTo": "{{reaction}}, look {{n}} of {{total}}"
   },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",

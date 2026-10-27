@@ -144,15 +144,15 @@ describe('<WearWith />', () => {
     await render(<WearWith id="req-1" />);
     const id = done.outfits[0]!.id;
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Like' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Like, look 1 of 1' }));
     expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'like');
-    expect(screen.getByRole('button', { name: 'Like' })).toBeSelected();
-    await fireEvent.press(screen.getByRole('button', { name: 'Like' }));
+    expect(screen.getByRole('button', { name: 'Like, look 1 of 1' })).toBeSelected();
+    await fireEvent.press(screen.getByRole('button', { name: 'Like, look 1 of 1' }));
     expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'none');
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Wore it' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'Wore it · 1' }));
-    expect(screen.getByRole('button', { name: 'Wore it · 2' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Wore it, look 1 of 1' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Wore it · 1, look 1 of 1' }));
+    expect(screen.getByRole('button', { name: 'Wore it · 2, look 1 of 1' })).toBeOnTheScreen();
   });
 
   test('says so when the outfits could not be put together', async () => {

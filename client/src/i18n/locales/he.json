@@ -284,7 +284,11 @@
       "evening": "ערב",
       "sporty": "ספורט-שיק",
       "surprise": "תפתיעו אותי"
-    }
+    },
+    "ready_one": "לוק אחד מוכן.",
+    "ready_two": "{{count}} לוקים מוכנים.",
+    "ready_other": "{{count}} לוקים מוכנים.",
+    "reactTo": "{{reaction}}, לוק {{n}} מתוך {{total}}"
   },
   "limits": {
     "left": "נשארו {{left}} מתוך {{limit}} החודש",
