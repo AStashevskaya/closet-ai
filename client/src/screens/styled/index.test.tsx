@@ -1,16 +1,19 @@
 import type { WearWithRequest } from '@closet-ai/shared';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import i18n from '@/i18n';
 import { askWearWith, getUsage, getWearWith } from '@/lib/api';
+import { ApiError } from '@/lib/api-error';
 
-import { Styled, styledParams } from '.';
+import { Styled } from '.';
 
 jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+// Only so the real router isn't loaded: partner pieces use it, and these outfits have none.
+jest.mock('expo-router', () => ({}));
 jest.mock('@/lib/api', () => ({
   ApiError: jest.requireActual('@/lib/api-error').ApiError,
   askWearWith: jest.fn(),
@@ -20,6 +23,8 @@ jest.mock('@/lib/api', () => ({
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
   absoluteUrl: (path: string) => `http://api.test${path}`,
 }));
+
+const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
 const piece = { id: 'item-1', name: 'Satin midi skirt', photoUrl: '/api/items/item-1/photo' };
 
@@ -71,19 +76,18 @@ describe('<Styled />', () => {
     await waitFor(() => expect(getWearWith).toHaveBeenCalledWith('req-2', 'en'));
     expect(await screen.findByText('The tee makes the satin offhand.')).toBeOnTheScreen();
   });
-});
 
-test('styledParams leaves out what the piece lacks', () => {
-  expect(styledParams('req-1', { id: 'item-1', name: 'Skirt', photoUrl: '/p' }, null)).toEqual({
-    id: 'req-1',
-    item: 'item-1',
-    name: 'Skirt',
-    photoUrl: '/p',
-  });
-  expect(styledParams('req-1', { id: 'item-1', name: 'Skirt' }, 'office')).toEqual({
-    id: 'req-1',
-    item: 'item-1',
-    name: 'Skirt',
-    mood: 'office',
+  test.each([
+    [new ApiError(429, 'limit:wear_with'), 'for today. Ask again tomorrow.'],
+    [new ApiError(503, 'off'), "Looks aren't available right now."],
+    [new Error('offline'), "Couldn't put looks together. Try again."],
+  ])('says why asking again did not start (%s)', async (cause, text) => {
+    jest
+      .mocked(getWearWith)
+      .mockResolvedValue({ ...looks('req-1'), status: 'failed', outfits: [] });
+    jest.mocked(askWearWith).mockRejectedValue(cause);
+    await render(<Styled requestId="req-1" piece={piece} mood={null} />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(expect.stringContaining(text)));
   });
 });

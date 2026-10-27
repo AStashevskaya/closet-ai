@@ -49,12 +49,11 @@ import {
   sessionHeaders,
   updateItem,
 } from '@/lib/api';
-import { ApiError, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { limitText, useUsage } from '@/lib/limits';
+import { askFailedText, useUsage } from '@/lib/limits';
 import { defaultCurrency, parsePrice, priceText } from '@/lib/price';
+import { styledParams } from '@/lib/styled';
 import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
-import { styledParams } from '@/screens/styled';
 import { colors, fonts } from '@/theme';
 
 const MAX_COLORS = 5;
@@ -226,13 +225,8 @@ export function ItemScreen({ id }: { id: string }) {
       // Its outfits grow on Style it's thread, over this screen: back returns to the piece.
       router.push({ pathname: '/styled/[id]', params: styledParams(requestId, item, mood) });
     } catch (cause) {
-      const code = limitReached(cause);
-      if (code) Alert.alert(limitText(t, i18n.language, code, usage));
-      else if (cause instanceof ApiError && cause.status === 503) Alert.alert(t('wearWith.off'));
-      else {
-        if (__DEV__) console.warn('Asking for outfits failed', cause);
-        Alert.alert(t('wearWith.failed'));
-      }
+      if (__DEV__) console.warn('Asking for outfits failed', cause);
+      Alert.alert(askFailedText(t, i18n.language, cause, usage));
     } finally {
       setBusy(false);
     }

@@ -30,10 +30,10 @@ import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
 import { defaultCurrency, parsePrice } from '@/lib/price';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
+import { styledParams } from '@/lib/styled';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
 import { durations } from '@/motion';
 import type { PickedPhoto } from '@/screens/add-items';
-import { styledParams } from '@/screens/styled';
 import { colors, fonts } from '@/theme';
 
 // Photos picked at once from the gallery.

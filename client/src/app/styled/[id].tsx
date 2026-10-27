@@ -1,20 +1,17 @@
-import type { OutfitMood } from '@closet-ai/shared';
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
+import { readStyledParams } from '@/lib/styled';
 import { Styled } from '@/screens/styled';
 
-// `id`: the request; `item`: the closet piece it asks about, with its name and photo (the screen
-// pushing this one has them, so the thread hangs at once); `mood`: the one it keeps to, if any.
+// A closet piece's request on the thread: its name and photo come along (lib/styled), so the
+// thread hangs at once. Without them (a link from elsewhere) the outfits screen shows the request.
 export default function StyledRoute() {
-  const { id, item, name, photoUrl, cutoutUrl, mood } = useLocalSearchParams<{
-    id: string;
-    item: string;
-    name: string;
-    photoUrl?: string;
-    cutoutUrl?: string;
-    mood?: OutfitMood;
-  }>();
-  return (
-    <Styled requestId={id} piece={{ id: item, name, photoUrl, cutoutUrl }} mood={mood ?? null} />
-  );
+  const params = useLocalSearchParams();
+  const styled = readStyledParams(params);
+  if (!styled) {
+    const id = Array.isArray(params.id) ? params.id[0] : params.id;
+    return <Redirect href={{ pathname: '/wear-with/[id]', params: { id: id ?? '' } }} />;
+  }
+  // Keyed by the request: the same screen opened for another one starts afresh.
+  return <Styled key={styled.requestId} {...styled} />;
 }

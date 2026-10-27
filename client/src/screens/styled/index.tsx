@@ -1,35 +1,19 @@
-import type { Item, OutfitMood } from '@closet-ai/shared';
+import type { OutfitMood } from '@closet-ai/shared';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ApiError, askWearWith, sessionHeaders } from '@/lib/api';
-import { limitReached } from '@/lib/api-error';
+import { askWearWith, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
-import { limitText, useUsage } from '@/lib/limits';
+import { askFailedText, useUsage } from '@/lib/limits';
+import type { StyledPiece } from '@/lib/styled';
 import { StyleThread } from '@/screens/style-it/style-thread';
 import { colors } from '@/theme';
 
-// The route's params for a closet piece's request: strings only, nothing left undefined.
-export function styledParams(
-  requestId: string,
-  item: Pick<Item, 'id' | 'name' | 'photoUrl' | 'cutoutUrl'>,
-  mood: OutfitMood | null,
-) {
-  return {
-    id: requestId,
-    item: item.id,
-    name: item.name,
-    ...(item.photoUrl && { photoUrl: item.photoUrl }),
-    ...(item.cutoutUrl && { cutoutUrl: item.cutoutUrl }),
-    ...(mood && { mood }),
-  };
-}
-
 type Props = {
   requestId: string;
-  piece: { id: string; name: string; photoUrl?: string; cutoutUrl?: string };
+  piece: StyledPiece;
   mood: OutfitMood | null;
 };
 
@@ -67,13 +51,8 @@ export function Styled({ requestId, piece, mood }: Props) {
       void refreshUsage();
       setRequest(id);
     } catch (cause) {
-      const code = limitReached(cause);
-      if (code) Alert.alert(limitText(t, i18n.language, code, usage));
-      else if (cause instanceof ApiError && cause.status === 503) Alert.alert(t('wearWith.off'));
-      else {
-        if (__DEV__) console.warn('Asking for outfits failed', cause);
-        Alert.alert(t('wearWith.failed'));
-      }
+      if (__DEV__) console.warn('Asking for outfits failed', cause);
+      Alert.alert(askFailedText(t, i18n.language, cause, usage));
     } finally {
       setAsking(false);
     }

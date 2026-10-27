@@ -22,10 +22,9 @@ import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
 import { PressableScale } from '@/components/pressable-scale';
 import { useTabBarClearance } from '@/components/tab-bar';
-import { ApiError, askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
-import { limitReached } from '@/lib/api-error';
+import { askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
-import { limitText, useUsage } from '@/lib/limits';
+import { askFailedText, useUsage } from '@/lib/limits';
 import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -119,18 +118,15 @@ export function StyleIt() {
         item,
       });
     } catch (cause) {
-      const code = limitReached(cause);
-      if (code) Alert.alert(limitText(t, i18n.language, code, usage));
-      else if (cause instanceof ApiError && cause.status === 503) Alert.alert(t('wearWith.off'));
-      else {
-        if (__DEV__) console.warn('Asking for outfits failed', cause);
-        Alert.alert(t('wearWith.failed'));
-      }
+      if (__DEV__) console.warn('Asking for outfits failed', cause);
+      Alert.alert(askFailedText(t, i18n.language, cause, usage));
     } finally {
       setAsking(null);
     }
   }
 
+  // A closet piece can be asked about afresh; one styled before has its request polled again.
+  const asked = chosen?.item;
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
 
   return (
@@ -227,7 +223,7 @@ export function StyleIt() {
           <StyleThread
             chosen={chosen}
             headers={headers}
-            onAskAgain={chosen.item ? () => style(chosen.item!) : undefined}
+            onAskAgain={asked ? () => style(asked) : undefined}
             asking={asking !== null}
           />
         </View>
