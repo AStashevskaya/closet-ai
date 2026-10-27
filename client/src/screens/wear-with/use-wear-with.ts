@@ -2,6 +2,7 @@ import type { Outfit, OutfitReaction, WearWithRequest } from '@closet-ai/shared'
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AccessibilityInfo } from 'react-native';
 
 import { getWearWith, reactToOutfit } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
@@ -33,11 +34,18 @@ export function useWearWith(id: string | null) {
     state: { status: 'pending' },
   });
   const state: WearWithState = result.id === id ? result.state : { status: 'pending' };
-  const setState = (next: WearWithState | ((current: WearWithState) => WearWithState)) =>
-    setResult((current) => {
-      const now: WearWithState = current.id === id ? current.state : { status: 'pending' };
-      return { id, state: typeof next === 'function' ? next(now) : next };
-    });
+  // Changes the outfits of request `of` only: an answer for a piece the user has since left
+  // (a reaction failing late) must not touch the piece now on screen.
+  const update = (of: string | null, change: (current: WearWithState) => WearWithState) =>
+    setResult((current) =>
+      current.id === of ? { id: of, state: change(current.state) } : current,
+    );
+  // Asking again with the same request (a history entry that timed out) polls it afresh.
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => {
+    setResult({ id, state: { status: 'pending' } });
+    setAttempt((n) => n + 1);
+  };
 
   // Polls the request until its outfits are composed.
   useEffect(() => {
@@ -60,6 +68,12 @@ export function useWearWith(id: string | null) {
               },
             });
             void Haptics.selectionAsync();
+            // A live region only speaks on Android; this says the looks arrived on iOS too.
+            AccessibilityInfo.announceForAccessibility(
+              request.outfits.length > 0
+                ? i18n.t('wearWith.ready', { count: request.outfits.length })
+                : i18n.t('wearWith.empty'),
+            );
             return;
           }
           if (request.status === 'failed') break;
@@ -69,36 +83,50 @@ export function useWearWith(id: string | null) {
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
         if (cancelled) return;
       }
-      if (!cancelled) setResult({ id, state: { status: 'failed' } });
+      if (cancelled) return;
+      setResult({ id, state: { status: 'failed' } });
+      AccessibilityInfo.announceForAccessibility(i18n.t('wearWith.failed'));
     };
     void poll();
     return () => {
       cancelled = true;
     };
-  }, [id, lang]);
+  }, [id, lang, attempt, i18n]);
 
-  // Shown at once; if the server doesn't take it, it goes back.
+  // Shown at once; if the server doesn't take it, it goes back. Built from the current outfits,
+  // so two quick taps count twice and reactions to other outfits since then stay.
   async function react(outfit: Outfit, reaction: OutfitReaction) {
     if (state.status !== 'done') return;
     void Haptics.selectionAsync();
-    const change = (o: Outfit): Outfit =>
+    const was = state.outfits.find((o) => o.id === outfit.id)?.opinion ?? null;
+    const apply = (change: (o: Outfit) => Outfit) =>
+      update(id, (current) =>
+        current.status === 'done'
+          ? {
+              ...current,
+              outfits: current.outfits.map((o) => (o.id === outfit.id ? change(o) : o)),
+            }
+          : current,
+      );
+    apply((o) =>
       reaction === 'wore'
         ? { ...o, woreCount: o.woreCount + 1 }
-        : { ...o, opinion: reaction === 'none' ? null : reaction };
-    const before = state.outfits;
-    setState({ ...state, outfits: before.map((o) => (o.id === outfit.id ? change(o) : o)) });
+        : { ...o, opinion: reaction === 'none' ? null : reaction },
+    );
     try {
       await reactToOutfit(outfit.id, reaction);
     } catch {
-      // Only this outfit goes back: reactions to the others since then stay.
-      const was = before.find((o) => o.id === outfit.id) ?? outfit;
-      setState((current) =>
-        current.status === 'done'
-          ? { ...current, outfits: current.outfits.map((o) => (o.id === outfit.id ? was : o)) }
-          : current,
+      apply((o) =>
+        reaction === 'wore'
+          ? { ...o, woreCount: Math.max(0, o.woreCount - 1) }
+          : { ...o, opinion: was },
       );
     }
   }
 
-  return { state, setState, react };
+  // The piece went into the user's wishes.
+  const setWishId = (wishId: string) =>
+    update(id, (current) => (current.status === 'done' ? { ...current, wishId } : current));
+
+  return { state, react, retry, setWishId };
 }

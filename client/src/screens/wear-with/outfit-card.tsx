@@ -26,6 +26,8 @@ export function OutfitCard({ outfit, index, total, headers, onReact }: Props) {
   // Labelled: partner shoes or a bag where the closet had none for the look, and now and
   // then a brand's piece shown for its own sake.
   const partners = outfit.pieces.flatMap((p) => (p.catalogItem ? [p.catalogItem] : []));
+  // Three looks have three "Like" buttons: a screen reader hears which look each one is for.
+  const about = (reaction: string) => t('wearWith.reactTo', { reaction, n: index + 1, total });
   return (
     <View style={styles.card}>
       <Text style={styles.number}>
@@ -54,11 +56,13 @@ export function OutfitCard({ outfit, index, total, headers, onReact }: Props) {
       <View style={styles.reactions}>
         <Reaction
           label={t('wearWith.like')}
+          a11yLabel={about(t('wearWith.like'))}
           on={outfit.opinion === 'like'}
           onPress={() => onReact(outfit, outfit.opinion === 'like' ? 'none' : 'like')}
         />
         <Reaction
           label={t('wearWith.dislike')}
+          a11yLabel={about(t('wearWith.dislike'))}
           on={outfit.opinion === 'dislike'}
           onPress={() => onReact(outfit, outfit.opinion === 'dislike' ? 'none' : 'dislike')}
         />
@@ -68,6 +72,11 @@ export function OutfitCard({ outfit, index, total, headers, onReact }: Props) {
               ? t('wearWith.woreCount', { count: outfit.woreCount })
               : t('wearWith.wore')
           }
+          a11yLabel={about(
+            outfit.woreCount > 0
+              ? t('wearWith.woreCount', { count: outfit.woreCount })
+              : t('wearWith.wore'),
+          )}
           on={outfit.woreCount > 0}
           onPress={() => onReact(outfit, 'wore')}
         />
@@ -76,13 +85,16 @@ export function OutfitCard({ outfit, index, total, headers, onReact }: Props) {
   );
 }
 
-function Reaction({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+type ReactionProps = { label: string; a11yLabel: string; on: boolean; onPress: () => void };
+
+function Reaction({ label, a11yLabel, on, onPress }: ReactionProps) {
   return (
     <PressableScale
       style={[styles.reaction, on && styles.reactionOn]}
       onPress={onPress}
       hitSlop={4}
       accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
       accessibilityState={{ selected: on }}
     >
       <Text style={[styles.reactionText, on && styles.reactionTextOn]}>{label}</Text>

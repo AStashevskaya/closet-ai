@@ -286,7 +286,12 @@
       "evening": "Вечер",
       "sporty": "Спорт-шик",
       "surprise": "Сюрприз"
-    }
+    },
+    "ready_one": "Готов {{count}} образ.",
+    "ready_few": "Готово {{count}} образа.",
+    "ready_many": "Готово {{count}} образов.",
+    "ready_other": "Готово {{count}} образа.",
+    "reactTo": "{{reaction}}, образ {{n}} из {{total}}"
   },
   "limits": {
     "left": "Осталось {{left}} из {{limit}} в этом месяце",

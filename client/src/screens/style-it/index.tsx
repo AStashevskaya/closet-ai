@@ -3,7 +3,15 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ScrollViewInstance,
+} from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -56,7 +64,9 @@ export function StyleIt() {
   // The piece whose outfits are being asked for.
   const [asking, setAsking] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Chosen | null>(null);
-  const { state: looks, react } = useWearWith(chosen?.requestId ?? null);
+  const { state: looks, react, retry } = useWearWith(chosen?.requestId ?? null);
+  // A heart around the piece once one of its outfits is liked (owner's call, 2026-10-27).
+  const loved = looks.status === 'done' && looks.outfits.some((o) => o.opinion === 'like');
 
   // Brings the thread into view when a piece is chosen; on the first choice the thread isn't laid
   // out yet, so it scrolls once it is.
@@ -65,6 +75,8 @@ export function StyleIt() {
   const scrollWhenLaidOut = useRef(false);
   function choose(next: Chosen) {
     setChosen(next);
+    // The thread may be far below: say the looks are on their way (iOS has no live regions).
+    AccessibilityInfo.announceForAccessibility(t('wearWith.composing'));
     if (threadY.current === null) scrollWhenLaidOut.current = true;
     else scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
   }
@@ -110,6 +122,8 @@ export function StyleIt() {
         lang,
       );
       void refreshUsage();
+      // The new piece joins "styled before" at once.
+      listStyled().then(setStyled, () => {});
       choose({
         requestId: id,
         name: item.name,
@@ -228,10 +242,9 @@ export function StyleIt() {
           <ThreadRow key={`root-${chosen.requestId}`} kind="root">
             <View style={styles.chosen}>
               <View style={styles.chosenPiece}>
-                {/* A heart once its outfits are found: the piece is loved. */}
                 <HandDrawn
                   shape="heart"
-                  drawn={looks.status === 'done' && looks.outfits.length > 0}
+                  drawn={loved}
                   seed={seedFrom(chosen.requestId)}
                   fill
                   style={styles.chosenHeart}
@@ -259,14 +272,14 @@ export function StyleIt() {
             <ThreadRow key={`failed-${chosen.requestId}`} kind="branch" last>
               <View style={styles.waiting}>
                 <Text style={maison.body}>{t('wearWith.failed')}</Text>
-                {chosen.item && (
-                  <Button
-                    kind="outline"
-                    label={t('wearWith.retry')}
-                    onPress={() => style(chosen.item!)}
-                    busy={asking !== null}
-                  />
-                )}
+                {/* A closet piece is asked about afresh; one styled before (maybe from a photo
+                    no longer at hand) has its request polled again. */}
+                <Button
+                  kind="outline"
+                  label={t('wearWith.retry')}
+                  onPress={() => (chosen.item ? style(chosen.item) : retry())}
+                  busy={asking !== null}
+                />
               </View>
             </ThreadRow>
           )}
@@ -320,6 +333,8 @@ export function StyleIt() {
                   cutoutUrl: entry.cutoutUrl ?? undefined,
                 })
               }
+              // While a piece is being asked about, its answer would replace this choice.
+              disabled={asking !== null}
               accessibilityRole="button"
               accessibilityLabel={t('styleIt.open', { name: entry.name })}
             >

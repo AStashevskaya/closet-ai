@@ -1,7 +1,8 @@
 import type { Item, StyledEntry, WearWithRequest } from '@closet-ai/shared';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
+import { seedFrom } from '@/components/hand-drawn';
 import i18n from '@/i18n';
 import {
   askWearWith,
@@ -41,6 +42,17 @@ jest.mock('@/lib/api', () => ({
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
   absoluteUrl: (path: string) => `http://api.test${path}`,
 }));
+
+// The heart stands in as a marker, named by its seed, so a test can tell which one is drawn.
+jest.mock('@/components/hand-drawn', () => {
+  const { View } = jest.requireActual('react-native');
+  const actual = jest.requireActual('@/components/hand-drawn');
+  return {
+    ...actual,
+    HandDrawn: ({ drawn, seed }: { drawn: boolean; seed: number }) =>
+      drawn ? <View testID={`drawn-${seed}`} /> : null,
+  };
+});
 
 const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
@@ -111,9 +123,9 @@ describe('<StyleIt />', () => {
     expect(mockPush).not.toHaveBeenCalled();
 
     // Reactions work here as on the outfits screen.
-    await fireEvent.press(screen.getByRole('button', { name: 'Like' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Like, look 1 of 1' }));
     expect(reactToOutfit).toHaveBeenLastCalledWith(looks('req-1').outfits[0]!.id, 'like');
-    expect(screen.getByRole('button', { name: 'Like' })).toBeSelected();
+    expect(screen.getByRole('button', { name: 'Like, look 1 of 1' })).toBeSelected();
   });
 
   test('says so when the outfits could not be put together, and asks again', async () => {
@@ -139,6 +151,55 @@ describe('<StyleIt />', () => {
       await screen.findByRole('header', { name: 'Outfits with Leather jacket' }),
     ).toBeOnTheScreen();
     await waitFor(() => expect(getWearWith).toHaveBeenCalledWith(styled.id, 'en'));
+  });
+
+  test('draws the heart around the piece only once one of its outfits is liked', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    await render(<StyleIt />);
+    await fireEvent.press(
+      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
+    );
+    await screen.findByText('The tee makes the satin offhand.');
+    expect(screen.queryByTestId(`drawn-${seedFrom('req-1')}`)).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Like, look 1 of 1' }));
+    expect(screen.getByTestId(`drawn-${seedFrom('req-1')}`)).toBeOnTheScreen();
+  });
+
+  test('a reaction failing after switching pieces leaves the new piece alone', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    let fail!: (cause: Error) => void;
+    jest.mocked(reactToOutfit).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        fail = reject;
+      }),
+    );
+    await render(<StyleIt />);
+    await fireEvent.press(
+      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
+    );
+    // Not awaited: the press waits on the reaction, which hangs until `fail`.
+    void fireEvent.press(await screen.findByRole('button', { name: 'Like, look 1 of 1' }));
+    await waitFor(() => expect(reactToOutfit).toHaveBeenCalled());
+
+    await fireEvent.press(screen.getByLabelText('Outfits with Leather jacket'));
+    await screen.findByRole('header', { name: 'Outfits with Leather jacket' });
+    await screen.findByText('The tee makes the satin offhand.');
+    await act(async () => fail(new Error('offline')));
+
+    expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    expect(screen.queryByText('Putting looks together from your closet…')).toBeNull();
+  });
+
+  test('polls an entry styled before again when it timed out', async () => {
+    jest
+      .mocked(getWearWith)
+      .mockResolvedValueOnce({ ...looks(styled.id), status: 'failed', outfits: [] });
+    await render(<StyleIt />);
+    await fireEvent.press(await screen.findByLabelText('Outfits with Leather jacket'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    expect(askWearWith).not.toHaveBeenCalled();
   });
 
   test('says when the outfits are off', async () => {

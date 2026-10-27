@@ -154,6 +154,9 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
           style={[styles.word, focused && styles.wordOn]}
           numberOfLines={1}
           maxFontSizeMultiplier={1.3}
+          // Four words on a 360 pt phone in Russian at a large text size: shrink rather than clip.
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
         >
           {options.title}
         </Text>
@@ -237,6 +240,7 @@ const styles = StyleSheet.create({
   // 44 pt tall from just above the thread, so the word sits in the sag under it.
   tab: {
     marginTop: THREAD_Y - 10,
+    flexShrink: 1,
     minWidth: 44,
     height: 44,
     paddingTop: 14,

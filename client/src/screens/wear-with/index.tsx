@@ -20,7 +20,7 @@ import { useWearWith } from './use-wear-with';
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
   const { t } = useTranslation();
-  const { state, setState, react } = useWearWith(id);
+  const { state, setWishId, react } = useWearWith(id);
   const [headers, setHeaders] = useState<Record<string, string>>();
 
   useEffect(() => {
@@ -58,9 +58,7 @@ export function WearWith({ id }: { id: string }) {
     try {
       const saved = await addWish(id);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setState((current) =>
-        current.status === 'done' ? { ...current, wishId: saved.id } : current,
-      );
+      setWishId(saved.id);
     } catch (cause) {
       if (__DEV__) console.warn('Saving the wish failed', cause);
     } finally {
