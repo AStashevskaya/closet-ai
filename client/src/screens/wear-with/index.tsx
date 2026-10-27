@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { FlatLay } from '@/components/flat-lay';
+import { seedFrom } from '@/components/hand-drawn';
 import { ItemPhoto } from '@/components/item-photo';
 import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
@@ -198,6 +199,8 @@ export function WearWith({ id }: { id: string }) {
               pieces={[...pieces, ...partners.map((p) => ({ ...p, cutoutUrl: p.imageUrl }))]}
               headers={headers}
               caption={outfit.caption}
+              loved={outfit.opinion === 'like'}
+              seed={seedFrom(outfit.id)}
             />
             <Text style={styles.occasion}>{outfit.occasion}</Text>
             <Text style={styles.why}>{outfit.why}</Text>

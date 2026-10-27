@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
+import { HandDrawn } from '@/components/hand-drawn';
 import { absoluteUrl } from '@/lib/api';
 import { colors, fonts } from '@/theme';
 
@@ -13,6 +14,10 @@ type Props = {
   headers: Record<string, string> | undefined;
   // Handwritten name of the look.
   caption: string;
+  // A look the user loves gets a heart drawn around it with the thread, behind the pieces.
+  loved?: boolean;
+  // Any number, the same for the same look, so its heart keeps its shape.
+  seed?: number;
 };
 
 // Where each kind of piece lies on the square sheet: start and top in %, width in % (pieces
@@ -52,9 +57,10 @@ export function layOut(pieces: Piece[]): [Piece, Spot][] {
 }
 
 // An outfit laid flat on paper with its name handwritten, like the Want / Can collage.
-export function FlatLay({ pieces, headers, caption }: Props) {
+export function FlatLay({ pieces, headers, caption, loved = false, seed = 1 }: Props) {
   return (
     <View style={styles.sheet} accessible accessibilityLabel={caption}>
+      <HandDrawn shape="heart" drawn={loved} seed={seed} fill style={styles.heart} />
       {layOut(pieces).map(([piece, { start, top, width, turn }]) => {
         const url = piece.cutoutUrl ?? piece.photoUrl;
         return (
@@ -98,6 +104,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     transform: [{ rotate: '-1deg' }],
     boxShadow: '0 6px 18px rgba(30, 26, 23, 0.08)',
+  },
+  // Around the pieces, clear of the handwritten caption below.
+  heart: {
+    top: '2%',
+    bottom: '16%',
+    start: '6%',
+    end: '6%',
   },
   piece: {
     position: 'absolute',
