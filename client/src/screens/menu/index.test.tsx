@@ -117,24 +117,25 @@ describe('<Menu />', () => {
   describe('language', () => {
     test('follows the phone until one is picked, and keeps the pick checked', async () => {
       await render(<Menu />);
+      await fireEvent.press(screen.getByRole('button', { name: 'Language: As on my phone' }));
       expect(
         screen.getByRole('radio', { name: 'As on my phone', checked: true }),
       ).toBeOnTheScreen();
 
       await fireEvent.press(screen.getByRole('radio', { name: 'Русский' }));
       expect(setLanguage).toHaveBeenCalledWith('ru');
+      expect(screen.getByRole('button', { name: 'Language: Русский' })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Language: Русский' }));
       expect(screen.getByRole('radio', { name: 'Русский', checked: true })).toBeOnTheScreen();
-      expect(
-        screen.getByRole('radio', { name: 'As on my phone', checked: false }),
-      ).toBeOnTheScreen();
     });
 
     test("goes back to what it was when the pick doesn't go through", async () => {
       jest.mocked(setLanguage).mockRejectedValueOnce(new Error('no keychain'));
       await render(<Menu />);
+      await fireEvent.press(screen.getByRole('button', { name: 'Language: As on my phone' }));
       await fireEvent.press(screen.getByRole('radio', { name: 'English' }));
       expect(
-        await screen.findByRole('radio', { name: 'As on my phone', checked: true }),
+        await screen.findByRole('button', { name: 'Language: As on my phone' }),
       ).toBeOnTheScreen();
     });
   });
