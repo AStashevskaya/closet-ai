@@ -30,7 +30,9 @@ export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeri
 // Hidden monthly caps on top, so one account can't cost more than it could ever be worth.
 // The per-user spend cap (USER_MONTHLY_BUDGET_USD, $5) is the real bound; these keep one
 // feature from using all of it.
-export const MONTHLY_SAFETY_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 60 };
+// 30 outfit requests a month (2026-10-28, was 60): ~90 ¢ at ~3 ¢ a request for the most active
+// free user, still more than a request a day.
+export const MONTHLY_SAFETY_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 30 };
 
 // Not built yet: daily outfits 3 a week (3 looks each), "make it nice" 3 to try, listings 3 a
 // month.

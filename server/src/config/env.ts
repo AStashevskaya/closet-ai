@@ -36,8 +36,9 @@ const envSchema = z
     FAL_KEY: z.string().min(1).optional(),
     // The server's daily safety stop on AI spend, in dollars, estimated from counted actions
     // (src/modules/usage/limits.ts). Past it every counted action answers 429 until midnight UTC.
-    // 30 testers filling their wardrobes on day one spend ~$6, hence room above that.
-    AI_DAILY_BUDGET_USD: z.coerce.number().positive().default(15),
+    // 30 testers filling their wardrobes on day one spend ~$6, hence room above that (lowered
+    // from $15 for the pilot, 2026-10-28). A log line says when half of it is spent.
+    AI_DAILY_BUDGET_USD: z.coerce.number().positive().default(8),
     // What one user's AI may cost in a calendar month, briefs included (decided 2026-10-24).
     USER_MONTHLY_BUDGET_USD: z.coerce.number().positive().default(5),
     // User ids (comma-separated) with roomier limits for testing, see TESTER_LIMITS.

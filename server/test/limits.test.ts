@@ -111,6 +111,24 @@ describe("free-tier limits", () => {
   });
 });
 
+describe("half of the daily budget", () => {
+  it("is logged once a day, when spend crosses it", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    const logged: Record<string, unknown>[] = [];
+    // The in-memory rows are stamped with the real time, so the day is today's.
+    const limits = createLimits(usageRepository, {
+      dailyUsd: 0.02,
+      userMonthlyUsd: 5,
+      log: (line) => logged.push(line),
+    });
+    await limits.record("anna", "item_photo"); // 0.6 ¢ of 2 ¢
+    expect(logged).toEqual([]);
+    await limits.record("anna", "item_photo"); // 1.2 ¢: past half
+    await limits.spent("anna", "brief", 1_000);
+    expect(logged).toEqual([{ msg: "ai budget half spent", spentUsd: 0.012, budgetUsd: 0.02 }]);
+  });
+});
+
 describe("monthly spend per user", () => {
   it("stops a user at $5 of AI in the month, and no one else", async () => {
     const { usageRepository } = createInMemoryRepositories();
