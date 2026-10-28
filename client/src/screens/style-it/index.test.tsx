@@ -128,9 +128,9 @@ describe('<StyleIt />', () => {
     // The newest stops read their looks once, for the folded previews.
     await waitFor(() => expect(getWearWith).toHaveBeenCalledWith(styled.id, 'en'));
     expect(screen.getByText(/October 21/)).toBeOnTheScreen();
-    expect(
-      await screen.findByLabelText('Сатин после спорта', { includeHiddenElements: true }),
-    ).toBeTruthy();
+    expect(await screen.findAllByTestId('mini-look', { includeHiddenElements: true })).toHaveLength(
+      1,
+    );
   });
 
   test("folds a look that isn't hers, asks why in a tap, and brings it back", async () => {

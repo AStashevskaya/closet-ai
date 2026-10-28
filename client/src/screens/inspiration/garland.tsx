@@ -8,6 +8,7 @@ import { cutoutShadow } from '@/components/cutout-shadow';
 import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
+import { dayLabel } from '@/lib/day-label';
 import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -132,7 +133,9 @@ function SavedLook({
         accessibilityRole="image"
         accessibilityLabel={
           look.kind === 'saved'
-            ? t('inspiration.lookLabel', { date: dateOf(look.createdAt, t, i18n.language) })
+            ? t('inspiration.lookLabel', {
+                date: dayLabel(look.createdAt, t, i18n.language, 'short'),
+              })
             : t('inspiration.saving')
         }
         accessibilityActions={
@@ -156,24 +159,12 @@ function SavedLook({
         accessibilityElementsHidden
         importantForAccessibility="no"
       >
-        {look.kind === 'saved' ? dateOf(look.createdAt, t, i18n.language) : t('inspiration.saving')}
+        {look.kind === 'saved'
+          ? dayLabel(look.createdAt, t, i18n.language, 'short')
+          : t('inspiration.saving')}
       </Text>
     </>
   );
-}
-
-// "today", "yesterday", else "26 Oct": when she saved it, in her hand.
-function dateOf(
-  iso: string,
-  t: (key: 'inspiration.today' | 'inspiration.yesterday') => string,
-  lang: string,
-) {
-  const day = (date: Date) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const days = Math.round((day(new Date()) - day(new Date(iso))) / 86_400_000);
-  if (days === 0) return t('inspiration.today');
-  if (days === 1) return t('inspiration.yesterday');
-  return new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short' });
 }
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.

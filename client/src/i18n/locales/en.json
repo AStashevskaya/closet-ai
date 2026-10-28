@@ -245,8 +245,6 @@
     "teaching": "Learning…",
     "teachWait": "Your stylist has already learned today. Try again tomorrow.",
     "learned": "Taken to heart",
-    "today": "today",
-    "yesterday": "yesterday",
     "lookLabel": "Saved look, {{date}}",
     "showAll": "Show all {{count}}"
   },

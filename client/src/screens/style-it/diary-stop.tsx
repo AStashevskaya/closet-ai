@@ -1,13 +1,13 @@
 import type { Outfit, StyledEntry } from '@closet-ai/shared';
+import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { FlatLay } from '@/components/flat-lay';
-import { seedFrom } from '@/components/hand-drawn';
-import { ItemPhoto } from '@/components/item-photo';
+import { cutoutShadow } from '@/components/cutout-shadow';
+import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { PressableScale } from '@/components/pressable-scale';
-import { getWearWith } from '@/lib/api';
+import { absoluteUrl, getWearWith } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { dayLabel } from '@/lib/day-label';
 import { colors, fonts } from '@/theme';
@@ -38,14 +38,17 @@ export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
         accessibilityHint={dayLabel(entry.createdAt, t, i18n.language)}
       >
         <View style={styles.who}>
-          <ItemPhoto
-            item={{
-              photoUrl: entry.photoUrl ?? undefined,
-              cutoutUrl: entry.cutoutUrl ?? undefined,
-            }}
-            headers={headers}
-            style={styles.piece}
-          />
+          {/* The piece on its own, no tile, with its shadow; a photo without a cut-out is framed. */}
+          <View style={[styles.piece, entry.cutoutUrl ? cutoutShadow('hanging') : null]}>
+            {headers && (entry.cutoutUrl ?? entry.photoUrl) && (
+              <Image
+                source={{ uri: absoluteUrl((entry.cutoutUrl ?? entry.photoUrl)!), headers }}
+                style={styles.pieceImage}
+                contentFit={entry.cutoutUrl ? 'contain' : 'cover'}
+                accessibilityIgnoresInvertColors
+              />
+            )}
+          </View>
           <View style={styles.text}>
             <Text style={styles.name} numberOfLines={2}>
               {entry.name}
@@ -63,21 +66,59 @@ export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
             accessibilityElementsHidden
           >
             {shown.slice(0, 3).map((look) => (
-              <View key={look.id} style={styles.mini}>
-                <FlatLay
-                  pieces={look.pieces.flatMap((p) => (p.item ? [p.item] : []))}
-                  headers={headers}
-                  caption={look.caption}
-                  loved={look.opinion === 'like'}
-                  seed={seedFrom(look.id)}
-                  small
-                />
-              </View>
+              <MiniLook key={look.id} look={look} headers={headers} />
             ))}
           </View>
         )}
       </PressableScale>
     </ThreadRow>
+  );
+}
+
+// Where the pieces lie on a folded look's square of paper: one bigger, two beside it.
+const MINI_SPOTS = [
+  { start: '6%', top: '10%', width: '52%' },
+  { start: '54%', top: '6%', width: '40%' },
+  { start: '50%', top: '50%', width: '40%' },
+] as const;
+
+// A look folded small (as in the prototype): up to three of its pieces on white paper, without
+// the piece being styled (it's right above), and a little heart on the corner once she liked it.
+function MiniLook({
+  look,
+  headers,
+}: {
+  look: Outfit;
+  headers: Record<string, string> | undefined;
+}) {
+  const pieces = look.pieces
+    .filter((p) => !p.hero)
+    .flatMap((p) => (p.item ? [p.item] : []))
+    .slice(0, 3);
+  return (
+    <View style={styles.mini} testID="mini-look">
+      {/* Cut-outs straight on the paper, with their soft shadow; no tile of their own. */}
+      {pieces.map((item, i) => {
+        const url = item.cutoutUrl ?? item.photoUrl;
+        return (
+          <View key={item.id} style={[styles.miniPiece, MINI_SPOTS[i], cutoutShadow('flat')]}>
+            {url && headers && (
+              <Image
+                source={{ uri: absoluteUrl(url), headers }}
+                style={styles.miniImage}
+                contentFit={item.cutoutUrl ? 'contain' : 'cover'}
+                accessibilityIgnoresInvertColors
+              />
+            )}
+          </View>
+        );
+      })}
+      {look.opinion === 'like' && (
+        <View style={styles.miniHeart}>
+          <HandDrawn shape="heart" drawn seed={seedFrom(look.id)} fill />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -118,8 +159,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   piece: {
-    width: 64,
-    height: 72,
+    width: 84,
+    height: 96,
+  },
+  pieceImage: {
+    flex: 1,
   },
   text: {
     flex: 1,
@@ -143,10 +187,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  // A square of its own: the flat lay inside sizes itself by its width, which a bare flex cell
-  // doesn't give it on the phone (it came out 0 high, 2026-10-28).
+  // A square of its own: a bare flex cell has no height on the phone (it came out 0 high).
   mini: {
     flex: 1,
     aspectRatio: 1,
+    backgroundColor: colors.paper,
+    boxShadow: '0 8px 16px -10px rgba(74, 21, 32, 0.35)',
+  },
+  miniPiece: {
+    position: 'absolute',
+    aspectRatio: 3 / 4,
+  },
+  miniImage: {
+    flex: 1,
+  },
+  // On the middle of the top edge, where a look would be pinned.
+  miniHeart: {
+    position: 'absolute',
+    top: -11,
+    start: '50%',
+    marginStart: -12,
+    width: 24,
+    height: 22,
   },
 });

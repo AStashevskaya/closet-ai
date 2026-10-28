@@ -18,8 +18,6 @@ type Props = {
   loved?: boolean;
   // Any number, the same for the same look, so its heart keeps its shape.
   seed?: number;
-  // A thumbnail (Style it's diary): no handwritten caption, which can't be read that small.
-  small?: boolean;
 };
 
 // Where each kind of piece lies on the square sheet: start and top in %, width in % (pieces
@@ -59,14 +57,7 @@ export function layOut(pieces: Piece[]): [Piece, Spot][] {
 }
 
 // An outfit laid flat on paper with its name handwritten, like the Want / Can collage.
-export function FlatLay({
-  pieces,
-  headers,
-  caption,
-  loved = false,
-  seed = 1,
-  small = false,
-}: Props) {
+export function FlatLay({ pieces, headers, caption, loved = false, seed = 1 }: Props) {
   return (
     <View style={styles.sheet} accessible accessibilityLabel={caption}>
       <HandDrawn shape="heart" drawn={loved} seed={seed} fill style={styles.heart} />
@@ -98,11 +89,9 @@ export function FlatLay({
           </View>
         );
       })}
-      {!small && (
-        <Text style={styles.caption} numberOfLines={1}>
-          {caption}
-        </Text>
-      )}
+      <Text style={styles.caption} numberOfLines={1}>
+        {caption}
+      </Text>
     </View>
   );
 }
