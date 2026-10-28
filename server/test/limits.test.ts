@@ -112,20 +112,48 @@ describe("free-tier limits", () => {
 });
 
 describe("half of the daily budget", () => {
-  it("is logged once a day, when spend crosses it", async () => {
+  // The in-memory rows are stamped with the real time, so the clock is moved from it.
+  const realNow = () => new Date();
+  const logged: Record<string, unknown>[] = [];
+  const setup = (clock: () => Date, spentSince?: () => Promise<number>) => {
+    logged.length = 0;
     const { usageRepository } = createInMemoryRepositories();
-    const logged: Record<string, unknown>[] = [];
-    // The in-memory rows are stamped with the real time, so the day is today's.
-    const limits = createLimits(usageRepository, {
+    if (spentSince) usageRepository.spentSince = spentSince;
+    const budgets = {
       dailyUsd: 0.02,
       userMonthlyUsd: 5,
-      log: (line) => logged.push(line),
-    });
+      log: (line: Record<string, unknown>) => void logged.push(line),
+    };
+    return createLimits(usageRepository, budgets, new Set(), clock);
+  };
+
+  it("is logged once a day, when spend crosses it", async () => {
+    const limits = setup(realNow);
     await limits.record("anna", "item_photo"); // 0.6 ¢ of 2 ¢
     expect(logged).toEqual([]);
     await limits.record("anna", "item_photo"); // 1.2 ¢: past half
     await limits.spent("anna", "brief", 1_000);
     expect(logged).toEqual([{ msg: "ai budget half spent", spentUsd: 0.012, budgetUsd: 0.02 }]);
+  });
+
+  it("is logged again on the next day", async () => {
+    let now = new Date("2026-10-28T23:00:00Z");
+    // Every day is past half here, whatever the rows' real time.
+    const limits = setup(
+      () => now,
+      async () => 15_000,
+    );
+    await limits.record("anna", "item_photo");
+    await limits.record("anna", "item_photo");
+    now = new Date("2026-10-29T00:30:00Z");
+    await limits.record("anna", "item_photo");
+    expect(logged).toHaveLength(2);
+  });
+
+  it("never fails the action it follows", async () => {
+    const limits = setup(realNow, () => Promise.reject(new Error("connection lost")));
+    await expect(limits.record("anna", "item_photo")).resolves.toBeUndefined();
+    expect(logged).toEqual([]);
   });
 });
 

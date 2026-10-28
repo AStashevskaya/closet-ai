@@ -68,7 +68,7 @@ export function createLimits(
     dailyUsd: number;
     // What one user's AI may cost us in a calendar month, background briefs included.
     userMonthlyUsd: number;
-    // Where the half-budget warning goes; a JSON line on stdout by default.
+    // Where the half-budget warning goes: the API's logger, or a JSON line on stdout.
     log?: (line: Record<string, unknown>) => void;
   },
   testers: ReadonlySet<string> = new Set(),
@@ -98,6 +98,9 @@ export function createLimits(
     warnedDay = day.getTime();
     log({ msg: "ai budget half spent", spentUsd: spent / 1_000_000, budgetUsd: budgets.dailyUsd });
   }
+
+  // The action is recorded by then: a failed check must not fail it.
+  const warnSafely = () => warnPastHalf(clock()).catch(() => undefined);
 
   // The count allowed per period: the free tier's, or a tester's.
   const allowed = (userId: string, action: UsageAction) =>
@@ -136,13 +139,13 @@ export function createLimits(
     // What background work really cost, once it's known.
     async spent(userId: string, action: SpendAction, costMicros: number) {
       await usage.record(userId, action, costMicros);
-      await warnPastHalf(clock());
+      await warnSafely();
     },
 
     // Once the action went through (the photo is stored and queued).
     async record(userId: string, action: UsageAction) {
       await usage.record(userId, action, ESTIMATED_COST_MICROS[action]);
-      await warnPastHalf(clock());
+      await warnSafely();
     },
 
     async summary(userId: string): Promise<Usage> {
