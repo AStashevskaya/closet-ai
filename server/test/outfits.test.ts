@@ -532,6 +532,99 @@ describe("POST /api/wear-with", () => {
     expect(ids).not.toContain(striped.id);
   });
 
+  it("keeps one bottom in a look: no skirt over the jeans being styled", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const jeans = await addItem(s, anna, "bottom", "wide-leg jeans");
+    const skirt = await addItem(s, anna, "bottom", "printed skirt");
+    const tank = await addItem(s, anna, "top", "tank top");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Skirt over jeans",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, jeans.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    const ids = done.outfits[0]!.pieces.map((p) => p.item?.id);
+    expect(ids).toContain(jeans.id);
+    expect(ids).toContain(tank.id);
+    expect(ids).not.toContain(skirt.id);
+  });
+
+  it("keeps a dress look free of bottoms, whether the dress is styled or chosen", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const dress = await addItem(s, anna, "dress");
+    const skirt = await addItem(s, anna, "bottom");
+    const boots = await addItem(s, anna, "shoes", "ankle boots");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Skirt with a dress",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    for (const hero of [dress, boots]) {
+      const { id } = (await ask(s, anna.cookie, hero.id)).json<{ id: string }>();
+      await s.runJobs();
+      const ids = (await view(s, anna.cookie, id)).outfits[0]!.pieces.map((p) => p.item?.id);
+      expect(ids).toEqual(expect.arrayContaining([dress.id, boots.id]));
+      expect(ids).not.toContain(skirt.id);
+    }
+  });
+
+  it("keeps a brand's bottom out of a look that has one", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    // A brand's bottom reaches the shop sheet only around a piece that isn't one.
+    const tank = await addItem(s, anna, "top", "tank top");
+    await s.repositories.photosRepository.setEmbedding(
+      `photos/${anna.userId}/p${made}.webp`,
+      unitVector(1),
+    );
+    const jeans = await addItem(s, anna, "bottom", "wide-leg jeans");
+    await s.repositories.catalogRepository.add({ category: "bottom" });
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [input.shop!.pieces[0]!.n],
+          missing: null,
+          caption: "A brand's skirt over jeans",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, tank.id)).json<{ id: string }>();
+    await s.runJobs();
+    const pieces = (await view(s, anna.cookie, id)).outfits[0]!.pieces;
+    expect(pieces.map((p) => p.item?.id)).toContain(jeans.id);
+    expect(pieces.some((p) => p.catalogItem)).toBe(false);
+  });
+
   it("never puts a dress with a top or a skirt being styled", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
