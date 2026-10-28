@@ -64,9 +64,12 @@ export function StyleIt() {
     else scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
   }
 
+  // Each visit to the tab, so the stops read their folded looks afresh (liked or rejected since).
+  const [visit, setVisit] = useState(0);
   // Reloads when the tab comes into view: a piece added or styled elsewhere shows up.
   useFocusEffect(
     useCallback(() => {
+      setVisit((n) => n + 1);
       const load = async () => {
         try {
           const all = await listItems();
@@ -224,6 +227,7 @@ export function StyleIt() {
                 key={entry.id}
                 entry={entry}
                 headers={headers}
+                visit={visit}
                 joined={index > 0}
                 last={index === entries.length - 1}
                 onOpen={() => {

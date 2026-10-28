@@ -1,4 +1,5 @@
 import { ITEM_CATEGORIES, type Item, type OutfitMood } from '@closet-ai/shared';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, Keyframe, useReducedMotion } from 'react-native-reanimated';
@@ -20,6 +21,8 @@ type Props = {
   onClose: () => void;
 };
 
+const GAP = 8;
+
 // The sheet answers a tap, so it comes up quicker than blocks that appear on their own.
 const sheetIn = new Keyframe({
   0: { opacity: 0, transform: [{ translateY: 40 }] },
@@ -30,6 +33,8 @@ const sheetIn = new Keyframe({
 // sheet, so no piece is out of reach (the old row showed the first 24), with the mood to keep to.
 export function ClosetPicker({ visible, items, headers, mood, onMood, onPick, onClose }: Props) {
   const { t } = useTranslation();
+  // Four to a row, sized from the sheet's width so the gaps fit on a narrow phone too.
+  const [cell, setCell] = useState(0);
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const groups = ITEM_CATEGORIES.map((category) => ({
@@ -69,7 +74,12 @@ export function ClosetPicker({ visible, items, headers, mood, onMood, onPick, on
         </Text>
         <Text style={styles.hint}>{t('styleIt.closetHint')}</Text>
         <MoodChips mood={mood} onChange={onMood} inset={20} />
-        <ScrollView contentContainerStyle={styles.groups}>
+        <ScrollView
+          contentContainerStyle={styles.groups}
+          onLayout={(event) =>
+            setCell(Math.floor((event.nativeEvent.layout.width - 40 - GAP * 3) / 4))
+          }
+        >
           {groups.map(({ category, items: pieces }) => (
             <View key={category} style={styles.group}>
               <Text style={styles.category}>{t(`closet.filters.${category}`)}</Text>
@@ -77,7 +87,7 @@ export function ClosetPicker({ visible, items, headers, mood, onMood, onPick, on
                 {pieces.map((item) => (
                   <PressableScale
                     key={item.id}
-                    style={styles.cell}
+                    style={[styles.cell, { width: cell }]}
                     onPress={() => onPick(item)}
                     accessibilityRole="button"
                     accessibilityLabel={`${t('wearWith.button')} ${item.name}`}
@@ -146,11 +156,9 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: GAP,
   },
-  // Four to a row.
   cell: {
-    width: '23%',
     gap: 4,
   },
   photo: {

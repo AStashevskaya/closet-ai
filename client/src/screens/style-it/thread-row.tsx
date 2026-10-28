@@ -76,6 +76,8 @@ export function ThreadRow({
     }),
     [length],
   );
+  // A dashed line can't be drawn in by its dash: it fades in instead.
+  const dashed = useAnimatedProps(() => ({ strokeOpacity: progress.value }));
 
   return (
     <View
@@ -101,7 +103,7 @@ export function ThreadRow({
             {branch && (
               <AnimatedPath
                 d={branch.out}
-                animatedProps={line}
+                animatedProps={dashed}
                 fill="none"
                 stroke={colors.textMuted}
                 strokeWidth={1.2}

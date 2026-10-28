@@ -144,12 +144,15 @@ describe('<StyleIt />', () => {
     expect(screen.getByText('Why not? One tap teaches your stylist.')).toBeOnTheScreen();
 
     await fireEvent.press(
-      screen.getByRole('button', { name: 'Wrong for the weather, look 1 of 1' }),
+      screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' }),
     );
     expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike', 'weather');
-    expect(
-      screen.getByRole('button', { name: 'Wrong for the weather, look 1 of 1' }),
-    ).toBeSelected();
+    expect(screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' })).toBeChecked();
+    // The same reason again sends nothing.
+    await fireEvent.press(
+      screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' }),
+    );
+    expect(reactToOutfit).toHaveBeenCalledTimes(2);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
     expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'none');

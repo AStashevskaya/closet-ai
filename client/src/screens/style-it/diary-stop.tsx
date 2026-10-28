@@ -17,6 +17,8 @@ import { ThreadRow } from './thread-row';
 type Props = {
   entry: StyledEntry;
   headers: Record<string, string> | undefined;
+  // Bumped on each visit to the tab: the folded looks are read again.
+  visit: number;
   joined: boolean;
   last: boolean;
   onOpen: () => void;
@@ -24,9 +26,10 @@ type Props = {
 
 // A piece styled before, on Style it's diary thread (decided 2026-10-28): the piece, when, and its
 // looks folded small (a heart on the liked ones, the rejected ones left out). A tap opens it.
-export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
+export function DiaryStop({ entry, headers, visit, joined, last, onOpen }: Props) {
   const { t, i18n } = useTranslation();
-  const looks = usePeek(entry.id);
+  const looks = usePeek(entry.id, visit);
+  const day = dayLabel(entry.createdAt, t, i18n.language);
   const shown = looks?.filter((look) => look.opinion !== 'dislike') ?? [];
   return (
     <ThreadRow kind="root" joined={joined} last={last} hollow>
@@ -35,7 +38,7 @@ export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
         onPress={onOpen}
         accessibilityRole="button"
         accessibilityLabel={t('styleIt.open', { name: entry.name })}
-        accessibilityHint={dayLabel(entry.createdAt, t, i18n.language)}
+        accessibilityHint={day}
       >
         <View style={styles.who}>
           {/* The piece on its own, no tile, with its shadow; a photo without a cut-out is framed. */}
@@ -54,7 +57,7 @@ export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
               {entry.name}
             </Text>
             <Text style={styles.when}>
-              {dayLabel(entry.createdAt, t, i18n.language)}
+              {day}
               {entry.mood && ` · ${t(`wearWith.moods.${entry.mood}`)}`}
             </Text>
           </View>
@@ -122,9 +125,9 @@ function MiniLook({
   );
 }
 
-// The looks of a request done before, read once when the stop appears (it stays mounted across
-// visits to the tab), with no polling: one still being written shows none.
-function usePeek(id: string | null) {
+// The looks of a request done before, read when the stop appears and on each visit to the tab
+// (the tab stays mounted), with no polling: one still being written shows none until then.
+function usePeek(id: string, visit: number) {
   const { i18n } = useTranslation();
   const lang = appLanguage(i18n.language);
   const [looks, setLooks] = useState<{ id: string; outfits: Outfit[] } | null>(null);
@@ -143,7 +146,7 @@ function usePeek(id: string | null) {
     return () => {
       gone = true;
     };
-  }, [id, lang]);
+  }, [id, lang, visit]);
   return looks?.id === id ? looks.outfits : null;
 }
 
@@ -192,7 +195,7 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     backgroundColor: colors.paper,
-    boxShadow: '0 8px 16px -10px rgba(74, 21, 32, 0.35)',
+    ...cutoutShadow('flat'),
   },
   miniPiece: {
     position: 'absolute',

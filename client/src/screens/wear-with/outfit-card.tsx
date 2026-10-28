@@ -49,7 +49,10 @@ function Rejected({ outfit, index, total, onReact }: Props) {
             label={t(`wearWith.reasons.${reason}`)}
             a11yLabel={about(t(`wearWith.reasons.${reason}`))}
             on={outfit.reason === reason}
-            onPress={() => onReact(outfit, 'dislike', reason)}
+            radio
+            onPress={() => {
+              if (outfit.reason !== reason) onReact(outfit, 'dislike', reason);
+            }}
           />
         ))}
       </View>
@@ -131,17 +134,24 @@ function Look({ outfit, index, total, headers, onReact }: Props) {
   );
 }
 
-type ReactionProps = { label: string; a11yLabel: string; on: boolean; onPress: () => void };
+type ReactionProps = {
+  label: string;
+  a11yLabel: string;
+  on: boolean;
+  // One of a set (a dislike's reasons): a radio, checked rather than selected.
+  radio?: boolean;
+  onPress: () => void;
+};
 
-function Reaction({ label, a11yLabel, on, onPress }: ReactionProps) {
+function Reaction({ label, a11yLabel, on, radio = false, onPress }: ReactionProps) {
   return (
     <PressableScale
       style={[styles.reaction, on && styles.reactionOn]}
       onPress={onPress}
       hitSlop={4}
-      accessibilityRole="button"
+      accessibilityRole={radio ? 'radio' : 'button'}
       accessibilityLabel={a11yLabel}
-      accessibilityState={{ selected: on }}
+      accessibilityState={radio ? { checked: on } : { selected: on }}
     >
       <Text style={[styles.reactionText, on && styles.reactionTextOn]}>{label}</Text>
     </PressableScale>
