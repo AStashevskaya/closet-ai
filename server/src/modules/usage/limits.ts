@@ -48,6 +48,9 @@ export function nextPeriodStart(period: UsagePeriod, now: Date): Date {
 
 export type Limits = ReturnType<typeof createLimits>;
 
+// The share of the server's daily budget at which a log line warns, once a UTC day per process.
+export const BUDGET_WARN_SHARE = 0.5;
+
 // People testing the app (TESTER_USER_IDS) get roomier limits, so a test session doesn't stop
 // halfway; the server's daily budget and the $5 a month per user still apply to them.
 export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
@@ -65,6 +68,8 @@ export function createLimits(
     dailyUsd: number;
     // What one user's AI may cost us in a calendar month, background briefs included.
     userMonthlyUsd: number;
+    // Where the half-budget warning goes: the API's logger, or a JSON line on stdout.
+    log?: (line: Record<string, unknown>) => void;
   },
   testers: ReadonlySet<string> = new Set(),
   clock: () => Date = () => new Date(),
@@ -81,6 +86,22 @@ export function createLimits(
       return "budget";
     return null;
   }
+  // Once spend crosses half of the day's budget, say so, so the stop doesn't come as a surprise.
+  // Each process (API, worker) remembers its own day, so both may log the same crossing.
+  const log = budgets.log ?? ((line) => console.log(JSON.stringify(line)));
+  let warnedDay: number | null = null;
+  async function warnPastHalf(now: Date) {
+    const day = periodStart("day", now);
+    if (warnedDay === day.getTime()) return;
+    const spent = await usage.spentSince(day);
+    if (spent < budgetMicros * BUDGET_WARN_SHARE) return;
+    warnedDay = day.getTime();
+    log({ msg: "ai budget half spent", spentUsd: spent / 1_000_000, budgetUsd: budgets.dailyUsd });
+  }
+
+  // The action is recorded by then: a failed check must not fail it.
+  const warnSafely = () => warnPastHalf(clock()).catch(() => undefined);
+
   // The count allowed per period: the free tier's, or a tester's.
   const allowed = (userId: string, action: UsageAction) =>
     (testers.has(userId) ? TESTER_LIMITS[action] : undefined) ?? FREE_LIMITS[action].count;
@@ -116,13 +137,15 @@ export function createLimits(
     },
 
     // What background work really cost, once it's known.
-    spent(userId: string, action: SpendAction, costMicros: number) {
-      return usage.record(userId, action, costMicros);
+    async spent(userId: string, action: SpendAction, costMicros: number) {
+      await usage.record(userId, action, costMicros);
+      await warnSafely();
     },
 
     // Once the action went through (the photo is stored and queued).
-    record(userId: string, action: UsageAction) {
-      return usage.record(userId, action, ESTIMATED_COST_MICROS[action]);
+    async record(userId: string, action: UsageAction) {
+      await usage.record(userId, action, ESTIMATED_COST_MICROS[action]);
+      await warnSafely();
     },
 
     async summary(userId: string): Promise<Usage> {
