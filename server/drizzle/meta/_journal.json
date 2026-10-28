@@ -148,6 +148,13 @@
       "when": 1792935333745,
       "tag": "0020_style_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793180802346,
+      "tag": "0021_outfit_tokens",
+      "breakpoints": true
     }
   ]
 }

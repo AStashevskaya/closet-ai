@@ -116,7 +116,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
         }
       : null;
 
-  const { looks, verdict, costMicros } = await stylist.compose({
+  const { looks, verdict, costMicros, tokens } = await stylist.compose({
     hero: { ...toStylistPiece(hero, nOf.get(hero.id)!), image: await asJpeg(heroFile.body, 512) },
     wardrobe: numbered
       .filter(({ item }) => item.id !== hero.id)
@@ -268,7 +268,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     requestId,
     request.userId,
     saved,
-    costMicros,
+    { micros: costMicros, tokens },
     verdict && {
       call: verdict.call,
       reason: withoutNumbers(verdict.reason),

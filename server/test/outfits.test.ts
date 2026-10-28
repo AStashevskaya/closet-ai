@@ -8,7 +8,7 @@ import type {
 } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import { createLimits, ESTIMATED_COST_MICROS, periodStart } from "../src/modules/usage/limits";
@@ -25,6 +25,7 @@ import {
   createStubStylist,
   createStubTagger,
   shirtTags,
+  STUB_TOKENS,
   unitVector,
   testEnv as env,
 } from "./helpers";
@@ -179,9 +180,12 @@ describe("POST /api/wear-with", () => {
     const { id } = res.json<{ id: string }>();
     expect(await view(s, anna.cookie, id)).toMatchObject({ status: "pending", outfits: [] });
 
+    const save = vi.spyOn(s.repositories.outfitsRepository, "saveOutfits");
     await s.runJobs();
     const done = await view(s, anna.cookie, id);
     expect(done.status).toBe("done");
+    // What the call cost is stored with the tokens behind it.
+    expect(save.mock.calls[0]![3]).toEqual({ micros: 6_000, tokens: STUB_TOKENS });
     // The stub puts the second skirt with the skirt in two looks: no top, so not a look.
     expect(done.outfits.map((o) => o.caption)).toEqual(["Look 1", "Look 3"]);
     const [first] = done.outfits;
