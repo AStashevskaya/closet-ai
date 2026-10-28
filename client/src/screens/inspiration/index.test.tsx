@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Alert, type AlertButton } from 'react-native';
 
 import i18n from '@/i18n';
-import { deleteInspiration, listInspiration, uploadPhoto } from '@/lib/api';
+import { deleteInspiration, getStyle, listInspiration, refreshStyle, uploadPhoto } from '@/lib/api';
 import { ApiError } from '@/lib/api-error';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 
@@ -32,31 +32,78 @@ jest.mock('@/lib/api', () => ({
   deleteInspiration: jest.fn(),
   uploadPhoto: jest.fn(),
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
+  getStyle: jest.fn(),
+  refreshStyle: jest.fn(),
   absoluteUrl: (path: string) => `http://api${path}`,
 }));
 
 const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
-const look = (n: number): SavedLook => ({
+const look = (n: number, createdAt = '2026-10-21T10:00:00.000Z'): SavedLook => ({
   key: `photos/u1/look-${n}.webp`,
   url: `/api/inspiration/photo?key=photos%2Fu1%2Flook-${n}.webp`,
-  createdAt: '2026-10-21T10:00:00.000Z',
+  createdAt,
 });
+
+// A brief written on the 25th: looks saved before it are learned, the ones after are new.
+const brief = {
+  summary: 'High-low with a wink.',
+  writtenAt: '2026-10-25T12:00:00.000Z',
+  updating: false,
+  suggest: null,
+};
 
 beforeEach(async () => {
   jest.clearAllMocks();
   await i18n.changeLanguage('en');
   jest.mocked(listInspiration).mockResolvedValue([look(1), look(2)]);
+  jest.mocked(getStyle).mockResolvedValue({ ...brief, summary: null, writtenAt: null });
   jest.mocked(shrinkPhoto).mockImplementation(async ({ uri }) => uri.replace('.png', '.jpg'));
   jest.mocked(uploadPhoto).mockResolvedValue('photos/u1/new.webp');
   jest.mocked(deleteInspiration).mockResolvedValue();
 });
 
 describe('<Inspiration />', () => {
-  test('opens Want / Can from its cover', async () => {
+  test('opens Recreate the look from its row', async () => {
     await render(<Inspiration />);
-    await fireEvent.press(screen.getByRole('button', { name: 'Choose a screenshot' }));
+    await fireEvent.press(screen.getByText('Recreate the look'));
     expect(mockPush).toHaveBeenCalledWith('/want-can');
+  });
+
+  test('without a brief, every look is new and nothing can be taught yet', async () => {
+    await render(<Inspiration />);
+    expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
+    expect(screen.getByText(/once your closet has 8 pieces/)).toBeOnTheScreen();
+    expect(screen.queryByText('Taken to heart')).toBeNull();
+    expect(screen.queryByText('Teach my stylist')).toBeNull();
+  });
+
+  test('ties the looks the brief has read to her style, and leaves the newer ones loose', async () => {
+    jest.mocked(getStyle).mockResolvedValue(brief);
+    jest
+      .mocked(listInspiration)
+      .mockResolvedValue([look(3, '2026-10-27T09:00:00.000Z'), look(1), look(2)]);
+    await render(<Inspiration />);
+    expect(await screen.findByText('High-low with a wink.')).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: 'New · 1' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Taken to heart' })).toBeOnTheScreen();
+    expect(screen.getByText('2 saved looks')).toBeOnTheScreen();
+  });
+
+  test('teaches the stylist the new looks, and says when it already learned today', async () => {
+    jest.mocked(getStyle).mockResolvedValue(brief);
+    jest.mocked(listInspiration).mockResolvedValue([look(3, '2026-10-27T09:00:00.000Z'), look(1)]);
+    jest.mocked(refreshStyle).mockRejectedValueOnce(new ApiError(409, 'style:wait'));
+    await render(<Inspiration />);
+    await fireEvent.press(await screen.findByText('Teach my stylist'));
+    expect(refreshStyle).toHaveBeenCalledWith('en');
+    expect(alert).toHaveBeenCalledWith(
+      'Your stylist has already learned today. Try again tomorrow.',
+    );
+
+    jest.mocked(refreshStyle).mockResolvedValueOnce({ ...brief, updating: true });
+    await fireEvent.press(screen.getByText('Teach my stylist'));
+    expect(await screen.findByText('Learning…')).toBeOnTheScreen();
   });
 
   test('saves several looks at once as inspiration', async () => {

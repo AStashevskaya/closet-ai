@@ -232,12 +232,19 @@
     "intro": "Save looks you like: screenshots from Instagram, Pinterest, shops. The app learns your taste from them and puts your outfits together bolder and closer to you.",
     "add": "Add looks",
     "saving": "Saving…",
-    "taste": "Saved looks teach the app your taste",
     "deleteTitle": "Delete this look?",
     "delete": "Delete",
-    "wantText": "A screenshot of a look: I'll find its pieces and show which ones already hang in your closet.",
     "wantTitle": "What of this look do you already own?",
-    "saved": "Your looks"
+    "briefNote": "Your style · updated {{date}}",
+    "briefNone": "Your stylist writes your style once your closet has 8 pieces, and learns from your saved looks.",
+    "fresh": "New · {{count}}",
+    "freshNote": "your stylist hasn't seen them yet",
+    "teach": "Teach my stylist",
+    "teaching": "Learning…",
+    "teachWait": "Your stylist has already learned today. Try again tomorrow.",
+    "learned": "Taken to heart",
+    "today": "today",
+    "yesterday": "yesterday"
   },
   "want": {
     "title": "Recreate the look",
