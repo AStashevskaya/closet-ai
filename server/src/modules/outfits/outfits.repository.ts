@@ -10,6 +10,7 @@ import type {
   WearWithRequest,
 } from "@closet-ai/shared";
 import { and, asc, count, countDistinct, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import type { ModelTokens } from "../../ai/stylist";
 import type { Db } from "../../db/client";
 import {
   catalogItems,
@@ -110,7 +111,7 @@ export interface OutfitsRepository {
     requestId: string,
     userId: string,
     looks: NewOutfit[],
-    costMicros: number,
+    cost: { micros: number; tokens?: ModelTokens },
     verdict?: BuyVerdict | null,
   ): Promise<void>;
   markFailed(requestId: string): Promise<void>;
@@ -251,7 +252,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return row ?? null;
     },
 
-    async saveOutfits(requestId, userId, looks, costMicros, verdict = null) {
+    async saveOutfits(requestId, userId, looks, cost, verdict = null) {
       await db.transaction(async (tx) => {
         for (const [position, look] of looks.entries()) {
           const [saved] = await tx
@@ -268,7 +269,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         }
         await tx
           .update(outfitRequests)
-          .set({ status: "done", costMicros, verdict })
+          .set({ status: "done", costMicros: cost.micros, tokens: cost.tokens ?? null, verdict })
           .where(eq(outfitRequests.id, requestId));
       });
     },

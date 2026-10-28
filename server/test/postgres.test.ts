@@ -519,9 +519,20 @@ describe.skipIf(!url)("on Postgres", () => {
           ],
         },
       ],
-      7_000,
+      { micros: 7_000, tokens: { input: 900, cacheWrite: 4_000, cacheRead: 0, output: 1_200 } },
       { call: "skip", reason: "You have one.", twinItemId: top },
     );
+    const [stored] = await db.db
+      .select({
+        costMicros: schema.outfitRequests.costMicros,
+        tokens: schema.outfitRequests.tokens,
+      })
+      .from(schema.outfitRequests)
+      .where(eq(schema.outfitRequests.id, requestId));
+    expect(stored).toEqual({
+      costMicros: 7_000,
+      tokens: { input: 900, cacheWrite: 4_000, cacheRead: 0, output: 1_200 },
+    });
     expect((await outfits.getRequest(requestId))!.verdict).toEqual({
       call: "skip",
       reason: "You have one.",
