@@ -89,6 +89,7 @@ export function Menu() {
   );
 
   async function pickLanguage(choice: Language | null) {
+    // Select reports only a change, so the same language never gets here.
     if (switching) return;
     const before = language;
     setChoice(choice);

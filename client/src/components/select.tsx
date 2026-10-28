@@ -1,15 +1,19 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, Keyframe } from 'react-native-reanimated';
+import Animated, { FadeIn, Keyframe, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
 import { durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-export type SelectOption<T> = { value: T; label: string };
+// Values are told apart by their text (the rows' keys), so they are plain ones.
+type Value = string | number | null;
 
-type Props<T> = {
+export type SelectOption<T extends Value> = { value: T; label: string };
+
+type Props<T extends Value> = {
   // What is being chosen ("Language"), on the row and over the list.
   label: string;
   value: T;
@@ -26,7 +30,10 @@ const sheetIn = new Keyframe({
 
 // A row with the current choice; a tap opens the options as a sheet from the bottom. Rows and
 // the check sit at start and end, so the layout mirrors itself in right-to-left languages.
-export function Select<T>({ label, value, options, onChange, disabled }: Props<T>) {
+// It closes at once, without an exit animation: the Modal would have to stay up until one ends.
+export function Select<T extends Value>({ label, value, options, onChange, disabled }: Props<T>) {
+  const { t } = useTranslation();
+  const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const current = options.find((option) => option.value === value)?.label ?? '';
@@ -62,17 +69,20 @@ export function Select<T>({ label, value, options, onChange, disabled }: Props<T
         statusBarTranslucent
         onRequestClose={() => setOpen(false)}
       >
-        <Animated.View entering={FadeIn.duration(durations.state)} style={StyleSheet.absoluteFill}>
+        <Animated.View
+          entering={reduceMotion ? undefined : FadeIn.duration(durations.state)}
+          style={StyleSheet.absoluteFill}
+        >
           <View style={styles.tint} />
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => setOpen(false)}
             accessibilityRole="button"
-            accessibilityLabel={label}
+            accessibilityLabel={t('common.close')}
           />
         </Animated.View>
         <Animated.View
-          entering={sheetIn}
+          entering={reduceMotion ? undefined : sheetIn}
           style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}
         >
           <Text style={styles.title} accessibilityRole="header">

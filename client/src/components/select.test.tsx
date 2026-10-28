@@ -37,6 +37,15 @@ describe('Select', () => {
     expect(screen.queryByRole('radio')).toBeNull();
   });
 
+  test('closes without a pick from outside the sheet', async () => {
+    const onChange = jest.fn();
+    await render(<Select label="Language" value="ru" options={options} onChange={onChange} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Language: Русский' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   test("doesn't open while disabled", async () => {
     await render(
       <Select label="Language" value="ru" options={options} onChange={jest.fn()} disabled />,
