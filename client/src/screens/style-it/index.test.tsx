@@ -90,6 +90,7 @@ const looks = (id: string): WearWithRequest => ({
       missing: null,
       pieces: [{ hero: true, item: skirt, catalogItem: null }],
       opinion: null,
+      reason: null,
       woreCount: 0,
     },
   ],

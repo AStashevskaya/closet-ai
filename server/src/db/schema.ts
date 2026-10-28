@@ -2,6 +2,7 @@ import {
   CATALOG_EVENTS,
   CURRENCIES,
   BODY_SHAPES,
+  DISLIKE_REASONS,
   ITEM_CATEGORIES,
   ITEM_COLORS,
   OUTFIT_REQUEST_STATUSES,
@@ -51,6 +52,7 @@ export const usageActionEnum = pgEnum("usage_action", SPEND_ACTIONS);
 export const currencyEnum = pgEnum("currency", CURRENCIES);
 export const bodyShapeEnum = pgEnum("body_shape", BODY_SHAPES);
 export const catalogEventEnum = pgEnum("catalog_event", CATALOG_EVENTS);
+export const dislikeReasonEnum = pgEnum("dislike_reason", DISLIKE_REASONS);
 
 // One row per uploaded photo. The worker turns the original (uploadKey) into the shrunk WebP
 // at key; photos never attached to an item are cleaned up after a day.
@@ -250,6 +252,8 @@ export const outfitReactions = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     reaction: outfitReactionEnum("reaction").notNull(),
+    // Why a dislike: null for other reactions, or when she didn't say.
+    reason: dislikeReasonEnum("reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("outfit_reactions_outfit_idx").on(table.outfitId)],

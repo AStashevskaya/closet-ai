@@ -268,6 +268,12 @@ export const OUTFIT_REACTIONS = ["like", "dislike", "none", "wore"] as const;
 export const outfitReaction = z.enum(OUTFIT_REACTIONS);
 export type OutfitReaction = z.infer<typeof outfitReaction>;
 
+// Why an outfit isn't hers, one tap after "Not mine" (decided 2026-10-28): optional, and read by
+// the brief, so the stylist learns what to avoid, and by us, to see what to fix in the prompt.
+export const DISLIKE_REASONS = ["style", "match", "weather", "occasion"] as const;
+export const dislikeReason = z.enum(DISLIKE_REASONS);
+export type DislikeReason = z.infer<typeof dislikeReason>;
+
 // A piece the stylist thinks the look lacks and the user doesn't own, in words a shop search
 // can use. Later partner catalog items are found by it.
 export const missingPiece = z.object({ category: itemCategory, description: z.string() });
@@ -291,6 +297,8 @@ export const outfit = z.object({
   missing: missingPiece.nullable(),
   pieces: z.array(outfitPiece),
   opinion: z.enum(["like", "dislike"]).nullable(),
+  // Why it isn't hers, when she said; null otherwise.
+  reason: dislikeReason.nullable(),
   woreCount: z.number().int(),
 });
 export type Outfit = z.infer<typeof outfit>;
@@ -379,7 +387,12 @@ export const styledEntry = z.object({
 export type StyledEntry = z.infer<typeof styledEntry>;
 export const styledList = z.array(styledEntry);
 
-export const outfitReactionInput = z.object({ reaction: outfitReaction });
+export const outfitReactionInput = z
+  .object({ reaction: outfitReaction, reason: dislikeReason.optional() })
+  .refine((input) => !input.reason || input.reaction === "dislike", {
+    message: "a reason goes with a dislike only",
+    path: ["reason"],
+  });
 
 // A saved look on the Inspiration tab. `url` is served by the API to its owner.
 export const inspiration = z.object({

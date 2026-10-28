@@ -935,6 +935,43 @@ describe("reactions", () => {
     });
     expect((await react(maya.cookie, "like")).statusCode).toBe(404);
   });
+
+  it("keep why an outfit isn't hers, until she changes her mind", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top");
+    const id = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>().id;
+    await s.runJobs();
+    const outfitId = (await view(s, anna.cookie, id)).outfits[0]!.id;
+    const react = (payload: object) =>
+      s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${outfitId}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload,
+      });
+
+    // "Not mine" first, the reason a tap later.
+    await react({ reaction: "dislike" });
+    expect((await view(s, anna.cookie, id)).outfits[0]).toMatchObject({
+      opinion: "dislike",
+      reason: null,
+    });
+    expect((await react({ reaction: "dislike", reason: "weather" })).statusCode).toBe(204);
+    expect((await view(s, anna.cookie, id)).outfits[0]).toMatchObject({
+      opinion: "dislike",
+      reason: "weather",
+    });
+    // A reason goes with a dislike only, and only one of the four.
+    expect((await react({ reaction: "like", reason: "style" })).statusCode).toBe(400);
+    expect((await react({ reaction: "dislike", reason: "ugly" })).statusCode).toBe(400);
+    await react({ reaction: "like" });
+    expect((await view(s, anna.cookie, id)).outfits[0]).toMatchObject({
+      opinion: "like",
+      reason: null,
+    });
+  });
 });
 
 // Eight items and a first brief, as in the style brief test.
@@ -949,6 +986,40 @@ async function withBrief(s: Setup) {
 }
 
 describe("style brief", () => {
+  it("reads why she rejected an outfit, in words", async () => {
+    const s = await setup();
+    const { anna, pieces } = await withBrief(s);
+    const id = (await ask(s, anna.cookie, pieces[1]!.id)).json<{ id: string }>().id;
+    await s.runJobs();
+    const [first, second] = (await view(s, anna.cookie, id)).outfits;
+    for (const [outfit, reason] of [
+      [first!, "match"],
+      [second!, undefined],
+    ] as const) {
+      await s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${outfit.id}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload: { reaction: "dislike", ...(reason && { reason }) },
+      });
+    }
+    await s.server.inject({
+      method: "POST",
+      url: "/api/style/refresh?lang=en",
+      headers: { cookie: anna.cookie },
+    });
+    s.clock.now = new Date(s.clock.now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    await s.server.inject({
+      method: "POST",
+      url: "/api/style/refresh?lang=en",
+      headers: { cookie: anna.cookie },
+    });
+    await s.runJobs();
+    expect(s.stub.briefCalls.at(-1)!.disliked).toEqual(
+      expect.arrayContaining([`${first!.caption} (the pieces don't go together)`, second!.caption]),
+    );
+  });
+
   it("is written in the background once the wardrobe is big enough, and used from then on", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

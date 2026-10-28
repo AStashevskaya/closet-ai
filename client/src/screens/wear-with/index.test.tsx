@@ -52,6 +52,7 @@ const done: WearWithRequest = {
         { hero: false, item: null, catalogItem: null },
       ],
       opinion: null,
+      reason: null,
       woreCount: 0,
     },
   ],

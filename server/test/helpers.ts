@@ -6,6 +6,7 @@ import type {
   ItemTags,
   LookItem,
   OutfitReaction,
+  DislikeReason,
   SpendAction,
   UserProfile,
 } from "@closet-ai/shared";
@@ -299,6 +300,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     outfitId: string;
     userId: string;
     reaction: OutfitReaction;
+    reason: DislikeReason | null;
     createdAt: Date;
   }[] = [];
   const briefs = new Map<string, StyleBrief>();
@@ -410,9 +412,9 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
           })),
       };
     },
-    react: async (outfitId, userId, reaction) => {
+    react: async (outfitId, userId, reaction, reason) => {
       if (!storedOutfits.some((o) => o.id === outfitId && o.userId === userId)) return false;
-      reactions.push({ outfitId, userId, reaction, createdAt: now() });
+      reactions.push({ outfitId, userId, reaction, reason: reason ?? null, createdAt: now() });
       return true;
     },
     recentlyUsed: async (userId, count) => {
@@ -436,8 +438,10 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         .slice(0, limit)
         .map((id) => {
           const o = storedOutfits.find((s) => s.id === id)!;
-          const { opinion, woreCount } = summarize(reactions.filter((r) => r.outfitId === id));
-          return { opinion, wore: woreCount > 0, description: o.caption };
+          const { opinion, reason, woreCount } = summarize(
+            reactions.filter((r) => r.outfitId === id),
+          );
+          return { opinion, reason, wore: woreCount > 0, description: o.caption };
         }),
     inspirationKeys: async (userId, limit) =>
       [...photoRows.values()]

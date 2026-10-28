@@ -564,8 +564,18 @@ describe.skipIf(!url)("on Postgres", () => {
     // A like and a "wore" on one outfit: one outfit reacted to.
     expect(await outfits.reactedOutfitCount(user!.id)).toBe(1);
     expect(await outfits.reactedOutfits(user!.id, 5)).toEqual([
-      { opinion: "like", wore: true, description: '"Tee and satin": bottom + top' },
+      { opinion: "like", reason: null, wore: true, description: '"Tee and satin": bottom + top' },
     ]);
+    // Changed her mind: not hers, the pieces don't go together; the reason round-trips.
+    await outfits.react(outfitId, user!.id, "dislike", "match");
+    expect((await outfits.view(requestId, user!.id, "en"))!.outfits[0]).toMatchObject({
+      opinion: "dislike",
+      reason: "match",
+    });
+    expect((await outfits.reactedOutfits(user!.id, 5))[0]).toMatchObject({
+      opinion: "dislike",
+      reason: "match",
+    });
 
     // A deleted item leaves the outfit, without that piece.
     await app.inject({ method: "DELETE", url: `/api/items/${top}`, headers: { cookie } });

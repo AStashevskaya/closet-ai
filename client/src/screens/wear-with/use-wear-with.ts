@@ -98,7 +98,8 @@ export function useWearWith(id: string | null) {
   async function react(outfit: Outfit, reaction: OutfitReaction) {
     if (state.status !== 'done') return;
     void Haptics.selectionAsync();
-    const was = state.outfits.find((o) => o.id === outfit.id)?.opinion ?? null;
+    const before = state.outfits.find((o) => o.id === outfit.id);
+    const was = { opinion: before?.opinion ?? null, reason: before?.reason ?? null };
     const apply = (change: (o: Outfit) => Outfit) =>
       update(id, (current) =>
         current.status === 'done'
@@ -111,15 +112,14 @@ export function useWearWith(id: string | null) {
     apply((o) =>
       reaction === 'wore'
         ? { ...o, woreCount: o.woreCount + 1 }
-        : { ...o, opinion: reaction === 'none' ? null : reaction },
+        : // A new opinion has no reason yet.
+          { ...o, opinion: reaction === 'none' ? null : reaction, reason: null },
     );
     try {
       await reactToOutfit(outfit.id, reaction);
     } catch {
       apply((o) =>
-        reaction === 'wore'
-          ? { ...o, woreCount: Math.max(0, o.woreCount - 1) }
-          : { ...o, opinion: was },
+        reaction === 'wore' ? { ...o, woreCount: Math.max(0, o.woreCount - 1) } : { ...o, ...was },
       );
     }
   }
