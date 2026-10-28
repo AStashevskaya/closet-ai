@@ -222,23 +222,20 @@ const jpegBlock = (image: Uint8Array): Anthropic.ImageBlockParam => ({
   source: { type: "base64", media_type: "image/jpeg", data: Buffer.from(image).toString("base64") },
 });
 
-function costOf(model: Model, usage: Anthropic.Usage, batch = false): number {
-  const { input, output } = PRICES[model];
-  const tokens =
-    (usage.input_tokens +
-      (usage.cache_creation_input_tokens ?? 0) * 1.25 +
-      (usage.cache_read_input_tokens ?? 0) * 0.1) *
-      input +
-    usage.output_tokens * output;
-  return Math.round(tokens * (batch ? 0.5 : 1));
-}
-
 const tokensOf = (usage: Anthropic.Usage): ModelTokens => ({
   input: usage.input_tokens,
   cacheWrite: usage.cache_creation_input_tokens ?? 0,
   cacheRead: usage.cache_read_input_tokens ?? 0,
   output: usage.output_tokens,
 });
+
+function costOf(model: Model, tokens: ModelTokens, batch = false): number {
+  const { input, output } = PRICES[model];
+  const micros =
+    (tokens.input + tokens.cacheWrite * 1.25 + tokens.cacheRead * 0.1) * input +
+    tokens.output * output;
+  return Math.round(micros * (batch ? 0.5 : 1));
+}
 
 export function createClaudeStylist(
   apiKey: string,
@@ -283,12 +280,13 @@ export function createClaudeStylist(
       if (!response.parsed_output) {
         throw new Error(`no outfits in the response (stop reason ${response.stop_reason})`);
       }
+      const tokens = tokensOf(response.usage);
       return {
         looks: response.parsed_output.looks,
         // Only asked for an item she may buy; dropped if the model answers one anyway.
         verdict: input.buying ? response.parsed_output.verdict : null,
-        costMicros: costOf(composingModel, response.usage),
-        tokens: tokensOf(response.usage),
+        costMicros: costOf(composingModel, tokens),
+        tokens,
       };
     },
 
@@ -351,14 +349,14 @@ export function createClaudeStylist(
           return {
             status: "failed",
             reason: `not the brief's shape (${message.stop_reason})`,
-            costMicros: costOf(BRIEF_MODEL, message.usage, true),
+            costMicros: costOf(BRIEF_MODEL, tokensOf(message.usage), true),
           };
         }
         return {
           status: "done",
           brief: answer.brief,
           summary: answer.summary,
-          costMicros: costOf(BRIEF_MODEL, message.usage, true),
+          costMicros: costOf(BRIEF_MODEL, tokensOf(message.usage), true),
         };
       }
       return { status: "failed", reason: "no result" };
