@@ -28,12 +28,22 @@ type Props = {
   onAskAgain?: () => void;
   // A new request is on its way.
   asking?: boolean;
+  // In Style it's diary: the thread comes from the stop above, and runs on to the stop below.
+  joined?: boolean;
+  continues?: boolean;
 };
 
 // A piece's outfits growing on a thread ("The Thread", 2026-10-26): the piece on top with a knot,
 // each outfit full width hanging off the thread. On the Style it tab and on its own screen for a
 // closet piece opened from the item screen.
-export function StyleThread({ chosen, headers, onAskAgain, asking = false }: Props) {
+export function StyleThread({
+  chosen,
+  headers,
+  onAskAgain,
+  asking = false,
+  joined = false,
+  continues = false,
+}: Props) {
   const { t } = useTranslation();
   const { state: looks, react, retry } = useWearWith(chosen.requestId);
   // A heart around the piece once one of its outfits is liked (owner's call, 2026-10-27).
@@ -42,7 +52,7 @@ export function StyleThread({ chosen, headers, onAskAgain, asking = false }: Pro
   return (
     <View style={styles.thread}>
       {/* Keyed by the request, so a new piece draws its thread afresh. */}
-      <ThreadRow key={`root-${chosen.requestId}`} kind="root">
+      <ThreadRow key={`root-${chosen.requestId}`} kind="root" joined={joined}>
         <View style={styles.chosen}>
           <View style={styles.chosenPiece}>
             <HandDrawn
@@ -64,7 +74,7 @@ export function StyleThread({ chosen, headers, onAskAgain, asking = false }: Pro
         </View>
       </ThreadRow>
       {looks.status === 'pending' && (
-        <ThreadRow key={`wait-${chosen.requestId}`} kind="branch" last>
+        <ThreadRow key={`wait-${chosen.requestId}`} kind="branch" last={!continues}>
           <View style={styles.waiting} accessibilityLiveRegion="polite">
             <HangerLoader size="small" />
             <Text style={maison.body}>{t('wearWith.composing')}</Text>
@@ -72,7 +82,7 @@ export function StyleThread({ chosen, headers, onAskAgain, asking = false }: Pro
         </ThreadRow>
       )}
       {looks.status === 'failed' && (
-        <ThreadRow key={`failed-${chosen.requestId}`} kind="branch" last>
+        <ThreadRow key={`failed-${chosen.requestId}`} kind="branch" last={!continues}>
           <View style={styles.waiting}>
             <Text style={maison.body}>{t('wearWith.failed')}</Text>
             {/* A closet piece is asked about afresh; one styled before (maybe from a photo
@@ -87,7 +97,7 @@ export function StyleThread({ chosen, headers, onAskAgain, asking = false }: Pro
         </ThreadRow>
       )}
       {looks.status === 'done' && looks.outfits.length === 0 && (
-        <ThreadRow key={`empty-${chosen.requestId}`} kind="branch" last>
+        <ThreadRow key={`empty-${chosen.requestId}`} kind="branch" last={!continues}>
           <Text style={[maison.body, styles.waiting]}>{t('wearWith.empty')}</Text>
         </ThreadRow>
       )}
@@ -96,7 +106,8 @@ export function StyleThread({ chosen, headers, onAskAgain, asking = false }: Pro
           <ThreadRow
             key={outfit.id}
             kind="branch"
-            last={index === looks.outfits.length - 1}
+            last={!continues && index === looks.outfits.length - 1}
+            loose={outfit.opinion === 'dislike'}
             delay={index * STAGGER_STEP * 3}
           >
             <Animated.View entering={rise.delay(index * STAGGER_STEP * 3)} style={styles.outfit}>

@@ -28,6 +28,12 @@ type Props = {
   kind: 'root' | 'branch';
   // The last row: the thread ends at its branch instead of running on.
   last?: boolean;
+  // A branch to something that isn't hers (an outfit she said no to): dashed, as on Inspiration.
+  loose?: boolean;
+  // A root below another row (a stop in Style it's diary): the thread comes down into its knot.
+  joined?: boolean;
+  // A root whose outfits are folded away: an open knot instead of the bead.
+  hollow?: boolean;
   delay?: number;
   children: ReactNode;
 };
@@ -36,12 +42,21 @@ type Props = {
 // below, so pieces don't shrink): the thread runs down the start edge and branches into each outfit.
 // The line draws itself in, row after row; it's decoration (the order says the same), so screen
 // readers skip it. Mirrored in RTL, where the thread runs down the right edge.
-export function ThreadRow({ kind, last = false, delay = 0, children }: Props) {
+export function ThreadRow({
+  kind,
+  last = false,
+  loose = false,
+  joined = false,
+  hollow = false,
+  delay = 0,
+  children,
+}: Props) {
   const reduceMotion = useReducedMotion();
   const [height, setHeight] = useState(0);
   const progress = useSharedValue(reduceMotion ? 1 : 0);
 
-  const { d, length } = threadPath(kind, last, height);
+  const { d, length } = threadPath(kind, last, height, joined);
+  const branch = loose ? branchPath(height, last) : null;
 
   // Drawn once, when the row first has a height (a row growing later keeps its drawn line).
   const measured = height > 0;
@@ -75,7 +90,7 @@ export function ThreadRow({ kind, last = false, delay = 0, children }: Props) {
         >
           <Svg width={THREAD_INDENT} height={height}>
             <AnimatedPath
-              d={d}
+              d={branch ? branch.down : d}
               animatedProps={line}
               fill="none"
               stroke={colors.text}
@@ -83,12 +98,23 @@ export function ThreadRow({ kind, last = false, delay = 0, children }: Props) {
               strokeLinecap="round"
               strokeDasharray={[length, length]}
             />
+            {branch && (
+              <AnimatedPath
+                d={branch.out}
+                animatedProps={line}
+                fill="none"
+                stroke={colors.textMuted}
+                strokeWidth={1.2}
+                strokeLinecap="round"
+                strokeDasharray={[3, 5]}
+              />
+            )}
             {kind === 'root' && (
               <Circle
                 cx={THREAD_X}
                 cy={KNOT_Y}
                 r={5}
-                fill={colors.bead}
+                fill={hollow ? colors.background : colors.bead}
                 stroke={colors.text}
                 strokeWidth={1}
               />
@@ -102,13 +128,19 @@ export function ThreadRow({ kind, last = false, delay = 0, children }: Props) {
 }
 
 // The thread in a row of this height, and its length (for drawing it in by its dash).
-export function threadPath(kind: 'root' | 'branch', last: boolean, height: number) {
+export function threadPath(kind: 'root' | 'branch', last: boolean, height: number, joined = false) {
   const x = THREAD_X;
   const reach = THREAD_INDENT - 6;
   if (kind === 'root') {
-    // From the piece's edge into the knot, then down the whole row.
+    // From the piece's edge into the knot, then down the whole row (or ending at the knot, if
+    // last); joined, the thread from above runs into the knot too.
     const tie = reach - x;
-    return { d: `M${reach} ${KNOT_Y}H${x}V${height}`, length: tie + (height - KNOT_Y) + 2 };
+    const end = last ? KNOT_Y : height;
+    const above = joined ? `M${x} 0V${KNOT_Y}` : '';
+    return {
+      d: `${above}M${reach} ${KNOT_Y}H${x}V${end}`,
+      length: tie + (end - KNOT_Y) + (joined ? KNOT_Y : 0) + 2,
+    };
   }
   // Down to the branch, curving into the content; on past it unless this is the last row.
   const bend = `M${x} 0V${BRANCH_Y - 14}C${x} ${BRANCH_Y} ${x + 4} ${BRANCH_Y} ${reach} ${BRANCH_Y}`;
@@ -117,6 +149,16 @@ export function threadPath(kind: 'root' | 'branch', last: boolean, height: numbe
   return {
     d: `${bend}M${x} ${BRANCH_Y - 14}V${height}`,
     length: Math.ceil(bendLength + height) + 2,
+  };
+}
+
+// A loose branch: the thread runs on down (to the bend only, if last), the bend out dashed.
+function branchPath(height: number, last: boolean) {
+  const x = THREAD_X;
+  const reach = THREAD_INDENT - 6;
+  return {
+    down: `M${x} 0V${last ? BRANCH_Y - 14 : height}`,
+    out: `M${x} ${BRANCH_Y - 14}C${x} ${BRANCH_Y} ${x + 4} ${BRANCH_Y} ${reach} ${BRANCH_Y}`,
   };
 }
 

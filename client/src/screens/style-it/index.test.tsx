@@ -106,14 +106,62 @@ beforeEach(async () => {
   jest.mocked(reactToOutfit).mockResolvedValue();
 });
 
+// The nth read of request `id` finds it failed; every other read, its looks.
+function failOnRead(id: string, nth: number) {
+  let reads = 0;
+  jest.mocked(getWearWith).mockImplementation(async (asked) => {
+    if (asked === id && ++reads === nth) return { ...looks(id), status: 'failed', outfits: [] };
+    return looks(asked);
+  });
+}
+
+// "From my closet" opens the sheet with the whole closet; the skirt is picked from it.
+async function pickSkirt() {
+  await fireEvent.press(await screen.findByRole('button', { name: 'From my closet' }));
+  await fireEvent.press(screen.getByLabelText('What do I wear this with? Satin midi skirt'));
+}
+
 describe('<StyleIt />', () => {
+  test('keeps a diary: every piece styled is a stop, its looks folded small', async () => {
+    await render(<StyleIt />);
+    expect(await screen.findByLabelText('Outfits with Leather jacket')).toBeOnTheScreen();
+    // The newest stops read their looks once, for the folded previews.
+    await waitFor(() => expect(getWearWith).toHaveBeenCalledWith(styled.id, 'en'));
+    expect(screen.getByText(/October 21/)).toBeOnTheScreen();
+    expect(
+      await screen.findByLabelText('Сатин после спорта', { includeHiddenElements: true }),
+    ).toBeTruthy();
+  });
+
+  test("folds a look that isn't hers, asks why in a tap, and brings it back", async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    await render(<StyleIt />);
+    await pickSkirt();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+    const id = looks('req-1').outfits[0]!.id;
+    expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike');
+    expect(screen.queryByText('The tee makes the satin offhand.')).toBeNull();
+    expect(screen.getByText('Why not? One tap teaches your stylist.')).toBeOnTheScreen();
+
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Wrong for the weather, look 1 of 1' }),
+    );
+    expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike', 'weather');
+    expect(
+      screen.getByRole('button', { name: 'Wrong for the weather, look 1 of 1' }),
+    ).toBeSelected();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
+    expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'none');
+    expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+  });
+
   test('styles a closet piece in the mood picked, its outfits growing right here', async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     await render(<StyleIt />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'From my closet' }));
     await fireEvent.press(screen.getByText('Evening'));
-    await fireEvent.press(
-      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
-    );
+    await fireEvent.press(screen.getByLabelText('What do I wear this with? Satin midi skirt'));
 
     expect(askWearWith).toHaveBeenCalledWith({ itemId: skirt.id, mood: 'evening' }, 'en');
     expect(
@@ -131,20 +179,16 @@ describe('<StyleIt />', () => {
 
   test('says so when the outfits could not be put together, and asks again', async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
-    jest
-      .mocked(getWearWith)
-      .mockResolvedValueOnce({ ...looks('req-1'), status: 'failed', outfits: [] });
+    failOnRead('req-1', 1);
     await render(<StyleIt />);
-    await fireEvent.press(
-      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
-    );
+    await pickSkirt();
     await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(askWearWith).toHaveBeenCalledTimes(2));
   });
 
   test('opens a piece from a photo, and outfits asked for before', async () => {
     await render(<StyleIt />);
-    await fireEvent.press(screen.getByRole('button', { name: 'Choose a photo' }));
+    await fireEvent.press(await screen.findByRole('button', { name: '+ From a photo' }));
     expect(mockPush).toHaveBeenCalledWith('/wear-with-pick');
 
     await fireEvent.press(await screen.findByLabelText('Outfits with Leather jacket'));
@@ -157,9 +201,7 @@ describe('<StyleIt />', () => {
   test('draws the heart around the piece only once one of its outfits is liked', async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     await render(<StyleIt />);
-    await fireEvent.press(
-      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
-    );
+    await pickSkirt();
     await screen.findByText('The tee makes the satin offhand.');
     expect(screen.queryByTestId(`drawn-${seedFrom('req-1')}`)).toBeNull();
 
@@ -176,9 +218,7 @@ describe('<StyleIt />', () => {
       }),
     );
     await render(<StyleIt />);
-    await fireEvent.press(
-      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
-    );
+    await pickSkirt();
     // Not awaited: the press waits on the reaction, which hangs until `fail`.
     void fireEvent.press(await screen.findByRole('button', { name: 'Like, look 1 of 1' }));
     await waitFor(() => expect(reactToOutfit).toHaveBeenCalled());
@@ -193,9 +233,8 @@ describe('<StyleIt />', () => {
   });
 
   test('polls an entry styled before again when it timed out', async () => {
-    jest
-      .mocked(getWearWith)
-      .mockResolvedValueOnce({ ...looks(styled.id), status: 'failed', outfits: [] });
+    // Its folded preview reads it first; opened, the second read finds it timed out.
+    failOnRead(styled.id, 2);
     await render(<StyleIt />);
     await fireEvent.press(await screen.findByLabelText('Outfits with Leather jacket'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
@@ -206,9 +245,7 @@ describe('<StyleIt />', () => {
   test('says when the outfits are off', async () => {
     jest.mocked(askWearWith).mockRejectedValue(new ApiError(503, 'outfits are off'));
     await render(<StyleIt />);
-    await fireEvent.press(
-      await screen.findByLabelText('What do I wear this with? Satin midi skirt'),
-    );
+    await pickSkirt();
     await waitFor(() => expect(alert).toHaveBeenCalledWith("Looks aren't available right now."));
   });
 

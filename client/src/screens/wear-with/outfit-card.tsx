@@ -1,4 +1,9 @@
-import type { Outfit, OutfitReaction } from '@closet-ai/shared';
+import {
+  DISLIKE_REASONS,
+  type DislikeReason,
+  type Outfit,
+  type OutfitReaction,
+} from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -14,13 +19,54 @@ type Props = {
   index: number;
   total: number;
   headers: Record<string, string> | undefined;
-  onReact: (outfit: Outfit, reaction: OutfitReaction) => void;
+  onReact: (outfit: Outfit, reaction: OutfitReaction, reason?: DislikeReason) => void;
 };
 
 // One composed outfit: the flat lay (with a heart drawn around it once liked), the occasion, the
 // stylist's idea, the pieces, partner pieces, what's missing, and the reactions.
 // Shared by the outfits screen and Style it.
-export function OutfitCard({ outfit, index, total, headers, onReact }: Props) {
+export function OutfitCard(props: Props) {
+  return props.outfit.opinion === 'dislike' ? <Rejected {...props} /> : <Look {...props} />;
+}
+
+// "Not mine" (decided 2026-10-28): the look folds into a strip, asks why in one tap (optional,
+// read by the brief), and can be brought back.
+function Rejected({ outfit, index, total, onReact }: Props) {
+  const { t } = useTranslation();
+  const about = (label: string) => t('wearWith.reactTo', { reaction: label, n: index + 1, total });
+  return (
+    <View style={styles.rejected}>
+      <Text style={styles.number}>
+        {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')} ·{' '}
+        {t('wearWith.dislike')}
+      </Text>
+      <Text style={styles.rejectedCaption}>{outfit.caption}</Text>
+      {!outfit.reason && <Text style={styles.pieces}>{t('wearWith.why')}</Text>}
+      <View style={styles.reactions} accessibilityRole="radiogroup">
+        {DISLIKE_REASONS.map((reason) => (
+          <Reaction
+            key={reason}
+            label={t(`wearWith.reasons.${reason}`)}
+            a11yLabel={about(t(`wearWith.reasons.${reason}`))}
+            on={outfit.reason === reason}
+            onPress={() => onReact(outfit, 'dislike', reason)}
+          />
+        ))}
+      </View>
+      <PressableScale
+        style={styles.undo}
+        onPress={() => onReact(outfit, 'none')}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={about(t('wearWith.undo'))}
+      >
+        <Text style={styles.undoText}>{t('wearWith.undo')}</Text>
+      </PressableScale>
+    </View>
+  );
+}
+
+function Look({ outfit, index, total, headers, onReact }: Props) {
   const { t } = useTranslation();
   const pieces = outfit.pieces.flatMap((p) => (p.item ? [p.item] : []));
   // Labelled: partner shoes or a bag where the closet had none for the look, and now and
@@ -64,7 +110,7 @@ export function OutfitCard({ outfit, index, total, headers, onReact }: Props) {
           label={t('wearWith.dislike')}
           a11yLabel={about(t('wearWith.dislike'))}
           on={outfit.opinion === 'dislike'}
-          onPress={() => onReact(outfit, outfit.opinion === 'dislike' ? 'none' : 'dislike')}
+          onPress={() => onReact(outfit, 'dislike')}
         />
         <Reaction
           label={
@@ -106,6 +152,28 @@ function Reaction({ label, a11yLabel, on, onPress }: ReactionProps) {
 const styles = StyleSheet.create({
   card: {
     gap: 8,
+  },
+  rejected: {
+    gap: 8,
+    paddingBottom: 6,
+  },
+  rejectedCaption: {
+    fontFamily: fonts.hand,
+    fontSize: 22,
+    lineHeight: 28,
+    color: colors.textSecondary,
+    textAlign: 'left',
+  },
+  undo: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  undoText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.text,
+    textDecorationLine: 'underline',
   },
   number: {
     fontFamily: fonts.body,

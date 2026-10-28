@@ -2,7 +2,9 @@
   "common": {
     "close": "Close",
     "loading": "Loading",
-    "offline": "No connection to the server. Check the internet and try again."
+    "offline": "No connection to the server. Check the internet and try again.",
+    "today": "today",
+    "yesterday": "yesterday"
   },
   "crop": {
     "button": "Crop photo",
@@ -286,7 +288,15 @@
     },
     "ready_one": "One look is ready.",
     "ready_other": "{{count}} looks are ready.",
-    "reactTo": "{{reaction}}, look {{n}} of {{total}}"
+    "reactTo": "{{reaction}}, look {{n}} of {{total}}",
+    "why": "Why not? One tap teaches your stylist.",
+    "undo": "Bring it back",
+    "reasons": {
+      "style": "Not my style",
+      "match": "Doesn't go together",
+      "weather": "Wrong for the weather",
+      "occasion": "Not for my plans"
+    }
   },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",
@@ -301,18 +311,15 @@
   "styleIt": {
     "title": "Style it",
     "subtitle": "What to wear it with",
-    "photoEyebrow": "From a photo",
-    "photoTitle": "Seen a piece you love?",
-    "photoText": "A screenshot from a shop or Instagram: I'll put outfits together with it from your closet.",
-    "photoButton": "Choose a photo",
     "closet": "From your closet",
     "closetHint": "Tap a piece and I'll build three outfits around it",
     "emptyCloset": "Add a few pieces to your closet and I'll start styling them.",
     "addFirst": "Add an item",
-    "history": "Already styled",
     "historyEmpty": "Outfits you ask for are kept here.",
     "open": "Outfits with {{name}}",
-    "styling": "Styling {{name}}…"
+    "styling": "Styling {{name}}…",
+    "fromCloset": "From my closet",
+    "fromPhoto": "+ From a photo"
   },
   "deleteAccount": {
     "title": "Delete account",

@@ -16,6 +16,7 @@ import {
   uploadedPhoto,
   usage,
   type Usage,
+  type DislikeReason,
   type OutfitReaction,
   wearWithRequest,
   type WearWithRequest,
@@ -198,11 +199,16 @@ export function getCatalogItem(id: string, lang: AppLanguage): Promise<CatalogIt
   return request(`/api/catalog/${id}?lang=${lang}`, catalogItem);
 }
 
-export async function reactToOutfit(id: string, reaction: OutfitReaction): Promise<void> {
+// A dislike can say why: one of DISLIKE_REASONS, sent a tap after "Not mine".
+export async function reactToOutfit(
+  id: string,
+  reaction: OutfitReaction,
+  reason?: DislikeReason,
+): Promise<void> {
   await send(`/api/outfits/${id}/reactions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ reaction }),
+    body: JSON.stringify(reason ? { reaction, reason } : { reaction }),
   });
 }
 

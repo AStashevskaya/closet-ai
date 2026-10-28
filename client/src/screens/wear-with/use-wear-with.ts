@@ -1,4 +1,4 @@
-import type { Outfit, OutfitReaction, WearWithRequest } from '@closet-ai/shared';
+import type { DislikeReason, Outfit, OutfitReaction, WearWithRequest } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -95,7 +95,7 @@ export function useWearWith(id: string | null) {
 
   // Shown at once; if the server doesn't take it, it goes back. Built from the current outfits,
   // so two quick taps count twice and reactions to other outfits since then stay.
-  async function react(outfit: Outfit, reaction: OutfitReaction) {
+  async function react(outfit: Outfit, reaction: OutfitReaction, reason?: DislikeReason) {
     if (state.status !== 'done') return;
     void Haptics.selectionAsync();
     const before = state.outfits.find((o) => o.id === outfit.id);
@@ -112,11 +112,13 @@ export function useWearWith(id: string | null) {
     apply((o) =>
       reaction === 'wore'
         ? { ...o, woreCount: o.woreCount + 1 }
-        : // A new opinion has no reason yet.
-          { ...o, opinion: reaction === 'none' ? null : reaction, reason: null },
+        : // A new opinion has no reason until she gives one.
+          { ...o, opinion: reaction === 'none' ? null : reaction, reason: reason ?? null },
     );
     try {
-      await reactToOutfit(outfit.id, reaction);
+      await (reason
+        ? reactToOutfit(outfit.id, reaction, reason)
+        : reactToOutfit(outfit.id, reaction));
     } catch {
       apply((o) =>
         reaction === 'wore' ? { ...o, woreCount: Math.max(0, o.woreCount - 1) } : { ...o, ...was },
