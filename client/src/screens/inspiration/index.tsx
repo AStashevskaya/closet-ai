@@ -31,6 +31,10 @@ import { colors, fonts } from '@/theme';
 
 import { Garland, type GarlandLook, type Point } from './garland';
 
+// The learned garland shows this many at first: every look is a picture and a drawn heart, and
+// the screen isn't a list that recycles them. The rest are a tap away.
+const LEARNED_SHOWN = 24;
+
 // Looks picked at once from the gallery, and saved a few at a time.
 const MAX_PICKED = 20;
 const PARALLEL_UPLOADS = 3;
@@ -60,6 +64,7 @@ export function Inspiration() {
   const [message, setMessage] = useState<string | null>(null);
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [teaching, setTeaching] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   // Where things are in the threaded block, for drawing the thread through them.
   const [width, setWidth] = useState(0);
@@ -105,11 +110,12 @@ export function Inspiration() {
       .filter((look) => !writtenAt || look.createdAt > writtenAt)
       .map((look): GarlandLook => ({ kind: 'saved', ...look })),
   ];
-  const learned: GarlandLook[] = writtenAt
+  const allLearned: GarlandLook[] = writtenAt
     ? (looks ?? [])
         .filter((look) => look.createdAt <= writtenAt)
         .map((look): GarlandLook => ({ kind: 'saved', ...look }))
     : [];
+  const learned = showAll ? allLearned : allLearned.slice(0, LEARNED_SHOWN);
   const updating = teaching || (style?.updating ?? false);
 
   async function add() {
@@ -139,14 +145,16 @@ export function Inspiration() {
             setMessage(limitText(t, i18n.language, code));
           } else if (__DEV__) console.warn('Saving a look failed', cause);
         }
-        setSaving((current) => current.filter((uri) => uri !== asset.uri));
       }
     };
     await Promise.all(Array.from({ length: Math.min(PARALLEL_UPLOADS, assets.length) }, worker));
-    setSaving([]);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // The server makes the WebP in the background: a moment later the looks are listed.
-    setTimeout(() => void load(), 1500);
+    // The server makes the WebP in the background: a moment later the looks are listed. The
+    // previews stay until then, so the garland doesn't empty and fill again.
+    setTimeout(async () => {
+      await load();
+      setSaving([]);
+    }, 1500);
   }
 
   async function teach() {
@@ -196,10 +204,14 @@ export function Inspiration() {
     [],
   );
 
-  // Drawn once everything it runs through has its place, so it draws in once, whole.
+  // Drawn once everything it runs through first has its place, so it draws in once, whole; after
+  // that it stays and follows (a look deleted, taught or added doesn't draw it again).
   const placed =
     (fresh.length === 0 || (freshAt !== null && freshTies.length === fresh.length)) &&
     (learned.length === 0 || (learnedAt !== null && learnedTies.length === learned.length));
+  const [everPlaced, setEverPlaced] = useState(false);
+  // Derived during render rather than in an effect: React re-renders at once with the new value.
+  if (placed && !everPlaced) setEverPlaced(true);
   const thread = threadGeometry({
     width,
     brief,
@@ -249,7 +261,7 @@ export function Inspiration() {
       </Animated.View>
 
       <View style={styles.story} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-        {thread && placed && <Thread {...thread} reduceMotion={reduceMotion} />}
+        {thread && everPlaced && <Thread {...thread} reduceMotion={reduceMotion} />}
 
         <Animated.View
           entering={rise.delay(STAGGER_STEP * 2)}
@@ -321,7 +333,7 @@ export function Inspiration() {
               <>
                 <Section
                   title={t('inspiration.learned')}
-                  note={t('style.looks', { count: learned.length })}
+                  note={t('style.looks', { count: allLearned.length })}
                   delay={STAGGER_STEP * 5}
                 />
                 <View onLayout={(event) => setLearnedAt(event.nativeEvent.layout.y)}>
@@ -334,6 +346,15 @@ export function Inspiration() {
                     onLongPress={confirmDelete}
                   />
                 </View>
+                {learned.length < allLearned.length && (
+                  <View style={[maison.gutter, styles.more]}>
+                    <Button
+                      kind="outline"
+                      label={t('inspiration.showAll', { count: allLearned.length })}
+                      onPress={() => setShowAll(true)}
+                    />
+                  </View>
+                )}
               </>
             )}
           </>
@@ -570,5 +591,8 @@ const styles = StyleSheet.create({
   },
   centered: {
     textAlign: 'center',
+  },
+  more: {
+    marginTop: 40,
   },
 });

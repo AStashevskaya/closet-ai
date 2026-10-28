@@ -90,6 +90,14 @@ describe('<Inspiration />', () => {
     expect(screen.getByText('2 saved looks')).toBeOnTheScreen();
   });
 
+  test('shows the first 24 learned looks, and the rest on a tap', async () => {
+    jest.mocked(getStyle).mockResolvedValue(brief);
+    jest.mocked(listInspiration).mockResolvedValue(Array.from({ length: 26 }, (_, n) => look(n)));
+    await render(<Inspiration />);
+    await fireEvent.press(await screen.findByText('Show all 26'));
+    expect(screen.getAllByLabelText(/^Saved look/)).toHaveLength(26);
+  });
+
   test('teaches the stylist the new looks, and says when it already learned today', async () => {
     jest.mocked(getStyle).mockResolvedValue(brief);
     jest.mocked(listInspiration).mockResolvedValue([look(3, '2026-10-27T09:00:00.000Z'), look(1)]);

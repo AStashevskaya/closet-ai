@@ -131,12 +131,16 @@ function SavedLook({
         disabled={look.kind === 'pending'}
         accessibilityRole="image"
         accessibilityLabel={
-          look.kind === 'saved' ? dateOf(look.createdAt, t, i18n.language) : t('inspiration.saving')
+          look.kind === 'saved'
+            ? t('inspiration.lookLabel', { date: dateOf(look.createdAt, t, i18n.language) })
+            : t('inspiration.saving')
         }
         accessibilityActions={
           look.kind === 'saved' ? [{ name: 'delete', label: t('inspiration.delete') }] : undefined
         }
-        onAccessibilityAction={() => onLongPress(look.key)}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'delete') onLongPress(look.key);
+        }}
       >
         {picture}
       </PressableScale>
@@ -146,7 +150,12 @@ function SavedLook({
           <HandDrawn shape="heart" drawn={ready} seed={seedFrom(look.key)} fill delay={knotDelay} />
         </View>
       )}
-      <Text style={[styles.date, index % 2 === 1 && styles.dateEnd]}>
+      {/* Read with the picture's label, not again on its own. */}
+      <Text
+        style={[styles.date, index % 2 === 1 && styles.dateEnd]}
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      >
         {look.kind === 'saved' ? dateOf(look.createdAt, t, i18n.language) : t('inspiration.saving')}
       </Text>
     </>

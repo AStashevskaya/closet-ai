@@ -246,7 +246,9 @@
     "teachWait": "הסטייליסטית כבר למדה היום. נסו שוב מחר.",
     "learned": "נלקחו ללב",
     "today": "היום",
-    "yesterday": "אתמול"
+    "yesterday": "אתמול",
+    "lookLabel": "לוק שמור, {{date}}",
+    "showAll": "להציג את כל ה־{{count}}"
   },
   "want": {
     "title": "ליצור את הלוק מחדש",
