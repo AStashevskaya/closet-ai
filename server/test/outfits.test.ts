@@ -966,6 +966,9 @@ describe("reactions", () => {
     // A reason goes with a dislike only, and only one of the four.
     expect((await react({ reaction: "like", reason: "style" })).statusCode).toBe(400);
     expect((await react({ reaction: "dislike", reason: "ugly" })).statusCode).toBe(400);
+    // The latest row wins: "Not mine" again without a reason clears the old one.
+    await react({ reaction: "dislike" });
+    expect((await view(s, anna.cookie, id)).outfits[0]).toMatchObject({ reason: null });
     await react({ reaction: "like" });
     expect((await view(s, anna.cookie, id)).outfits[0]).toMatchObject({
       opinion: "like",

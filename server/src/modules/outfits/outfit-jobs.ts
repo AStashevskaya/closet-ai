@@ -416,6 +416,7 @@ const REASON_WORDS: Record<DislikeReason, string> = {
   weather: "wrong for the weather",
   occasion: "wrong for her occasions",
 };
+
 // Job "brief": starts a new brief through the Batch API: the first one, one she asked for, or
 // the monthly one when something changed.
 export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
