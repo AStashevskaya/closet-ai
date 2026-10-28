@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { Keyframe } from 'react-native-reanimated';
+import Animated, { Keyframe, ReduceMotion } from 'react-native-reanimated';
 
 import { rise, STAGGER_STEP, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -9,7 +9,9 @@ import { colors, fonts } from '@/theme';
 const drawDown = new Keyframe({
   0: { transform: [{ scaleY: 0 }] },
   100: { transform: [{ scaleY: 1 }], easing: EASE_OUT },
-}).duration(2000);
+})
+  .duration(2000)
+  .reduceMotion(ReduceMotion.System);
 
 // "Your thread" (The Thread, 2026-10-26): a vertical line with stops, the first one a bead.
 // The line and the dots sit at the start, so the thread runs down the right side in Hebrew.

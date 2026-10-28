@@ -3,7 +3,7 @@ import { Linking } from 'react-native';
 
 import i18n from '@/i18n';
 
-import { getStyle } from '@/lib/api';
+import { getStyle, listInspiration } from '@/lib/api';
 import { setLanguage } from '@/lib/language';
 
 import { Menu } from '.';
@@ -175,6 +175,15 @@ describe('<Menu />', () => {
         await screen.findByRole('button', { name: 'Language: As on my phone' }),
       ).toBeOnTheScreen();
     });
+  });
+
+  test('keeps the rest of her thread when one list fails', async () => {
+    jest.mocked(listInspiration).mockRejectedValueOnce(new Error('offline'));
+    await render(<Menu />);
+    expect(await screen.findByText('Pink boots')).toBeOnTheScreen();
+    expect(screen.getByText('White tank')).toBeOnTheScreen();
+    // The counts need all three lists.
+    expect(screen.queryByText('Pieces · Looks saved · Styled')).toBeNull();
   });
 
   test('shows her style in a few sentences under her name', async () => {

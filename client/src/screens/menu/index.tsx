@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -11,9 +11,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import Animated from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { maison } from '@/components/maison';
 import { useTabBarClearance } from '@/components/tab-bar';
@@ -45,13 +44,18 @@ import { ProfileThread, Stop } from './thread';
 // GET /api/wear-with returns the newest 30: past that the count reads "30+".
 const STYLED_SHOWN = 30;
 
-// What the thread's stops tell: counts, the last piece styled and the first one added.
-type Story = {
-  pieces: number;
-  saved: number;
-  styled: StyledEntry[];
-  first: Item | null;
-};
+// The thread's lists change only when she adds or styles something, so a quick return to the tab
+// doesn't fetch them again.
+const STORY_FRESH_MS = 60_000;
+
+// The oldest piece. createdAt is ISO in UTC everywhere, so the strings sort as the dates do.
+const firstOf = (items: Item[]) =>
+  items.reduce<Item | null>(
+    (oldest, item) => (!oldest || item.createdAt < oldest.createdAt ? item : oldest),
+    null,
+  );
+
+type StopData = { key: string; note: string; big: string; children?: ReactNode };
 
 type Section = {
   key: 'closet' | 'looks' | 'wantCan' | 'wishes' | 'theEdit';
@@ -86,51 +90,128 @@ export function Menu() {
   const [due, setDue] = useState(0);
   // Her style in a few sentences, once the first brief is written.
   const [style, setStyle] = useState<string | null>(null);
-  const [story, setStory] = useState<Story | null>(null);
+  // The thread's lists, each on its own: one that fails leaves only its stops out.
+  const [items, setItems] = useState<Item[] | null>(null);
+  const [saved, setSaved] = useState<number | null>(null);
+  const [styled, setStyled] = useState<StyledEntry[] | null>(null);
   const [headers, setHeaders] = useState<Record<string, string>>();
+  const storyLoadedAt = useRef(0);
   // null: the phone's languages.
   const [language, setChoice] = useState(chosenLanguage);
   // While a pick is saved (or the app reloads into it), the rows wait.
   const [switching, setSwitching] = useState(false);
   useFocusEffect(
     useCallback(() => {
+      // Answers that come back after she left the tab, or after a newer visit asked again, are dropped.
+      let gone = false;
       const load = async () => {
         try {
-          setDue(await countDueWishes());
+          const count = await countDueWishes();
+          if (!gone) setDue(count);
         } catch {
           // Only a hint: the row works without it.
         }
       };
       const loadStyle = async () => {
         try {
-          setStyle((await getStyle(appLanguage(i18n.language))).summary);
+          const { summary } = await getStyle(appLanguage(i18n.language));
+          if (!gone) setStyle(summary);
         } catch {
           // Nice to read, not needed.
         }
       };
-      const loadStory = async () => {
-        try {
-          const [items, saved, styled, auth] = await Promise.all([
-            listItems(),
-            listInspiration(),
-            listStyled(),
-            sessionHeaders(),
-          ]);
-          const first = items.reduce<Item | null>(
-            (oldest, item) => (!oldest || item.createdAt < oldest.createdAt ? item : oldest),
-            null,
-          );
-          setStory({ pieces: items.length, saved: saved.length, styled, first });
-          setHeaders(auth);
-        } catch {
-          // The thread waits for the next visit; the menu works without it.
-        }
-      };
       void load();
       void loadStyle();
-      void loadStory();
+      return () => {
+        gone = true;
+      };
     }, [i18n.language]),
   );
+  useFocusEffect(
+    useCallback(() => {
+      let gone = false;
+      if (Date.now() - storyLoadedAt.current < STORY_FRESH_MS) return;
+      storyLoadedAt.current = Date.now();
+      const settle = <T,>(request: Promise<T>, keep: (value: T) => void) =>
+        request.then(
+          (value) => {
+            if (!gone) keep(value);
+          },
+          () => {
+            // That stop waits for the next visit; the rest of the thread shows.
+            storyLoadedAt.current = 0;
+          },
+        );
+      void settle(listItems(), setItems);
+      void settle(listInspiration(), (list) => setSaved(list.length));
+      void settle(listStyled(), setStyled);
+      void settle(sessionHeaders(), setHeaders);
+      return () => {
+        gone = true;
+      };
+    }, []),
+  );
+
+  const first = items && firstOf(items);
+  const last = styled?.[0];
+  const stops: StopData[] = [];
+  if (usage) {
+    stops.push({
+      key: 'today',
+      note: t('menu.usage.wear_with'),
+      big: `${usage.wear_with.used} / ${usage.wear_with.limit}`,
+      children: (['want', 'look'] as const).map((action) => (
+        <Text key={action} style={maison.note}>
+          {t(`menu.usage.${action}`)}: {usage[action].used} / {usage[action].limit}
+        </Text>
+      )),
+    });
+  }
+  if (last) {
+    stops.push({
+      key: 'last',
+      note: t('menu.lastStyled'),
+      big: last.name,
+      children: (
+        <View style={[styles.thumb, cutoutShadow('flat')]}>
+          <ItemPhoto
+            item={{ photoUrl: last.photoUrl ?? undefined, cutoutUrl: last.cutoutUrl ?? undefined }}
+            headers={headers}
+            style={styles.thumbImage}
+          />
+        </View>
+      ),
+    });
+  }
+  if (items && saved !== null && styled) {
+    stops.push({
+      key: 'counts',
+      note: t('menu.counts'),
+      big: [
+        items.length,
+        saved,
+        styled.length >= STYLED_SHOWN ? `${STYLED_SHOWN}+` : styled.length,
+      ].join(' · '),
+    });
+  }
+  if (first) {
+    stops.push({
+      key: 'first',
+      note: t('menu.firstPiece'),
+      big: first.name,
+      children: session?.user.createdAt && (
+        <Text style={maison.note}>
+          {t('menu.joined', {
+            date: new Date(session.user.createdAt).toLocaleDateString(i18n.language, {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            }),
+          })}
+        </Text>
+      ),
+    });
+  }
 
   async function pickLanguage(choice: Language | null) {
     // Select reports only a change, so the same language never gets here.
@@ -189,61 +270,14 @@ export function Menu() {
         )}
       </Animated.View>
 
-      <ProfileThread>
-        {usage && (
-          <Stop
-            index={0}
-            note={t('menu.usage.wear_with')}
-            big={`${usage.wear_with.used} / ${usage.wear_with.limit}`}
-          >
-            {(['want', 'look'] as const).map((action) => (
-              <Text key={action} style={maison.note}>
-                {t(`menu.usage.${action}`)}: {usage[action].used} / {usage[action].limit}
-              </Text>
-            ))}
-          </Stop>
-        )}
-        {story?.styled[0] && (
-          <Stop index={1} note={t('menu.lastStyled')} big={story.styled[0].name}>
-            <View style={[styles.thumb, cutoutShadow('flat')]}>
-              <ItemPhoto
-                item={{
-                  photoUrl: story.styled[0].photoUrl ?? undefined,
-                  cutoutUrl: story.styled[0].cutoutUrl ?? undefined,
-                }}
-                headers={headers}
-                style={styles.thumbImage}
-              />
-            </View>
-          </Stop>
-        )}
-        {story && (
-          <Stop
-            index={2}
-            note={t('menu.counts')}
-            big={[
-              story.pieces,
-              story.saved,
-              story.styled.length >= STYLED_SHOWN ? `${STYLED_SHOWN}+` : story.styled.length,
-            ].join(' · ')}
-          />
-        )}
-        {story?.first && (
-          <Stop index={3} note={t('menu.firstPiece')} big={story.first.name}>
-            {session?.user.createdAt && (
-              <Text style={maison.note}>
-                {t('menu.joined', {
-                  date: new Date(session.user.createdAt).toLocaleDateString(i18n.language, {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  }),
-                })}
-              </Text>
-            )}
-          </Stop>
-        )}
-      </ProfileThread>
+      {/* Drawn once there is something to thread: the line grows with the stops it holds. */}
+      {stops.length > 0 && (
+        <ProfileThread>
+          {stops.map(({ key, ...stop }, index) => (
+            <Stop key={key} index={index} {...stop} />
+          ))}
+        </ProfileThread>
+      )}
 
       <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={maison.gutter}>
         <Select
