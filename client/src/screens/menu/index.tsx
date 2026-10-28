@@ -18,6 +18,7 @@ import Animated from 'react-native-reanimated';
 import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { Icon, type IconName } from '@/components/icon';
+import { Select, type SelectOption } from '@/components/select';
 import { chosenLanguage, type Language } from '@/i18n';
 import { countDueWishes, getStyle } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
@@ -35,10 +36,11 @@ type Section = {
 };
 
 // Each language by its own name, so it can be found whatever the app is in now.
-const LANGUAGES: { code: Language; name: string }[] = [
-  { code: 'en', name: 'English' },
-  { code: 'ru', name: 'Русский' },
-  { code: 'he', name: 'עברית' },
+// Russian first: the first market is Belarus.
+const LANGUAGES: SelectOption<Language>[] = [
+  { value: 'ru', label: 'Русский' },
+  { value: 'en', label: 'English' },
+  { value: 'he', label: 'עברית' },
 ];
 
 // Only what the app has: sections not built yet aren't shown at all.
@@ -87,7 +89,8 @@ export function Menu() {
   );
 
   async function pickLanguage(choice: Language | null) {
-    if (switching || choice === language) return;
+    // Select reports only a change, so the same language never gets here.
+    if (switching) return;
     const before = language;
     setChoice(choice);
     setSwitching(true);
@@ -155,21 +158,13 @@ export function Menu() {
       )}
 
       <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={maison.gutter}>
-        <SectionLabel>{t('menu.language')}</SectionLabel>
-        <View accessibilityRole="radiogroup">
-          {[{ code: null, name: t('menu.languageAuto') }, ...LANGUAGES].map(({ code, name }) => (
-            <Pressable
-              key={code ?? 'auto'}
-              style={styles.languageRow}
-              onPress={() => pickLanguage(code)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: language === code }}
-            >
-              <Text style={styles.languageLabel}>{name}</Text>
-              {language === code && <Icon name="check" color={colors.text} size={18} />}
-            </Pressable>
-          ))}
-        </View>
+        <Select
+          label={t('menu.language')}
+          value={language}
+          options={[{ value: null, label: t('menu.languageAuto') }, ...LANGUAGES]}
+          onChange={pickLanguage}
+          disabled={switching}
+        />
       </Animated.View>
 
       <View accessibilityRole="menu" style={styles.list}>
@@ -252,22 +247,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'left',
-  },
-  languageRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
-  },
-  languageLabel: {
-    flexShrink: 1,
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.text,
     textAlign: 'left',
   },
   usageValue: {

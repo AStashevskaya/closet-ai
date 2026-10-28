@@ -1,5 +1,6 @@
 {
   "common": {
+    "close": "Close",
     "loading": "Loading",
     "offline": "No connection to the server. Check the internet and try again."
   },
