@@ -523,7 +523,10 @@ describe.skipIf(!url)("on Postgres", () => {
       { call: "skip", reason: "You have one.", twinItemId: top },
     );
     const [stored] = await db.db
-      .select({ costMicros: schema.outfitRequests.costMicros, tokens: schema.outfitRequests.tokens })
+      .select({
+        costMicros: schema.outfitRequests.costMicros,
+        tokens: schema.outfitRequests.tokens,
+      })
       .from(schema.outfitRequests)
       .where(eq(schema.outfitRequests.id, requestId));
     expect(stored).toEqual({
