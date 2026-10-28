@@ -370,7 +370,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
             r.userId === userId && r.itemId === itemId && r.mood === mood && r.status === "done",
         )
         .at(-1) ?? null,
-    saveOutfits: async (requestId, userId, looks, _costMicros, verdict = null) => {
+    saveOutfits: async (requestId, userId, looks, _cost, verdict = null) => {
       for (const look of looks)
         storedOutfits.push({ ...look, id: randomUUID(), requestId, userId });
       const request = requests.find((r) => r.id === requestId);
@@ -828,6 +828,8 @@ export function createManualOutfitQueue() {
   return { outfitQueue, queued, runAll };
 }
 
+export const STUB_TOKENS = { input: 900, cacheWrite: 4_000, cacheRead: 0, output: 1_200 };
+
 // Stands in for Claude: composes looks from the first pieces on offer, writes a fixed brief.
 export function createStubStylist() {
   const composeCalls: ComposeInput[] = [];
@@ -859,6 +861,7 @@ export function createStubStylist() {
             }
           : null,
         costMicros: 6_000,
+        tokens: STUB_TOKENS,
       };
     },
     async submitBrief(input) {
