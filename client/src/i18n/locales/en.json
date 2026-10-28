@@ -91,7 +91,11 @@
     },
     "language": "Language",
     "languageAuto": "As on my phone",
-    "limits": "Your limits",
+    "thread": "Your thread",
+    "lastStyled": "Last styled",
+    "counts": "Pieces · Looks saved · Styled",
+    "firstPiece": "First piece",
+    "joined": "Joined {{date}}",
     "usage": {
       "want": "“Recreate the look” screenshots this month",
       "look": "Selfies this month",
