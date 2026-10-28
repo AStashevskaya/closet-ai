@@ -21,6 +21,7 @@ import {
   type StyleSummary,
 } from "@closet-ai/shared";
 import { sql } from "drizzle-orm";
+import type { ModelTokens } from "../ai/stylist";
 import {
   boolean,
   index,
@@ -186,6 +187,8 @@ export const outfitRequests = pgTable(
     wardrobeSize: integer("wardrobe_size").notNull(),
     // What the model call really cost, in millionths of a dollar.
     costMicros: integer("cost_micros"),
+    // The tokens behind that cost (input, cache write, cache read, output); null before 0021.
+    tokens: jsonb("tokens").$type<ModelTokens>(),
     // For an item from a photo: whether it's worth buying for her wardrobe; null otherwise.
     verdict: jsonb("verdict").$type<BuyVerdict>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

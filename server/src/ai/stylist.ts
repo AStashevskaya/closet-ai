@@ -113,10 +113,23 @@ export type BriefResult =
   // costMicros when the model answered (and was paid for) but not in the brief's shape.
   | { status: "failed"; reason: string; costMicros?: number };
 
+// The tokens a call was billed for, split the way they are priced, to see where its cost goes
+// (and whether the cached prefix is ever read back, or only written).
+export interface ModelTokens {
+  input: number;
+  cacheWrite: number;
+  cacheRead: number;
+  output: number;
+}
+
 export interface Stylist {
-  compose(
-    input: ComposeInput,
-  ): Promise<{ looks: ComposedLook[]; verdict: ComposedVerdict | null; costMicros: number }>;
+  compose(input: ComposeInput): Promise<{
+    looks: ComposedLook[];
+    verdict: ComposedVerdict | null;
+    costMicros: number;
+    // Left out by stubs.
+    tokens?: ModelTokens;
+  }>;
   // Starts writing a brief; returns the batch id to check on.
   submitBrief(input: BriefInput): Promise<string>;
   briefResult(batchId: string): Promise<BriefResult>;
@@ -220,6 +233,13 @@ function costOf(model: Model, usage: Anthropic.Usage, batch = false): number {
   return Math.round(tokens * (batch ? 0.5 : 1));
 }
 
+const tokensOf = (usage: Anthropic.Usage): ModelTokens => ({
+  input: usage.input_tokens,
+  cacheWrite: usage.cache_creation_input_tokens ?? 0,
+  cacheRead: usage.cache_read_input_tokens ?? 0,
+  output: usage.output_tokens,
+});
+
 export function createClaudeStylist(
   apiKey: string,
   // Which model composes: Haiku by default; others are compared in experiments.
@@ -268,6 +288,7 @@ export function createClaudeStylist(
         // Only asked for an item she may buy; dropped if the model answers one anyway.
         verdict: input.buying ? response.parsed_output.verdict : null,
         costMicros: costOf(composingModel, response.usage),
+        tokens: tokensOf(response.usage),
       };
     },
 

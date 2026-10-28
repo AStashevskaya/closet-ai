@@ -1,0 +1,1 @@
+ALTER TABLE "outfit_requests" ADD COLUMN "tokens" jsonb;

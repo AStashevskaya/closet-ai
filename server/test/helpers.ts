@@ -370,7 +370,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
             r.userId === userId && r.itemId === itemId && r.mood === mood && r.status === "done",
         )
         .at(-1) ?? null,
-    saveOutfits: async (requestId, userId, looks, _costMicros, verdict = null) => {
+    saveOutfits: async (requestId, userId, looks, _cost, verdict = null) => {
       for (const look of looks)
         storedOutfits.push({ ...look, id: randomUUID(), requestId, userId });
       const request = requests.find((r) => r.id === requestId);
