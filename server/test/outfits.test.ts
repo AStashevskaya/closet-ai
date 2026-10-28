@@ -528,6 +528,36 @@ describe("POST /api/wear-with", () => {
     expect(ids).not.toContain(striped.id);
   });
 
+  it("keeps one bottom in a look: no skirt over the jeans being styled", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const jeans = await addItem(s, anna, "bottom", "wide-leg jeans");
+    const skirt = await addItem(s, anna, "bottom", "printed skirt");
+    const tank = await addItem(s, anna, "top", "tank top");
+    s.stub.stylist.compose = async (input) => ({
+      looks: [
+        {
+          items: input.wardrobe.map((p) => p.n),
+          partners: [],
+          missing: null,
+          caption: "Skirt over jeans",
+          occasion: "coffee",
+          why: "because",
+        },
+      ],
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, jeans.id)).json<{ id: string }>();
+    await s.runJobs();
+    const done = await view(s, anna.cookie, id);
+    const ids = done.outfits[0]!.pieces.map((p) => p.item?.id);
+    expect(ids).toContain(jeans.id);
+    expect(ids).toContain(tank.id);
+    expect(ids).not.toContain(skirt.id);
+  });
+
   it("never puts a dress with a top or a skirt being styled", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

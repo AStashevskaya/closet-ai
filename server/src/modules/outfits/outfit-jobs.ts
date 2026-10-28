@@ -167,19 +167,25 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     // And one shirt: the model put a striped shirt with the feather-trim shirt in all four looks
     // despite "one top" (owner: "опять две рубашки", 2026-10-24). The item's shirt wins.
     let shirt = isShirt(hero);
+    // And one bottom: a skirt over the jeans being styled, in all three looks (owner:
+    // "неприемлемо", 2026-10-27). The item's bottom wins; a dress that stays takes the place of one.
+    let bottom = hero.category === "bottom" || (dress && !heroWithDress);
     const items: StylingItem[] = [];
     for (const item of picked) {
       const extraShirt = isShirt(item) && shirt;
+      const extraBottom = item.category === "bottom" && bottom;
       if (
         (dress && item.category === "top") ||
         (heroWithDress && item.category === "dress") ||
         (FINISHING_KINDS.includes(heroKind) && itemKind(item) === heroKind) ||
-        extraShirt
+        extraShirt ||
+        extraBottom
       ) {
         lost = true;
         continue;
       }
       if (isShirt(item)) shirt = true;
+      if (item.category === "bottom") bottom = true;
       items.push(item);
     }
     const kinds = new Set([heroKind, ...items.map(itemKind)]);
@@ -191,7 +197,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       const kind = catalogKind(row);
       const secondPair = kinds.has(kind) && FINISHING_KINDS.includes(kind);
       const finishes = FINISHING_KINDS.includes(kind) && !ownKinds.has(kind);
-      if (secondPair || (!finishes && (promoted || (shirt && isShirt(row))))) {
+      const extra = promoted || (shirt && isShirt(row)) || (bottom && row.category === "bottom");
+      if (secondPair || (!finishes && extra)) {
         lost = true;
         continue;
       }
