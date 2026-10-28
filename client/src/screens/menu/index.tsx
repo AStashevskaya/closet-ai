@@ -15,12 +15,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Animated from 'react-native-reanimated';
 
-import { maison, ScreenTitle, SectionLabel } from '@/components/maison';
+import { maison } from '@/components/maison';
 import { useTabBarClearance } from '@/components/tab-bar';
-import { Icon, type IconName } from '@/components/icon';
+import { Icon } from '@/components/icon';
 import { Select, type SelectOption } from '@/components/select';
 import { chosenLanguage, type Language } from '@/i18n';
-import { countDueWishes, getStyle } from '@/lib/api';
+import type { Item, StyledEntry } from '@closet-ai/shared';
+
+import { ItemPhoto } from '@/components/item-photo';
+import { cutoutShadow } from '@/components/cutout-shadow';
+import {
+  countDueWishes,
+  getStyle,
+  listInspiration,
+  listItems,
+  listStyled,
+  sessionHeaders,
+} from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { authClient } from '@/lib/auth-client';
 import { setLanguage } from '@/lib/language';
@@ -29,9 +40,21 @@ import { problemReportUrl, supportEmail } from '@/lib/report-problem';
 import { rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
+import { ProfileThread, Stop } from './thread';
+
+// GET /api/wear-with returns the newest 30: past that the count reads "30+".
+const STYLED_SHOWN = 30;
+
+// What the thread's stops tell: counts, the last piece styled and the first one added.
+type Story = {
+  pieces: number;
+  saved: number;
+  styled: StyledEntry[];
+  first: Item | null;
+};
+
 type Section = {
   key: 'closet' | 'looks' | 'wantCan' | 'wishes' | 'theEdit';
-  icon: IconName;
   href: '/' | '/style' | '/want-can' | '/wishes' | '/the-edit';
 };
 
@@ -45,11 +68,11 @@ const LANGUAGES: SelectOption<Language>[] = [
 
 // Only what the app has: sections not built yet aren't shown at all.
 const SECTIONS: Section[] = [
-  { key: 'closet', icon: 'hanger', href: '/' },
-  { key: 'looks', icon: 'look', href: '/style' },
-  { key: 'wantCan', icon: 'spark', href: '/want-can' },
-  { key: 'wishes', icon: 'heart', href: '/wishes' },
-  { key: 'theEdit', icon: 'store', href: '/the-edit' },
+  { key: 'closet', href: '/' },
+  { key: 'looks', href: '/style' },
+  { key: 'wantCan', href: '/want-can' },
+  { key: 'wishes', href: '/wishes' },
+  { key: 'theEdit', href: '/the-edit' },
 ];
 
 export function Menu() {
@@ -63,6 +86,8 @@ export function Menu() {
   const [due, setDue] = useState(0);
   // Her style in a few sentences, once the first brief is written.
   const [style, setStyle] = useState<string | null>(null);
+  const [story, setStory] = useState<Story | null>(null);
+  const [headers, setHeaders] = useState<Record<string, string>>();
   // null: the phone's languages.
   const [language, setChoice] = useState(chosenLanguage);
   // While a pick is saved (or the app reloads into it), the rows wait.
@@ -83,8 +108,27 @@ export function Menu() {
           // Nice to read, not needed.
         }
       };
+      const loadStory = async () => {
+        try {
+          const [items, saved, styled, auth] = await Promise.all([
+            listItems(),
+            listInspiration(),
+            listStyled(),
+            sessionHeaders(),
+          ]);
+          const first = items.reduce<Item | null>(
+            (oldest, item) => (!oldest || item.createdAt < oldest.createdAt ? item : oldest),
+            null,
+          );
+          setStory({ pieces: items.length, saved: saved.length, styled, first });
+          setHeaders(auth);
+        } catch {
+          // The thread waits for the next visit; the menu works without it.
+        }
+      };
       void load();
       void loadStyle();
+      void loadStory();
     }, [i18n.language]),
   );
 
@@ -128,34 +172,78 @@ export function Menu() {
         { paddingTop: insets.top + 12, paddingBottom: clearance },
       ]}
     >
-      <Animated.View entering={rise} style={[maison.gutter, styles.profile]}>
-        <ScreenTitle title={t('menu.title')} />
-        <Text style={styles.name} numberOfLines={1}>
+      <Animated.View entering={rise} style={[maison.gutter, styles.head]}>
+        <Text style={maison.note}>{t('menu.thread')}</Text>
+        <Text style={styles.name} numberOfLines={2} accessibilityRole="header">
           {session?.user.name}
         </Text>
-        <Text style={maison.note}>{t('app.tagline')}</Text>
+        {style ? (
+          <Text
+            style={[maison.body, styles.letter]}
+            accessibilityLabel={`${t('style.title')}: ${style}`}
+          >
+            {style}
+          </Text>
+        ) : (
+          <Text style={[maison.body, styles.letter]}>{t('app.tagline')}</Text>
+        )}
       </Animated.View>
 
-      {style && (
-        <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.style]}>
-          <SectionLabel>{t('style.title')}</SectionLabel>
-          <Text style={maison.body}>{style}</Text>
-        </Animated.View>
-      )}
-
-      {usage && (
-        <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.usage]}>
-          <SectionLabel>{t('menu.limits')}</SectionLabel>
-          {(['wear_with', 'want', 'look'] as const).map((action) => (
-            <View key={action} style={styles.usageRow}>
-              <Text style={styles.usageLabel}>{t(`menu.usage.${action}`)}</Text>
-              <Text style={styles.usageValue}>
-                {usage[action].used} / {usage[action].limit}
+      <ProfileThread>
+        {usage && (
+          <Stop
+            index={0}
+            note={t('menu.usage.wear_with')}
+            big={`${usage.wear_with.used} / ${usage.wear_with.limit}`}
+          >
+            {(['want', 'look'] as const).map((action) => (
+              <Text key={action} style={maison.note}>
+                {t(`menu.usage.${action}`)}: {usage[action].used} / {usage[action].limit}
               </Text>
+            ))}
+          </Stop>
+        )}
+        {story?.styled[0] && (
+          <Stop index={1} note={t('menu.lastStyled')} big={story.styled[0].name}>
+            <View style={[styles.thumb, cutoutShadow('flat')]}>
+              <ItemPhoto
+                item={{
+                  photoUrl: story.styled[0].photoUrl ?? undefined,
+                  cutoutUrl: story.styled[0].cutoutUrl ?? undefined,
+                }}
+                headers={headers}
+                style={styles.thumbImage}
+              />
             </View>
-          ))}
-        </Animated.View>
-      )}
+          </Stop>
+        )}
+        {story && (
+          <Stop
+            index={2}
+            note={t('menu.counts')}
+            big={[
+              story.pieces,
+              story.saved,
+              story.styled.length >= STYLED_SHOWN ? `${STYLED_SHOWN}+` : story.styled.length,
+            ].join(' · ')}
+          />
+        )}
+        {story?.first && (
+          <Stop index={3} note={t('menu.firstPiece')} big={story.first.name}>
+            {session?.user.createdAt && (
+              <Text style={maison.note}>
+                {t('menu.joined', {
+                  date: new Date(session.user.createdAt).toLocaleDateString(i18n.language, {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  }),
+                })}
+              </Text>
+            )}
+          </Stop>
+        )}
+      </ProfileThread>
 
       <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={maison.gutter}>
         <Select
@@ -173,20 +261,18 @@ export function Menu() {
           onPress={() => router.push('/profile-details')}
           accessibilityRole="menuitem"
         >
-          <Icon name="user" color={colors.text} />
           <Text style={styles.rowLabel}>{t('details.row')}</Text>
           <View style={styles.chevron}>
             <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
           </View>
         </Pressable>
-        {SECTIONS.map(({ key, icon, href }) => (
+        {SECTIONS.map(({ key, href }) => (
           <Pressable
             key={key}
             style={styles.row}
             onPress={() => router.navigate(href)}
             accessibilityRole="menuitem"
           >
-            <Icon name={icon} color={colors.text} />
             <Text style={styles.rowLabel}>{t(`menu.sections.${key}`)}</Text>
             {key === 'wishes' && due > 0 && (
               <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
@@ -199,7 +285,6 @@ export function Menu() {
 
         {supportEmail() && (
           <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
-            <Icon name="chat" color={colors.text} />
             <Text style={styles.rowLabel}>{t('menu.report')}</Text>
           </Pressable>
         )}
@@ -216,43 +301,27 @@ const styles = StyleSheet.create({
   container: {
     gap: 28,
   },
-  profile: {
-    gap: 6,
+  head: {
+    gap: 4,
   },
   name: {
-    marginTop: 8,
     fontFamily: fonts.display,
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 34,
+    lineHeight: 38,
     color: colors.text,
     textAlign: 'left',
   },
-  usage: {
-    gap: 2,
+  letter: {
+    marginTop: 6,
   },
-  style: {
-    gap: 8,
+  thumb: {
+    marginTop: 8,
+    width: 56,
+    height: 56,
   },
-  usageRow: {
-    minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
-  },
-  usageLabel: {
-    flexShrink: 1,
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'left',
-  },
-  usageValue: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: colors.text,
+  thumbImage: {
+    width: 56,
+    height: 56,
   },
   list: {
     marginHorizontal: 20,
@@ -260,17 +329,20 @@ const styles = StyleSheet.create({
     borderTopColor: colors.divider,
   },
   row: {
-    height: 52,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.divider,
   },
+  // The menu is set in the display face, like the prototype's index of sections.
   rowLabel: {
     flex: 1,
-    fontFamily: fonts.body,
-    fontSize: 15,
+    paddingVertical: 8,
+    fontFamily: fonts.displayLight,
+    fontSize: 22,
+    lineHeight: 26,
     color: colors.text,
     textAlign: 'left',
   },

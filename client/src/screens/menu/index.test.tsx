@@ -29,6 +29,32 @@ jest.mock('@/lib/api', () => ({
     wear_with: { used: 1, limit: 30, resetsAt: '2026-10-22T00:00:00.000Z' },
   }),
   countDueWishes: jest.fn().mockResolvedValue(1),
+  listItems: jest.fn().mockResolvedValue([
+    { id: 'b', name: 'Tweed blazer', createdAt: '2026-10-12T10:00:00.000Z' },
+    { id: 'a', name: 'White tank', createdAt: '2026-10-02T10:00:00.000Z' },
+  ]),
+  listInspiration: jest
+    .fn()
+    .mockResolvedValue([{ key: 'k', url: '/u', createdAt: '2026-10-20T10:00:00.000Z' }]),
+  listStyled: jest.fn().mockResolvedValue([
+    {
+      id: 'r2',
+      createdAt: '2026-10-27T10:00:00.000Z',
+      mood: null,
+      name: 'Pink boots',
+      photoUrl: null,
+      cutoutUrl: null,
+    },
+    {
+      id: 'r1',
+      createdAt: '2026-10-21T10:00:00.000Z',
+      mood: null,
+      name: 'Satin skirt',
+      photoUrl: null,
+      cutoutUrl: null,
+    },
+  ]),
+  sessionHeaders: jest.fn().mockResolvedValue({}),
   getStyle: jest.fn().mockResolvedValue({
     summary: 'High-low with a wink.',
     writtenAt: '2026-10-21T12:00:00.000Z',
@@ -39,7 +65,9 @@ jest.mock('@/lib/api', () => ({
 jest.mock('@/lib/language', () => ({ setLanguage: jest.fn() }));
 jest.mock('@/lib/auth-client', () => ({
   authClient: {
-    useSession: () => ({ data: { user: { id: 'user-1', name: 'Anna' } } }),
+    useSession: () => ({
+      data: { user: { id: 'user-1', name: 'Anna', createdAt: new Date('2026-10-02T09:00:00Z') } },
+    }),
     signOut: jest.fn(),
   },
 }));
@@ -77,10 +105,19 @@ describe('<Menu />', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/wishes');
   });
 
-  test('shows what is left of the limits', async () => {
+  test('starts her thread with what is left of the limits today', async () => {
     await render(<Menu />);
-    expect(await screen.findByText('2 / 5')).toBeOnTheScreen();
-    expect(screen.getByText('1 / 30')).toBeOnTheScreen();
+    expect(await screen.findByText('1 / 30')).toBeOnTheScreen();
+    expect(screen.getByText('“Recreate the look” screenshots this month: 2 / 5')).toBeOnTheScreen();
+    expect(screen.getByText('Selfies this month: 0 / 3')).toBeOnTheScreen();
+  });
+
+  test('follows her thread: the last piece styled, the counts, the first piece', async () => {
+    await render(<Menu />);
+    expect(await screen.findByText('Pink boots')).toBeOnTheScreen();
+    expect(screen.getByText('2 · 1 · 2')).toBeOnTheScreen();
+    expect(screen.getByText('White tank')).toBeOnTheScreen();
+    expect(screen.getByText('Joined October 2, 2026')).toBeOnTheScreen();
   });
 
   describe('report a problem', () => {
@@ -140,16 +177,16 @@ describe('<Menu />', () => {
     });
   });
 
-  test('shows her style in a few sentences', async () => {
+  test('shows her style in a few sentences under her name', async () => {
     await render(<Menu />);
     expect(await screen.findByText('High-low with a wink.')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Your style' })).toBeOnTheScreen();
   });
 
-  test("leaves her style out when it can't be loaded", async () => {
+  test("shows the tagline when her style can't be loaded", async () => {
     jest.mocked(getStyle).mockRejectedValueOnce(new Error('offline'));
     await render(<Menu />);
     await waitFor(() => expect(getStyle).toHaveBeenCalled());
-    expect(screen.queryByRole('header', { name: 'Your style' })).toBeNull();
+    expect(screen.queryByText('High-low with a wink.')).toBeNull();
+    expect(screen.getByText('your closet · your mood')).toBeOnTheScreen();
   });
 });
