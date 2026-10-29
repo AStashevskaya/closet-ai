@@ -15,31 +15,27 @@ import {
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { EditorialCover } from '@/components/cover';
 import { HangerLoader } from '@/components/hanger-loader';
-import { ItemPhoto } from '@/components/item-photo';
-import { Button, maison, ScreenTitle, SectionLabel } from '@/components/maison';
-import { MoodChips } from '@/components/mood-chips';
-import { PressableScale } from '@/components/pressable-scale';
+import { Button, maison, ScreenTitle } from '@/components/maison';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { askFailedText, useUsage } from '@/lib/limits';
 import { rise, STAGGER_STEP } from '@/motion';
-import { colors, fonts } from '@/theme';
+import { colors } from '@/theme';
 
+import { ClosetPicker } from './closet-picker';
+import { DiaryStop } from './diary-stop';
 import { StyleThread, type Chosen as StyledPiece } from './style-thread';
 
-// Wardrobe pieces offered in the row; the rest are a scroll of the closet away.
-const ROW_LIMIT = 24;
-
-// The piece being styled: from the closet row (so it can be asked about again) or styled before.
+// The piece being styled: from the closet (so it can be asked about again) or styled before.
 type Chosen = StyledPiece & { item?: Item };
 
-// "Style it": the feature that puts outfits together around one piece, on a tab of its own.
-// A piece from a photo (a shop screenshot) on the cover, one from the closet in a row with the
-// mood to keep to, and the pieces styled before. The chosen piece's outfits grow on a thread right
-// here (2026-10-26, "The Thread"): the piece on top, each outfit full width hanging off the thread.
+// "Style it": outfits put together around one piece, on a tab of its own. A diary on one thread
+// (decided 2026-10-28, prototype ~/Desktop/closet/wrinkle-lab/design-styleit, direction C): two
+// ways in on top (a piece from the closet, in a sheet with the mood to keep to; or one from a
+// photo, dashed: not hers yet), then every piece styled, newest first. The open one grows its
+// outfits full width on the thread; the others are stops with their looks folded small.
 export function StyleIt() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -51,6 +47,7 @@ export function StyleIt() {
   const [styled, setStyled] = useState<StyledEntry[]>([]);
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [mood, setMood] = useState<OutfitMood | null>(null);
+  const [picking, setPicking] = useState(false);
   // The piece whose outfits are being asked for.
   const [asking, setAsking] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Chosen | null>(null);
@@ -67,9 +64,12 @@ export function StyleIt() {
     else scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
   }
 
+  // Each visit to the tab, so the stops read their folded looks afresh (liked or rejected since).
+  const [visit, setVisit] = useState(0);
   // Reloads when the tab comes into view: a piece added or styled elsewhere shows up.
   useFocusEffect(
     useCallback(() => {
+      setVisit((n) => n + 1);
       const load = async () => {
         try {
           const all = await listItems();
@@ -128,6 +128,21 @@ export function StyleIt() {
   // A closet piece can be asked about afresh; one styled before has its request polled again.
   const asked = chosen?.item;
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
+  // The piece just asked about is on top before the list catches up with it.
+  const entries: StyledEntry[] =
+    chosen && !styled.some((entry) => entry.id === chosen.requestId)
+      ? [
+          {
+            id: chosen.requestId,
+            createdAt: new Date().toISOString(),
+            mood: null,
+            name: chosen.name,
+            photoUrl: chosen.photoUrl ?? null,
+            cutoutUrl: chosen.cutoutUrl ?? null,
+          },
+          ...styled,
+        ]
+      : styled;
 
   return (
     <ScrollView
@@ -140,39 +155,21 @@ export function StyleIt() {
     >
       <Animated.View entering={rise} style={maison.gutter}>
         <ScreenTitle title={t('styleIt.title')} subtitle={t('styleIt.subtitle')} />
-      </Animated.View>
-
-      {/* The cover: a piece the user doesn't own yet, from a photo. */}
-      <Animated.View entering={rise.delay(STAGGER_STEP)}>
-        <EditorialCover
-          eyebrow={t('styleIt.photoEyebrow')}
-          title={t('styleIt.photoTitle')}
-          text={t('styleIt.photoText')}
-        >
-          <Button
-            label={t('styleIt.photoButton')}
-            onPress={() => router.push('/wear-with-pick')}
-            style={styles.blockButton}
-          />
-        </EditorialCover>
-      </Animated.View>
-
-      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.section}>
-        <View style={maison.gutter}>
-          <SectionLabel>{t('styleIt.closet')}</SectionLabel>
+        {left !== null && (
           <Text style={maison.note}>
-            {t('styleIt.closetHint')}
-            {left !== null && ` · ${t('wearWith.left', { left, limit: usage!.wear_with.limit })}`}
+            {t('wearWith.left', { left, limit: usage!.wear_with.limit })}
           </Text>
-        </View>
-        <MoodChips mood={mood} onChange={setMood} inset={20} />
+        )}
+      </Animated.View>
 
+      {/* Two ways in: a piece of hers, or one from a photo she doesn't own yet (dashed: not hers). */}
+      <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.start]}>
         {items === null ? (
           <View style={styles.loading}>
             <HangerLoader />
           </View>
         ) : items.length === 0 ? (
-          <View style={[maison.gutter, styles.empty]}>
+          <View style={styles.empty}>
             <Text style={maison.body}>{t('styleIt.emptyCloset')}</Text>
             <Button
               kind="outline"
@@ -181,103 +178,86 @@ export function StyleIt() {
             />
           </View>
         ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.row}
-          >
-            {items.slice(0, ROW_LIMIT).map((item) => (
-              <PressableScale
-                key={item.id}
-                style={styles.piece}
-                onPress={() => style(item)}
-                disabled={asking !== null}
-                accessibilityRole="button"
-                accessibilityLabel={t('wearWith.button') + ' ' + item.name}
-                accessibilityState={{ busy: asking === item.id }}
-              >
-                <ItemPhoto item={item} headers={headers} style={styles.pieceImage} />
-                {asking === item.id && (
-                  <View style={styles.pieceBusy}>
-                    <HangerLoader size="small" />
-                  </View>
-                )}
-                <Text style={styles.pieceName} numberOfLines={2}>
-                  {item.name}
-                </Text>
-              </PressableScale>
-            ))}
-          </ScrollView>
+          <View style={styles.buttons}>
+            <Button
+              kind="bright"
+              label={t('styleIt.fromCloset')}
+              onPress={() => setPicking(true)}
+              busy={asking !== null}
+              style={styles.button}
+            />
+            <Button
+              kind="outline"
+              label={t('styleIt.fromPhoto')}
+              onPress={() => router.push('/wear-with-pick')}
+              style={[styles.button, styles.dashed]}
+            />
+          </View>
         )}
       </Animated.View>
 
-      {chosen && (
-        <View
-          onLayout={(event) => {
-            threadY.current = event.nativeEvent.layout.y;
-            if (!scrollWhenLaidOut.current) return;
-            scrollWhenLaidOut.current = false;
-            scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
-          }}
-        >
-          <StyleThread
-            chosen={chosen}
-            headers={headers}
-            onAskAgain={asked ? () => style(asked) : undefined}
-            asking={asking !== null}
-          />
-        </View>
-      )}
-
-      <Animated.View
-        entering={rise.delay(STAGGER_STEP * 3)}
-        style={[maison.gutter, styles.section]}
-      >
-        <SectionLabel>{t('styleIt.history')}</SectionLabel>
-        {styled.length === 0 ? (
-          <Text style={maison.note}>{t('styleIt.historyEmpty')}</Text>
+      {/* The diary: everything she styled, newest on top, on one thread; the open one grows its
+          outfits full width, the others show theirs folded small. */}
+      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.diary}>
+        {entries.length === 0 ? (
+          <Text style={[maison.note, maison.gutter]}>{t('styleIt.historyEmpty')}</Text>
         ) : (
-          styled.map((entry) => (
-            <PressableScale
-              key={entry.id}
-              style={styles.entry}
-              onPress={() =>
-                choose({
-                  requestId: entry.id,
-                  name: entry.name,
-                  photoUrl: entry.photoUrl ?? undefined,
-                  cutoutUrl: entry.cutoutUrl ?? undefined,
-                })
-              }
-              // While a piece is being asked about, its answer would replace this choice.
-              disabled={asking !== null}
-              accessibilityRole="button"
-              accessibilityLabel={t('styleIt.open', { name: entry.name })}
-            >
-              <ItemPhoto
-                item={{
-                  photoUrl: entry.photoUrl ?? undefined,
-                  cutoutUrl: entry.cutoutUrl ?? undefined,
+          entries.map((entry, index) =>
+            entry.id === chosen?.requestId ? (
+              <View
+                key={entry.id}
+                onLayout={(event) => {
+                  threadY.current = event.nativeEvent.layout.y;
+                  if (!scrollWhenLaidOut.current) return;
+                  scrollWhenLaidOut.current = false;
+                  scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
                 }}
-                headers={headers}
-                style={styles.entryImage}
-              />
-              <View style={styles.entryText}>
-                <Text style={styles.entryName} numberOfLines={2}>
-                  {entry.name}
-                </Text>
-                <Text style={maison.note}>
-                  {new Date(entry.createdAt).toLocaleDateString(i18n.language, {
-                    day: 'numeric',
-                    month: 'long',
-                  })}
-                  {entry.mood && ` · ${t(`wearWith.moods.${entry.mood}`)}`}
-                </Text>
+              >
+                <StyleThread
+                  chosen={chosen}
+                  headers={headers}
+                  onAskAgain={asked ? () => style(asked) : undefined}
+                  asking={asking !== null}
+                  joined={index > 0}
+                  continues={index < entries.length - 1}
+                />
               </View>
-            </PressableScale>
-          ))
+            ) : (
+              <DiaryStop
+                key={entry.id}
+                entry={entry}
+                headers={headers}
+                visit={visit}
+                joined={index > 0}
+                last={index === entries.length - 1}
+                onOpen={() => {
+                  // While a piece is being asked about, its answer would replace this choice.
+                  if (asking !== null) return;
+                  choose({
+                    requestId: entry.id,
+                    name: entry.name,
+                    photoUrl: entry.photoUrl ?? undefined,
+                    cutoutUrl: entry.cutoutUrl ?? undefined,
+                  });
+                }}
+              />
+            ),
+          )
         )}
       </Animated.View>
+
+      <ClosetPicker
+        visible={picking}
+        items={items ?? []}
+        headers={headers}
+        mood={mood}
+        onMood={setMood}
+        onPick={(item) => {
+          setPicking(false);
+          void style(item);
+        }}
+        onClose={() => setPicking(false)}
+      />
     </ScrollView>
   );
 }
@@ -289,70 +269,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    gap: 28,
+    gap: 24,
   },
-  blockButton: {
-    marginTop: 12,
+  start: {
+    gap: 10,
   },
-  section: {
-    gap: 12,
+  buttons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  // From a photo: a piece that isn't hers yet, so dashed, as on Inspiration.
+  dashed: {
+    borderStyle: 'dashed',
   },
   loading: {
     alignItems: 'center',
     paddingVertical: 24,
   },
   empty: {
-    gap: 14,
+    gap: 12,
   },
-  row: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  piece: {
-    width: 128,
-    gap: 8,
-  },
-  pieceImage: {
-    width: 128,
-    aspectRatio: 3 / 4,
-  },
-  pieceBusy: {
-    position: 'absolute',
-    top: 0,
-    start: 0,
-    width: 128,
-    aspectRatio: 3 / 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  pieceName: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  entry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
-  },
-  entryImage: {
-    width: 60,
-    aspectRatio: 3 / 4,
-  },
-  entryText: {
-    flex: 1,
-    gap: 4,
-  },
-  entryName: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.text,
-    textAlign: 'left',
+  diary: {
+    paddingStart: 6,
+    paddingEnd: 20,
   },
 });
