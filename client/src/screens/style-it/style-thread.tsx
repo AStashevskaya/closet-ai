@@ -1,11 +1,13 @@
+import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { cutoutShadow } from '@/components/cutout-shadow';
 import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { HangerLoader } from '@/components/hanger-loader';
-import { ItemPhoto } from '@/components/item-photo';
 import { Button, maison } from '@/components/maison';
+import { absoluteUrl } from '@/lib/api';
 import { rise, STAGGER_STEP } from '@/motion';
 import { OutfitCard } from '@/screens/wear-with/outfit-card';
 import { useWearWith } from '@/screens/wear-with/use-wear-with';
@@ -62,11 +64,19 @@ export function StyleThread({
               fill
               style={styles.chosenHeart}
             />
-            <ItemPhoto
-              item={{ photoUrl: chosen.photoUrl, cutoutUrl: chosen.cutoutUrl }}
-              headers={headers}
-              style={styles.chosenImage}
-            />
+            {/* The piece on its own, as on the diary's stops: no tile, its shadow on the paper; a photo
+                without a cut-out fills the frame. */}
+            <View style={[styles.chosenImage, chosen.cutoutUrl ? cutoutShadow('hanging') : null]}>
+              {headers && (chosen.cutoutUrl ?? chosen.photoUrl) && (
+                <Image
+                  source={{ uri: absoluteUrl((chosen.cutoutUrl ?? chosen.photoUrl)!), headers }}
+                  style={styles.fill}
+                  contentFit={chosen.cutoutUrl ? 'contain' : 'cover'}
+                  transition={200}
+                  accessibilityIgnoresInvertColors
+                />
+              )}
+            </View>
           </View>
           <Text style={styles.chosenTitle} accessibilityRole="header">
             {t('styleIt.open', { name: chosen.name })}
@@ -150,7 +160,9 @@ const styles = StyleSheet.create({
   chosenImage: {
     width: 200,
     aspectRatio: 3 / 4,
-    backgroundColor: 'transparent',
+  },
+  fill: {
+    flex: 1,
   },
   chosenTitle: {
     marginTop: 20,
