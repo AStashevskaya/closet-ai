@@ -84,8 +84,17 @@ export function WearWith({ id }: { id: string }) {
     );
   }
 
-  // The piece itself: the hero of its outfits. In the closet already (nothing to add), it's hers.
-  const hero = state.outfits.flatMap((o) => o.pieces).find((p) => p.hero)?.item ?? null;
+  // The piece itself: the hero of its outfits; with none (nothing in her closet goes with it), its
+  // photo by the request (as the server serves it) and the name it'd be added under.
+  const hero =
+    state.outfits.flatMap((o) => o.pieces).find((p) => p.hero)?.item ??
+    (state.addable && {
+      id,
+      name: state.addable.name,
+      category: state.addable.category,
+      photoUrl: `/api/wear-with/${id}/photo`,
+    });
+  // Nothing to add means it's in her closet already: hers.
   const hers = !state.addable || adding === 'added';
   const { verdict } = state;
   return (
@@ -121,7 +130,7 @@ export function WearWith({ id }: { id: string }) {
               />
             </View>
           )}
-          {state.outfits.length === 0 && <Text style={styles.message}>{t('wearWith.empty')}</Text>}
+          {state.outfits.length === 0 && <Text style={styles.empty}>{t('wearWith.empty')}</Text>}
         </Animated.View>
       </ThreadRow>
       {state.outfits.map((outfit, index) => (
@@ -176,7 +185,7 @@ function Similar({
   twin,
   headers,
 }: {
-  piece: Item;
+  piece: Pick<Item, 'category' | 'photoUrl' | 'cutoutUrl'>;
   twin: Item;
   headers: Record<string, string> | undefined;
 }) {
@@ -236,6 +245,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   message: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    lineHeight: 21,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  empty: {
     fontFamily: fonts.body,
     fontSize: 15,
     lineHeight: 21,
