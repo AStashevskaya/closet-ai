@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { BarePiece } from '@/components/bare-piece';
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { PressableScale } from '@/components/pressable-scale';
@@ -41,17 +42,7 @@ export function DiaryStop({ entry, headers, visit, joined, last, onOpen }: Props
         accessibilityHint={day}
       >
         <View style={styles.who}>
-          {/* The piece on its own, no tile, with its shadow; a photo without a cut-out is framed. */}
-          <View style={[styles.piece, entry.cutoutUrl ? cutoutShadow('hanging') : null]}>
-            {headers && (entry.cutoutUrl ?? entry.photoUrl) && (
-              <Image
-                source={{ uri: absoluteUrl((entry.cutoutUrl ?? entry.photoUrl)!), headers }}
-                style={styles.pieceImage}
-                contentFit={entry.cutoutUrl ? 'contain' : 'cover'}
-                accessibilityIgnoresInvertColors
-              />
-            )}
-          </View>
+          <BarePiece item={entry} headers={headers} style={styles.piece} />
           <View style={styles.text}>
             <Text style={styles.name} numberOfLines={2}>
               {entry.name}
@@ -164,9 +155,6 @@ const styles = StyleSheet.create({
   piece: {
     width: 84,
     height: 96,
-  },
-  pieceImage: {
-    flex: 1,
   },
   text: {
     flex: 1,

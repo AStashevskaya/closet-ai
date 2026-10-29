@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { BarePiece } from '@/components/bare-piece';
 import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { HangerLoader } from '@/components/hanger-loader';
-import { ItemPhoto } from '@/components/item-photo';
 import { Button, maison } from '@/components/maison';
 import { rise, STAGGER_STEP } from '@/motion';
 import { OutfitCard } from '@/screens/wear-with/outfit-card';
@@ -62,11 +62,7 @@ export function StyleThread({
               fill
               style={styles.chosenHeart}
             />
-            <ItemPhoto
-              item={{ photoUrl: chosen.photoUrl, cutoutUrl: chosen.cutoutUrl }}
-              headers={headers}
-              style={styles.chosenImage}
-            />
+            <BarePiece item={chosen} headers={headers} style={styles.chosenImage} />
           </View>
           <Text style={styles.chosenTitle} accessibilityRole="header">
             {t('styleIt.open', { name: chosen.name })}
@@ -150,7 +146,6 @@ const styles = StyleSheet.create({
   chosenImage: {
     width: 200,
     aspectRatio: 3 / 4,
-    backgroundColor: 'transparent',
   },
   chosenTitle: {
     marginTop: 20,
