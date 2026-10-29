@@ -1,4 +1,4 @@
-import type { WearWithRequest } from '@closet-ai/shared';
+import type { Item, WearWithRequest } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -6,12 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { ItemPhoto } from '@/components/item-photo';
+import { BarePiece } from '@/components/bare-piece';
+import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, type HangerKind } from '@/components/hanger';
 import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
 import { addWish, createItem, sessionHeaders } from '@/lib/api';
 import { rise, STAGGER_STEP } from '@/motion';
+import { ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
 import { OutfitCard } from './outfit-card';
@@ -82,85 +84,134 @@ export function WearWith({ id }: { id: string }) {
     );
   }
 
+  // The piece itself: the hero of its outfits. In the closet already (nothing to add), it's hers.
+  const hero = state.outfits.flatMap((o) => o.pieces).find((p) => p.hero)?.item ?? null;
+  const hers = !state.addable || adding === 'added';
+  const { verdict } = state;
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {state.verdict && <Verdict verdict={state.verdict} headers={headers} />}
-      {state.addable && (
-        <Button
-          kind={state.wishId ? 'outline' : 'ink'}
-          label={t(state.wishId ? 'wishes.added' : 'wishes.add')}
-          onPress={wish}
-          disabled={state.wishId !== null}
-          busy={wishing}
-        />
-      )}
-      {state.addable && (
-        <Button
-          kind="outline"
-          label={t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
-          onPress={addToCloset}
-          disabled={adding === 'added'}
-          busy={adding === 'busy'}
-        />
-      )}
-      {state.outfits.length === 0 && <Text style={styles.message}>{t('wearWith.empty')}</Text>}
-      {state.outfits.map((outfit, index) => (
-        <Animated.View
-          key={outfit.id}
-          style={index > 0 && styles.cardDivider}
-          entering={rise.delay(index * STAGGER_STEP)}
-        >
-          <OutfitCard
-            outfit={outfit}
-            index={index}
-            total={state.outfits.length}
-            headers={headers}
-            onReact={react}
-          />
+      {/* On a thread like Style it's (decided 2026-10-29, prototype
+          `~/Desktop/closet/wrinkle-lab/design-photo-outfits`, direction A), dashed while the piece
+          isn't hers yet; solid once it's in her closet. */}
+      <ThreadRow kind="root" dashed={!hers} hollow={!hers} last={state.outfits.length === 0}>
+        <Animated.View entering={rise} style={styles.head}>
+          <View style={styles.piece}>
+            {hero && <BarePiece item={hero} headers={headers} style={styles.pieceImage} />}
+            {verdict && <Verdict verdict={verdict} />}
+          </View>
+          {hero && <Text style={styles.heroName}>{hero.name}</Text>}
+          {verdict?.twin && hero && <Similar piece={hero} twin={verdict.twin} headers={headers} />}
+          {state.addable && (
+            <View style={styles.actions}>
+              <Button
+                kind={state.wishId ? 'outline' : 'bright'}
+                label={t(state.wishId ? 'wishes.added' : 'wishes.add')}
+                onPress={wish}
+                disabled={state.wishId !== null}
+                busy={wishing}
+                style={styles.action}
+              />
+              <Button
+                kind="outline"
+                label={t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
+                onPress={addToCloset}
+                disabled={adding === 'added'}
+                busy={adding === 'busy'}
+                style={styles.action}
+              />
+            </View>
+          )}
+          {state.outfits.length === 0 && <Text style={styles.message}>{t('wearWith.empty')}</Text>}
         </Animated.View>
+      </ThreadRow>
+      {state.outfits.map((outfit, index) => (
+        <ThreadRow
+          key={outfit.id}
+          kind="branch"
+          dashed={!hers}
+          last={index === state.outfits.length - 1}
+          delay={(index + 1) * STAGGER_STEP}
+        >
+          <Animated.View style={styles.look} entering={rise.delay((index + 1) * STAGGER_STEP)}>
+            <OutfitCard
+              outfit={outfit}
+              index={index}
+              total={state.outfits.length}
+              headers={headers}
+              onReact={react}
+            />
+          </Animated.View>
+        </ThreadRow>
       ))}
     </ScrollView>
   );
 }
 
-// Whether a piece she may buy is worth it for her wardrobe: the call, why, and the piece she
-// owns that it nearly repeats.
-function Verdict({
-  verdict,
+// The stylist's call beside the piece, as a note: the verdict in the display face, why by hand.
+function Verdict({ verdict }: { verdict: NonNullable<WearWithRequest['verdict']> }) {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.verdict} accessibilityRole="summary">
+      <Text style={styles.verdictTitle}>{t('verdict.title')}</Text>
+      <Text style={styles.verdictCall}>{t(`verdict.${verdict.call}`)}</Text>
+      <Text style={styles.verdictReason}>{verdict.reason}</Text>
+    </View>
+  );
+}
+
+// What a piece hangs from, by its category, as on her rails.
+const HANGERS: Record<Item['category'], HangerKind> = {
+  top: 'coat',
+  dress: 'coat',
+  outerwear: 'coat',
+  bottom: 'clip',
+  shoes: 'hook',
+  accessory: 'hook',
+};
+
+// The piece she already has like this one: a short rail with just the two, the new one on a
+// dashed hanger (not hers), "≈" between them. Her piece opens its own screen.
+function Similar({
+  piece,
+  twin,
   headers,
 }: {
-  verdict: NonNullable<WearWithRequest['verdict']>;
+  piece: Item;
+  twin: Item;
   headers: Record<string, string> | undefined;
 }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { call, reason, twin } = verdict;
   return (
-    <Animated.View
-      entering={rise}
-      style={[styles.verdict, call === 'buy' && styles.verdictBuy]}
-      accessibilityRole="summary"
-    >
-      <Text style={styles.verdictTitle}>{t('verdict.title')}</Text>
-      <Text style={styles.verdictCall}>{t(`verdict.${call}`)}</Text>
-      <Text style={styles.verdictReason}>{reason}</Text>
-      {twin && (
+    <View style={styles.similar}>
+      <Text style={styles.verdictTitle}>{t('verdict.twin')}</Text>
+      <View style={styles.rail}>
+        <View style={styles.railLine} />
+        <View
+          style={styles.hung}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Hanger kind={HANGERS[piece.category]} dashed />
+          <BarePiece item={piece} headers={headers} style={styles.hungImage} />
+        </View>
+        <Text style={styles.like} accessibilityElementsHidden importantForAccessibility="no">
+          ≈
+        </Text>
         <PressableScale
-          style={styles.twin}
+          style={styles.hung}
           onPress={() => router.push({ pathname: '/item/[id]', params: { id: twin.id } })}
           accessibilityRole="button"
           accessibilityLabel={`${t('verdict.twin')}: ${twin.name}`}
         >
-          <ItemPhoto item={twin} headers={headers} style={styles.twinPhoto} />
-          <View style={styles.twinText}>
-            <Text style={styles.twinLabel}>{t('verdict.twin')}</Text>
-            <Text style={styles.twinName} numberOfLines={2}>
-              {twin.name}
-            </Text>
-          </View>
+          <Hanger kind={HANGERS[twin.category]} />
+          <BarePiece item={twin} headers={headers} style={styles.hungImage} />
+          <Text style={styles.hungName} numberOfLines={2}>
+            {twin.name}
+          </Text>
         </PressableScale>
-      )}
-    </Animated.View>
+      </View>
+    </View>
   );
 }
 
@@ -171,10 +222,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingStart: 6,
+    paddingEnd: 20,
     paddingTop: 12,
     paddingBottom: 48,
-    gap: 32,
   },
   center: {
     flex: 1,
@@ -189,7 +240,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   composing: {
     fontFamily: fonts.displayLight,
@@ -198,64 +249,102 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
   },
-  cardDivider: {
-    paddingTop: 32,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.divider,
+  head: {
+    paddingBottom: 34,
+    gap: 14,
+  },
+  piece: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+  },
+  pieceImage: {
+    width: 128,
+    height: 156,
+  },
+  heroName: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+    textAlign: 'left',
   },
   verdict: {
-    padding: 18,
+    flex: 1,
     gap: 6,
-    backgroundColor: colors.hero,
-  },
-  // A yes gets the one bright colour.
-  verdictBuy: {
-    backgroundColor: colors.ground,
   },
   verdictTitle: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 12,
-    color: colors.text,
+    fontSize: 10.5,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
     textAlign: 'left',
   },
   verdictCall: {
-    fontFamily: fonts.displayLight,
-    fontSize: 40,
-    lineHeight: 44,
+    fontFamily: fonts.display,
+    fontSize: 34,
+    lineHeight: 38,
     color: colors.text,
     textAlign: 'left',
   },
   verdictReason: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 21,
-    color: colors.text,
-    textAlign: 'left',
-  },
-  twin: {
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  twinPhoto: {
-    width: 48,
-    aspectRatio: 3 / 4,
-  },
-  twinText: {
-    flex: 1,
-    gap: 2,
-  },
-  twinLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
+    fontFamily: fonts.hand,
+    fontSize: 18,
+    lineHeight: 24,
     color: colors.textSecondary,
     textAlign: 'left',
   },
-  twinName: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: colors.text,
-    textAlign: 'left',
+  similar: {
+    gap: 6,
+  },
+  rail: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  // The rail the two hang from, across their hooks.
+  railLine: {
+    position: 'absolute',
+    top: HANGER_PIVOT_Y,
+    start: 0,
+    end: 0,
+    height: 1.3,
+    backgroundColor: colors.text,
+  },
+  hung: {
+    width: HANGER_WIDTH,
+    alignItems: 'center',
+  },
+  hungImage: {
+    width: 80,
+    height: 96,
+    marginTop: -4,
+  },
+  hungName: {
+    marginTop: 6,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  like: {
+    marginTop: 54,
+    fontFamily: fonts.hand,
+    fontSize: 22,
+    color: colors.bead,
+  },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  action: {
+    minHeight: 44,
+    paddingHorizontal: 18,
+  },
+  look: {
+    paddingBottom: 32,
   },
 });

@@ -183,6 +183,22 @@ describe('<WearWith />', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: tee.id } });
   });
 
+  test('shows the piece on top, and the one like it she has on a short rail with it', async () => {
+    jest.mocked(getWearWith).mockResolvedValue({
+      ...done,
+      verdict: { call: 'twin', reason: 'Almost your grey tee again.', twin: tee },
+    });
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText('Mauve satin skirt', { exact: true })).toBeOnTheScreen();
+    // The piece and her twin, both bare cut-outs; the new one first (its photo, no cut-out yet).
+    const pieces = screen.getAllByTestId('bare-piece', { includeHiddenElements: true });
+    expect(pieces[0]!.props.source).toEqual([
+      { uri: `http://api${skirt.photoUrl}`, headers: { cookie: 'session' } },
+    ]);
+    expect(screen.getByText('Grey tee')).toBeOnTheScreen();
+  });
+
   test('adds an item from a photo to the closet', async () => {
     const addable = {
       name: 'Red leather skirt',
