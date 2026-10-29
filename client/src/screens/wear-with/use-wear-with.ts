@@ -1,6 +1,6 @@
 import type { DislikeReason, Outfit, OutfitReaction, WearWithRequest } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo } from 'react-native';
 
@@ -93,9 +93,14 @@ export function useWearWith(id: string | null) {
     };
   }, [id, lang, attempt, i18n]);
 
+  // The last reaction sent for each outfit: the next one waits for it. "Not mine" and its reason
+  // go one after the other, and the server keeps the latest, so a reason that overtook its dislike
+  // would be lost (senior-qa, 2026-10-29).
+  const sending = useRef(new Map<string, Promise<void>>());
+
   // Shown at once; if the server doesn't take it, it goes back. Built from the current outfits,
   // so two quick taps count twice and reactions to other outfits since then stay.
-  async function react(outfit: Outfit, reaction: OutfitReaction, reason?: DislikeReason) {
+  function react(outfit: Outfit, reaction: OutfitReaction, reason?: DislikeReason) {
     if (state.status !== 'done') return;
     void Haptics.selectionAsync();
     const before = state.outfits.find((o) => o.id === outfit.id);
@@ -115,15 +120,22 @@ export function useWearWith(id: string | null) {
         : // A new opinion has no reason until she gives one.
           { ...o, opinion: reaction === 'none' ? null : reaction, reason: reason ?? null },
     );
-    try {
-      await (reason
-        ? reactToOutfit(outfit.id, reaction, reason)
-        : reactToOutfit(outfit.id, reaction));
-    } catch {
-      apply((o) =>
-        reaction === 'wore' ? { ...o, woreCount: Math.max(0, o.woreCount - 1) } : { ...o, ...was },
-      );
-    }
+    const send = async () => {
+      try {
+        await (reason
+          ? reactToOutfit(outfit.id, reaction, reason)
+          : reactToOutfit(outfit.id, reaction));
+      } catch {
+        apply((o) =>
+          reaction === 'wore'
+            ? { ...o, woreCount: Math.max(0, o.woreCount - 1) }
+            : { ...o, ...was },
+        );
+      }
+    };
+    // `send` never rejects, so one failed reaction doesn't stop the ones after it.
+    const sent = (sending.current.get(outfit.id) ?? Promise.resolve()).then(send);
+    sending.current.set(outfit.id, sent);
   }
 
   // The piece went into the user's wishes.

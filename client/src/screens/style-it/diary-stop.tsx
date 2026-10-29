@@ -1,14 +1,12 @@
-import type { Outfit, StyledEntry } from '@closet-ai/shared';
+import type { StyledEntry, StyledPreview } from '@closet-ai/shared';
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { PressableScale } from '@/components/pressable-scale';
-import { absoluteUrl, getWearWith } from '@/lib/api';
-import { appLanguage } from '@/lib/app-language';
+import { absoluteUrl } from '@/lib/api';
 import { dayLabel } from '@/lib/day-label';
 import { colors, fonts } from '@/theme';
 
@@ -17,8 +15,6 @@ import { ThreadRow } from './thread-row';
 type Props = {
   entry: StyledEntry;
   headers: Record<string, string> | undefined;
-  // Bumped on each visit to the tab: the folded looks are read again.
-  visit: number;
   joined: boolean;
   last: boolean;
   onOpen: () => void;
@@ -26,11 +22,9 @@ type Props = {
 
 // A piece styled before, on Style it's diary thread (decided 2026-10-28): the piece, when, and its
 // looks folded small (a heart on the liked ones, the rejected ones left out). A tap opens it.
-export function DiaryStop({ entry, headers, visit, joined, last, onOpen }: Props) {
+export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
   const { t, i18n } = useTranslation();
-  const looks = usePeek(entry.id, visit);
   const day = dayLabel(entry.createdAt, t, i18n.language);
-  const shown = looks?.filter((look) => look.opinion !== 'dislike') ?? [];
   return (
     <ThreadRow kind="root" joined={joined} last={last} hollow>
       <PressableScale
@@ -62,13 +56,14 @@ export function DiaryStop({ entry, headers, visit, joined, last, onOpen }: Props
             </Text>
           </View>
         </View>
-        {shown.length > 0 && (
+        {/* Sent with the list (the rejected ones left out), read again with it on each visit. */}
+        {entry.previews.length > 0 && (
           <View
             style={styles.peek}
             importantForAccessibility="no-hide-descendants"
             accessibilityElementsHidden
           >
-            {shown.slice(0, 3).map((look) => (
+            {entry.previews.map((look) => (
               <MiniLook key={look.id} look={look} headers={headers} />
             ))}
           </View>
@@ -91,17 +86,13 @@ function MiniLook({
   look,
   headers,
 }: {
-  look: Outfit;
+  look: StyledPreview;
   headers: Record<string, string> | undefined;
 }) {
-  const pieces = look.pieces
-    .filter((p) => !p.hero)
-    .flatMap((p) => (p.item ? [p.item] : []))
-    .slice(0, 3);
   return (
     <View style={styles.mini} testID="mini-look">
       {/* Cut-outs straight on the paper, with their soft shadow; no tile of their own. */}
-      {pieces.map((item, i) => {
+      {look.pieces.map((item, i) => {
         const url = item.cutoutUrl ?? item.photoUrl;
         return (
           <View key={item.id} style={[styles.miniPiece, MINI_SPOTS[i], cutoutShadow('flat')]}>
@@ -116,38 +107,13 @@ function MiniLook({
           </View>
         );
       })}
-      {look.opinion === 'like' && (
+      {look.liked && (
         <View style={styles.miniHeart}>
           <HandDrawn shape="heart" drawn seed={seedFrom(look.id)} fill />
         </View>
       )}
     </View>
   );
-}
-
-// The looks of a request done before, read when the stop appears and on each visit to the tab
-// (the tab stays mounted), with no polling: one still being written shows none until then.
-function usePeek(id: string, visit: number) {
-  const { i18n } = useTranslation();
-  const lang = appLanguage(i18n.language);
-  const [looks, setLooks] = useState<{ id: string; outfits: Outfit[] } | null>(null);
-  useEffect(() => {
-    if (!id) return;
-    let gone = false;
-    const load = async () => {
-      try {
-        const request = await getWearWith(id, lang);
-        if (!gone && request.status === 'done') setLooks({ id, outfits: request.outfits });
-      } catch {
-        // A peek is a nicety: the stop works without it.
-      }
-    };
-    void load();
-    return () => {
-      gone = true;
-    };
-  }, [id, lang, visit]);
-  return looks?.id === id ? looks.outfits : null;
 }
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.

@@ -73,6 +73,13 @@ const styled: StyledEntry = {
   name: 'Leather jacket',
   photoUrl: '/api/wear-with/aa/photo',
   cutoutUrl: null,
+  previews: [
+    {
+      id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a91',
+      liked: true,
+      pieces: [{ id: skirt.id, photoUrl: skirt.photoUrl!, cutoutUrl: null }],
+    },
+  ],
 };
 
 const looks = (id: string): WearWithRequest => ({
@@ -125,12 +132,43 @@ describe('<StyleIt />', () => {
   test('keeps a diary: every piece styled is a stop, its looks folded small', async () => {
     await render(<StyleIt />);
     expect(await screen.findByLabelText('Outfits with Leather jacket')).toBeOnTheScreen();
-    // The newest stops read their looks once, for the folded previews.
-    await waitFor(() => expect(getWearWith).toHaveBeenCalledWith(styled.id, 'en'));
     expect(screen.getByText(/October 21/)).toBeOnTheScreen();
+    // The folded looks come with the list: no request per stop.
     expect(await screen.findAllByTestId('mini-look', { includeHiddenElements: true })).toHaveLength(
       1,
     );
+    expect(getWearWith).not.toHaveBeenCalled();
+  });
+
+  test("says the closet couldn't be read, not that it's empty, and tries again", async () => {
+    jest.mocked(listItems).mockRejectedValueOnce(new Error('offline'));
+    await render(<StyleIt />);
+    expect(await screen.findByText("Couldn't load your closet.")).toBeOnTheScreen();
+    expect(screen.queryByText(/Add a few pieces/)).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: 'From my closet' })).toBeOnTheScreen();
+  });
+
+  test('sends a reason only after its "Not mine" got through', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    let through!: () => void;
+    jest
+      .mocked(reactToOutfit)
+      .mockImplementationOnce(() => new Promise<void>((resolve) => (through = resolve)));
+    await render(<StyleIt />);
+    await pickSkirt();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+    await fireEvent.press(
+      screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' }),
+    );
+    // The reason is shown at once but waits for the dislike before it's sent.
+    expect(screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' })).toBeChecked();
+    expect(reactToOutfit).toHaveBeenCalledTimes(1);
+
+    await act(async () => through());
+    const id = looks('req-1').outfits[0]!.id;
+    expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike', 'weather');
   });
 
   test("folds a look that isn't hers, asks why in a tap, and brings it back", async () => {
@@ -236,8 +274,8 @@ describe('<StyleIt />', () => {
   });
 
   test('polls an entry styled before again when it timed out', async () => {
-    // Its folded preview reads it first; opened, the second read finds it timed out.
-    failOnRead(styled.id, 2);
+    // Opened, its first read finds it timed out.
+    failOnRead(styled.id, 1);
     await render(<StyleIt />);
     await fireEvent.press(await screen.findByLabelText('Outfits with Leather jacket'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));

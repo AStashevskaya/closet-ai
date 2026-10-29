@@ -901,6 +901,42 @@ describe("GET /api/wear-with", () => {
     });
     expect((await list(anna.cookie)).map((e) => e.name)).toEqual([skirt.name]);
   });
+
+  it("sends each one's folded looks: no rejected ones, a heart on the liked, no styled piece", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top");
+    const id = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>().id;
+    await s.runJobs();
+    const looks = (await view(s, anna.cookie, id)).outfits;
+    const react = (outfitId: string, reaction: string) =>
+      s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${outfitId}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload: { reaction },
+      });
+    await react(looks[0]!.id, "dislike");
+    await react(looks[1]!.id, "like");
+
+    const [entry] = (
+      await s.server.inject({
+        method: "GET",
+        url: "/api/wear-with",
+        headers: { cookie: anna.cookie },
+      })
+    ).json<StyledEntry[]>();
+    const kept = looks.slice(1);
+    expect(entry!.previews.map((p) => [p.id, p.liked])).toEqual(
+      kept.map((look, i) => [look.id, i === 0]),
+    );
+    for (const preview of entry!.previews) {
+      expect(preview.pieces.length).toBeGreaterThan(0);
+      expect(preview.pieces.length).toBeLessThanOrEqual(3);
+      expect(preview.pieces.map((p) => p.id)).not.toContain(skirt.id);
+    }
+  });
 });
 
 describe("reactions", () => {

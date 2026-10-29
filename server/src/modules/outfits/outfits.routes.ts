@@ -8,6 +8,7 @@ import {
   wearWithStarted,
   type Item,
   type StyledEntry,
+  type StyledPreview,
   type WearWithRequest,
 } from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -31,6 +32,27 @@ const HISTORY_LIMIT = 30;
 // The photo of an item from a photo, served by the API like an item's: by request id.
 export const heroPath = (requestId: string, variant?: "cutout") =>
   `/api/wear-with/${requestId}/photo${variant ? `?variant=${variant}` : ""}`;
+
+// The diary's folded looks: wardrobe pieces only, so the language of partner names doesn't matter.
+const PREVIEW_LOOKS = 3;
+const PREVIEW_PIECES = 3;
+function previewsOf(request: WearWithRequest | null): StyledPreview[] {
+  return (request?.outfits ?? [])
+    .filter((look) => look.opinion !== "dislike")
+    .slice(0, PREVIEW_LOOKS)
+    .map((look) => ({
+      id: look.id,
+      liked: look.opinion === "like",
+      pieces: look.pieces
+        .flatMap((piece) => (!piece.hero && piece.item ? [piece.item] : []))
+        .slice(0, PREVIEW_PIECES)
+        .map((item) => ({
+          id: item.id,
+          photoUrl: item.photoUrl ?? null,
+          cutoutUrl: item.cutoutUrl ?? null,
+        })),
+    }));
+}
 
 export const outfitsRoutes =
   (
@@ -121,6 +143,7 @@ export const outfitsRoutes =
               id: row.id,
               createdAt: row.createdAt.toISOString(),
               mood: row.mood,
+              previews: previewsOf(await outfits.view(row.id, user.id, "en")),
             };
             if (row.itemId) {
               const item = await items.get(user.id, row.itemId);

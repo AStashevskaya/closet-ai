@@ -44,6 +44,8 @@ export function StyleIt() {
   const lang = appLanguage(i18n.language);
   const { usage, refresh: refreshUsage } = useUsage();
   const [items, setItems] = useState<Item[] | null>(null);
+  // The closet couldn't be read and there's none from before: say so rather than "it's empty".
+  const [itemsFailed, setItemsFailed] = useState(false);
   const [styled, setStyled] = useState<StyledEntry[]>([]);
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [mood, setMood] = useState<OutfitMood | null>(null);
@@ -64,27 +66,26 @@ export function StyleIt() {
     else scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
   }
 
-  // Each visit to the tab, so the stops read their folded looks afresh (liked or rejected since).
-  const [visit, setVisit] = useState(0);
+  const load = useCallback(async () => {
+    setItemsFailed(false);
+    try {
+      const all = await listItems();
+      setItems(all.filter((item) => item.photoStatus === 'ready'));
+    } catch {
+      // A closet read before stays; with none, the error shows instead of the buttons.
+      setItemsFailed(true);
+    }
+    try {
+      setStyled(await listStyled());
+    } catch {
+      // Nice to have: the section just stays as it was.
+    }
+  }, []);
   // Reloads when the tab comes into view: a piece added or styled elsewhere shows up.
   useFocusEffect(
     useCallback(() => {
-      setVisit((n) => n + 1);
-      const load = async () => {
-        try {
-          const all = await listItems();
-          setItems(all.filter((item) => item.photoStatus === 'ready'));
-        } catch {
-          setItems((current) => current ?? []);
-        }
-        try {
-          setStyled(await listStyled());
-        } catch {
-          // Nice to have: the section just stays as it was.
-        }
-      };
       void load();
-    }, []),
+    }, [load]),
   );
 
   useEffect(() => {
@@ -139,6 +140,8 @@ export function StyleIt() {
             name: chosen.name,
             photoUrl: chosen.photoUrl ?? null,
             cutoutUrl: chosen.cutoutUrl ?? null,
+            // Its looks are still being written.
+            previews: [],
           },
           ...styled,
         ]
@@ -164,7 +167,12 @@ export function StyleIt() {
 
       {/* Two ways in: a piece of hers, or one from a photo she doesn't own yet (dashed: not hers). */}
       <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.start]}>
-        {items === null ? (
+        {items === null && itemsFailed ? (
+          <View style={styles.empty}>
+            <Text style={maison.body}>{t('closet.loadError')}</Text>
+            <Button kind="outline" label={t('closet.retry')} onPress={() => void load()} />
+          </View>
+        ) : items === null ? (
           <View style={styles.loading}>
             <HangerLoader />
           </View>
@@ -227,7 +235,6 @@ export function StyleIt() {
                 key={entry.id}
                 entry={entry}
                 headers={headers}
-                visit={visit}
                 joined={index > 0}
                 last={index === entries.length - 1}
                 onOpen={() => {
