@@ -36,6 +36,8 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   jest.mocked(getProfile).mockResolvedValue({ ...empty, sizeTop: 'S' });
   jest.mocked(updateProfile).mockResolvedValue(empty);
+  // Better Auth answers with `error` rather than throwing.
+  jest.mocked(authClient.updateUser).mockResolvedValue({ data: {}, error: null } as never);
 });
 
 // Done with a field: the keyboard's Done (or tapping away) ends editing with what she typed.
@@ -114,6 +116,37 @@ describe('<ProfileDetails />', () => {
       await screen.findByText("Couldn't save. Check the fields and try again."),
     ).toBeOnTheScreen();
     expect(screen.getByLabelText('Height, cm').props.value).toBe('999');
+
+    // Tapped again, it closes unsaved: she's never stuck in a field.
+    await fireEvent.press(screen.getByRole('button', { name: 'Height, add' }));
+    expect(screen.queryByLabelText('Height, cm')).toBeNull();
+    expect(updateProfile).toHaveBeenCalledTimes(1);
+  });
+
+  test("doesn't say a new name is saved when the account refuses it", async () => {
+    jest
+      .mocked(authClient.updateUser)
+      .mockResolvedValue({ data: null, error: { message: 'offline' } } as never);
+    await render(<ProfileDetails />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Name, Anna' }));
+    await type('Name', 'Anya');
+
+    expect(
+      await screen.findByText("Couldn't save. Check the fields and try again."),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Saved')).toBeNull();
+    expect(screen.getByLabelText('Name').props.value).toBe('Anya');
+  });
+
+  test('keeps the fields she saved when an earlier answer comes back late', async () => {
+    // The server answers with the whole profile; only the field sent is taken from it.
+    jest.mocked(updateProfile).mockResolvedValue({ ...empty, heightCm: 168 });
+    await render(<ProfileDetails />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Height, add' }));
+    await type('Height, cm', '168');
+    // `sizeTop` was S before; the answer's null for it is ignored.
+    expect(await screen.findByRole('button', { name: 'Tops, S' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Height, 168' })).toBeOnTheScreen();
   });
 
   test('signs out and opens account deletion', async () => {

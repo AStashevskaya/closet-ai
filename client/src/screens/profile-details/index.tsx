@@ -1,7 +1,7 @@
 import { PROFILE_COUNTRIES, type UpdateProfileInput, type UserProfile } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -27,8 +27,7 @@ type Key =
   | 'sizeShoes'
   | 'bodyShape'
   | 'birthYear';
-// The ones typed into a single field (`where`'s field is the city).
-type TextKey = Exclude<Key, 'where' | 'bodyShape'>;
+// The ones typed as numbers.
 const NUMERIC: Key[] = ['heightCm', 'birthYear'];
 
 type Status = 'idle' | 'saving' | 'saved' | 'failed';
@@ -54,12 +53,19 @@ export function ProfileDetails() {
   // The open field as typed: saved when she's done with it.
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState<Status>('idle');
+  // One save at a time: a tap while one is on its way is ignored, so the same value isn't sent
+  // twice and the fields don't open and close in whichever order the answers come back.
+  const saving = useRef(false);
+  // The profile as saved so far, for the async handlers (state in their closures can be stale).
+  const latest = useRef<UserProfile | null>(null);
 
   useEffect(() => {
     // An effect can't be async itself, so the async work goes in an inner function.
     const load = async () => {
       try {
-        setProfile(await getProfile());
+        const loaded = await getProfile();
+        latest.current = loaded;
+        setProfile(loaded);
         setName(session?.user.name ?? '');
       } catch {
         setLoadFailed(true);
@@ -71,10 +77,23 @@ export function ProfileDetails() {
   }, []);
 
   async function save(patch: UpdateProfileInput, rename?: string) {
+    if (saving.current) return false;
+    saving.current = true;
     setStatus('saving');
     try {
-      if (rename !== undefined) await authClient.updateUser({ name: rename });
-      else setProfile(await updateProfile(patch));
+      if (rename !== undefined) {
+        // Better Auth answers a refusal with `error` instead of throwing.
+        const { error } = await authClient.updateUser({ name: rename });
+        if (error) throw new Error(error.message ?? 'renaming failed');
+      } else {
+        const saved = await updateProfile(patch);
+        // Only the fields sent are taken from the answer: the rest may have changed since.
+        const sent = Object.fromEntries(
+          Object.keys(patch).map((key) => [key, saved[key as keyof UserProfile]]),
+        );
+        latest.current = latest.current && { ...latest.current, ...sent };
+        setProfile(latest.current);
+      }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStatus('saved');
       return true;
@@ -83,6 +102,8 @@ export function ProfileDetails() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setStatus('failed');
       return false;
+    } finally {
+      saving.current = false;
     }
   }
 
@@ -91,6 +112,7 @@ export function ProfileDetails() {
   // The value is passed in rather than read from `draft`: a field closing after another opened
   // would otherwise save the new field's text into the old one.
   async function commit(key: Key | null, value: string) {
+    const profile = latest.current;
     if (!profile || key === null || key === 'bodyShape') return true;
     if (key === 'name') {
       const next = value.trim();
@@ -112,9 +134,15 @@ export function ProfileDetails() {
     if (await commit(key, value)) setOpen((current) => (current === key ? null : current));
   }
 
-  // Opening another value saves the open one first; tapping the open one closes it.
+  // Opening another value saves the open one first; tapping the open one closes it. Tapped again
+  // after the server refused it, the value closes unsaved, so she's never stuck in a field.
   async function toggle(key: Key) {
-    if (!profile) return;
+    if (!profile || saving.current) return;
+    if (open === key && status === 'failed') {
+      setStatus('idle');
+      setOpen(null);
+      return;
+    }
     if (!(await commit(open, draft))) return;
     setStatus((current) => (current === 'saving' ? current : 'idle'));
     if (open === key) {
@@ -137,7 +165,7 @@ export function ProfileDetails() {
 
   // The server checks only that it's a two-letter code; the app offers these.
   const code = profile.country as (typeof PROFILE_COUNTRIES)[number] | null;
-  const country = code && t(`details.countries.${code}`);
+  const country = code && t(`details.countries.${code}`, { defaultValue: code });
   const where = [profile.city, country].filter(Boolean).join(', ');
   const stats = [
     { key: 'heightCm', label: t('details.heightShort'), value: profile.heightCm?.toString() },
@@ -146,23 +174,6 @@ export function ProfileDetails() {
     { key: 'sizeShoes', label: t('details.sizeShoes'), value: profile.sizeShoes },
   ] as const;
   const statOpen = stats.find((stat) => stat.key === open);
-
-  // The open field's panel: an input with why it's asked, under the value it opened from.
-  const field = (key: TextKey, label: string, why: string) => (
-    <Panel why={why}>
-      <TextInput
-        style={styles.input}
-        value={draft}
-        onChangeText={setDraft}
-        onEndEditing={(event) => void finish(key, event.nativeEvent.text)}
-        autoFocus
-        returnKeyType="done"
-        keyboardType={NUMERIC.includes(key) ? 'number-pad' : 'default'}
-        maxLength={NUMERIC.includes(key) ? 4 : key === 'name' ? 80 : 12}
-        accessibilityLabel={label}
-      />
-    </Panel>
-  );
 
   return (
     <ScrollView
@@ -179,19 +190,32 @@ export function ProfileDetails() {
       <Animated.View entering={rise.delay(STAGGER_STEP)} style={styles.card}>
         <Text style={styles.caps}>{t('details.name')}</Text>
         <Pressable
+          style={styles.nameRow}
           onPress={() => void toggle('name')}
           accessibilityRole="button"
           accessibilityLabel={`${t('details.name')}, ${name || t('details.add')}`}
+          accessibilityState={{ expanded: open === 'name' }}
         >
           <Text style={[styles.name, !name && styles.unknown]}>{name || '+'}</Text>
         </Pressable>
-        {open === 'name' && field('name', t('details.name'), t('details.why.name'))}
+        {open === 'name' && (
+          <Field
+            key={'name'}
+            label={t('details.name')}
+            why={t('details.why.name')}
+            value={draft}
+            onChange={setDraft}
+            onDone={(value) => void finish('name', value)}
+            maxLength={80}
+          />
+        )}
 
         <Pressable
           style={styles.whereRow}
           onPress={() => void toggle('where')}
           accessibilityRole="button"
           accessibilityLabel={`${t('details.country')}, ${where || t('details.add')}`}
+          accessibilityState={{ expanded: open === 'where' }}
         >
           {where ? (
             <Text style={styles.where}>
@@ -248,12 +272,18 @@ export function ProfileDetails() {
             </PressableScale>
           ))}
         </View>
-        {statOpen &&
-          field(
-            statOpen.key,
-            statOpen.key === 'heightCm' ? t('details.height') : statOpen.label,
-            t(statOpen.key === 'heightCm' ? 'details.why.heightCm' : 'details.why.sizes'),
-          )}
+        {statOpen && (
+          <Field
+            key={statOpen.key}
+            label={statOpen.key === 'heightCm' ? t('details.height') : statOpen.label}
+            why={t(statOpen.key === 'heightCm' ? 'details.why.heightCm' : 'details.why.sizes')}
+            value={draft}
+            onChange={setDraft}
+            onDone={(value) => void finish(statOpen.key, value)}
+            numeric={NUMERIC.includes(statOpen.key)}
+            maxLength={statOpen.key === 'heightCm' ? 4 : 12}
+          />
+        )}
 
         <View style={styles.rows}>
           <Row
@@ -276,8 +306,18 @@ export function ProfileDetails() {
             open={open === 'birthYear'}
             onPress={() => void toggle('birthYear')}
           />
-          {open === 'birthYear' &&
-            field('birthYear', t('details.birthYear'), t('details.why.birthYear'))}
+          {open === 'birthYear' && (
+            <Field
+              key={'birthYear'}
+              label={t('details.birthYear')}
+              why={t('details.why.birthYear')}
+              value={draft}
+              onChange={setDraft}
+              onDone={(value) => void finish('birthYear', value)}
+              numeric
+              maxLength={4}
+            />
+          )}
         </View>
 
         <View style={styles.status} accessibilityLiveRegion="polite">
@@ -315,6 +355,36 @@ export function ProfileDetails() {
         </Pressable>
       </Animated.View>
     </ScrollView>
+  );
+}
+
+type FieldProps = {
+  label: string;
+  why: string;
+  value: string;
+  onChange: (value: string) => void;
+  // With what she typed, when she's done (the keyboard's Done, or tapping away).
+  onDone: (value: string) => void;
+  numeric?: boolean;
+  maxLength: number;
+};
+
+// A typed value, opened. Keyed by its field, so each one is a new input that takes the focus.
+function Field({ label, why, value, onChange, onDone, numeric, maxLength }: FieldProps) {
+  return (
+    <Panel why={why}>
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChange}
+        onEndEditing={(event) => onDone(event.nativeEvent.text)}
+        autoFocus
+        returnKeyType="done"
+        keyboardType={numeric ? 'number-pad' : 'default'}
+        maxLength={maxLength}
+        accessibilityLabel={label}
+      />
+    </Panel>
   );
 }
 
@@ -395,6 +465,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderStyle: 'dashed',
     borderBottomColor: colors.textMuted,
+  },
+  nameRow: {
+    minHeight: 44,
+    justifyContent: 'center',
   },
   whereRow: {
     minHeight: 44,
