@@ -12,7 +12,7 @@ Next to it, **Inspiration**: save looks you like (screenshots, Pinterest through
 
 Brands can pay to have their items suggested, always marked as partner items and only where they fit: a cheaper alternative in Want / Can, the missing piece of a saved look, or the one thing an outfit lacks.
 
-First markets: Israel (Hebrew and Russian, Yad2 and Facebook groups), then Ukraine and Belarus.
+First market: Belarus (Russian; resale on Kufar, Telegram and Instagram), then Israel (Hebrew, Yad2 and Facebook groups) and Ukraine. In-store subscriptions often fail with Belarusian cards, so partner brands are the main revenue there at first.
 
 Status: early development. The API (Fastify, Postgres) and the Expo app are in place, with email + password sign-in and the app in English, Hebrew and Russian. Image upload is next.
 
@@ -22,7 +22,7 @@ Status: early development. The API (Fastify, Postgres) and the Expo app are in p
 - **Pro, 7-day free trial:** no limits, price suggestions, photo clean-up, full "Want / Can".
 - When Pro ends, you drop back to the free tier. Nothing in your wardrobe is lost.
 
-Stylists are part of the plan: a person can give a stylist access to their wardrobe, and the stylist can suggest outfits, flag items to sell and leave a shopping list. The app is meant to be a tool for stylists, not a replacement for them.
+Stylists are part of the plan, much later (not part of the launch): a person can give a stylist access to their wardrobe, and the stylist can suggest outfits, flag items to sell and leave a shopping list. The app is meant to be a tool for stylists, not a replacement for them.
 
 ## Stack
 
@@ -94,7 +94,7 @@ pnpm test
 - [ ] Wardrobe sharing model in the database (who can see or edit whose wardrobe), so stylists can be added later without a rewrite
 - [ ] "What do I wear this with?" from a single item, with missing pieces shown as optional buys
 - [ ] Declutter flow: swipe keep / sell / not sure
-- [ ] Listing generator in Hebrew and Russian with a price range; share to Yad2 / Facebook Marketplace / Vinted via the share sheet
+- [ ] Listing generator in Russian and Hebrew with a price range; share to Kufar / Telegram / Instagram (Belarus), Yad2 / Facebook Marketplace (Israel) or Vinted via the share sheet
 - [x] Look screenshot → the same look from your own wardrobe (embeddings + pgvector); becomes Inspiration
 - [ ] "Want / Can" for one item: the closest piece you own, then similar for less
 - [ ] Expo app: wardrobe, outfits, sell; RTL support for Hebrew from day one

@@ -6,7 +6,7 @@ A wardrobe app, mobile-first. You photograph an item and the app tells you what 
 
 The core feature is "Want / Can" (shown in the app as "Recreate the look" / «Воссоздай образ» / «ליצור את הלוק מחדש» since 2026-10-22, the owner found "Want / Can" unclear; code, routes and keys keep `want` / `wantCan`): the user drops in one item they want (a Balenciaga jacket from Instagram) and the app finds something similar for less from partner brands and resale, plus what close to it they already own. Its sibling is "Inspiration" (Вдохновение / השראה): looks the user likes, saved from screenshots, shared from Pinterest or picked in onboarding, which teach the app their taste and are rebuilt from their wardrobe. See "Feature boundaries" in docs/product.md (decided 2026-10-21).
 
-First market is Israel (Hebrew + Russian, Yad2 and Facebook groups), then Ukraine and Belarus. Free tier forever, 7-day Pro trial, then subscription via RevenueCat. Stylists will later get access to clients' wardrobes, so sharing is part of the data model from the start. See README.md for the full roadmap.
+First market is Belarus (decided 2026-10-28; Russian, no Belarusian locale; resale on Kufar, Telegram and Instagram), then Israel (Hebrew, kept RTL-safe from the start) and Ukraine. Free tier forever, 7-day Pro trial, then subscription via RevenueCat; App Store and Google Play payments often fail with Belarusian cards, so revenue from partner brands matters more there. Stylists come much later (not part of the launch), but sharing stays in the data model from the start. See README.md for the full roadmap.
 
 This is also a learning project. The owner is a frontend engineer (React, React Native) building her backend, TypeScript and AI skills on it, and it is part of her portfolio.
 
