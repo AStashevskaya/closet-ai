@@ -1,6 +1,7 @@
 import type {
   AppLanguage,
   BuyVerdict,
+  DislikeReason,
   ItemTags,
   OutfitMood,
   MissingPiece,
@@ -80,6 +81,7 @@ export interface StyleBrief {
 // An outfit the user reacted to, in words, for the brief.
 export interface ReactedOutfit {
   opinion: "like" | "dislike" | null;
+  reason: DislikeReason | null;
   wore: boolean;
   description: string;
 }
@@ -119,7 +121,12 @@ export interface OutfitsRepository {
   // Partner pieces are named in the language asked for.
   view(requestId: string, userId: string, lang: AppLanguage): Promise<WearWithRequest | null>;
   // false when the outfit doesn't exist or is someone else's.
-  react(outfitId: string, userId: string, reaction: OutfitReaction): Promise<boolean>;
+  react(
+    outfitId: string,
+    userId: string,
+    reaction: OutfitReaction,
+    reason?: DislikeReason,
+  ): Promise<boolean>;
   // What her last few finished requests used: how many looks each wardrobe piece was in (the
   // item asked about not counted) and the looks' names, so the next ones can be fresher.
   recentlyUsed(
@@ -150,15 +157,20 @@ export interface OutfitsRepository {
   addedSince(userId: string, since: Date): Promise<{ items: number; looks: number }>;
 }
 
-// The current opinion is the latest like / dislike / none; "wore" is counted.
-export function summarize(reactions: { reaction: OutfitReaction; createdAt: Date }[]) {
+// The current opinion is the latest like / dislike / none, with a dislike's reason; "wore" is
+// counted.
+export function summarize(
+  reactions: { reaction: OutfitReaction; reason?: DislikeReason | null; createdAt: Date }[],
+) {
   const sorted = [...reactions].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   const opinions = sorted.filter((r) => r.reaction !== "wore");
-  const last = opinions.at(-1)?.reaction;
+  const latest = opinions.at(-1);
+  const last = latest?.reaction;
   return {
     opinion: last === "like" || last === "dislike" ? last : null,
+    reason: last === "dislike" ? (latest?.reason ?? null) : null,
     woreCount: sorted.filter((r) => r.reaction === "wore").length,
-  } satisfies Pick<Outfit, "opinion" | "woreCount">;
+  } satisfies Pick<Outfit, "opinion" | "reason" | "woreCount">;
 }
 
 export function createOutfitsRepository(db: Db): OutfitsRepository {
@@ -346,13 +358,13 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       };
     },
 
-    async react(outfitId, userId, reaction) {
+    async react(outfitId, userId, reaction, reason) {
       const [own] = await db
         .select({ id: outfits.id })
         .from(outfits)
         .where(and(eq(outfits.id, outfitId), eq(outfits.userId, userId)));
       if (!own) return false;
-      await db.insert(outfitReactions).values({ outfitId, userId, reaction });
+      await db.insert(outfitReactions).values({ outfitId, userId, reaction, reason });
       return true;
     },
 
@@ -408,10 +420,13 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           .where(inArray(outfitPieces.outfitId, ids)),
       ]);
       return looks.map((look) => {
-        const { opinion, woreCount } = summarize(reactions.filter((r) => r.outfitId === look.id));
+        const { opinion, reason, woreCount } = summarize(
+          reactions.filter((r) => r.outfitId === look.id),
+        );
         const names = pieces.filter((p) => p.outfitId === look.id).map((p) => p.name);
         return {
           opinion,
+          reason,
           wore: woreCount > 0,
           description: `"${look.caption}": ${names.join(" + ")}`,
         };

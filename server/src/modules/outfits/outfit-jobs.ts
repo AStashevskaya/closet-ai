@@ -1,4 +1,4 @@
-import type { AppLanguage } from "@closet-ai/shared";
+import type { AppLanguage, DislikeReason } from "@closet-ai/shared";
 import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import type { Stylist } from "../../ai/stylist";
@@ -409,6 +409,14 @@ const BRIEF_SHEET_ITEMS = 48;
 const BRIEF_INSPIRATION = 12;
 const BRIEF_REACTED = 20;
 
+// A dislike's reason, as the brief reads it.
+const REASON_WORDS: Record<DislikeReason, string> = {
+  style: "not her style",
+  match: "the pieces don't go together",
+  weather: "wrong for the weather",
+  occasion: "wrong for her occasions",
+};
+
 // Job "brief": starts a new brief through the Batch API: the first one, one she asked for, or
 // the monthly one when something changed.
 export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
@@ -465,7 +473,9 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
     sheets,
     inspiration,
     liked: reacted.filter((o) => o.opinion === "like" || o.wore).map((o) => o.description),
-    disliked: reacted.filter((o) => o.opinion === "dislike").map((o) => o.description),
+    disliked: reacted
+      .filter((o) => o.opinion === "dislike")
+      .map((o) => (o.reason ? `${o.description} (${REASON_WORDS[o.reason]})` : o.description)),
     previous: current?.brief ?? null,
   });
   await outfits.setBriefBatch(userId, batchId, now);

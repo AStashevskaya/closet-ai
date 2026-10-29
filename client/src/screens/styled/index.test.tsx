@@ -43,6 +43,7 @@ const looks = (id: string): WearWithRequest => ({
       missing: null,
       pieces: [],
       opinion: null,
+      reason: null,
       woreCount: 0,
     },
   ],

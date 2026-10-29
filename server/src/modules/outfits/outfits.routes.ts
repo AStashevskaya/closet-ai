@@ -240,7 +240,8 @@ export const outfitsRoutes =
       { schema: { params: z.object({ id: z.string().uuid() }), body: outfitReactionInput } },
       async (request, reply) => {
         const user = request.user as SessionUser;
-        const saved = await outfits.react(request.params.id, user.id, request.body.reaction);
+        const { reaction, reason } = request.body;
+        const saved = await outfits.react(request.params.id, user.id, reaction, reason);
         if (!saved) throw httpError(404, "outfit not found");
         // Reactions make the brief stale after a few; the job decides.
         await queue.enqueueBrief(user.id);
