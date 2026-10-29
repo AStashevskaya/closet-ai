@@ -39,6 +39,7 @@ export const wishesRoutes =
       cutoutUrl: row.cutoutKey ? heroPath(row.requestId, "cutout") : null,
       call: row.call,
       createdAt: row.createdAt.toISOString(),
+      askAt: row.askAt.toISOString(),
       due: row.askAt.getTime() <= clock().getTime(),
     });
 

@@ -364,6 +364,8 @@ export const wish = z.object({
   cutoutUrl: z.string().nullable(),
   call: buyCall.nullable(),
   createdAt: z.string().datetime(),
+  // When to ask whether she still wants it: the app counts the week's days down to it.
+  askAt: z.string().datetime(),
   // Time to ask whether she still wants it.
   due: z.boolean(),
 });

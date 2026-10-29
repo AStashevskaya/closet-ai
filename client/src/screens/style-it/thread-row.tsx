@@ -34,6 +34,8 @@ type Props = {
   joined?: boolean;
   // A root whose outfits are folded away: an open knot instead of the bead.
   hollow?: boolean;
+  // The whole thread dashed: a row of things that aren't hers yet (Wishes, 2026-10-29).
+  dashed?: boolean;
   delay?: number;
   children: ReactNode;
 };
@@ -48,6 +50,7 @@ export function ThreadRow({
   loose = false,
   joined = false,
   hollow = false,
+  dashed = false,
   delay = 0,
   children,
 }: Props) {
@@ -77,7 +80,7 @@ export function ThreadRow({
     [length],
   );
   // A dashed line can't be drawn in by its dash: it fades in instead.
-  const dashed = useAnimatedProps(() => ({ strokeOpacity: progress.value }));
+  const fade = useAnimatedProps(() => ({ strokeOpacity: progress.value }));
 
   return (
     <View
@@ -93,17 +96,17 @@ export function ThreadRow({
           <Svg width={THREAD_INDENT} height={height}>
             <AnimatedPath
               d={branch ? branch.down : d}
-              animatedProps={line}
+              animatedProps={dashed ? fade : line}
               fill="none"
-              stroke={colors.text}
+              stroke={dashed ? colors.textMuted : colors.text}
               strokeWidth={1.2}
               strokeLinecap="round"
-              strokeDasharray={[length, length]}
+              strokeDasharray={dashed ? [3, 5] : [length, length]}
             />
             {branch && (
               <AnimatedPath
                 d={branch.out}
-                animatedProps={dashed}
+                animatedProps={fade}
                 fill="none"
                 stroke={colors.textMuted}
                 strokeWidth={1.2}
@@ -117,7 +120,7 @@ export function ThreadRow({
                 cy={KNOT_Y}
                 r={5}
                 fill={hollow ? colors.background : colors.bead}
-                stroke={colors.text}
+                stroke={dashed && hollow ? colors.textMuted : colors.text}
                 strokeWidth={1}
               />
             )}
