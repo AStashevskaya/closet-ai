@@ -383,8 +383,25 @@ export const styledEntry = z.object({
   name: z.string(),
   photoUrl: z.string().nullable(),
   cutoutUrl: z.string().nullable(),
+  // Its looks folded small on the diary, sent with the list so the diary is one request (senior-qa,
+  // 2026-10-29): the first three she hasn't rejected, each with up to three of its wardrobe pieces
+  // (not the one being styled).
+  previews: z.array(
+    z.object({
+      id: z.string().uuid(),
+      liked: z.boolean(),
+      pieces: z.array(
+        z.object({
+          id: z.string(),
+          photoUrl: z.string().nullable(),
+          cutoutUrl: z.string().nullable(),
+        }),
+      ),
+    }),
+  ),
 });
 export type StyledEntry = z.infer<typeof styledEntry>;
+export type StyledPreview = StyledEntry["previews"][number];
 export const styledList = z.array(styledEntry);
 
 export const outfitReactionInput = z
