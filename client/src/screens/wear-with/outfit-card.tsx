@@ -89,7 +89,13 @@ function Look({ outfit, index, total, headers, onReact, heroLoose = false }: Pro
         pieces={[
           ...pieces.map((p) => ({ ...p, loose: heroLoose && p.id === heroId })),
           // A partner's piece isn't hers either.
-          ...partners.map((p) => ({ ...p, cutoutUrl: p.imageUrl, loose: true })),
+          ...partners.map((p) => ({
+            ...p,
+            // Apart from her pieces' ids, which come from another table.
+            id: `partner-${p.id}`,
+            cutoutUrl: p.imageUrl,
+            loose: true,
+          })),
         ]}
         headers={headers}
         caption={outfit.caption}

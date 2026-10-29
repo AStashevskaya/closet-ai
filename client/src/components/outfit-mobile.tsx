@@ -150,7 +150,8 @@ export function OutfitMobile({ pieces, headers, caption, loved = false, seed = 1
 }
 
 // One piece at the end of its string. It settles into place once, swinging a little from the
-// top (the string), one after another; still with reduced motion.
+// top (the string), one after another; still with reduced motion. A firm spring, so it's over in
+// well under a second: each piece's shadow is redrawn on every frame of it on Android.
 function Hanging({
   hung: { piece, x, width },
   top,
@@ -166,7 +167,7 @@ function Hanging({
   const swing = useSharedValue(reduceMotion ? 0 : index % 2 ? -5 : 5);
   useEffect(() => {
     if (reduceMotion) return;
-    swing.value = withDelay(120 * index, withSpring(0, { damping: 6, stiffness: 40 }));
+    swing.value = withDelay(120 * index, withSpring(0, { damping: 11, stiffness: 60 }));
   }, [index, reduceMotion, swing]);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${swing.value}deg` }] }));
   const url = piece.cutoutUrl ?? piece.photoUrl;
