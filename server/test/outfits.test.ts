@@ -927,9 +927,10 @@ describe("GET /api/wear-with", () => {
         headers: { cookie: anna.cookie },
       })
     ).json<StyledEntry[]>();
-    const kept = looks.slice(1);
+    // Whatever the stub writes: the first three not rejected, the liked one flagged.
+    const kept = looks.filter((look) => look.id !== looks[0]!.id).slice(0, 3);
     expect(entry!.previews.map((p) => [p.id, p.liked])).toEqual(
-      kept.map((look, i) => [look.id, i === 0]),
+      kept.map((look) => [look.id, look.id === looks[1]!.id]),
     );
     for (const preview of entry!.previews) {
       expect(preview.pieces.length).toBeGreaterThan(0);
