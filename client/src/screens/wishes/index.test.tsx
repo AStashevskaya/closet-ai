@@ -50,8 +50,12 @@ describe('<Wishes />', () => {
     expect(await screen.findByText('Red knit mini')).toBeOnTheScreen();
     // Only the due one asks, reminding her of the verdict; the other counts its week down.
     expect(screen.getAllByText('Still want it?')).toHaveLength(1);
-    expect(screen.getByText('A week ago: “Buy it”')).toBeOnTheScreen();
+    expect(screen.getByText('My advice then: “Buy it”')).toBeOnTheScreen();
     expect(screen.getByText('3 days to go')).toBeOnTheScreen();
+    // Read out with its verdict and the days left (the beads are hidden).
+    expect(
+      screen.getByRole('button', { name: 'White ribbed tank, Buy it, 3 days to go' }),
+    ).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Yes, a week more' }));
     expect(answerWish).toHaveBeenCalledWith(skirt.id, 'still');
@@ -98,9 +102,19 @@ describe('<Wishes />', () => {
     expect(screen.getByText('Still want it?')).toBeOnTheScreen();
   });
 
+  test('takes one answer at a time', async () => {
+    jest.mocked(answerWish).mockImplementation(() => new Promise(() => {}));
+    await render(<Wishes />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Not anymore' }));
+    expect(screen.getByRole('button', { name: 'Bought it' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Yes, a week more' })).toBeDisabled();
+  });
+
   test('opens the outfits of a wish', async () => {
     await render(<Wishes />);
-    await fireEvent.press(await screen.findByRole('button', { name: 'White ribbed tank' }));
+    await fireEvent.press(
+      await screen.findByRole('button', { name: 'White ribbed tank, Buy it, 3 days to go' }),
+    );
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/wear-with/[id]',
       params: { id: tank.requestId },

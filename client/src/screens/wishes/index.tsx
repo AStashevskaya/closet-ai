@@ -37,6 +37,7 @@ function newWeek() {
   return { now, askAt: new Date(now + WEEK * DAY).toISOString() };
 }
 
+// I18nManager.isRTL is read once: switching to or from Hebrew reloads the app (src/lib/language.ts).
 // Bought: it lifts and goes off toward the start, where the closet is; let go: it drops away.
 const toCloset = new Keyframe({
   0: { opacity: 1, transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }] },
@@ -146,6 +147,10 @@ export function Wishes() {
         {wishes.map((wish, index) => {
           const leaving = pending?.id === wish.id ? pending.value : null;
           const call = wish.call && t(`verdict.${wish.call}`);
+          const passed = daysPassed(wish.askAt, now);
+          // Not due by the server's clock but no days left by the phone's: no countdown at all,
+          // rather than "Time to decide" with nothing to answer.
+          const counting = !wish.due && passed < WEEK;
           return (
             <Animated.View
               key={wish.id}
@@ -167,7 +172,15 @@ export function Wishes() {
                       router.push({ pathname: '/wear-with/[id]', params: { id: wish.requestId } })
                     }
                     accessibilityRole="button"
-                    accessibilityLabel={wish.name}
+                    // The label replaces what's inside for screen readers: the verdict and the days
+                    // left go into it (the beads are hidden).
+                    accessibilityLabel={[
+                      wish.name,
+                      call,
+                      counting && t('wishes.left', { count: WEEK - passed }),
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
                   >
                     <BarePiece
                       item={wish}
@@ -179,7 +192,7 @@ export function Wishes() {
                         {wish.name}
                       </Text>
                       {call && <Text style={styles.call}>{call}</Text>}
-                      {!wish.due && <Week passed={daysPassed(wish.askAt, now)} />}
+                      {counting && <Week passed={passed} />}
                     </View>
                   </PressableScale>
 
@@ -194,7 +207,7 @@ export function Wishes() {
                             kind={value === 'still' ? 'bright' : 'outline'}
                             label={t(`wishes.${value}`)}
                             onPress={() => void answer(wish, value)}
-                            disabled={pending !== null && pending.id !== wish.id}
+                            disabled={pending !== null}
                             busy={leaving === value}
                             style={styles.answer}
                           />
@@ -232,9 +245,7 @@ function Week({ passed }: { passed: number }) {
           <View key={day} style={[styles.bead, day < passed && styles.beadOn]} />
         ))}
       </View>
-      <Text style={styles.left}>
-        {left > 0 ? t('wishes.left', { count: left }) : t('wishes.decide')}
-      </Text>
+      <Text style={styles.left}>{t('wishes.left', { count: left })}</Text>
     </View>
   );
 }
