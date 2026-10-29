@@ -16,7 +16,7 @@ The roadmap and the product decisions behind it, with dates. Read before changin
 9. Wardrobe sharing table (owner, grantee, permissions) for stylists later.
 10. "What do I wear this with?" from a single item. From its first version, store every suggested outfit with the user's reaction (liked, saved, wore it, skipped, friends' votes): the data for "Outfit taste" below.
 11. Declutter: keep / sell / not sure.
-12. Listing generator (Hebrew + Russian, price range), shared via the OS share sheet.
+12. Listing generator (Russian first, then Hebrew; price range), shared via the OS share sheet to Kufar, Telegram or Instagram in Belarus (Yad2 in Israel).
 13. Sign in with Apple / Google, free-tier limits (count AI actions per user and device), RevenueCat trial. Want / Can split between free and Premium: see "Free and Premium" in the Want / Can section.
 14. Prompt evals: a few test wardrobes and look screenshots, scored by hand, rerun after each prompt change. Start collecting the set at step 4. The owner scores outfits on the 1–5 scale from the stylist questionnaire.
 
@@ -108,7 +108,7 @@ Free and Premium (decided 2026-10-19):
 | Matches from the user's wardrobe | yes | yes |
 | Partner brand options | yes | yes |
 | Save the look as an outfit, history of looks | no | yes |
-| "Sell what you don't wear to afford it" (listing on Yad2) | no | yes |
+| "Sell what you don't wear to afford it" (listing on Kufar; Yad2 in Israel) | no | yes |
 | Price comparison and sale alerts | no | yes |
 
 Why not Premium-only: Want / Can is what a new user tries first and what the share cards spread, so a paywall at the first screenshot loses people before they see it work. A free look costs about $0.01 (vision model to find and compare the items + our own pgvector search). Brand options stay free because partners pay for impressions and clicks: hiding them would shrink what we can offer partners. The limit is set by value, not cost: users hit it once the feature is a habit, which is when the trial and the subscription are offered.
