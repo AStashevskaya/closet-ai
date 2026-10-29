@@ -7,8 +7,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { FlatLay } from '@/components/flat-lay';
 import { seedFrom } from '@/components/hand-drawn';
+import { OutfitMobile } from '@/components/outfit-mobile';
 import { PartnerPiece } from '@/components/partner-piece';
 import { PressableScale } from '@/components/pressable-scale';
 import { colors, fonts } from '@/theme';
@@ -20,9 +20,11 @@ type Props = {
   total: number;
   headers: Record<string, string> | undefined;
   onReact: (outfit: Outfit, reaction: OutfitReaction, reason?: DislikeReason) => void;
+  // The piece styled isn't hers yet (one from a photo): it hangs on a dashed string.
+  heroLoose?: boolean;
 };
 
-// One composed outfit: the flat lay (with a heart drawn around it once liked), the occasion, the
+// One composed outfit: the look hanging as a mobile (a little heart on its wire once liked), the occasion, the
 // stylist's idea, the pieces, partner pieces, what's missing, and the reactions.
 // Shared by the outfits screen and Style it.
 export function OutfitCard(props: Props) {
@@ -69,9 +71,10 @@ function Rejected({ outfit, index, total, onReact }: Props) {
   );
 }
 
-function Look({ outfit, index, total, headers, onReact }: Props) {
+function Look({ outfit, index, total, headers, onReact, heroLoose = false }: Props) {
   const { t } = useTranslation();
   const pieces = outfit.pieces.flatMap((p) => (p.item ? [p.item] : []));
+  const heroId = outfit.pieces.find((p) => p.hero)?.item?.id;
   // Labelled: partner shoes or a bag where the closet had none for the look, and now and
   // then a brand's piece shown for its own sake.
   const partners = outfit.pieces.flatMap((p) => (p.catalogItem ? [p.catalogItem] : []));
@@ -82,8 +85,12 @@ function Look({ outfit, index, total, headers, onReact }: Props) {
       <Text style={styles.number}>
         {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
       </Text>
-      <FlatLay
-        pieces={[...pieces, ...partners.map((p) => ({ ...p, cutoutUrl: p.imageUrl }))]}
+      <OutfitMobile
+        pieces={[
+          ...pieces.map((p) => ({ ...p, loose: heroLoose && p.id === heroId })),
+          // A partner's piece isn't hers either.
+          ...partners.map((p) => ({ ...p, cutoutUrl: p.imageUrl, loose: true })),
+        ]}
         headers={headers}
         caption={outfit.caption}
         loved={outfit.opinion === 'like'}
