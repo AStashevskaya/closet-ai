@@ -128,6 +128,9 @@ async function pickSkirt() {
   await fireEvent.press(screen.getByLabelText('What do I wear this with? Satin midi skirt'));
 }
 
+// A spy left on a prototype by a failing test would leak into the next ones.
+afterEach(() => jest.restoreAllMocks());
+
 describe('<StyleIt />', () => {
   test('keeps a diary: every piece styled is a stop, its looks folded small', async () => {
     await render(<StyleIt />);
@@ -245,7 +248,6 @@ describe('<StyleIt />', () => {
       nativeEvent: { layout: { y: 120, height: 900 } },
     });
     expect(scrollTo).toHaveBeenCalledTimes(1);
-    scrollTo.mockRestore();
   });
 
   test('opens a piece from a photo, and outfits asked for before', async () => {
