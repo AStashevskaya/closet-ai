@@ -1,6 +1,6 @@
 import type { Item, StyledEntry, WearWithRequest } from '@closet-ai/shared';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 
 import { seedFrom } from '@/components/hand-drawn';
 import i18n from '@/i18n';
@@ -225,6 +225,27 @@ describe('<StyleIt />', () => {
     await pickSkirt();
     await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(askWearWith).toHaveBeenCalledTimes(2));
+  });
+
+  test('brings the piece opened up to the top of the screen, once it is laid out', async () => {
+    const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(() => {});
+    await render(<StyleIt />);
+    await fireEvent(await screen.findByTestId('diary'), 'layout', {
+      nativeEvent: { layout: { y: 300, height: 600 } },
+    });
+    await fireEvent.press(await screen.findByLabelText('Outfits with Leather jacket'));
+    // Not before the opened piece has its place: the one open before may still be folding.
+    expect(scrollTo).not.toHaveBeenCalled();
+    await fireEvent(screen.getByTestId('open-stop'), 'layout', {
+      nativeEvent: { layout: { y: 120, height: 400 } },
+    });
+    expect(scrollTo).toHaveBeenCalledWith({ y: 300 + 120 - 16, animated: true });
+    // Its outfits arriving later don't move the screen again.
+    await fireEvent(screen.getByTestId('open-stop'), 'layout', {
+      nativeEvent: { layout: { y: 120, height: 900 } },
+    });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    scrollTo.mockRestore();
   });
 
   test('opens a piece from a photo, and outfits asked for before', async () => {
