@@ -1439,7 +1439,11 @@ describe("an item from a photo", () => {
       ).json(),
     ).toEqual({ count: 1 });
     expect((await answer("still")).statusCode).toBe(204);
-    expect((await wishes(anna.cookie)).json<Wish[]>()[0]!.due).toBe(false);
+    const kept = (await wishes(anna.cookie)).json<Wish[]>()[0]!;
+    expect(kept.due).toBe(false);
+    // The app counts the new week down to it.
+    expect(new Date(kept.askAt).getTime()).toBe(row.askAt.getTime());
+    expect(row.askAt.getTime() - Date.now()).toBeGreaterThan(6.9 * 24 * 3600 * 1000);
     expect(row.stillCount).toBe(1);
     // A retried "still" before the next week doesn't count again.
     expect((await answer("still")).statusCode).toBe(409);

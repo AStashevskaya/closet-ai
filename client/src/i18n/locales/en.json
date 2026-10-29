@@ -409,13 +409,16 @@
     "add": "Add to wishes",
     "added": "In your wishes",
     "ask": "Still want it?",
-    "still": "Yes",
+    "then": "A week ago: “{{call}}”",
+    "decide": "Time to decide",
+    "left_one": "{{count}} day to go",
+    "left_other": "{{count}} days to go",
+    "still": "Yes, a week more",
     "no": "Not anymore",
     "bought": "Bought it",
     "due_one": "{{count}} to answer",
     "due_other": "{{count}} to answer",
     "failed": "Couldn't open your wishes. Try again.",
-    "saved": "Saved {{date}}",
     "answerFailed": "Couldn't save the answer. Try again."
   },
   "style": {

@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import i18n from '@/i18n';
 import { answerWish, createItem, getWearWith, listWishes } from '@/lib/api';
 
-import { Wishes } from '.';
+import { daysPassed, Wishes } from '.';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -21,6 +21,7 @@ jest.mock('@/lib/api', () => ({
   absoluteUrl: (path: string) => `http://api${path}`,
 }));
 
+const DAY = 24 * 60 * 60 * 1000;
 const wish = (id: string, name: string, due: boolean): Wish => ({
   id,
   requestId: `req-${id}`,
@@ -29,6 +30,8 @@ const wish = (id: string, name: string, due: boolean): Wish => ({
   cutoutUrl: null,
   call: 'buy',
   createdAt: '2026-10-15T10:00:00.000Z',
+  // Due now, or four days into its week (three to go).
+  askAt: new Date(Date.now() + (due ? -DAY : 3 * DAY - 60_000)).toISOString(),
   due,
 });
 const skirt = wish('6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9b01', 'Red knit mini', true);
@@ -45,12 +48,26 @@ describe('<Wishes />', () => {
   test('asks about the wishes that are due, and keeps one she still wants', async () => {
     await render(<Wishes />);
     expect(await screen.findByText('Red knit mini')).toBeOnTheScreen();
-    // Only the due one asks.
+    // Only the due one asks, reminding her of the verdict; the other counts its week down.
     expect(screen.getAllByText('Still want it?')).toHaveLength(1);
+    expect(screen.getByText('A week ago: “Buy it”')).toBeOnTheScreen();
+    expect(screen.getByText('3 days to go')).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Yes' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Yes, a week more' }));
     expect(answerWish).toHaveBeenCalledWith(skirt.id, 'still');
     expect(screen.queryByText('Still want it?')).toBeNull();
+    // Kept: a new week starts.
+    expect(screen.getByText('7 days to go')).toBeOnTheScreen();
+  });
+
+  test('counts the days of the week gone', () => {
+    const now = Date.parse('2026-10-29T12:00:00.000Z');
+    const at = (ms: number) => new Date(now + ms).toISOString();
+    expect(daysPassed(at(7 * DAY), now)).toBe(0);
+    expect(daysPassed(at(3 * DAY - 1), now)).toBe(4);
+    expect(daysPassed(at(-DAY), now)).toBe(7);
+    // A week pushed further than seven days still shows the whole week left.
+    expect(daysPassed(at(9 * DAY), now)).toBe(0);
   });
 
   test('adds a bought one to the closet', async () => {
