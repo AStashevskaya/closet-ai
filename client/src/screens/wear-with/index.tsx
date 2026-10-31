@@ -148,6 +148,7 @@ export function WearWith({ id }: { id: string }) {
               total={state.outfits.length}
               headers={headers}
               onReact={react}
+              heroLoose={!hers}
             />
           </Animated.View>
         </ThreadRow>
