@@ -7,7 +7,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
-import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, type HangerKind } from '@/components/hanger';
+import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, HANGERS } from '@/components/hanger';
 import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
@@ -168,16 +168,6 @@ function Verdict({ verdict }: { verdict: NonNullable<WearWithRequest['verdict']>
     </View>
   );
 }
-
-// What a piece hangs from, by its category, as on her rails.
-const HANGERS: Record<Item['category'], HangerKind> = {
-  top: 'coat',
-  dress: 'coat',
-  outerwear: 'coat',
-  bottom: 'clip',
-  shoes: 'hook',
-  accessory: 'hook',
-};
 
 // The piece she already has like this one: a short rail with just the two, the new one on a
 // dashed hanger (not hers), "≈" between them. Her piece opens its own screen.
