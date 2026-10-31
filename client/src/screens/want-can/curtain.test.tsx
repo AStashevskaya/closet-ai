@@ -1,12 +1,45 @@
-import type { LookItem } from '@closet-ai/shared';
+import type { Item, LookItem } from '@closet-ai/shared';
 
-import { type Found, frameOf } from './curtain';
+import { type Found, frameOf, slotsOf } from './curtain';
 
 jest.mock('@/lib/api', () => ({ absoluteUrl: (path: string) => `http://api${path}` }));
 
-const found = (box: LookItem['box']): Found => ({
+const found = (box: LookItem['box'], mine = false): Found => ({
   item: { box } as LookItem,
-  match: { how: 'none', item: null, shop: [] },
+  match: mine
+    ? { how: 'same', item: { id: 'i' } as Item, shop: [] }
+    : { how: 'none', item: null, shop: [] },
+});
+
+describe('slotsOf', () => {
+  // A square photo on a square stage, 1 point per 1/400 of the photo.
+  const frame = { scale: 400, height: 400, left: 0, top: 0 };
+
+  test('hangs every piece she has, and empty hangers only where there is room', () => {
+    const slots = slotsOf(
+      [
+        found({ xMin: 0.2, yMin: 0.1, xMax: 0.8, yMax: 0.5 }, true), // her shirt
+        found({ xMin: 0.2, yMin: 0.5, xMax: 0.8, yMax: 0.9 }), // trousers she lacks
+        found({ xMin: 0.45, yMin: 0.05, xMax: 0.55, yMax: 0.08 }), // sunglasses: no room
+        found({ xMin: 0.3, yMin: 0.2, xMax: 0.7, yMax: 0.45 }), // a vest under the shirt
+      ],
+      frame,
+      1,
+    );
+    expect(slots.map((slot) => slot.index)).toEqual([1, 0]);
+  });
+
+  test('the larger of two overlapping missing pieces gets the hanger', () => {
+    const slots = slotsOf(
+      [
+        found({ xMin: 0.4, yMin: 0.3, xMax: 0.6, yMax: 0.5 }), // a bag
+        found({ xMin: 0.2, yMin: 0.2, xMax: 0.8, yMax: 0.6 }), // the shirt it's on
+      ],
+      frame,
+      1,
+    );
+    expect(slots.map((slot) => slot.index)).toEqual([1]);
+  });
 });
 
 describe('frameOf', () => {

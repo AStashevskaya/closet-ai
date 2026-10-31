@@ -71,7 +71,13 @@ const matched: PhotoState = {
   status: 'ready',
   tagStatus: 'done',
   tags: null,
-  lookItems: [lookItem('Pink mesh top', 'top'), lookItem('Black leather skirt', 'bottom')],
+  lookItems: [
+    lookItem('Pink mesh top', 'top'),
+    {
+      ...lookItem('Black leather skirt', 'bottom'),
+      box: { xMin: 0.25, yMin: 0.55, xMax: 0.75, yMax: 0.95 },
+    },
+  ],
   matches: [
     { how: 'same', item: myTop, shop: [] },
     { how: 'none', item: null, shop: [] },
@@ -116,7 +122,7 @@ describe('<WantCan />', () => {
     expect(screen.getAllByTestId('empty-hanger', hidden)).toHaveLength(1);
   });
 
-  test('hangs an empty hanger for every piece when nothing in the look is owned', async () => {
+  test('shows no curtain when nothing in the look is owned', async () => {
     jest.mocked(getPhotoState).mockResolvedValue({
       ...matched,
       matches: [
@@ -127,13 +133,12 @@ describe('<WantCan />', () => {
     await render(<WantCan />);
     await fireEvent.press(screen.getByText('Choose a screenshot'));
 
-    expect(await screen.findByText('You have 0 of 2')).toBeOnTheScreen();
+    expect(await screen.findByText('None of it is in your closet yet')).toBeOnTheScreen();
     const hidden = { includeHiddenElements: true };
-    await fireEvent(screen.getByTestId('curtain', hidden), 'layout', {
-      nativeEvent: { layout: { width: 390 } },
-    });
-    expect(screen.getAllByTestId('empty-hanger', hidden)).toHaveLength(2);
-    expect(screen.queryAllByTestId('bare-piece', hidden)).toHaveLength(0);
+    expect(screen.queryByTestId('curtain', hidden)).toBeNull();
+    expect(screen.queryAllByTestId('bead-none', hidden)).toHaveLength(0);
+    // The rows still list every piece.
+    expect(screen.getAllByText('Not in your closet')).toHaveLength(2);
   });
 
   test('offers partner pieces for what the closet lacks, not for what it has', async () => {

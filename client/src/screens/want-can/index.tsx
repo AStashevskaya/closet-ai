@@ -185,6 +185,14 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
             <Text style={styles.left}>{t('limits.left', { left, limit: usage!.want.limit })}</Text>
           )}
         </>
+      ) : look.status === 'found' && look.found.length > 0 && owned === 0 ? (
+        // Nothing of hers to show behind a curtain: her look, and the rows say what to find.
+        <Animated.View entering={FadeIn.duration(durations.enter)}>
+          <Image source={{ uri: look.uri }} style={styles.photo} contentFit="cover" />
+          <Text style={styles.noneOwned} accessibilityLiveRegion="polite">
+            {t('want.noneOwned')}
+          </Text>
+        </Animated.View>
       ) : look.status === 'found' && look.found.length > 0 ? (
         <Animated.View entering={FadeIn.duration(durations.enter)}>
           <Curtain uri={look.uri} aspect={look.aspect} found={look.found} headers={headers} />
@@ -319,6 +327,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
     color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  noneOwned: {
+    marginTop: 16,
+    fontFamily: fonts.displayLight,
+    fontSize: 24,
+    lineHeight: 28,
+    color: colors.text,
     textAlign: 'center',
   },
   status: {

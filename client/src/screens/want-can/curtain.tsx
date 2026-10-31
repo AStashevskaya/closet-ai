@@ -17,9 +17,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 import Svg, { Path } from 'react-native-svg';
 
 import { BarePiece } from '@/components/bare-piece';
-import { Hanger, HANGER_HEIGHT, HANGER_WIDTH, HANGERS } from '@/components/hanger';
+import { Hanger, HANGERS } from '@/components/hanger';
 import { priceLabel } from '@/lib/price';
-import { LookCrop } from '@/screens/add-look/look-crop';
 import { durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -64,11 +63,57 @@ export function frameOf(found: Found[], aspect: number, width: number) {
   };
 }
 
+type Frame = ReturnType<typeof frameOf>;
+type Rect = { left: number; top: number; width: number; height: number };
+
+// An empty hanger needs room: a smaller piece (sunglasses, a watch) would be all hanger.
+const ROOM_WIDTH = 64;
+const ROOM_HEIGHT = 72;
+// A missing piece mostly under one already hung (a vest under a shirt, a bag over both) gets no
+// hanger of its own: overlapping hangers read as a pile of dashes.
+const COVERED = 0.5;
+
+function overlap(a: Rect, b: Rect) {
+  const width = Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left);
+  const height = Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top);
+  return width > 0 && height > 0 ? width * height : 0;
+}
+
+// What hangs behind the curtain and where: every piece she has, then empty hangers for the
+// largest pieces she doesn't, where there is room and nothing hangs already. The rows under the
+// stage list every piece, so a piece left out here is still on the screen.
+export function slotsOf(found: Found[], frame: Frame, aspect: number) {
+  const rect = ({ box }: LookItem): Rect => ({
+    left: frame.left + box.xMin * aspect * frame.scale,
+    top: frame.top + box.yMin * frame.scale,
+    width: (box.xMax - box.xMin) * aspect * frame.scale,
+    height: (box.yMax - box.yMin) * frame.scale,
+  });
+  const slots = found.map((f, index) => ({ index, at: rect(f.item), mine: f.match.item !== null }));
+  const placed = slots.filter((slot) => slot.mine);
+  const empty: typeof slots = [];
+  const missing = slots
+    .filter((slot) => !slot.mine)
+    .sort((a, b) => b.at.width * b.at.height - a.at.width * a.at.height);
+  for (const slot of missing) {
+    const { at } = slot;
+    if (at.width < ROOM_WIDTH || at.height < ROOM_HEIGHT) continue;
+    const area = at.width * at.height;
+    if ([...placed, ...empty].some((other) => overlap(at, other.at) > area * COVERED)) continue;
+    empty.push(slot);
+  }
+  // Empty hangers first, so a piece she has is drawn over one.
+  return [...empty, ...placed];
+}
+
 // "Hers / yours" (decided 2026-10-31, prototype `~/Desktop/closet/wrinkle-lab/design-recreate`,
 // direction B with C's empty hangers): the screenshot, and over it a curtain dragged by its cherry
-// bead; behind the curtain the same look built from her closet, each piece where the look's was.
-// What she doesn't have hangs as an empty dashed hanger with the piece's ghost and, when a partner
-// has one like it, its price. On opening the curtain draws itself across to the middle.
+// bead; behind the curtain the same look built from her closet, each piece where the look's was,
+// over a faint copy of the screenshot (one image: a crop per piece meant a full-size photo per
+// piece moving with the curtain). What she doesn't have hangs as an empty dashed hanger with,
+// when a partner has one like it, its price (see slotsOf for which ones). The screen shows the
+// curtain only when she has at least one piece. On opening the curtain draws itself across to
+// the middle.
 // Both sides share one frame, placed with left / top: photo pixels aren't mirrored in RTL. In
 // Hebrew hers is on the right and the curtain opens the other way.
 // Decorative for screen readers: the rows under it say the same.
@@ -126,13 +171,14 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
   }));
   const knife = useAnimatedStyle(() => ({ transform: [{ translateX: cut.get() }] }));
 
-  const place = (box: LookItem['box']) =>
-    frame && {
-      left: frame.left + box.xMin * aspect * frame.scale,
-      top: frame.top + box.yMin * frame.scale,
-      width: (box.xMax - box.xMin) * aspect * frame.scale,
-      height: (box.yMax - box.yMin) * frame.scale,
-    };
+  const slots = frame ? slotsOf(found, frame, aspect) : [];
+  const photo = frame && {
+    position: 'absolute' as const,
+    left: frame.left,
+    top: frame.top,
+    width: aspect * frame.scale,
+    height: frame.scale,
+  };
 
   return (
     // Not flex: 1 as by default: in a scroll view that would squeeze the stage to nothing.
@@ -147,21 +193,16 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
         {frame && (
           <GestureDetector gesture={drag}>
             <View style={StyleSheet.absoluteFill}>
-              <Image
-                source={{ uri }}
-                style={{
-                  position: 'absolute',
-                  left: frame.left,
-                  top: frame.top,
-                  width: aspect * frame.scale,
-                  height: frame.scale,
-                }}
-                accessibilityIgnoresInvertColors
-              />
+              <Image source={{ uri }} style={photo} accessibilityIgnoresInvertColors />
               <Animated.View style={[styles.window, { width }, window]}>
                 <Animated.View style={[styles.yours, { width }, still]}>
-                  {found.map(({ item, match }, index) => {
-                    const at = place(item.box);
+                  <Image
+                    source={{ uri }}
+                    style={[photo, styles.ghost]}
+                    accessibilityIgnoresInvertColors
+                  />
+                  {slots.map(({ index, at }) => {
+                    const { item, match } = found[index]!;
                     const offer = match.shop[0];
                     return match.item ? (
                       <BarePiece
@@ -176,12 +217,7 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
                         style={[styles.slot, styles.empty, at]}
                         testID="empty-hanger"
                       >
-                        <View style={styles.ghost}>
-                          <LookCrop uri={uri} aspect={aspect} box={item.box} style={styles.fill} />
-                        </View>
-                        <View style={styles.hanger}>
-                          <Hanger kind={HANGERS[item.category]} dashed />
-                        </View>
+                        <Hanger kind={HANGERS[item.category]} dashed />
                         {offer && (
                           <Text style={styles.price}>
                             {priceLabel(offer.price, offer.currency)}
@@ -220,15 +256,21 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
 }
 
 // How much of the look she has: a bead on the thread per piece, full for hers, dashed for one
-// she doesn't have, and the count beside them.
+// she doesn't have, and the count beside them. Smaller past six, so eight still fit a small phone.
+const MANY_BEADS = 6;
 export function Beads({ found, summary }: { found: Found[]; summary: string }) {
+  const many = found.length > MANY_BEADS;
   return (
-    <View style={styles.beads}>
+    <View style={[styles.beads, many && styles.beadsMany]}>
       <View style={styles.thread} />
       {found.map(({ match }, index) => (
         <View
           key={index}
-          style={[styles.dot, match.item ? styles.dotMine : styles.dotNone]}
+          style={[
+            styles.dot,
+            many && styles.dotSmall,
+            match.item ? styles.dotMine : styles.dotNone,
+          ]}
           testID={match.item ? 'bead-mine' : 'bead-none'}
         />
       ))}
@@ -265,31 +307,16 @@ const styles = StyleSheet.create({
   slot: {
     position: 'absolute',
   },
+  // The hanger hangs inside the piece's box: above it, a piece at the top of the look would lose
+  // its hanger to the stage's edge.
   empty: {
-    borderWidth: 1.2,
-    borderStyle: 'dashed',
-    borderColor: colors.textMuted,
-    borderRadius: 3,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 6,
+    paddingTop: 2,
+    gap: 4,
   },
-  // Under the hanger, which hangs inside the frame: above it, a piece at the top of the look would
-  // lose its hanger to the stage's edge.
+  // Her look, faint, so what she lacks still shows where it was.
   ghost: {
-    ...StyleSheet.absoluteFill,
-    margin: 6,
-    marginTop: HANGER_HEIGHT,
-    opacity: 0.22,
-  },
-  fill: {
-    flex: 1,
-  },
-  hanger: {
-    position: 'absolute',
-    top: 2,
-    left: '50%',
-    marginLeft: -HANGER_WIDTH / 2,
+    opacity: 0.16,
   },
   price: {
     overflow: 'hidden',
@@ -350,6 +377,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 18,
   },
+  beadsMany: {
+    gap: 8,
+  },
   thread: {
     position: 'absolute',
     start: 0,
@@ -362,6 +392,11 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
+  },
+  dotSmall: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   dotMine: {
     borderWidth: 1.2,
