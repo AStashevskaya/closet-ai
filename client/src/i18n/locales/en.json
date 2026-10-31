@@ -307,7 +307,8 @@
       "match": "Doesn't go together",
       "weather": "Wrong for the weather",
       "occasion": "Not for my plans"
-    }
+    },
+    "addFailed": "Couldn't add it to your closet. Try again."
   },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",
@@ -426,7 +427,8 @@
     "due_one": "{{count}} to answer",
     "due_other": "{{count}} to answer",
     "failed": "Couldn't open your wishes. Try again.",
-    "answerFailed": "Couldn't save the answer. Try again."
+    "answerFailed": "Couldn't save the answer. Try again.",
+    "addFailed": "Couldn't save it to your wishes. Try again."
   },
   "style": {
     "title": "Your style",

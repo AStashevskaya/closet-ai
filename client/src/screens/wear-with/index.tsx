@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
@@ -12,6 +12,8 @@ import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
 import { addWish, createItem, sessionHeaders } from '@/lib/api';
+import { isOffline, limitReached } from '@/lib/api-error';
+import { limitText } from '@/lib/limits';
 import { rise, STAGGER_STEP } from '@/motion';
 import { ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
@@ -21,7 +23,7 @@ import { useWearWith } from './use-wear-with';
 
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { state, setWishId, react } = useWearWith(id);
   const [headers, setHeaders] = useState<Record<string, string>>();
 
@@ -37,6 +39,14 @@ export function WearWith({ id }: { id: string }) {
     void loadHeaders();
   }, []);
 
+  // A tap that didn't go through says why (senior-qa, 2026-10-31: it only came back as it was):
+  // no connection, a limit reached, or that it failed.
+  function failedText(cause: unknown, fallback: 'wearWith.addFailed' | 'wishes.addFailed') {
+    const code = limitReached(cause);
+    if (code) return limitText(t, i18n.language, code);
+    return isOffline(cause) ? t('common.offline') : t(fallback);
+  }
+
   // An item from a photo, bought or already owned: into the wardrobe with its crop.
   const [adding, setAdding] = useState<'idle' | 'busy' | 'added'>('idle');
   async function addToCloset() {
@@ -49,6 +59,7 @@ export function WearWith({ id }: { id: string }) {
     } catch (cause) {
       if (__DEV__) console.warn('Adding the item failed', cause);
       setAdding('idle');
+      Alert.alert(failedText(cause, 'wearWith.addFailed'));
     }
   }
 
@@ -63,6 +74,7 @@ export function WearWith({ id }: { id: string }) {
       setWishId(saved.id);
     } catch (cause) {
       if (__DEV__) console.warn('Saving the wish failed', cause);
+      Alert.alert(failedText(cause, 'wishes.addFailed'));
     } finally {
       setWishing(false);
     }
