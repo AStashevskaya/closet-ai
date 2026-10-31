@@ -47,7 +47,8 @@ const DROP: Record<Item['category'], number> = {
 const WIRE_Y = 14;
 const SAG = 10;
 const MAX_PIECE = 116;
-// Six pieces would leave each under 50pt: past this they overlap their neighbours a little instead.
+// Five or six pieces would each get too small a share of the wire to read: past this size they
+// overlap their neighbours a little instead.
 const MIN_PIECE = 64;
 
 export type Hung = { piece: Piece; x: number; drop: number; width: number };
@@ -89,7 +90,7 @@ export function OutfitMobile({ pieces, headers, caption, loved = false, seed = 1
       onLayout={(event) => setWidth(Math.round(event.nativeEvent.layout.width))}
       accessible
       // The pieces are pictures only: the look's name, then what's in it.
-      accessibilityLabel={[caption, ...pieces.map((p) => p.name)].join(', ')}
+      accessibilityLabel={[caption, ...pieces.map((p) => p.name)].filter(Boolean).join(', ')}
     >
       {width > 0 && (
         <View style={{ height }}>
