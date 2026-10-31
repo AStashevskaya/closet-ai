@@ -47,6 +47,8 @@ export function StyleIt() {
   // The closet couldn't be read and there's none from before: say so rather than "it's empty".
   const [itemsFailed, setItemsFailed] = useState(false);
   const [styled, setStyled] = useState<StyledEntry[]>([]);
+  // When the list was read: the diary's wishes count their week down from it.
+  const [readAt, setReadAt] = useState(0);
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [mood, setMood] = useState<OutfitMood | null>(null);
   const [picking, setPicking] = useState(false);
@@ -78,6 +80,7 @@ export function StyleIt() {
     }
     try {
       setStyled(await listStyled());
+      setReadAt(Date.now());
     } catch {
       // Nice to have: the section just stays as it was.
     }
@@ -141,6 +144,8 @@ export function StyleIt() {
             name: chosen.name,
             photoUrl: chosen.photoUrl ?? null,
             cutoutUrl: chosen.cutoutUrl ?? null,
+            loose: false,
+            wishAskAt: null,
             // Its looks are still being written.
             previews: [],
           },
@@ -246,7 +251,14 @@ export function StyleIt() {
                 headers={headers}
                 joined={index > 0}
                 last={index === entries.length - 1}
+                now={readAt}
                 onOpen={() => {
+                  // Not hers yet: its own screen, with the verdict and "Add to wishes" / "Add to
+                  // my closet", rather than the looks alone.
+                  if (entry.loose) {
+                    router.push({ pathname: '/wear-with/[id]', params: { id: entry.id } });
+                    return;
+                  }
                   // While a piece is being asked about, its answer would replace this choice.
                   if (asking !== null) return;
                   choose({

@@ -385,6 +385,10 @@ export const styledEntry = z.object({
   name: z.string(),
   photoUrl: z.string().nullable(),
   cutoutUrl: z.string().nullable(),
+  // A piece from a photo that isn't in her closet: dashed on the diary, opening with its verdict.
+  loose: z.boolean(),
+  // When it's in her wishes: when she'll be asked whether she still wants it.
+  wishAskAt: z.string().datetime().nullable(),
   // Its looks folded small on the diary, sent with the list so the diary is one request (senior-qa,
   // 2026-10-29): the first three she hasn't rejected, each with up to three of its wardrobe pieces
   // (not the one being styled).

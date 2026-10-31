@@ -1424,6 +1424,48 @@ describe("an item from a photo", () => {
     return id;
   }
 
+  it("lists a piece from a photo as not hers, with its wish, until it's in her closet", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const top = await addItem(s, anna, "top");
+    await ask(s, anna.cookie, top.id);
+    await s.runJobs();
+    const requestId = await styleFromPhoto(s, anna.cookie);
+    const entries = async () =>
+      (
+        await s.server.inject({
+          method: "GET",
+          url: "/api/wear-with",
+          headers: { cookie: anna.cookie },
+        })
+      ).json<StyledEntry[]>();
+    const fromPhoto = async () => (await entries()).find((e) => e.id === requestId)!;
+
+    expect((await entries()).find((e) => e.id !== requestId)).toMatchObject({
+      loose: false,
+      wishAskAt: null,
+    });
+    expect(await fromPhoto()).toMatchObject({ loose: true, wishAskAt: null });
+
+    const wish = await s.server.inject({
+      method: "POST",
+      url: "/api/wishes",
+      headers: { cookie: anna.cookie },
+      payload: { requestId },
+    });
+    const { askAt } = wish.json<{ askAt: string }>();
+    expect((await fromPhoto()).wishAskAt).toBe(askAt);
+
+    // Bought: hers, and no longer a wish.
+    await s.server.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie: anna.cookie },
+      payload: (await view(s, anna.cookie, requestId)).addable!,
+    });
+    expect(await fromPhoto()).toMatchObject({ loose: false, wishAskAt: null });
+  });
+
   it("saves a piece to her wishes once, and asks a week later whether she still wants it", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

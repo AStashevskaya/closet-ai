@@ -1,5 +1,6 @@
 import type { StyledEntry, StyledPreview } from '@closet-ai/shared';
 import { Image } from 'expo-image';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -18,22 +19,29 @@ type Props = {
   headers: Record<string, string> | undefined;
   joined: boolean;
   last: boolean;
+  // When the list was read, to count a wish's week down from (not read during render).
+  now: number;
   onOpen: () => void;
 };
 
+const DAY = 24 * 60 * 60 * 1000;
+
 // A piece styled before, on Style it's diary thread (decided 2026-10-28): the piece, when, and its
 // looks folded small (a heart on the liked ones, the rejected ones left out). A tap opens it.
-export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
+// A piece from a photo that isn't hers hangs on a dashed stretch of the thread (dashed = not hers,
+// as on Wishes), with its wish's days to go under it.
+export function DiaryStop({ entry, headers, joined, last, now, onOpen }: Props) {
   const { t, i18n } = useTranslation();
   const day = dayLabel(entry.createdAt, t, i18n.language);
+  const wish = entry.wishAskAt && wishLine(entry.wishAskAt, now, t);
   return (
-    <ThreadRow kind="root" joined={joined} last={last} hollow>
+    <ThreadRow kind="root" joined={joined} last={last} hollow dashed={entry.loose}>
       <PressableScale
         style={styles.stop}
         onPress={onOpen}
         accessibilityRole="button"
         accessibilityLabel={t('styleIt.open', { name: entry.name })}
-        accessibilityHint={day}
+        accessibilityHint={wish ? `${day}, ${wish}` : day}
       >
         <View style={styles.who}>
           <BarePiece item={entry} headers={headers} style={styles.piece} />
@@ -45,6 +53,7 @@ export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
               {day}
               {entry.mood && ` · ${t(`wearWith.moods.${entry.mood}`)}`}
             </Text>
+            {wish && <Text style={styles.wish}>{wish}</Text>}
           </View>
         </View>
         {/* Sent with the list (the rejected ones left out), read again with it on each visit. */}
@@ -62,6 +71,12 @@ export function DiaryStop({ entry, headers, joined, last, onOpen }: Props) {
       </PressableScale>
     </ThreadRow>
   );
+}
+
+// "In your wishes · 3 days to go", or the question once the week is over.
+function wishLine(askAt: string, now: number, t: TFunction) {
+  const left = Math.ceil((new Date(askAt).getTime() - now) / DAY);
+  return `${t('wishes.added')} · ${left > 0 ? t('wishes.left', { count: left }) : t('wishes.ask')}`;
 }
 
 // Where the pieces lie on a folded look's square of paper: one bigger, two beside it.
@@ -138,6 +153,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 22,
     color: colors.text,
+    textAlign: 'left',
+  },
+  wish: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
     textAlign: 'left',
   },
   peek: {
