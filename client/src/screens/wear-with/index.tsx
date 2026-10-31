@@ -39,8 +39,8 @@ export function WearWith({ id }: { id: string }) {
     void loadHeaders();
   }, []);
 
-  // A tap that didn't go through says why (senior-qa, 2026-10-31: it only came back as it was):
-  // no connection, a limit reached, or that it failed.
+  // A tap that didn't go through says why: without it the button only came back as it was, as if
+  // the tap hadn't registered. A limit reached, no connection, or that it failed.
   function failedText(cause: unknown, fallback: 'wearWith.addFailed' | 'wishes.addFailed') {
     const code = limitReached(cause);
     if (code) return limitText(t, i18n.language, code);

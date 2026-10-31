@@ -1,10 +1,10 @@
 import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import i18n from '@/i18n';
 import { addWish, createItem, getWearWith, reactToOutfit } from '@/lib/api';
-import { OfflineError } from '@/lib/api-error';
+import { ApiError, OfflineError } from '@/lib/api-error';
 
 import { WearWith } from '.';
 
@@ -287,12 +287,23 @@ describe('<WearWith />', () => {
       await render(<WearWith id="req-1" />);
 
       await fireEvent.press(await screen.findByRole('button', { name: 'Add to my closet' }));
-      expect(alert).toHaveBeenCalledWith("Couldn't add it to your closet. Try again.");
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith("Couldn't add it to your closet. Try again."),
+      );
       expect(screen.getByRole('button', { name: 'Add to my closet' })).toBeEnabled();
 
+      // A free limit reached says which, not that it failed.
+      jest.mocked(createItem).mockRejectedValue(new ApiError(429, 'limit:budget'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Add to my closet' }));
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith('The AI is resting for today. Try again tomorrow.'),
+      );
+
       await fireEvent.press(screen.getByRole('button', { name: 'Add to wishes' }));
-      expect(alert).toHaveBeenCalledWith(
-        'No connection to the server. Check the internet and try again.',
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          'No connection to the server. Check the internet and try again.',
+        ),
       );
     } finally {
       alert.mockRestore();
