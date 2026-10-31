@@ -102,11 +102,21 @@ describe('<WantCan />', () => {
     expect(screen.getByText('Dusty pink tank')).toBeOnTheScreen();
     expect(screen.getByText('Black leather skirt')).toBeOnTheScreen();
     expect(screen.getByText('Not in your closet')).toBeOnTheScreen();
-    // The owned pieces, laid out as a collage.
-    expect(screen.getByLabelText('From your closet')).toBeOnTheScreen();
+    // A bead per piece: full for hers, dashed for the one she lacks.
+    const hidden = { includeHiddenElements: true };
+    expect(screen.getAllByTestId('bead-mine', hidden)).toHaveLength(1);
+    expect(screen.getAllByTestId('bead-none', hidden)).toHaveLength(1);
+    // Behind the curtain (hidden from screen readers, the rows say it): her piece where the
+    // look's was, and an empty hanger for the one she lacks.
+    await fireEvent(screen.getByTestId('curtain', hidden), 'layout', {
+      nativeEvent: { layout: { width: 390 } },
+    });
+    expect(screen.getByText('Hers', hidden)).toBeOnTheScreen();
+    expect(screen.getAllByTestId('bare-piece', hidden)).toHaveLength(1);
+    expect(screen.getAllByTestId('empty-hanger', hidden)).toHaveLength(1);
   });
 
-  test('leaves the collage out when nothing in the look is owned', async () => {
+  test('hangs an empty hanger for every piece when nothing in the look is owned', async () => {
     jest.mocked(getPhotoState).mockResolvedValue({
       ...matched,
       matches: [
@@ -118,7 +128,12 @@ describe('<WantCan />', () => {
     await fireEvent.press(screen.getByText('Choose a screenshot'));
 
     expect(await screen.findByText('You have 0 of 2')).toBeOnTheScreen();
-    expect(screen.queryByLabelText('From your closet')).not.toBeOnTheScreen();
+    const hidden = { includeHiddenElements: true };
+    await fireEvent(screen.getByTestId('curtain', hidden), 'layout', {
+      nativeEvent: { layout: { width: 390 } },
+    });
+    expect(screen.getAllByTestId('empty-hanger', hidden)).toHaveLength(2);
+    expect(screen.queryAllByTestId('bare-piece', hidden)).toHaveLength(0);
   });
 
   test('offers partner pieces for what the closet lacks, not for what it has', async () => {
@@ -157,6 +172,13 @@ describe('<WantCan />', () => {
       screen.getByRole('button', { name: 'Partner · demo brand: STUDIO EDIT, Slit skirt, ₪239' }),
     );
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/catalog/[id]', params: { id: slit.id } });
+
+    // The empty hanger for the skirt she lacks carries the partner's price.
+    const hidden = { includeHiddenElements: true };
+    await fireEvent(screen.getByTestId('curtain', hidden), 'layout', {
+      nativeEvent: { layout: { width: 390 } },
+    });
+    expect(screen.getAllByText('₪239', hidden).length).toBeGreaterThan(0);
   });
 
   test('opens the matched wardrobe item', async () => {
