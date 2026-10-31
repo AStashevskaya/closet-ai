@@ -73,6 +73,8 @@ const styled: StyledEntry = {
   name: 'Leather jacket',
   photoUrl: '/api/wear-with/aa/photo',
   cutoutUrl: null,
+  loose: false,
+  wishAskAt: null,
   previews: [
     {
       id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a91',
@@ -262,6 +264,26 @@ describe('<StyleIt />', () => {
       await screen.findByRole('header', { name: 'Outfits with Leather jacket' }),
     ).toBeOnTheScreen();
     await waitFor(() => expect(getWearWith).toHaveBeenCalledWith(styled.id, 'en'));
+  });
+
+  test('a piece from a photo that is not hers opens its own screen, with its wish counted down', async () => {
+    const photoPiece: StyledEntry = {
+      ...styled,
+      id: '6b1f7c3e-0000-4000-8000-0000000000bb',
+      name: 'Wool coat',
+      loose: true,
+      // Two and a half days from now: a day begun counts, so "3 days to go".
+      wishAskAt: new Date(Date.now() + 2.5 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    jest.mocked(listStyled).mockResolvedValue([photoPiece, styled]);
+    await render(<StyleIt />);
+    expect(await screen.findByText('In your wishes · 3 days to go')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('Outfits with Wool coat'));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/wear-with/[id]',
+      params: { id: photoPiece.id },
+    });
+    expect(getWearWith).not.toHaveBeenCalledWith(photoPiece.id, 'en');
   });
 
   test('draws the heart around the piece only once one of its outfits is liked', async () => {
