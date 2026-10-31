@@ -455,6 +455,8 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         .slice(0, limit)
         .map((p) => p.key),
     isAttached: async (photoKey) => itemRows.some((row) => row.input.photoKey === photoKey),
+    attachedKeys: async (photoKeys) =>
+      new Set(photoKeys.filter((key) => itemRows.some((row) => row.input.photoKey === key))),
     brief: async (userId) => briefs.get(userId) ?? null,
     setBriefBatch: async (userId, batchId, requestedAt) => {
       briefs.set(userId, { ...emptyBrief(userId), batchId, requestedAt });

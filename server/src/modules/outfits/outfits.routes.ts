@@ -139,6 +139,9 @@ export const outfitsRoutes =
         const rows = await outfits.history(user.id, HISTORY_LIMIT);
         // Read once for the whole list rather than once per piece.
         const askAt = new Map((await wishes.list(user.id)).map((w) => [w.requestId, w.askAt]));
+        const attached = await outfits.attachedKeys(
+          rows.flatMap((row) => (row.heroPhotoKey ? [row.heroPhotoKey] : [])),
+        );
         const entries = await Promise.all(
           rows.map(async (row): Promise<StyledEntry | null> => {
             const base = {
@@ -162,14 +165,14 @@ export const outfitsRoutes =
             const photo = row.heroPhotoKey ? await photos.get(row.heroPhotoKey) : null;
             if (!photo?.tags) return null;
             // Bought since (added from this photo): hers, and its wish is gone with it.
-            const loose = !(await outfits.isAttached(photo.key));
+            const loose = !attached.has(photo.key);
             return {
               ...base,
               name: photo.tags.name,
               photoUrl: heroPath(row.id),
               cutoutUrl: photo.cutoutKey ? heroPath(row.id, "cutout") : null,
               loose,
-              wishAskAt: (loose && askAt.get(row.id)?.toISOString()) || null,
+              wishAskAt: loose ? (askAt.get(row.id)?.toISOString() ?? null) : null,
             };
           }),
         );

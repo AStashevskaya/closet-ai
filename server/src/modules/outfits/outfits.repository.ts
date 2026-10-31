@@ -141,6 +141,8 @@ export interface OutfitsRepository {
   inspirationKeys(userId: string, limit: number): Promise<string[]>;
   // Whether a wardrobe item uses this photo (an item from a photo, added to the wardrobe).
   isAttached(photoKey: string): Promise<boolean>;
+  // The same for many photos in one query: the ones a wardrobe item uses.
+  attachedKeys(photoKeys: string[]): Promise<Set<string>>;
   brief(userId: string): Promise<StyleBrief | null>;
   setBriefBatch(userId: string, batchId: string, requestedAt: Date): Promise<void>;
   // The batch failed or was given up on: `requestedAt` stays, so the next try waits its turn.
@@ -455,6 +457,15 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .from(items)
         .where(eq(items.photoKey, photoKey));
       return row !== undefined;
+    },
+
+    async attachedKeys(photoKeys) {
+      if (photoKeys.length === 0) return new Set();
+      const rows = await db
+        .select({ key: items.photoKey })
+        .from(items)
+        .where(inArray(items.photoKey, photoKeys));
+      return new Set(rows.flatMap((row) => (row.key ? [row.key] : [])));
     },
 
     async brief(userId) {
