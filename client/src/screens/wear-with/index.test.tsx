@@ -1,8 +1,10 @@
 import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import i18n from '@/i18n';
 import { addWish, createItem, getWearWith, reactToOutfit } from '@/lib/api';
+import { ApiError, OfflineError } from '@/lib/api-error';
 
 import { WearWith } from '.';
 
@@ -265,5 +267,46 @@ describe('<WearWith />', () => {
 
     expect(addWish).toHaveBeenCalledWith('req-1');
     expect(await screen.findByRole('button', { name: 'In your wishes' })).toBeDisabled();
+  });
+
+  test('says why adding or saving a piece from a photo did not go through', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    try {
+      jest.mocked(getWearWith).mockResolvedValue({
+        ...done,
+        addable: {
+          name: 'Red leather skirt',
+          category: 'bottom',
+          colors: ['red'],
+          seasons: ['autumn'],
+          photoKey: 'photos/u1/crop.webp',
+        },
+      });
+      jest.mocked(createItem).mockRejectedValue(new Error('500'));
+      jest.mocked(addWish).mockRejectedValue(new OfflineError());
+      await render(<WearWith id="req-1" />);
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Add to my closet' }));
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith("Couldn't add it to your closet. Try again."),
+      );
+      expect(screen.getByRole('button', { name: 'Add to my closet' })).toBeEnabled();
+
+      // A free limit reached says which, not that it failed.
+      jest.mocked(createItem).mockRejectedValue(new ApiError(429, 'limit:budget'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Add to my closet' }));
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith('The AI is resting for today. Try again tomorrow.'),
+      );
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Add to wishes' }));
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          'No connection to the server. Check the internet and try again.',
+        ),
+      );
+    } finally {
+      alert.mockRestore();
+    }
   });
 });
