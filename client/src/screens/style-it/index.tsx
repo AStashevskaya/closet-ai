@@ -53,17 +53,18 @@ export function StyleIt() {
   // The piece whose outfits are being asked for.
   const [asking, setAsking] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Chosen | null>(null);
-  // Brings the thread into view when a piece is chosen; on the first choice the thread isn't laid
-  // out yet, so it scrolls once it is.
+  // The piece chosen comes up to the top of the screen, its outfits below it. It scrolls once the
+  // opened piece is laid out: the one open before folds as this one opens, so any position read
+  // earlier is stale (owner, 2026-10-30: it jumped somewhere above). The diary's own place on the
+  // screen is added, since a row's layout is relative to the diary.
   const scroll = useRef<ScrollViewInstance>(null);
-  const threadY = useRef<number | null>(null);
+  const diaryY = useRef(0);
   const scrollWhenLaidOut = useRef(false);
   function choose(next: Chosen) {
     setChosen(next);
     // The thread may be far below: say the looks are on their way (iOS has no live regions).
     AccessibilityInfo.announceForAccessibility(t('wearWith.composing'));
-    if (threadY.current === null) scrollWhenLaidOut.current = true;
-    else scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
+    scrollWhenLaidOut.current = true;
   }
 
   const load = useCallback(async () => {
@@ -206,7 +207,14 @@ export function StyleIt() {
 
       {/* The diary: everything she styled, newest on top, on one thread; the open one grows its
           outfits full width, the others show theirs folded small. */}
-      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.diary}>
+      <Animated.View
+        entering={rise.delay(STAGGER_STEP * 2)}
+        style={styles.diary}
+        testID="diary"
+        onLayout={(event) => {
+          diaryY.current = event.nativeEvent.layout.y;
+        }}
+      >
         {entries.length === 0 ? (
           <Text style={[maison.note, maison.gutter]}>{t('styleIt.historyEmpty')}</Text>
         ) : (
@@ -214,11 +222,12 @@ export function StyleIt() {
             entry.id === chosen?.requestId ? (
               <View
                 key={entry.id}
+                testID="open-stop"
                 onLayout={(event) => {
-                  threadY.current = event.nativeEvent.layout.y;
                   if (!scrollWhenLaidOut.current) return;
                   scrollWhenLaidOut.current = false;
-                  scroll.current?.scrollTo({ y: threadY.current - 16, animated: true });
+                  const y = diaryY.current + event.nativeEvent.layout.y - 16;
+                  scroll.current?.scrollTo({ y: Math.max(0, y), animated: true });
                 }}
               >
                 <StyleThread
