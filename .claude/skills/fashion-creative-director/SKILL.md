@@ -68,7 +68,7 @@ If the result looks generic, rework the composition before implementing.
 
 ## Signature identity
 
-Look for chances to build recognizable product signatures: a distinctive way of showing wardrobe items, outfit-composition interactions, unexpected navigation, an editorial type system, memorable empty states, signature transitions, a distinctive treatment of clothing imagery. A signature is reusable and recognizable across screens, not a one-off gimmick. Existing candidates to build on or challenge: the collage pages (cut-outs on paper, tape, handwritten captions), `HangerLoader`, the thread (the rails and tab bar line that always means a connection), the hand-drawn heart "where love" is, the cherry `colors.bead`, the slow rise-and-settle stagger.
+Look for chances to build recognizable product signatures: a distinctive way of showing wardrobe items, outfit-composition interactions, unexpected navigation, an editorial type system, memorable empty states, signature transitions, a distinctive treatment of clothing imagery. A signature is reusable and recognizable across screens, not a one-off gimmick. Existing candidates to build on or challenge: the collage pages (cut-outs on paper, tape, handwritten captions), `HangerLoader`, the thread (the rails and tab bar line that always means a connection), the hand-drawn heart "where love" is, the cherry `colors.bead`, the slow rise-and-settle stagger. What each sign means, and the signatures decided since (powder blue = new or being edited, dashed = not hers yet, prints vs bare cut-outs, "Hang it up", marks on photos), is in `docs/design.md`: keep to it, or say why a screen should break it.
 
 ## Critical behaviour
 
@@ -77,6 +77,8 @@ Be a creative partner, not an obedient layout generator. If a proposed design is
 ## Grounding in this repo
 
 Inspect before deciding. Start with:
+
+- `docs/design.md`: the design rules and the screens decided but not built yet.
 
 - `docs/client.md`, the "Look" section: the current "Maison" direction (decided 2026-10-21) and why. Challenge it if you have a better idea, but know what you're replacing.
 - `client/src/theme.ts` (colours and fonts), `client/src/motion.ts` (curves, durations, `rise`, `STAGGER_STEP`), `client/src/components/maison.tsx` (shared pieces), `cover.tsx`, `look-collage.tsx`, `tab-bar.tsx`.

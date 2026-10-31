@@ -25,6 +25,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `docs/server.md`: the server module by module (auth, items, photo pipeline, tagging, embeddings, cut-outs, looks, Want / Can, limits, outfits, Inspiration, account deletion, brand and price, profile details, partner catalog, workers, migrations).
 - `docs/client.md`: the app (screens, the "Maison" look, motion, i18n, API and photo loading, tests).
 - `docs/product.md`: roadmap, Free / Premium, outfit taste, feature boundaries, partner items, Want / Can, the brand demo.
+- `docs/design.md`: the design rules (what the thread, dashed, blue, the bead, the heart, prints and handwriting mean; motion; marks on photos) and the screens decided but not built yet. Read it before any UI work.
 - `.claude/skills/fashion-creative-director`: the creative-director skill for UI work (new screens, redesigns, motion): three directions and approval before building anything significant.
 - Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
@@ -45,6 +46,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `drizzle-kit generate` asks interactively when a column is renamed: generate a drop and an add separately and merge them into one migration (see `0001_photo_key`). Migrations are committed in `server/drizzle/`.
 - Don't edit `server/src/db/auth-schema.ts` by hand: the Better Auth CLI generates it.
 - Client: use `colors` / `fonts` from `src/theme.ts`, never raw hex or `fontWeight`; build screens from `src/components/maison.tsx` and `rise` / `STAGGER_STEP`.
+- Client design: each sign means one thing (docs/design.md). The thread always connects two things; dashed = not hers yet / unknown / optional; powder blue = something new or being edited, not a header; hearts only where love; anything entering the closet hangs on a rail ("Hang it up").
 - Client code uses single quotes (`client/.prettierrc`); server and shared use double quotes (root `.prettierrc`): run Prettier from the right package.
 - The global `fetch` (since SDK 57) is `expo/fetch`: files go into FormData as `new File(uri)` from `expo-file-system`.
 
