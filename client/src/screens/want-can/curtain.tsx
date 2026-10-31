@@ -17,7 +17,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import Svg, { Path } from 'react-native-svg';
 
 import { BarePiece } from '@/components/bare-piece';
-import { Hanger, HANGERS } from '@/components/hanger';
+import { Hanger, HANGER_WIDTH, HANGERS } from '@/components/hanger';
 import { priceLabel } from '@/lib/price';
 import { durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -66,8 +66,9 @@ export function frameOf(found: Found[], aspect: number, width: number) {
 type Frame = ReturnType<typeof frameOf>;
 type Rect = { left: number; top: number; width: number; height: number };
 
-// An empty hanger needs room: a smaller piece (sunglasses, a watch) would be all hanger.
-const ROOM_WIDTH = 64;
+// An empty hanger needs room: a smaller piece (sunglasses, a watch) would be all hanger, and a
+// box narrower than the hanger would push it into its neighbours.
+const ROOM_WIDTH = HANGER_WIDTH;
 const ROOM_HEIGHT = 72;
 // A missing piece mostly under one already hung (a vest under a shirt, a bag over both) gets no
 // hanger of its own: overlapping hangers read as a pile of dashes.
@@ -108,10 +109,12 @@ export function slotsOf(found: Found[], frame: Frame, aspect: number) {
 
 // "Hers / yours" (decided 2026-10-31, prototype `~/Desktop/closet/wrinkle-lab/design-recreate`,
 // direction B with C's empty hangers): the screenshot, and over it a curtain dragged by its cherry
-// bead; behind the curtain the same look built from her closet, each piece where the look's was,
-// over a faint copy of the screenshot (one image: a crop per piece meant a full-size photo per
-// piece moving with the curtain). What she doesn't have hangs as an empty dashed hanger with,
-// when a partner has one like it, its price (see slotsOf for which ones). The screen shows the
+// bead; behind the curtain the same look built from her closet, each piece where the look's was.
+// What she doesn't have hangs as an empty dashed hanger over a faint copy of that part of the
+// screenshot (the photo at the stage's own size, clipped by the hanger's box: a crop zoomed to
+// each piece meant huge images moving with the curtain) with, when a partner has one like it, its
+// price (see slotsOf for which ones). Her own pieces stand on plain paper, so nothing shows
+// through a cut-out. The screen shows the
 // curtain only when she has at least one piece. On opening the curtain draws itself across to
 // the middle.
 // Both sides share one frame, placed with left / top: photo pixels aren't mirrored in RTL. In
@@ -196,11 +199,6 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
               <Image source={{ uri }} style={photo} accessibilityIgnoresInvertColors />
               <Animated.View style={[styles.window, { width }, window]}>
                 <Animated.View style={[styles.yours, { width }, still]}>
-                  <Image
-                    source={{ uri }}
-                    style={[photo, styles.ghost]}
-                    accessibilityIgnoresInvertColors
-                  />
                   {slots.map(({ index, at }) => {
                     const { item, match } = found[index]!;
                     const offer = match.shop[0];
@@ -217,6 +215,17 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
                         style={[styles.slot, styles.empty, at]}
                         testID="empty-hanger"
                       >
+                        {photo && (
+                          <Image
+                            source={{ uri }}
+                            style={[
+                              photo,
+                              styles.ghost,
+                              { left: photo.left - at.left, top: photo.top - at.top },
+                            ]}
+                            accessibilityIgnoresInvertColors
+                          />
+                        )}
                         <Hanger kind={HANGERS[item.category]} dashed />
                         {offer && (
                           <Text style={styles.price}>
@@ -310,6 +319,7 @@ const styles = StyleSheet.create({
   // The hanger hangs inside the piece's box: above it, a piece at the top of the look would lose
   // its hanger to the stage's edge.
   empty: {
+    overflow: 'hidden',
     alignItems: 'center',
     paddingTop: 2,
     gap: 4,

@@ -188,7 +188,12 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       ) : look.status === 'found' && look.found.length > 0 && owned === 0 ? (
         // Nothing of hers to show behind a curtain: her look, and the rows say what to find.
         <Animated.View entering={FadeIn.duration(durations.enter)}>
-          <Image source={{ uri: look.uri }} style={styles.photo} contentFit="cover" />
+          <Image
+            source={{ uri: look.uri }}
+            style={[styles.photo, { aspectRatio: look.aspect }]}
+            contentFit="contain"
+            accessibilityIgnoresInvertColors
+          />
           <Text style={styles.noneOwned} accessibilityLiveRegion="polite">
             {t('want.noneOwned')}
           </Text>

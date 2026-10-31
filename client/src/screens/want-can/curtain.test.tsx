@@ -29,6 +29,40 @@ describe('slotsOf', () => {
     expect(slots.map((slot) => slot.index)).toEqual([1, 0]);
   });
 
+  test('a piece she has always hangs, however small', () => {
+    const slots = slotsOf(
+      [found({ xMin: 0.45, yMin: 0.05, xMax: 0.55, yMax: 0.08 }, true)],
+      frame,
+      1,
+    );
+    expect(slots.map((slot) => slot.index)).toEqual([0]);
+  });
+
+  test('a missing piece just the hanger wide and 72 high gets one; narrower gets none', () => {
+    // 84 × 72 points and 80 × 72 points on the 400-point stage.
+    const slots = slotsOf(
+      [
+        found({ xMin: 0, yMin: 0, xMax: 84 / 400, yMax: 72 / 400 }),
+        found({ xMin: 0.5, yMin: 0.5, xMax: 0.5 + 80 / 400, yMax: 0.5 + 72 / 400 }),
+      ],
+      frame,
+      1,
+    );
+    expect(slots.map((slot) => slot.index)).toEqual([0]);
+  });
+
+  test('two missing pieces that overlap by less than half both get a hanger', () => {
+    const slots = slotsOf(
+      [
+        found({ xMin: 0.1, yMin: 0.1, xMax: 0.5, yMax: 0.5 }),
+        found({ xMin: 0.4, yMin: 0.1, xMax: 0.8, yMax: 0.5 }), // a quarter under the first
+      ],
+      frame,
+      1,
+    );
+    expect(slots.map((slot) => slot.index).sort()).toEqual([0, 1]);
+  });
+
   test('the larger of two overlapping missing pieces gets the hanger', () => {
     const slots = slotsOf(
       [
