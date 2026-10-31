@@ -16,7 +16,7 @@ import { HandDrawn } from '@/components/hand-drawn';
 import { absoluteUrl } from '@/lib/api';
 import { colors, fonts } from '@/theme';
 
-type Piece = Pick<Item, 'id' | 'category' | 'photoUrl' | 'cutoutUrl'> & {
+type Piece = Pick<Item, 'id' | 'name' | 'category' | 'photoUrl' | 'cutoutUrl'> & {
   // Not hers (the piece from a photo, a partner's): on a dashed string.
   loose?: boolean;
 };
@@ -47,18 +47,25 @@ const DROP: Record<Item['category'], number> = {
 const WIRE_Y = 14;
 const SAG = 10;
 const MAX_PIECE = 116;
+// Five or six pieces would each get too small a share of the wire to read: past this size they
+// overlap their neighbours a little instead.
+const MIN_PIECE = 64;
 
 export type Hung = { piece: Piece; x: number; drop: number; width: number };
 
 // Where each piece hangs on a wire this wide: in order across, evenly spaced, each at its drop.
+// The drops are counted from the highest piece in the look, so a look without a top (a lone pair of
+// shoes) doesn't hang far below an empty wire.
 export function hang(pieces: Piece[], width: number): Hung[] {
   const sorted = [...pieces].sort((a, b) => ORDER.indexOf(a.category) - ORDER.indexOf(b.category));
   const slot = width / Math.max(1, sorted.length);
-  const size = Math.min(MAX_PIECE, slot * 0.92);
+  const size = Math.min(MAX_PIECE, Math.max(MIN_PIECE, slot * 0.92), width);
+  const highest = Math.min(...sorted.map((p) => DROP[p.category]));
   return sorted.map((piece, index) => ({
     piece,
-    x: slot * (index + 0.5),
-    drop: DROP[piece.category],
+    // Kept inside the wire when the pieces are wider than their share of it.
+    x: Math.min(Math.max(slot * (index + 0.5), size / 2), width - size / 2),
+    drop: DROP[piece.category] - highest + 8,
     width: size,
   }));
 }
@@ -82,7 +89,8 @@ export function OutfitMobile({ pieces, headers, caption, loved = false, seed = 1
       style={styles.mobile}
       onLayout={(event) => setWidth(Math.round(event.nativeEvent.layout.width))}
       accessible
-      accessibilityLabel={caption}
+      // The pieces are pictures only: the look's name, then what's in it.
+      accessibilityLabel={[caption, ...pieces.map((p) => p.name)].filter(Boolean).join(', ')}
     >
       {width > 0 && (
         <View style={{ height }}>

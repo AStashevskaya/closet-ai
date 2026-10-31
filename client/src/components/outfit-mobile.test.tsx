@@ -6,6 +6,7 @@ jest.mock('@/lib/api', () => ({ absoluteUrl: (path: string) => `http://api.test$
 
 const piece = (id: string, category: 'top' | 'bottom' | 'shoes' | 'accessory' | 'outerwear') => ({
   id,
+  name: id,
   category,
   photoUrl: `/api/items/${id}/photo`,
   cutoutUrl: `/api/items/${id}/photo?variant=cutout`,
@@ -34,9 +35,35 @@ describe('hang', () => {
   test('keeps a lone piece from growing past its size', () => {
     expect(hang([piece('dress', 'top')], 300)[0]!.width).toBe(116);
   });
+
+  test('a lone pair of shoes hangs just under the wire, not as low as in a full look', () => {
+    const alone = hang([piece('boots', 'shoes')], 300)[0]!;
+    const inLook = hang([piece('top', 'top'), piece('boots', 'shoes')], 300)[1]!;
+    expect(alone.drop).toBe(8);
+    expect(inLook.drop).toBeGreaterThan(80);
+  });
+
+  test('six pieces stay big enough to read and inside the wire', () => {
+    const hung = hang(
+      [
+        piece('coat', 'outerwear'),
+        piece('top', 'top'),
+        piece('skirt', 'bottom'),
+        piece('boots', 'shoes'),
+        piece('bag', 'accessory'),
+        piece('belt', 'accessory'),
+      ],
+      300,
+    );
+    for (const h of hung) {
+      expect(h.width).toBe(64);
+      expect(h.x - h.width / 2).toBeGreaterThanOrEqual(0);
+      expect(h.x + h.width / 2).toBeLessThanOrEqual(300);
+    }
+  });
 });
 
-test('names the look for screen readers and hangs each piece once it has a width', async () => {
+test('names the look and its pieces for screen readers, and hangs each piece once it has a width', async () => {
   await render(
     <OutfitMobile
       pieces={[piece('top', 'top'), { ...piece('skirt', 'bottom'), loose: true }]}
@@ -44,7 +71,7 @@ test('names the look for screen readers and hangs each piece once it has a width
       caption="Сатин после спорта"
     />,
   );
-  const look = screen.getByLabelText('Сатин после спорта');
+  const look = screen.getByLabelText('Сатин после спорта, top, skirt');
   expect(screen.queryAllByTestId('hung-piece', { includeHiddenElements: true })).toHaveLength(0);
   await fireEvent(look, 'layout', { nativeEvent: { layout: { width: 300 } } });
   expect(screen.getAllByTestId('hung-piece', { includeHiddenElements: true })).toHaveLength(2);

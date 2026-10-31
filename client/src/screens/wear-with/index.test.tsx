@@ -81,7 +81,13 @@ describe('<WearWith />', () => {
     expect(screen.getByText('Putting looks together from your closet…')).toBeOnTheScreen();
 
     expect(
-      await screen.findByLabelText('Сатин после спорта', {}, { timeout: 4000 }),
+      await screen.findByLabelText(
+        'Сатин после спорта, Mauve satin skirt, Grey tee',
+        {},
+        {
+          timeout: 4000,
+        },
+      ),
     ).toBeOnTheScreen();
     expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
     expect(screen.getByText('Mauve satin skirt · Grey tee')).toBeOnTheScreen();
