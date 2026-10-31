@@ -1,7 +1,7 @@
 import type { CatalogItem, Item, LookItem, MatchKind } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { I18nManager, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -81,17 +81,27 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
   const start = useSharedValue(0);
   const frame = width > 0 && found.length > 0 ? frameOf(found, aspect, width) : null;
 
-  useEffect(() => {
-    if (width === 0) return;
-    const middle = width / 2;
-    if (reduceMotion) {
-      cut.set(middle);
-      return;
+  // Placed as the stage is measured, before its first frame shows (an effect would show the curtain
+  // at 0 for a frame). The opening slide plays once; a later layout (the phone turned) keeps where
+  // she left the curtain, at the same share of the width.
+  const played = useRef(false);
+  function measure(next: number) {
+    if (next === width) return;
+    if (played.current) {
+      if (width > 0) cut.set((cut.get() * next) / width);
+    } else {
+      played.current = true;
+      if (reduceMotion) {
+        cut.set(next / 2);
+      } else {
+        // From all hers to the middle, after the stage has risen in.
+        cut.set(RTL ? next * EDGE : next * (1 - EDGE));
+        const middle = withTiming(next / 2, { duration: durations.settle, easing: EASE_OUT });
+        cut.set(withDelay(500, middle));
+      }
     }
-    // From all hers to the middle, after the stage has risen in.
-    cut.set(RTL ? width * EDGE : width * (1 - EDGE));
-    cut.set(withDelay(500, withTiming(middle, { duration: durations.settle, easing: EASE_OUT })));
-  }, [width, reduceMotion, cut]);
+    setWidth(next);
+  }
 
   const grab = () => void Haptics.selectionAsync();
   // Sideways only, so the screen still scrolls under a vertical swipe.
@@ -125,10 +135,11 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
     };
 
   return (
-    <GestureHandlerRootView>
+    // Not flex: 1 as by default: in a scroll view that would squeeze the stage to nothing.
+    <GestureHandlerRootView style={styles.root}>
       <View
         style={[styles.stage, frame && { height: frame.height }]}
-        onLayout={(event) => setWidth(Math.round(event.nativeEvent.layout.width))}
+        onLayout={(event) => measure(Math.round(event.nativeEvent.layout.width))}
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden
         testID="curtain"
@@ -228,6 +239,9 @@ export function Beads({ found, summary }: { found: Found[]; summary: string }) {
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
+  root: {
+    flex: 0,
+  },
   stage: {
     marginHorizontal: -22,
     height: 360,
@@ -260,9 +274,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingBottom: 6,
   },
+  // Under the hanger, which hangs inside the frame: above it, a piece at the top of the look would
+  // lose its hanger to the stage's edge.
   ghost: {
     ...StyleSheet.absoluteFill,
     margin: 6,
+    marginTop: HANGER_HEIGHT,
     opacity: 0.22,
   },
   fill: {
@@ -270,7 +287,7 @@ const styles = StyleSheet.create({
   },
   hanger: {
     position: 'absolute',
-    top: -HANGER_HEIGHT + 6,
+    top: 2,
     left: '50%',
     marginLeft: -HANGER_WIDTH / 2,
   },
