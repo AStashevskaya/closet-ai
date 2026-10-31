@@ -424,13 +424,14 @@ export const inspirationList = z.array(inspiration);
 
 // The user's details (decided 2026-10-22), all optional: the country gives the currency, the
 // weather and the market; the rest lets the stylist and partner items fit the person.
-// Countries are ISO 3166 codes; the app offers its markets first.
+// Countries are ISO 3166 codes, in the order the profile offers them: Belarus first, the first
+// market (2026-10-28).
 export const PROFILE_COUNTRIES = [
-  "IL",
-  "UA",
   "BY",
   "RU",
+  "UA",
   "KZ",
+  "IL",
   "US",
   "GB",
   "DE",
