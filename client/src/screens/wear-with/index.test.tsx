@@ -183,6 +183,50 @@ describe('<WearWith />', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: tee.id } });
   });
 
+  test('shows the piece on top, and the one like it she has on a short rail with it', async () => {
+    jest.mocked(getWearWith).mockResolvedValue({
+      ...done,
+      verdict: { call: 'skip', reason: 'Almost your grey tee again.', twin: tee },
+    });
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText('Mauve satin skirt', { exact: true })).toBeOnTheScreen();
+    // The piece and her twin, both bare cut-outs; the new one first (its photo, no cut-out yet).
+    const pieces = screen.getAllByTestId('bare-piece', { includeHiddenElements: true });
+    expect(pieces[0]!.props.source).toEqual([
+      { uri: `http://api${skirt.photoUrl}`, headers: { cookie: 'session' } },
+    ]);
+    expect(screen.getByText('Grey tee')).toBeOnTheScreen();
+  });
+
+  test('shows the piece and the one like it even when no outfits came of it', async () => {
+    const addable = {
+      name: 'Red leather skirt',
+      category: 'bottom' as const,
+      colors: ['red' as const],
+      seasons: ['autumn' as const],
+      photoKey: 'photos/u1/crop.webp',
+    };
+    jest.mocked(getWearWith).mockResolvedValue({
+      ...done,
+      outfits: [],
+      addable,
+      verdict: { call: 'skip', reason: 'Almost your grey tee again.', twin: tee },
+    });
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText('Red leather skirt')).toBeOnTheScreen();
+    const [piece] = screen.getAllByTestId('bare-piece', { includeHiddenElements: true });
+    expect(piece!.props.source).toEqual([
+      { uri: 'http://api/api/wear-with/req-1/photo', headers: { cookie: 'session' } },
+    ]);
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'You already have one like it: Grey tee' }),
+    );
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: tee.id } });
+    expect(screen.getByText('Nothing in your closet goes with it yet.')).toBeOnTheScreen();
+  });
+
   test('adds an item from a photo to the closet', async () => {
     const addable = {
       name: 'Red leather skirt',
