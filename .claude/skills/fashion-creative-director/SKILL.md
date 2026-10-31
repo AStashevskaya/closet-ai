@@ -79,7 +79,6 @@ Be a creative partner, not an obedient layout generator. If a proposed design is
 Inspect before deciding. Start with:
 
 - `docs/design.md`: the design rules and the screens decided but not built yet.
-
 - `docs/client.md`, the "Look" section: the current "Maison" direction (decided 2026-10-21) and why. Challenge it if you have a better idea, but know what you're replacing.
 - `client/src/theme.ts` (colours and fonts), `client/src/motion.ts` (curves, durations, `rise`, `STAGGER_STEP`), `client/src/components/maison.tsx` (shared pieces), `cover.tsx`, `look-collage.tsx`, `tab-bar.tsx`.
 - `docs/product.md` for feature boundaries (Recreate the look vs Inspiration).

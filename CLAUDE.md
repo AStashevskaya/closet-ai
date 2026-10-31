@@ -46,7 +46,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `drizzle-kit generate` asks interactively when a column is renamed: generate a drop and an add separately and merge them into one migration (see `0001_photo_key`). Migrations are committed in `server/drizzle/`.
 - Don't edit `server/src/db/auth-schema.ts` by hand: the Better Auth CLI generates it.
 - Client: use `colors` / `fonts` from `src/theme.ts`, never raw hex or `fontWeight`; build screens from `src/components/maison.tsx` and `rise` / `STAGGER_STEP`.
-- Client design: each sign means one thing (docs/design.md). The thread always connects two things; dashed = not hers yet / unknown / optional; powder blue = something new or being edited, not a header; hearts only where love; anything entering the closet hangs on a rail ("Hang it up").
+- Client design: each sign means one thing (docs/design.md). The thread always connects two things; dashed = not hers yet / unknown / optional; powder blue = something new or being edited, not a header; hearts only where love; anything entering the closet hangs on a rail ("Hang it up"). If this line and docs/design.md disagree, docs/design.md wins.
 - Client code uses single quotes (`client/.prettierrc`); server and shared use double quotes (root `.prettierrc`): run Prettier from the right package.
 - The global `fetch` (since SDK 57) is `expo/fetch`: files go into FormData as `new File(uri)` from `expo-file-system`.
 
