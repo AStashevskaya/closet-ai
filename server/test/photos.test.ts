@@ -598,6 +598,64 @@ describe("background removal", () => {
     expect(other.statusCode).toBe(404);
   });
 
+  it("shows the cut-out and its place in the photo before the piece is saved, to the owner only", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const { photoKey } = (await upload(server, anna, await cameraPhoto())).json<UploadedPhoto>();
+    const status = async (cookie: string) =>
+      server.inject({
+        method: "GET",
+        url: `/api/photos/status?key=${encodeURIComponent(photoKey)}`,
+        headers: { cookie },
+      });
+
+    // Not cut out yet: no cut-out fields at all, as from servers before them.
+    const waiting = (await status(anna)).json<PhotoState>();
+    expect(waiting).not.toHaveProperty("cutoutUrl");
+    expect(waiting).not.toHaveProperty("cutoutBox");
+    const early = await server.inject({
+      method: "GET",
+      url: `/api/photos/cutout?key=${encodeURIComponent(photoKey)}`,
+      headers: { cookie: anna },
+    });
+    expect(early.statusCode).toBe(404);
+
+    await runWorker();
+    const { cutoutUrl, cutoutBox } = (await status(anna)).json<PhotoState>();
+    const cutoutKey = (await jobDeps.photos.get(photoKey))!.cutoutKey!;
+    expect(cutoutUrl).toBe(
+      `/api/photos/cutout?key=${encodeURIComponent(photoKey)}&v=${keyVersion(cutoutKey)}`,
+    );
+    // The stub's piece: a 659 px square in the middle of the 1975 × 1317 photo.
+    expect(cutoutBox!.xMin).toBeCloseTo(658 / 1975, 4);
+    expect(cutoutBox!.xMax).toBeCloseTo(1317 / 1975, 4);
+    expect(cutoutBox!.yMin).toBeCloseTo(329 / 1317, 4);
+    expect(cutoutBox!.yMax).toBeCloseTo(988 / 1317, 4);
+
+    const own = await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: anna } });
+    expect(own.statusCode).toBe(200);
+    expect(own.headers["content-type"]).toBe("image/webp");
+    expect((await sharp(own.rawPayload).metadata()).hasAlpha).toBe(true);
+    // Someone else's key answers like a missing one, on both routes.
+    expect(
+      (await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: maya } }))
+        .statusCode,
+    ).toBe(404);
+    expect((await status(maya)).statusCode).toBe(404);
+
+    // The item gets the same box next to its own cut-out URL.
+    const item = (
+      await server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: anna },
+        payload: { name: "Shirt", category: "top", colors: ["white"], photoKey },
+      })
+    ).json<Item>();
+    expect(item.cutoutBox).toEqual(cutoutBox);
+  });
+
   it("gives a redone cut-out a URL of its own and deletes the old one", async () => {
     const cut = createStubRemover();
     const server = await setup({ remover: cut.remover });
@@ -646,6 +704,14 @@ describe("background removal", () => {
     expect(after.name).toBe("Shirt");
     expect(after.photoUrl).not.toBe(before.photoUrl);
     expect(after.cutoutUrl).not.toBe(before.cutoutUrl);
+    // The box turns with the photo: (x, y) goes to (1 − y, x).
+    const box = before.cutoutBox!;
+    expect(after.cutoutBox).toEqual({
+      xMin: 1 - box.yMax,
+      yMin: box.xMin,
+      xMax: 1 - box.yMin,
+      yMax: box.xMax,
+    });
 
     // 1975 × 1317 before, so 1317 × 1975 now; the cut-out is turned too and keeps its transparency.
     const photo = await server.inject({

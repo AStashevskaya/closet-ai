@@ -14,7 +14,7 @@ import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { PhotoQueue } from "../../queue/photo-queue";
 import { toCatalogItem, type CatalogRepository } from "../catalog/catalog.repository";
-import type { ItemsRepository } from "../items/items.repository";
+import { keyVersion, type ItemsRepository } from "../items/items.repository";
 import { addItemsFromLook } from "./look-items";
 import type { Storage } from "../../storage/storage";
 import { BRIEF_AFTER_SAVE_MS } from "../inspiration/inspiration.routes";
@@ -27,6 +27,10 @@ import { checkPhoto, UnsupportedPhotoError } from "./process-photo";
 export const photoPrefix = (userId: string) => `photos/${userId}/`;
 // Originals wait here until the worker has turned them into a WebP, then they are deleted.
 export const uploadPrefix = (userId: string) => `uploads/${userId}/`;
+// A photo's cut-out before the photo belongs to an item (the add-item form). `v` changes with the
+// cut-out's key, as on items, so a redone cut-out misses the phone's cache.
+export const photoCutoutPath = (photoKey: string, cutoutKey: string) =>
+  `/api/photos/cutout?key=${encodeURIComponent(photoKey)}&v=${keyVersion(cutoutKey)}`;
 
 export const photosRoutes =
   (
@@ -141,13 +145,43 @@ export const photosRoutes =
               return { how, item, shop: offers };
             }),
           ));
+        const cutout =
+          photo.status === "ready" && photo.cutoutKey
+            ? { cutoutUrl: photoCutoutPath(photo.key, photo.cutoutKey), cutoutBox: photo.cutoutBox }
+            : {};
         return {
           status: photo.status,
           tagStatus: photo.tagStatus,
           tags: photo.tags,
           lookItems: photo.lookItems,
           matches,
+          ...cutout,
         };
+      },
+    );
+
+    // The cut-out of one of the user's photos, attached to an item or not: the add-item form
+    // shows it before the item is saved. Items keep their own URL (/api/items/:id/photo).
+    app.get(
+      "/photos/cutout",
+      {
+        schema: {
+          querystring: z.object({ key: z.string().max(200), v: z.string().max(40).optional() }),
+        },
+      },
+      async (request, reply) => {
+        const user = request.user as SessionUser;
+        const photo = await photos.get(request.query.key);
+        // Someone else's photo answers like a missing one.
+        const file =
+          photo?.ownerId === user.id && photo.cutoutKey ? await storage.get(photo.cutoutKey) : null;
+        if (!file) throw httpError(404, "no cut-out");
+        // A cut-out key never changes content (a redone one gets a new key), so the phone can
+        // keep it; "private" keeps shared caches from storing someone's wardrobe.
+        return reply
+          .header("content-type", file.contentType)
+          .header("cache-control", "private, max-age=31536000, immutable")
+          .send(Buffer.from(file.body));
       },
     );
 
