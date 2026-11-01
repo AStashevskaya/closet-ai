@@ -1,10 +1,18 @@
 import type { ItemTags } from '@closet-ai/shared';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 
 import i18n from '@/i18n';
-import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import {
+  askWearWith,
+  createItem,
+  getItem,
+  getPhotoState,
+  sessionHeaders,
+  uploadPhoto,
+} from '@/lib/api';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 
 import { AddItem } from '.';
@@ -29,6 +37,25 @@ jest.mock(
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
+// The real overlay draws its pieces only once it's laid out, which never happens under Jest:
+// what flies is shown next to it here, so the tests can see the cut-out or the photo.
+jest.mock('./hang-up', () => {
+  const actual = jest.requireActual('./hang-up');
+  const { View } = jest.requireActual('react-native');
+  return {
+    ...actual,
+    HangUp: (props: { pieces: { key: string; photo: React.ReactNode }[] }) => (
+      <>
+        <actual.HangUp {...props} />
+        {props.pieces.map((piece) => (
+          <View key={piece.key} testID="hung-piece">
+            {piece.photo}
+          </View>
+        ))}
+      </>
+    ),
+  };
+});
 jest.mock('@/lib/api', () => ({
   // No usage unless a test gives one: the screens then show no counts.
   getUsage: jest.fn().mockRejectedValue(new Error('offline')),
@@ -36,6 +63,9 @@ jest.mock('@/lib/api', () => ({
   createItem: jest.fn(),
   askWearWith: jest.fn(),
   getPhotoState: jest.fn(),
+  getItem: jest.fn(),
+  sessionHeaders: jest.fn(),
+  absoluteUrl: (path: string) => `http://api${path}`,
 }));
 
 // Presses one of the buttons of the last alert shown.
@@ -60,7 +90,13 @@ beforeEach(async () => {
   jest.mocked(ImagePicker.launchCameraAsync).mockResolvedValue(picked as never);
   jest.mocked(shrinkPhoto).mockResolvedValue('file:///small.jpg');
   jest.mocked(uploadPhoto).mockResolvedValue('photos/u1/p1.webp');
-  jest.mocked(createItem).mockResolvedValue({} as never);
+  // Saved with its cut-out already made, unless a test says otherwise: it flies at once.
+  jest
+    .mocked(createItem)
+    .mockResolvedValue({ id: 'new-item', cutoutUrl: '/cutouts/new.webp' } as never);
+  jest.mocked(getItem).mockResolvedValue({ id: 'new-item' } as never);
+  jest.mocked(sessionHeaders).mockResolvedValue({ cookie: 's=1' });
+  jest.spyOn(Image, 'prefetch').mockResolvedValue(true);
   // Tagging off unless a test turns it on, so the form stays as the test fills it.
   jest.mocked(getPhotoState).mockResolvedValue({
     status: 'ready',
@@ -213,7 +249,7 @@ describe('<AddItem />', () => {
       await render(<AddItem />);
       await fillForm();
       await fireEvent.press(screen.getByText('Hang it in the closet'));
-      await act(() => jest.advanceTimersByTimeAsync(200));
+      await act(() => jest.advanceTimersByTimeAsync(700));
       expect(screen.getByText('On the Tops rail')).toBeOnTheScreen();
       expect(mockBack).not.toHaveBeenCalled();
 
@@ -222,6 +258,85 @@ describe('<AddItem />', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  describe('flies the cut-out, not the photo with its background', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    async function saveWithoutCutout() {
+      jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+      await render(<AddItem />);
+      await fillForm();
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+    }
+
+    test('at once when the saved piece already has one', async () => {
+      await render(<AddItem />);
+      await fillForm();
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+      await act(() => jest.advanceTimersByTimeAsync(0));
+
+      // First the background dissolves on the print: the cut-out over the photo, which fades.
+      expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
+      expect(screen.getByTestId('band-photo')).toHaveStyle({ opacity: 0 });
+      expect(
+        screen.queryByTestId('hung-piece', { includeHiddenElements: true }),
+      ).not.toBeOnTheScreen();
+
+      // Then the bare piece flies.
+      await act(() => jest.advanceTimersByTimeAsync(700));
+      expect(screen.getByTestId('hung-cutout', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(Image.prefetch).toHaveBeenCalledWith('http://api/cutouts/new.webp', {
+        headers: { cookie: 's=1' },
+      });
+      expect(getItem).not.toHaveBeenCalled();
+    });
+
+    test('when it arrives while the screen waits on the thread', async () => {
+      jest
+        .mocked(getItem)
+        .mockResolvedValueOnce({ id: 'new-item' } as never)
+        .mockResolvedValue({ id: 'new-item', cutoutUrl: '/cutouts/new.webp' } as never);
+      await saveWithoutCutout();
+
+      // Saved, waiting: the bead runs, nothing flies yet.
+      expect(
+        screen.getByTestId('thread-waiting', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.queryByTestId('hung-piece', { includeHiddenElements: true }),
+      ).not.toBeOnTheScreen();
+
+      await act(() => jest.advanceTimersByTimeAsync(1800));
+      expect(screen.getByTestId('hung-cutout', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(getItem).toHaveBeenCalledTimes(2);
+    });
+
+    test('the photo when none comes in time', async () => {
+      await saveWithoutCutout();
+      await act(() => jest.advanceTimersByTimeAsync(4000));
+      expect(
+        screen.queryByTestId('hung-piece', { includeHiddenElements: true }),
+      ).not.toBeOnTheScreen();
+
+      await act(() => jest.advanceTimersByTimeAsync(1500));
+      expect(screen.getByTestId('hung-photo', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(
+        screen.queryByTestId('hung-cutout', { includeHiddenElements: true }),
+      ).not.toBeOnTheScreen();
+    });
+
+    test('stops waiting when the sheet closes', async () => {
+      await saveWithoutCutout();
+      await act(() => jest.advanceTimersByTimeAsync(600));
+      const asked = jest.mocked(getItem).mock.calls.length;
+      await screen.unmount();
+      await act(() => jest.advanceTimersByTimeAsync(6000));
+
+      expect(getItem).toHaveBeenCalledTimes(asked);
+      expect(mockBack).not.toHaveBeenCalled();
+    });
   });
 
   test('needs a color', async () => {
