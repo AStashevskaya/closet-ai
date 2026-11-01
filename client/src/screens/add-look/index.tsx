@@ -57,7 +57,7 @@ export function AddLook() {
   const router = useRouter();
   const lang = appLanguage(i18n.language);
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const [look, setLook] = useState<Look>({ status: 'empty' });
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   // Indexes of the found items to add; all of them to start with.
@@ -197,7 +197,8 @@ export function AddLook() {
             photo: (
               <LookCrop uri={look.uri} aspect={look.aspect} box={item.box} style={styles.flying} />
             ),
-            from: at && stage && frameAround(rectOf(item.box, look.aspect, stage), at),
+            from:
+              at && stage && frameAround(rectOf(item.box, look.aspect, stage), at, windowHeight),
             category: item.category,
           };
         }),
@@ -388,16 +389,14 @@ export function AddLook() {
 
 // Where a piece is on screen, as the hung-up photo's frame (PHOTO_ASPECT) around it: the crop
 // that flies is fitted into that frame, so it starts at the piece's own size and place. Stage and
-// window coordinates are both physical.
-function frameAround(rect: Rect, stage: Box): Box {
+// window coordinates are both physical. Null for a piece scrolled out of sight: it then hangs on
+// the rail without flying in from off-screen.
+function frameAround(rect: Rect, stage: Box, windowHeight: number): Box | null {
   const width = Math.max(rect.width, rect.height * PHOTO_ASPECT);
   const height = width / PHOTO_ASPECT;
-  return {
-    x: stage.x + rect.left + rect.width / 2 - width / 2,
-    y: stage.y + rect.top + rect.height / 2 - height / 2,
-    width,
-    height,
-  };
+  const y = stage.y + rect.top + rect.height / 2 - height / 2;
+  if (stage.y + rect.top + rect.height < 0 || stage.y + rect.top > windowHeight) return null;
+  return { x: stage.x + rect.left + rect.width / 2 - width / 2, y, width, height };
 }
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.

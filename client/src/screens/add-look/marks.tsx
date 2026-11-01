@@ -1,6 +1,5 @@
 import type { ItemBox, LookItem } from '@closet-ai/shared';
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Line, Path } from 'react-native-svg';
@@ -151,7 +150,6 @@ const HALO = 3.4;
 // switch control, read in the order the pieces were found; the loops, beads and threads repeat
 // them and are hidden from assistive tech.
 export function Marks({ items, aspect, stage, picked, onToggle }: Props) {
-  const { t } = useTranslation();
   const marks = marksOf(items, aspect, stage);
   // Each label's size, measured once off-screen before the labels are placed.
   const [sizes, setSizes] = useState<(Size | undefined)[]>(() => items.map(() => undefined));
@@ -245,7 +243,6 @@ export function Marks({ items, aspect, stage, picked, onToggle }: Props) {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}
                 accessibilityLabel={item.name}
-                accessibilityHint={t(`categories.${item.category}`)}
               >
                 <Text style={[styles.labelText, !on && styles.labelOff]} numberOfLines={1}>
                   {item.name}
