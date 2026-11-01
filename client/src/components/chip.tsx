@@ -8,7 +8,7 @@ import { CSS_EASE_OUT, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // What each palette color looks like as a small dot next to its name.
-const SWATCHES: Record<Exclude<ItemColor, 'multicolor'>, string> = {
+export const SWATCHES: Record<Exclude<ItemColor, 'multicolor'>, string> = {
   black: '#1F1A1B',
   white: '#FFFFFF',
   gray: '#9A9496',
@@ -22,7 +22,7 @@ const SWATCHES: Record<Exclude<ItemColor, 'multicolor'>, string> = {
   blue: '#3C64B1',
   purple: '#7E4FA0',
 };
-const MULTICOLOR = ['#C62F2F', '#EFCB45', '#3C64B1'];
+export const MULTICOLOR = ['#C62F2F', '#EFCB45', '#3C64B1'];
 
 type Props = {
   label: string;

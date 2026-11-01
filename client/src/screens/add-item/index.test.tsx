@@ -1,6 +1,7 @@
 import type { ItemTags } from '@closet-ai/shared';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Alert } from 'react-native';
 
 import i18n from '@/i18n';
 import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
@@ -37,6 +38,12 @@ jest.mock('@/lib/api', () => ({
   getPhotoState: jest.fn(),
 }));
 
+// Presses one of the buttons of the last alert shown.
+async function chooseInAlert(text: string) {
+  const buttons = jest.mocked(Alert.alert).mock.lastCall?.[2] ?? [];
+  await act(async () => buttons.find((b) => b.text === text)?.onPress?.());
+}
+
 const picked = {
   canceled: false,
   assets: [{ uri: 'file:///big.heic', width: 4032, height: 3024 }],
@@ -44,6 +51,7 @@ const picked = {
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   await i18n.changeLanguage('en');
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue(picked as never);
   jest
@@ -101,9 +109,18 @@ function tagAfterOnePoll(result: ItemTags) {
 async function fillForm() {
   await fireEvent.press(screen.getByText('Choose from gallery'));
   await fireEvent.changeText(screen.getByLabelText('Name'), '  White linen shirt ');
-  await fireEvent.press(screen.getByText('Top'));
-  await fireEvent.press(screen.getByText('White'));
-  await fireEvent.press(screen.getByText('Beige'));
+  await fireEvent.press(screen.getByText('Tops'));
+  await pickColor('White');
+  await pickColor('Beige');
+}
+
+async function pickColor(name: string) {
+  await fireEvent.press(screen.getByRole('checkbox', { name }));
+}
+
+// Saving plays "Hang it up"; a tap on it closes the sheet without waiting for the end.
+async function hangUp(rail = 'Tops') {
+  await fireEvent.press(await screen.findByText(`On the ${rail} rail`));
 }
 
 describe('<AddItem />', () => {
@@ -136,10 +153,11 @@ describe('<AddItem />', () => {
     await render(<AddItem />);
     await fillForm();
     jest.mocked(shrinkPhoto).mockRejectedValueOnce(new Error('unsupported image'));
-    await fireEvent.press(screen.getByText('Change photo'));
-    expect(screen.getByText("Couldn't open this photo. Try another one.")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('Another photo'));
+    await chooseInAlert('Take a photo');
+    expect(await screen.findByText("Couldn't open this photo. Try another one.")).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
     expect(uploadPhoto).toHaveBeenCalledTimes(1);
     expect(createItem).toHaveBeenCalledWith(
       expect.objectContaining({ photoKey: 'photos/u1/p1.webp' }),
@@ -149,7 +167,7 @@ describe('<AddItem />', () => {
   test('shrinks the photo, uploads it, then creates the item', async () => {
     await render(<AddItem />);
     await fillForm();
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
 
     expect(shrinkPhoto).toHaveBeenCalledWith(picked.assets[0]);
     expect(uploadPhoto).toHaveBeenCalledTimes(1);
@@ -164,23 +182,54 @@ describe('<AddItem />', () => {
       price: null,
       currency: null,
     });
+    expect(mockBack).not.toHaveBeenCalled();
+    await hangUp();
     expect(mockBack).toHaveBeenCalled();
   });
 
-  test('asks for a photo before anything else', async () => {
+  test('offers only the photo before the fields', async () => {
     await render(<AddItem />);
-    await fireEvent.press(screen.getByText('Save'));
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Add a photo of the item');
-    expect(uploadPhoto).not.toHaveBeenCalled();
+    expect(screen.getByText('Shoot the whole piece on a plain background')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Name')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Hang it in the closet')).not.toBeOnTheScreen();
+  });
+
+  test('runs a bead down the thread while the photo is read', async () => {
+    tagAfterOnePoll(tags);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+
+    expect(screen.getByTestId('thread-waiting', { includeHiddenElements: true })).toBeOnTheScreen();
+    await screen.findByText('Filled in from the photo — check it', {}, { timeout: 3000 });
+    expect(
+      screen.queryByTestId('thread-waiting', { includeHiddenElements: true }),
+    ).not.toBeOnTheScreen();
+  });
+
+  test('closes the sheet on its own after hanging the piece', async () => {
+    jest.useFakeTimers();
+    try {
+      await render(<AddItem />);
+      await fillForm();
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+      await act(() => jest.advanceTimersByTimeAsync(200));
+      expect(screen.getByText('On the Tops rail')).toBeOnTheScreen();
+      expect(mockBack).not.toHaveBeenCalled();
+
+      await act(() => jest.advanceTimersByTimeAsync(3500));
+      expect(mockBack).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('needs a color', async () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
     await fireEvent.changeText(screen.getByLabelText('Name'), 'Shirt');
-    await fireEvent.press(screen.getByText('Top'));
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Tops'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
 
     expect(screen.getByRole('alert')).toHaveTextContent('Pick at least one color');
   });
@@ -189,9 +238,9 @@ describe('<AddItem />', () => {
     await render(<AddItem />);
     await fillForm();
     for (const color of ['Black', 'Gray', 'Brown', 'Red']) {
-      await fireEvent.press(screen.getByText(color));
+      await pickColor(color);
     }
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
 
     expect(jest.mocked(createItem).mock.calls[0]?.[0].colors).toEqual([
       'white',
@@ -223,10 +272,10 @@ describe('<AddItem />', () => {
       await screen.findByText('Filled in from the photo — check it', {}, { timeout: 3000 }),
     ).toBeOnTheScreen();
     expect(screen.getByLabelText('Name')).toHaveDisplayValue('White linen shirt');
-    expect(screen.getByRole('checkbox', { name: 'Top' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tops' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Beige' })).toBeChecked();
 
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
     expect(createItem).toHaveBeenCalledWith({
       name: 'White linen shirt',
       category: 'top',
@@ -245,12 +294,12 @@ describe('<AddItem />', () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
     await fireEvent.changeText(screen.getByLabelText('Name'), 'My favourite shirt');
-    await fireEvent.press(screen.getByText('Dress'));
+    await fireEvent.press(screen.getByText('Dresses'));
 
     await screen.findByText('Filled in from the photo — check it', {}, { timeout: 3000 });
     expect(screen.getByLabelText('Name')).toHaveDisplayValue('My favourite shirt');
-    expect(screen.getByRole('checkbox', { name: 'Dress' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Top' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Dresses' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tops' })).not.toBeChecked();
     // Colors were still empty, so those are filled in.
     expect(screen.getByRole('checkbox', { name: 'White' })).toBeChecked();
   });
@@ -272,10 +321,11 @@ describe('<AddItem />', () => {
       .mockResolvedValue('photos/u1/p2.webp');
     await render(<AddItem />);
     await fillForm();
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
 
     expect(uploadPhoto).toHaveBeenCalledTimes(2);
     expect(jest.mocked(createItem).mock.calls[0]?.[0].photoKey).toBe('photos/u1/p2.webp');
+    await hangUp();
     expect(mockBack).toHaveBeenCalled();
   });
 
@@ -283,7 +333,7 @@ describe('<AddItem />', () => {
     jest.mocked(uploadPhoto).mockRejectedValue(new Error('offline'));
     await render(<AddItem />);
     await fillForm();
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/^Couldn't save the item/);
     expect(mockBack).not.toHaveBeenCalled();
@@ -317,7 +367,7 @@ describe('<AddItem />', () => {
     jest.mocked(rotatePhoto).mockResolvedValue('file:///turned.jpg');
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
-    await fireEvent.press(await screen.findByLabelText('Rotate photo'));
+    await fireEvent.press(await screen.findByLabelText('Rotate'));
 
     await waitFor(() => expect(uploadPhoto).toHaveBeenLastCalledWith('file:///turned.jpg', 'en'));
     expect(rotatePhoto).toHaveBeenCalledWith('file:///small.jpg');
@@ -327,12 +377,13 @@ describe('<AddItem />', () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
     await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
-    await fireEvent.press(screen.getByText('Top'));
-    await fireEvent.press(screen.getByText('White'));
+    await fireEvent.press(screen.getByText('Tops'));
+    await pickColor('White');
+    await fireEvent.press(screen.getByLabelText('Add brand and price'));
     await fireEvent.changeText(screen.getByLabelText('Brand'), ' COS ');
     await fireEvent.changeText(screen.getByLabelText('Price'), '349,90');
     await fireEvent.press(screen.getByText('₪ ILS'));
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
 
     await waitFor(() =>
       expect(createItem).toHaveBeenCalledWith(
@@ -345,10 +396,11 @@ describe('<AddItem />', () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
     await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
-    await fireEvent.press(screen.getByText('Top'));
-    await fireEvent.press(screen.getByText('White'));
+    await fireEvent.press(screen.getByText('Tops'));
+    await pickColor('White');
+    await fireEvent.press(screen.getByLabelText('Add brand and price'));
     await fireEvent.changeText(screen.getByLabelText('Price'), 'about 300');
-    await fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Hang it in the closet'));
 
     expect(
       await screen.findByText('Check the price: just the number, like 349.90'),
@@ -359,7 +411,7 @@ describe('<AddItem />', () => {
   test('opens the cropper on the picked photo', async () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
-    await fireEvent.press(await screen.findByLabelText('Crop photo'));
+    await fireEvent.press(await screen.findByLabelText('Crop'));
 
     expect(screen.getByRole('header', { name: 'Crop to the item' })).toBeOnTheScreen();
   });
@@ -371,9 +423,9 @@ describe('<AddItem />', () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
     await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
-    await fireEvent.press(screen.getByText('Top'));
-    await fireEvent.press(screen.getByText('White'));
-    await fireEvent.press(screen.getByText('Save and style it'));
+    await fireEvent.press(screen.getByText('Tops'));
+    await pickColor('White');
+    await fireEvent.press(screen.getByText('Hang it and style it'));
 
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith({
