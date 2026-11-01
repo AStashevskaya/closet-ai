@@ -6,11 +6,10 @@ import { keyVersion } from "../items/items.repository";
 
 export type CatalogRow = typeof catalogItems.$inferSelect;
 export type NewCatalogItem = Omit<CatalogRow, "id" | "createdAt" | "updatedAt">;
-export type OfferCandidateRow = CatalogRow & { similarity: number; textSimilarity: number };
 
 // offer-ranker's kindOf in SQL: the last English word of 3+ letters, short words after it
 // skipped ("Bag XL" is a bag), a final "s" dropped. Kept in step with kindOf by a Postgres test.
-const nameKind = sql<string>`regexp_replace(
+export const nameKind = sql<string>`regexp_replace(
   substring(lower(coalesce(${catalogItems.names} ->> 'en', '')) from '([a-z]{3,})(?:[^a-z]+[a-z]{1,2})*[^a-z]*$'),
   's$', '')`;
 
@@ -27,16 +26,16 @@ export interface CatalogRepository {
   ): Promise<(CatalogRow & { similarity: number })[]>;
   // The pool "Recreate the look" ranks offers from (offer-ranker.ts): the byImage in-stock items
   // of the category closest to the image embedding, plus up to byKind more of the same kind by
-  // English name (kindOf), closest first after them. Each with its cosine to the image and to
-  // the text embedding of the piece's description.
+  // English name (kindOf), closest first after them, each with its cosine to the image. The
+  // caller compares the rows' embeddings with the text vector itself, so the text model is only
+  // asked when there is a pool.
   offerCandidates(query: {
     category: ItemCategory;
     image: number[];
-    text: number[];
     kind: string;
     byImage: number;
     byKind: number;
-  }): Promise<OfferCandidateRow[]>;
+  }): Promise<(CatalogRow & { similarity: number })[]>;
   // In-stock items (of a category, or all) for the Edit: those closest to the user's wardrobe
   // as a whole first, by the average of its embeddings; in feed order without a wardrobe.
   list(userId: string, category: ItemCategory | null, limit: number): Promise<CatalogRow[]>;
@@ -101,10 +100,9 @@ export function createCatalogRepository(db: Db): CatalogRepository {
       return rows.map(({ row, distance: d }) => ({ ...row, similarity: 1 - Number(d) }));
     },
 
-    async offerCandidates({ category, image, text, kind, byImage, byKind }) {
+    async offerCandidates({ category, image, kind, byImage, byKind }) {
       const distance = cosineDistance(catalogItems.embedding, image);
-      const textDistance = cosineDistance(catalogItems.embedding, text);
-      const select = { row: catalogItems, distance, textDistance };
+      const select = { row: catalogItems, distance };
       const inCategory = and(
         eq(catalogItems.category, category),
         eq(catalogItems.inStock, true),
@@ -128,11 +126,7 @@ export function createCatalogRepository(db: Db): CatalogRepository {
       ]);
       const ids = new Set(closest.map(({ row }) => row.id));
       return [...closest, ...ofKind.filter(({ row }) => !ids.has(row.id)).slice(0, byKind)].map(
-        ({ row, distance: d, textDistance: t }) => ({
-          ...row,
-          similarity: 1 - Number(d),
-          textSimilarity: 1 - Number(t),
-        }),
+        ({ row, distance: d }) => ({ ...row, similarity: 1 - Number(d) }),
       );
     },
 

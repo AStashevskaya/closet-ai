@@ -13,6 +13,8 @@ export const MATCH_CANDIDATES = 3;
 
 const NO_MATCH: LookMatch = { how: "none", itemId: null };
 
+const dot = (a: number[], b: number[]) => a.reduce((sum, x, i) => sum + x * b[i]!, 0);
+
 // The partner pieces offered for a look item, best first: the pool the ranker was trained on
 // (closest by image, plus a few of the same kind by name), scored with the item's words.
 async function partnerOffers(
@@ -21,24 +23,35 @@ async function partnerOffers(
   item: LookItem,
   embedding: number[],
 ) {
-  // Offers are extras: the text model failing to download is no reason to fail the look (the
-  // ranker can't score without it, so no offers then).
-  const text = await embedder.embedText(offerText(item)).catch((error: unknown) => {
-    console.log(JSON.stringify({ msg: "offers skipped", reason: String(error) }));
-    return null;
-  });
-  if (!text) return [];
+  // Without the English noun (photos tagged before it existed) there are no words to rank by:
+  // the name is in the user's language, and the text tower and kindOf only read English.
+  if (!item.noun) return [];
   const pool = await catalog.offerCandidates({
     category: item.category,
     image: embedding,
-    text,
-    kind: kindOf(item.noun || item.name),
+    kind: kindOf(item.noun),
     byImage: POOL_BY_IMAGE,
     byKind: POOL_BY_KIND,
   });
+  // Nothing to rank: don't load the text model for it.
+  if (pool.length === 0) return [];
+  // Offers are extras: the text model failing to download is no reason to fail the look (the
+  // ranker can't score without it, so no offers then).
+  const text = await embedder.embedText(offerText(item)).catch((error: unknown) => {
+    console.log(
+      JSON.stringify({ msg: "offers skipped", category: item.category, reason: String(error) }),
+    );
+    return null;
+  });
+  if (!text) return [];
+  // Both are unit vectors, so the cosine is the dot product; 14 of them cost nothing here.
   const offers = rankOffers(
     item,
-    pool.map((row) => ({ ...row, name: row.names.en ?? "" })),
+    pool.map((row) => ({
+      ...row,
+      name: row.names.en ?? "",
+      textSimilarity: dot(row.embedding!, text),
+    })),
   );
   return offers.map((offer) => offer.id);
 }

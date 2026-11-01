@@ -44,9 +44,10 @@ export type OfferFeatures = Record<Feature, number>;
 type Model = { w: number[]; b: number; mean: number[]; sd: number[] };
 
 // model.json from fit.mjs, 2026-11-01: 120 pieces on 26 of the owner's look screenshots, 1301
-// (piece, candidate) pairs, 97 of them fits, against the dev catalog of 259 items. Weights are on standardised
-// features (value minus mean, over sd), in OFFER_FEATURES order: textSim, the accessory flag
-// (accessories rarely fit) and textGap matter most.
+// (piece, candidate) pairs, 97 of them fits, against the dev catalog of 259 items. Weights are
+// on standardised features (value minus mean, over sd), in OFFER_FEATURES order: textSim, the
+// accessory flag and textGap matter most. The accessory weight only says accessories never
+// fitted in the labels (0 positives), not which accessory fits which: see rankOffers.
 export const OFFER_MODEL: Model = {
   w: [
     0.06529978272128538, 0.0834863899763224, 0.22209213011929027, 0.07135553709102117,
@@ -169,8 +170,19 @@ export function offerScore(features: OfferFeatures, model: Model = OFFER_MODEL):
   return 1 / (1 + Math.exp(-z));
 }
 
+// An accessory must be the same kind of piece: a bag for a bag, never a hat. The labels had no
+// accessory fit at all, so the model learned "accessories rarely fit", not bag vs hat, and a hat
+// close in words could pass. Shoes get no such rule on purpose: the owner's 12 shoe fits are
+// mostly across kinds (mules for loafers or pumps), and the model learned that from them.
+function allowed(piece: OfferPiece, candidate: OfferCandidate) {
+  if (piece.category !== "accessory") return true;
+  const kind = kindOf(piece.noun);
+  return kind !== "" && kind === kindOf(candidate.name);
+}
+
 // The offers for a piece: candidates scoring at least OFFER_MIN_SCORE, best first, at most
-// SHOP_OFFERS of them.
+// SHOP_OFFERS of them. gapToTop and textGap are measured over the whole pool, as in training,
+// before the accessory rule drops anything.
 export function rankOffers<T extends OfferCandidate>(
   piece: OfferPiece,
   candidates: T[],
@@ -183,7 +195,7 @@ export function rankOffers<T extends OfferCandidate>(
       ...candidate,
       score: offerScore(offerFeatures(piece, candidate, top, topText)),
     }))
-    .filter((candidate) => candidate.score >= OFFER_MIN_SCORE)
+    .filter((candidate) => candidate.score >= OFFER_MIN_SCORE && allowed(piece, candidate))
     .sort((a, b) => b.score - a.score)
     .slice(0, SHOP_OFFERS);
 }

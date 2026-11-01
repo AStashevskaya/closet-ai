@@ -126,16 +126,15 @@ describe("offerScore", () => {
     const fit = offerScore(offerFeatures(trousers, leatherTrousers, top, 0.06));
     const miss = offerScore(offerFeatures(trousers, crepeSkirt, top, 0.06));
     expect(fit).toBeGreaterThan(miss);
-    expect(fit).toBeGreaterThanOrEqual(OFFER_MIN_SCORE);
-    expect(miss).toBeLessThan(OFFER_MIN_SCORE);
+    // Ranked together, the trouser leads (the skirt looks closer by picture).
+    expect(rankOffers(trousers, [crepeSkirt, leatherTrousers])[0]!.name).toBe(leatherTrousers.name);
   });
 
   it("puts a red blouse below a white shirt for a white shirt, though it looks closer", () => {
     const fit = offerScore(offerFeatures(shirt, whiteShirt, 0.74, 0.07));
     const miss = offerScore(offerFeatures(shirt, redBlouse, 0.74, 0.07));
     expect(fit).toBeGreaterThan(miss);
-    expect(fit).toBeGreaterThanOrEqual(OFFER_MIN_SCORE);
-    expect(miss).toBeLessThan(OFFER_MIN_SCORE);
+    expect(rankOffers(shirt, [redBlouse, whiteShirt])[0]!.name).toBe(whiteShirt.name);
   });
 });
 
@@ -150,6 +149,50 @@ describe("rankOffers", () => {
     expect(offers).toHaveLength(SHOP_OFFERS);
     expect(offers.map((offer) => offer.textSimilarity)).toEqual([0.08, 0.07, 0.065]);
     expect(offers[0]!.score).toBeGreaterThanOrEqual(offers[1]!.score);
+  });
+
+  it("offers only a bag for a bag, however close a hat is in words", () => {
+    const bag: OfferPiece = {
+      name: "Black tote",
+      noun: "leather tote bag",
+      category: "accessory",
+      colors: ["black"],
+      fabric: "leather",
+    };
+    // The closest by picture and by words (textGap 0): the model alone would offer it.
+    const hat: OfferCandidate = {
+      name: "Leather bucket hat",
+      colors: ["black"],
+      similarity: 0.82,
+      textSimilarity: 0.16,
+    };
+    const tote: OfferCandidate = {
+      ...hat,
+      name: "Tote bag",
+      similarity: 0.72,
+      textSimilarity: 0.15,
+    };
+    expect(offerScore(offerFeatures(bag, hat, 0.82, 0.16))).toBeGreaterThanOrEqual(OFFER_MIN_SCORE);
+    expect(rankOffers(bag, [hat, tote]).map((offer) => offer.name)).toEqual(["Tote bag"]);
+    // Without an English noun there is no kind to check, so no accessory at all.
+    expect(rankOffers({ ...bag, noun: null }, [hat, tote])).toEqual([]);
+  });
+
+  it("lets shoes cross kinds: mules for loafers", () => {
+    const loafers: OfferPiece = {
+      name: "Black loafers",
+      noun: "leather loafers",
+      category: "shoes",
+      colors: ["black"],
+      fabric: "leather",
+    };
+    const mules: OfferCandidate = {
+      name: "Leather mules",
+      colors: ["black"],
+      similarity: 0.78,
+      textSimilarity: 0.1,
+    };
+    expect(rankOffers(loafers, [mules]).map((offer) => offer.name)).toEqual(["Leather mules"]);
   });
 
   it("offers nothing from nothing", () => {

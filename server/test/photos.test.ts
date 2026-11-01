@@ -967,7 +967,8 @@ describe("want / can: a look matched against the wardrobe", () => {
     expect(matches![0]!.shop[0]).toMatchObject({ id: mesh.id, demo: true, price: 459 });
     expect(catalog.events.map((e) => [e.catalogItemId, e.event])).toEqual([[mesh.id, "shown"]]);
     // The text tower is asked about each piece in words: colour, fabric, the kind of piece.
-    expect(embedding.texts).toEqual(["pink linen mesh top", "blue denim wide-leg jeans"]);
+    // The jeans have no bottoms to rank, so the text model isn't asked about them.
+    expect(embedding.texts).toEqual(["pink linen mesh top"]);
   });
 
   it("still matches the wardrobe when the text model fails, without offers", async () => {
@@ -990,6 +991,26 @@ describe("want / can: a look matched against the wardrobe", () => {
     await runWorker();
     const { matches } = await status(server, cookie, look);
     expect(matches![0]).toMatchObject({ how: "same", shop: [] });
+  });
+
+  it("offers nothing for a piece without an English noun, and doesn't ask the text model", async () => {
+    const server = await setup({
+      tagger: createStubTagger(undefined, async () => [
+        { ...lookItems[0]!, name: "Розовый топ-сетка", noun: null },
+      ]).tagger,
+    });
+    const anna = await signUp(server, "anna@example.com");
+    await catalog.add({
+      category: "top",
+      names: { en: "Mesh top" },
+      colors: ["pink"],
+      embedding: offerVector(0.75, 0.06),
+    });
+
+    const look = await uploadWant(server, anna);
+    await runWorker();
+    expect((await status(server, anna, look)).matches![0]!.shop).toEqual([]);
+    expect(embedding.texts).toEqual([]);
   });
 
   it("finds a piece of the same kind the picture misses", async () => {

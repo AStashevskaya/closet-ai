@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import type { Item } from "@closet-ai/shared";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
@@ -9,7 +9,7 @@ import { createAuth } from "../src/auth/auth";
 import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
-import { createCatalogRepository } from "../src/modules/catalog/catalog.repository";
+import { createCatalogRepository, nameKind } from "../src/modules/catalog/catalog.repository";
 import { createItemsRepository } from "../src/modules/items/items.repository";
 import { createWishesRepository } from "../src/modules/wishes/wishes.repository";
 import { createProfileRepository } from "../src/modules/profile/profile.repository";
@@ -748,7 +748,6 @@ describe.skipIf(!url)("on Postgres", () => {
     const pool = await catalog.offerCandidates({
       category: "accessory",
       image: unitVector(1, 0),
-      text: unitVector(0, 0, 1),
       kind: kindOf("leather tote bag"),
       byImage: 2,
       byKind: 2,
@@ -757,19 +756,56 @@ describe.skipIf(!url)("on Postgres", () => {
     // kindOf does); the basket is neither, the clutch is sold out.
     expect(pool.map((row) => row.externalId)).toEqual(["A1", "A2", "A4", "A5"]);
     expect(pool[2]!.similarity).toBeCloseTo(Math.SQRT1_2, 5);
-    expect(pool[2]!.textSimilarity).toBeCloseTo(Math.SQRT1_2, 5);
-    expect(pool[0]!.textSimilarity).toBeCloseTo(0, 5);
+    expect(pool[2]!.embedding).toHaveLength(unitVector(1).length);
 
-    // Without a kind (a piece named only in Russian), only the closest.
+    // Without a kind (a noun with no word of 3+ letters), only the closest.
     const plain = await catalog.offerCandidates({
       category: "accessory",
       image: unitVector(1, 0),
-      text: unitVector(0, 0, 1),
       kind: "",
       byImage: 2,
       byKind: 2,
     });
     expect(plain.map((row) => row.externalId)).toEqual(["A1", "A2"]);
+  });
+
+  it("reads the kind of piece from a name in SQL exactly as kindOf does", async () => {
+    const catalog = createCatalogRepository(db.db);
+    const names = [
+      "Dress",
+      "Bags",
+      "T-shirt",
+      "Bag XL",
+      "Wide-leg trousers",
+      "Ankle boots 2",
+      "Top handle bag",
+      "Knee-high boots",
+      "Leather tote bags",
+      "Mini skirt (black)",
+      "Sunglasses",
+      "Slip dress, silk",
+      "Cardigan in 100% wool",
+      "Café crème blouse",
+      "Bag",
+      "a b",
+      "Юбка",
+      "",
+    ];
+    // Sold out, so no pool sees them.
+    for (const [i, en] of names.entries())
+      await catalog.upsert({
+        ...demoCatalogItem(`K${i}`),
+        category: "accessory",
+        names: { en },
+        inStock: false,
+      });
+    const rows = await db.db
+      .select({ externalId: schema.catalogItems.externalId, kind: nameKind })
+      .from(schema.catalogItems)
+      .where(like(schema.catalogItems.externalId, "K%"));
+    const sqlKind = new Map(rows.map((row) => [row.externalId, row.kind ?? ""]));
+    for (const [i, en] of names.entries())
+      expect([en, sqlKind.get(`K${i}`)]).toEqual([en, kindOf(en)]);
   });
 
   it("orders the Edit by closeness to the user's wardrobe as a whole", async () => {

@@ -534,14 +534,10 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         .map((row) => ({ ...row, similarity: dot(row.embedding!, embedding) }))
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit),
-    offerCandidates: async ({ category, image, text, kind, byImage, byKind }) => {
+    offerCandidates: async ({ category, image, kind, byImage, byKind }) => {
       const ranked = catalogRows
         .filter((row) => row.category === category && row.inStock && row.embedding)
-        .map((row) => ({
-          ...row,
-          similarity: dot(row.embedding!, image),
-          textSimilarity: dot(row.embedding!, text),
-        }))
+        .map((row) => ({ ...row, similarity: dot(row.embedding!, image) }))
         .sort((a, b) => b.similarity - a.similarity);
       const rest = ranked
         .slice(byImage)
