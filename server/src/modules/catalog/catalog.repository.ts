@@ -6,6 +6,13 @@ import { keyVersion } from "../items/items.repository";
 
 export type CatalogRow = typeof catalogItems.$inferSelect;
 export type NewCatalogItem = Omit<CatalogRow, "id" | "createdAt" | "updatedAt">;
+export type OfferCandidateRow = CatalogRow & { similarity: number; textSimilarity: number };
+
+// offer-ranker's kindOf in SQL: the last English word of 3+ letters, short words after it
+// skipped ("Bag XL" is a bag), a final "s" dropped. Kept in step with kindOf by a Postgres test.
+const nameKind = sql<string>`regexp_replace(
+  substring(lower(coalesce(${catalogItems.names} ->> 'en', '')) from '([a-z]{3,})(?:[^a-z]+[a-z]{1,2})*[^a-z]*$'),
+  's$', '')`;
 
 export interface CatalogRepository {
   get(id: string): Promise<CatalogRow | null>;
@@ -18,6 +25,18 @@ export interface CatalogRepository {
     embedding: number[],
     limit: number,
   ): Promise<(CatalogRow & { similarity: number })[]>;
+  // The pool "Recreate the look" ranks offers from (offer-ranker.ts): the byImage in-stock items
+  // of the category closest to the image embedding, plus up to byKind more of the same kind by
+  // English name (kindOf), closest first after them. Each with its cosine to the image and to
+  // the text embedding of the piece's description.
+  offerCandidates(query: {
+    category: ItemCategory;
+    image: number[];
+    text: number[];
+    kind: string;
+    byImage: number;
+    byKind: number;
+  }): Promise<OfferCandidateRow[]>;
   // In-stock items (of a category, or all) for the Edit: those closest to the user's wardrobe
   // as a whole first, by the average of its embeddings; in feed order without a wardrobe.
   list(userId: string, category: ItemCategory | null, limit: number): Promise<CatalogRow[]>;
@@ -80,6 +99,41 @@ export function createCatalogRepository(db: Db): CatalogRepository {
         .orderBy(distance)
         .limit(limit);
       return rows.map(({ row, distance: d }) => ({ ...row, similarity: 1 - Number(d) }));
+    },
+
+    async offerCandidates({ category, image, text, kind, byImage, byKind }) {
+      const distance = cosineDistance(catalogItems.embedding, image);
+      const textDistance = cosineDistance(catalogItems.embedding, text);
+      const select = { row: catalogItems, distance, textDistance };
+      const inCategory = and(
+        eq(catalogItems.category, category),
+        eq(catalogItems.inStock, true),
+        isNotNull(catalogItems.embedding),
+      );
+      // Two queries rather than one with a window: both can use the HNSW index like closest().
+      // The second asks for byImage + byKind of the kind, so byKind are left after dropping
+      // those already in the first. (Today's catalog is small enough for an exact scan; once
+      // the planner picks the index, a filtered scan can come back short, and pgvector 0.8's
+      // hnsw.iterative_scan is the fix, for closest() too.)
+      const [closest, ofKind] = await Promise.all([
+        db.select(select).from(catalogItems).where(inCategory).orderBy(distance).limit(byImage),
+        kind
+          ? db
+              .select(select)
+              .from(catalogItems)
+              .where(and(inCategory, eq(nameKind, kind)))
+              .orderBy(distance)
+              .limit(byImage + byKind)
+          : [],
+      ]);
+      const ids = new Set(closest.map(({ row }) => row.id));
+      return [...closest, ...ofKind.filter(({ row }) => !ids.has(row.id)).slice(0, byKind)].map(
+        ({ row, distance: d, textDistance: t }) => ({
+          ...row,
+          similarity: 1 - Number(d),
+          textSimilarity: 1 - Number(t),
+        }),
+      );
     },
 
     async list(userId, category, limit) {
