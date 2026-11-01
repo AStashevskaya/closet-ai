@@ -4,7 +4,8 @@
     "loading": "טוען",
     "offline": "אין חיבור לשרת. בדקו את האינטרנט ונסו שוב.",
     "today": "היום",
-    "yesterday": "אתמול"
+    "yesterday": "אתמול",
+    "cancel": "ביטול"
   },
   "crop": {
     "button": "חיתוך התמונה",
@@ -50,15 +51,12 @@
     "choosePhoto": "בחירה מהגלריה",
     "tagging": "מזהה את הפריט מהתמונה…",
     "tagged": "מולא לפי התמונה — כדאי לבדוק",
-    "changePhoto": "החלפת תמונה",
     "rotate": "סיבוב התמונה",
     "name": "שם",
     "namePlaceholder": "למשל, חולצת פשתן לבנה",
     "category": "קטגוריה",
     "colors": "צבעים",
     "colorsHint": "עד 5",
-    "save": "שמירה",
-    "saveAndStyle": "שמירה והרכבת לוקים",
     "errors": {
       "photo": "הוסיפו תמונה של הפריט",
       "name": "תנו לפריט שם",
@@ -74,7 +72,19 @@
     "price": "מחיר",
     "pricePlaceholder": "כמה שילמתם",
     "optional": "לא חובה",
-    "currency": "מטבע"
+    "currency": "מטבע",
+    "hang": "לתלות בארון",
+    "hangAndStyle": "לתלות ולהרכיב לוקים",
+    "hangingOn": "תולה על המתלה",
+    "hungOn": "על מתלה {{rail}}",
+    "brandAndPrice": "מותג ומחיר",
+    "addShort": "+ הוספה",
+    "addBrandPrice": "הוספת מותג ומחיר",
+    "shootHint": "לצלם את כל הפריט על רקע חלק",
+    "upToTwenty": "אפשר עד 20 תמונות בבת אחת",
+    "rotateShort": "סיבוב",
+    "cropShort": "חיתוך",
+    "anotherPhoto": "תמונה אחרת"
   },
   "tabs": {
     "closet": "ארון",

@@ -1,28 +1,35 @@
-import type { Currency, ItemCategory, ItemColor, LimitCode, Season } from '@closet-ai/shared';
+import {
+  ITEM_CATEGORIES,
+  type Currency,
+  type ItemCategory,
+  type ItemColor,
+  type LimitCode,
+  type Season,
+} from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Icon } from '@/components/icon';
 import { BrandPriceFields } from '@/components/brand-price-fields';
-import { ItemFields, MAX_COLORS } from '@/components/item-fields';
+import { Chip } from '@/components/chip';
+import { Icon } from '@/components/icon';
+import { MAX_COLORS } from '@/components/item-fields';
+import { Button, maison } from '@/components/maison';
 import { PhotoCropper } from '@/components/photo-cropper';
-import { CropButton, RotateButton } from '@/components/rotate-button';
-import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -32,9 +39,14 @@ import { defaultCurrency, parsePrice } from '@/lib/price';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 import { styledParams } from '@/lib/styled';
 import { useConfirmLeave } from '@/lib/use-confirm-leave';
-import { durations } from '@/motion';
+import { durations, rise, STAGGER_STEP } from '@/motion';
 import type { PickedPhoto } from '@/screens/add-items';
 import { colors, fonts } from '@/theme';
+
+import { ColorSwatches } from './color-swatches';
+import { FieldThread, RailStop, Stop } from './field-thread';
+import { HangUp, type Box } from './hang-up';
+import { PhotoBand } from './photo-band';
 
 // Photos picked at once from the gallery.
 const MAX_PHOTOS = 20;
@@ -42,6 +54,8 @@ const MAX_PHOTOS = 20;
 // usually answers in 4–6 s; after half a minute the form simply stays as the user typed it.
 const POLL_MS = 1500;
 const MAX_POLLS = 20;
+// How long "Hang it up" waits for the print to say where it is before flying from the rail.
+const MEASURE_MS = 150;
 
 // idle: nothing to show; waiting: the model is looking at the photo; filled: fields came from it.
 type Tagging = 'idle' | 'waiting' | 'filled';
@@ -83,6 +97,14 @@ export function AddItem() {
   const [busy, setBusy] = useState(false);
   // A limit the save ran into (the day's photos, or the server's daily stop).
   const [limit, setLimit] = useState<LimitCode | null>(null);
+  // Brand and price stay folded behind "+ add" until she opens them or the photo shows a brand.
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
+  // The photo inside the print, where "Hang it up" starts.
+  const picture = useRef<ComponentRef<typeof View>>(null);
+  // Saved: the piece is flying to its rail, then the sheet closes.
+  const [hanging, setHanging] = useState<{ from: Box | null; category: ItemCategory } | null>(null);
+  const insets = useSafeAreaInsets();
   // A picked photo or a typed name is worth asking about before the sheet closes.
   const leave = useConfirmLeave(photoUri !== null || name.trim() !== '');
 
@@ -213,7 +235,10 @@ export function AddItem() {
             );
             setSeasons(tags.seasons);
             // The brand only when the model read one (a label, a logo); the user's own stays.
-            if (tags.brand && !edited.current.brand) setBrand(tags.brand);
+            if (tags.brand && !edited.current.brand) {
+              setBrand(tags.brand);
+              setBrandOpen(true);
+            }
             setTagging('filled');
             return;
           }
@@ -233,6 +258,15 @@ export function AddItem() {
       cancelled = true;
     };
   }, [photoKey]);
+
+  // "Another photo": the camera or the gallery, as the two buttons before the first photo.
+  function another() {
+    Alert.alert(t('addItem.anotherPhoto'), undefined, [
+      { text: t('addItem.takePhoto'), onPress: () => void pick('camera') },
+      { text: t('addItem.choosePhoto'), onPress: () => void pick('library') },
+      { text: t('common.cancel'), style: 'cancel' },
+    ]);
+  }
 
   function fail(key: ErrorKey) {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -280,7 +314,8 @@ export function AddItem() {
           Alert.alert(code ? limitText(t, i18n.language, code) : t('wearWith.failed'));
         }
       }
-      leave(() => router.back());
+      // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone).
+      setHanging({ from: await measure(picture.current), category });
     } catch (cause) {
       setBusy(false);
       const code = limitReached(cause);
@@ -296,158 +331,230 @@ export function AddItem() {
     }
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      // iOS is handled by the ScrollView below; Android still needs the view to shrink.
-      behavior={Platform.OS === 'android' ? 'height' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        // iOS insets the scroll view by the keyboard and keeps the focused field above it.
-        automaticallyAdjustKeyboardInsets
-        keyboardDismissMode="interactive"
+  const note =
+    tagging !== 'idle' ? (
+      // Keyed by the state, so "filled in" fades in after "recognising" instead of swapping.
+      <Animated.Text
+        key={tagging}
+        style={styles.bandNote}
+        entering={FadeIn.duration(durations.state)}
+        exiting={FadeOut.duration(durations.press)}
+        accessibilityLiveRegion="polite"
       >
-        {photoUri ? (
-          <View style={styles.photo}>
-            <Image
-              source={{ uri: photoUri }}
-              style={styles.photoImage}
-              contentFit="cover"
-              transition={250}
-            />
-            <View style={styles.photoActions}>
-              <CropButton onPress={() => setCropping(photoUri)} disabled={busy} />
-              <RotateButton onPress={rotate} disabled={busy} />
-            </View>
-          </View>
-        ) : (
-          <View style={[styles.photo, styles.photoEmpty]} />
-        )}
+        {t(tagging === 'waiting' ? 'addItem.tagging' : 'addItem.tagged')}
+      </Animated.Text>
+    ) : !photoUri ? (
+      <Text style={styles.bandNote}>{t('addItem.upToTwenty')}</Text>
+    ) : null;
 
-        <View style={styles.photoButtons}>
-          <PressableScale
-            style={styles.secondaryButton}
-            onPress={() => pick('camera')}
-            disabled={busy}
-            accessibilityRole="button"
-          >
-            <Text style={styles.secondaryButtonText}>
-              {t(photoUri ? 'addItem.changePhoto' : 'addItem.takePhoto')}
-            </Text>
-          </PressableScale>
-          <PressableScale
-            style={styles.secondaryButton}
-            onPress={() => pick('library')}
-            disabled={busy}
-            accessibilityRole="button"
-          >
-            <Text style={styles.secondaryButtonText}>{t('addItem.choosePhoto')}</Text>
-          </PressableScale>
-        </View>
-
-        {/* A mirror selfie has several items: that has its own screen, in place of this one. */}
-        {!photoUri && (
-          <PressableScale
-            style={styles.lookLink}
-            onPress={() => leave(() => router.replace('/add-look'))}
-            accessibilityRole="link"
-          >
-            <Icon name="look" color={colors.accent} size={18} strokeWidth={1.5} />
-            <Text style={styles.lookLinkText}>{t('addLook.entry')}</Text>
-          </PressableScale>
-        )}
-
-        {/* Keyed by the state, so "filled in" fades in after "recognising" instead of swapping. */}
-        {tagging !== 'idle' && (
-          <Animated.View
-            key={tagging}
-            style={styles.tagging}
-            entering={FadeIn.duration(durations.state)}
-            exiting={FadeOut.duration(durations.press)}
-            accessibilityLiveRegion="polite"
-          >
-            {tagging === 'waiting' && <HangerLoader size="small" />}
-            <Text style={styles.taggingText}>
-              {t(tagging === 'waiting' ? 'addItem.tagging' : 'addItem.tagged')}
-            </Text>
-          </Animated.View>
-        )}
-
-        <ItemFields
-          name={name}
-          onNameChange={(value) => {
-            edited.current.name = true;
-            setName(value);
-          }}
-          category={category}
-          onCategoryChange={(value) => {
-            edited.current.category = true;
-            setCategory(value);
-          }}
-          itemColors={itemColors}
-          onColorsChange={(value) => {
-            edited.current.colors = true;
-            setItemColors(value);
-          }}
-        />
-        <BrandPriceFields
-          brand={brand}
-          onBrandChange={(value) => {
-            edited.current.brand = true;
-            setBrand(value);
-          }}
-          price={price}
-          onPriceChange={setPrice}
-          currency={currency}
-          onCurrencyChange={setCurrency}
-        />
-
-        {limit && (
-          <Text style={styles.error} accessibilityRole="alert">
-            {limitText(t, i18n.language, limit)}
-          </Text>
-        )}
-
-        {/* Keyed by the message, so a new error fades in again instead of swapping in place. */}
-        {error && (
-          <Animated.Text
-            key={error}
-            style={styles.error}
-            entering={FadeIn.duration(durations.state)}
-            exiting={FadeOut.duration(durations.press)}
-            accessibilityRole="alert"
-          >
-            {t(error)}
-          </Animated.Text>
-        )}
-
-        <PressableScale
-          style={[styles.button, busy && styles.buttonBusy]}
-          onPress={() => save()}
-          disabled={busy}
-          accessibilityRole="button"
+  return (
+    <View style={styles.screen}>
+      <KeyboardAvoidingView
+        style={styles.screen}
+        // iOS is handled by the ScrollView below; Android still needs the view to shrink.
+        behavior={Platform.OS === 'android' ? 'height' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          // iOS insets the scroll view by the keyboard and keeps the focused field above it.
+          automaticallyAdjustKeyboardInsets
+          keyboardDismissMode="interactive"
         >
-          {busy ? (
-            <ActivityIndicator color={colors.onAccent} />
+          <PhotoBand
+            photoUri={photoUri}
+            caption={name}
+            busy={busy}
+            leaving={hanging !== null}
+            onRotate={rotate}
+            onCrop={() => photoUri && setCropping(photoUri)}
+            onAnother={another}
+            pictureRef={picture}
+            note={note}
+          />
+
+          {photoUri ? (
+            <FieldThread
+              waiting={tagging === 'waiting'}
+              rail={
+                <Animated.View entering={rise.delay(STAGGER_STEP * 4)}>
+                  <RailStop category={category} label={t('addItem.hangingOn')}>
+                    <View style={styles.chips}>
+                      {ITEM_CATEGORIES.map((c) => (
+                        <Chip
+                          key={c}
+                          label={t(`closet.filters.${c}`)}
+                          selected={category === c}
+                          onPress={() => {
+                            edited.current.category = true;
+                            setCategory(c);
+                          }}
+                        />
+                      ))}
+                    </View>
+                  </RailStop>
+                </Animated.View>
+              }
+            >
+              <Animated.View entering={rise.delay(STAGGER_STEP)}>
+                <Stop kind={name.trim() ? 'filled' : 'empty'} label={t('addItem.name')}>
+                  {/* Edited in place: the name itself is the field, blue while it's open. */}
+                  <TextInput
+                    style={[styles.name, nameFocused && styles.nameOpen]}
+                    value={name}
+                    onChangeText={(value) => {
+                      edited.current.name = true;
+                      setName(value);
+                    }}
+                    onFocus={() => setNameFocused(true)}
+                    onBlur={() => setNameFocused(false)}
+                    placeholder={t('addItem.namePlaceholder')}
+                    placeholderTextColor={colors.textMuted}
+                    maxLength={120}
+                    accessibilityLabel={t('addItem.name')}
+                  />
+                </Stop>
+              </Animated.View>
+              <Animated.View entering={rise.delay(STAGGER_STEP * 2)}>
+                <Stop
+                  kind={itemColors.length > 0 ? 'filled' : 'empty'}
+                  label={`${t('addItem.colors')} · ${t('addItem.colorsHint')}`}
+                >
+                  <ColorSwatches
+                    value={itemColors}
+                    onChange={(value) => {
+                      edited.current.colors = true;
+                      setItemColors(value);
+                    }}
+                  />
+                </Stop>
+              </Animated.View>
+              <Animated.View entering={rise.delay(STAGGER_STEP * 3)}>
+                <Stop
+                  kind="optional"
+                  label={`${t('addItem.brandAndPrice')} · ${t('addItem.optional')}`}
+                >
+                  {brandOpen ? (
+                    <BrandPriceFields
+                      brand={brand}
+                      onBrandChange={(value) => {
+                        edited.current.brand = true;
+                        setBrand(value);
+                      }}
+                      price={price}
+                      onPriceChange={setPrice}
+                      currency={currency}
+                      onCurrencyChange={setCurrency}
+                    />
+                  ) : (
+                    <PressableScale
+                      style={styles.addBrand}
+                      onPress={() => setBrandOpen(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('addItem.addBrandPrice')}
+                    >
+                      <Text style={styles.unknown}>{t('addItem.addShort')}</Text>
+                    </PressableScale>
+                  )}
+                </Stop>
+              </Animated.View>
+            </FieldThread>
           ) : (
-            <Text style={styles.buttonText}>{t('addItem.save')}</Text>
+            // A mirror selfie has several pieces: that has its own screen, in place of this one.
+            <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.lookRow}>
+              <PressableScale
+                style={styles.lookLink}
+                onPress={() => leave(() => router.replace('/add-look'))}
+                accessibilityRole="link"
+              >
+                <Icon name="look" color={colors.text} size={18} strokeWidth={1.4} />
+                <Text style={styles.lookLinkText}>{t('addLook.entry')}</Text>
+              </PressableScale>
+            </Animated.View>
           )}
-        </PressableScale>
-        <PressableScale
-          style={[styles.styleButton, busy && styles.buttonBusy]}
-          onPress={() => save(true)}
-          disabled={busy}
-          accessibilityRole="button"
-        >
-          <Icon name="spark" color={colors.accent} size={16} strokeWidth={1.6} />
-          <Text style={styles.styleButtonText}>{t('addItem.saveAndStyle')}</Text>
-        </PressableScale>
-      </ScrollView>
+        </ScrollView>
+
+        <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          {limit && (
+            <Text style={styles.error} accessibilityRole="alert">
+              {limitText(t, i18n.language, limit)}
+            </Text>
+          )}
+          {/* Keyed by the message, so a new error fades in again instead of swapping in place. */}
+          {error && (
+            <Animated.Text
+              key={error}
+              style={styles.error}
+              entering={FadeIn.duration(durations.state)}
+              exiting={FadeOut.duration(durations.press)}
+              accessibilityRole="alert"
+            >
+              {t(error)}
+            </Animated.Text>
+          )}
+          {photoUri ? (
+            <>
+              {/* The bead at the thread's end. */}
+              <Button
+                kind="bright"
+                label={t('addItem.hang')}
+                onPress={() => void save()}
+                busy={busy && hanging === null}
+                disabled={busy}
+              />
+              <PressableScale
+                style={[styles.styleLink, busy && styles.off]}
+                onPress={() => void save(true)}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy }}
+              >
+                <Text style={maison.link}>{t('addItem.hangAndStyle')}</Text>
+              </PressableScale>
+            </>
+          ) : (
+            <>
+              <Button
+                kind="bright"
+                label={t('addItem.takePhoto')}
+                onPress={() => void pick('camera')}
+                disabled={busy}
+              />
+              <Button
+                kind="outline"
+                label={t('addItem.choosePhoto')}
+                onPress={() => void pick('library')}
+                disabled={busy}
+              />
+            </>
+          )}
+        </View>
+      </KeyboardAvoidingView>
       <PhotoCropper uri={cropping} onCancel={() => setCropping(null)} onDone={cropped} />
-    </KeyboardAvoidingView>
+      {hanging && photoUri && (
+        <HangUp
+          photoUri={photoUri}
+          from={hanging.from}
+          category={hanging.category}
+          caption={t('addItem.hungOn', { rail: t(`closet.filters.${hanging.category}`) })}
+          onDone={() => leave(() => router.back())}
+        />
+      )}
+    </View>
   );
+}
+
+// Where the photo in the print is on screen, or null if it doesn't say in time (it then flies
+// from the rail itself).
+function measure(view: ComponentRef<typeof View> | null): Promise<Box | null> {
+  return new Promise((resolve) => {
+    if (!view) return resolve(null);
+    const timer = setTimeout(() => resolve(null), MEASURE_MS);
+    view.measureInWindow((x, y, width, height) => {
+      clearTimeout(timer);
+      resolve(width > 0 ? { x, y, width, height } : null);
+    });
+  });
 }
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
@@ -457,115 +564,84 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: 22,
-    paddingBottom: 40,
-    gap: 10,
+    paddingBottom: 24,
   },
-  photo: {
-    alignSelf: 'center',
-    width: '70%',
-    aspectRatio: 3 / 4,
+  // Thread-coloured text on the blue: the secondary ink, 4.9:1 or better there.
+  bandNote: {
+    ...maison.note,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
-  photoImage: {
-    flex: 1,
+  name: {
+    minHeight: 40,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    borderBottomWidth: 1.2,
+    borderBottomColor: colors.text,
+    fontFamily: fonts.displayLight,
+    fontSize: 26,
+    color: colors.text,
+    textAlign: 'left',
   },
-  photoEmpty: {
-    backgroundColor: colors.hero,
+  // Open for editing: powder blue, as a value opened in My profile.
+  nameOpen: {
+    backgroundColor: colors.ground,
   },
-  photoActions: {
-    position: 'absolute',
-    bottom: 10,
-    end: 10,
+  chips: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  photoButtons: {
-    marginTop: 6,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  secondaryButton: {
-    flex: 1,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
+  addBrand: {
+    alignSelf: 'flex-start',
+    minHeight: 32,
     justifyContent: 'center',
   },
-  secondaryButtonText: {
-    fontFamily: fonts.bodySemiBold,
+  // Not known yet: dashed, as everything in the app that isn't hers or known yet.
+  unknown: {
+    fontFamily: fonts.body,
     fontSize: 14,
-    color: colors.accent,
-    textAlign: 'center',
+    color: colors.textMuted,
+    borderBottomWidth: 1,
+    borderStyle: 'dashed',
+    borderBottomColor: colors.textMuted,
+  },
+  lookRow: {
+    marginTop: 22,
+    paddingHorizontal: 20,
+    alignItems: 'center',
   },
   lookLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
     minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 22,
-    backgroundColor: colors.accentSoft,
   },
   lookLinkText: {
+    ...maison.note,
     flexShrink: 1,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: colors.accent,
-    textAlign: 'center',
-  },
-  tagging: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 24,
-  },
-  taggingText: {
-    fontFamily: fonts.body,
     fontSize: 13,
     color: colors.textSecondary,
     textAlign: 'center',
   },
+  actions: {
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    gap: 10,
+    backgroundColor: colors.background,
+  },
+  styleLink: {
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  off: {
+    opacity: 0.5,
+  },
   error: {
-    marginTop: 8,
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
     color: colors.error,
     textAlign: 'left',
-  },
-  button: {
-    height: 52,
-    marginTop: 16,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-  },
-  styleButton: {
-    flexDirection: 'row',
-    gap: 8,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  styleButtonText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.accent,
-  },
-  buttonBusy: {
-    opacity: 0.8,
-  },
-  buttonText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.onAccent,
   },
 });

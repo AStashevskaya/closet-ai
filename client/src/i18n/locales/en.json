@@ -4,7 +4,8 @@
     "loading": "Loading",
     "offline": "No connection to the server. Check the internet and try again.",
     "today": "today",
-    "yesterday": "yesterday"
+    "yesterday": "yesterday",
+    "cancel": "Cancel"
   },
   "crop": {
     "button": "Crop photo",
@@ -50,15 +51,12 @@
     "choosePhoto": "Choose from gallery",
     "tagging": "Recognising the item from the photo…",
     "tagged": "Filled in from the photo — check it",
-    "changePhoto": "Change photo",
     "rotate": "Rotate photo",
     "name": "Name",
     "namePlaceholder": "e.g. White linen shirt",
     "category": "Category",
     "colors": "Colors",
     "colorsHint": "Up to 5",
-    "save": "Save",
-    "saveAndStyle": "Save and style it",
     "errors": {
       "photo": "Add a photo of the item",
       "name": "Give the item a name",
@@ -74,7 +72,19 @@
     "price": "Price",
     "pricePlaceholder": "What you paid",
     "optional": "optional",
-    "currency": "Currency"
+    "currency": "Currency",
+    "hang": "Hang it in the closet",
+    "hangAndStyle": "Hang it and style it",
+    "hangingOn": "Hanging it on",
+    "hungOn": "On the {{rail}} rail",
+    "brandAndPrice": "Brand and price",
+    "addShort": "+ add",
+    "addBrandPrice": "Add brand and price",
+    "shootHint": "Shoot the whole piece on a plain background",
+    "upToTwenty": "up to 20 photos at once",
+    "rotateShort": "Rotate",
+    "cropShort": "Crop",
+    "anotherPhoto": "Another photo"
   },
   "tabs": {
     "closet": "Closet",

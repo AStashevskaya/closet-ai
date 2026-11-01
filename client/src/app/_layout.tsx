@@ -40,7 +40,8 @@ export default function RootLayout() {
           options={{
             presentation: 'modal',
             title: t('addItem.title'),
-            headerStyle: { backgroundColor: colors.background },
+            // The screen opens on the blue band of a new piece arriving; the header is part of it.
+            headerStyle: { backgroundColor: colors.ground },
             headerTintColor: colors.accent,
             headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
             headerShadowVisible: false,
