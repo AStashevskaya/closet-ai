@@ -22,7 +22,7 @@ import { Hanger, HANGER_HEIGHT, HANGER_PIVOT_Y, HANGER_WIDTH, HANGERS } from '@/
 import { EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-import { PRINT_HEIGHT, PRINT_WIDTH } from './photo-band';
+import { PICTURE } from './photo-band';
 
 // A rectangle on screen, in window coordinates.
 export type Box = { x: number; y: number; width: number; height: number };
@@ -30,12 +30,11 @@ export type Box = { x: number; y: number; width: number; height: number };
 // The piece on its rail: as wide as a slot on the closet's rails, its photo as tall as the
 // print's picture is for its width, so the photo keeps its size on the way.
 const SLOT = 110;
-// The photo inside the print: the paper's border (9, 9, 26) and the grey's padding (10) taken off.
-const PICTURE_W = PRINT_WIDTH - 18 - 20;
-const PICTURE_H = PRINT_HEIGHT - 35 - 20;
-const PHOTO_H = Math.round((SLOT * PICTURE_H) / PICTURE_W);
+const PHOTO_H = Math.round((SLOT * PICTURE.height) / PICTURE.width);
 // The photo's frame, width over height: a caller fits what flies (a piece of a selfie) into it.
 export const PHOTO_ASPECT = SLOT / PHOTO_H;
+// The photo's frame on its way: a cut-out placed by its box in the print is placed the same way here.
+export const PHOTO_FRAME = { width: SLOT, height: PHOTO_H };
 // The photo hangs a little into the hanger, as a piece does on the rails.
 const PHOTO_TOP = HANGER_HEIGHT - 6;
 const PIECE_H = PHOTO_TOP + PHOTO_H;

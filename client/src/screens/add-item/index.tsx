@@ -28,7 +28,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandPriceFields } from '@/components/brand-price-fields';
 import { Chip } from '@/components/chip';
-import { cutoutShadow } from '@/components/cutout-shadow';
 import { Icon } from '@/components/icon';
 import { MAX_COLORS } from '@/components/item-fields';
 import { Button, maison } from '@/components/maison';
@@ -47,10 +46,11 @@ import type { PickedPhoto } from '@/screens/add-items';
 import { colors, fonts } from '@/theme';
 
 import { ColorSwatches } from './color-swatches';
+import type { Size } from './cutout-frame';
 import { FieldThread, RailStop, Stop } from './field-thread';
-import { HangUp, measureBox, type Box } from './hang-up';
-import { DISSOLVE_MS, PhotoBand } from './photo-band';
-import { pause, waitForCutout, type Cutout } from './wait-for-cutout';
+import { HangUp, measureBox, PHOTO_FRAME, type Box } from './hang-up';
+import { CutoutImage, DISSOLVE_MS, PhotoBand } from './photo-band';
+import { loadCutout, pause, waitForCutout, type Cutout } from './wait-for-cutout';
 
 // Photos picked at once from the gallery.
 const MAX_PHOTOS = 20;
@@ -58,6 +58,11 @@ const MAX_PHOTOS = 20;
 // usually answers in 4–6 s; after half a minute the form simply stays as the user typed it.
 const POLL_MS = 1500;
 const MAX_POLLS = 20;
+// The same polls watch for the piece's cut-out (usually a few seconds after the tags), so the
+// background dissolves while she fills the fields; past this the print stays a photo until saved.
+export const CUTOUT_WATCH_MS = 20_000;
+// How long the cut-out may take to load once it's there.
+const CUTOUT_LOAD_MS = 10_000;
 
 // idle: nothing to show; waiting: the model is looking at the photo; filled: fields came from it.
 type Tagging = 'idle' | 'waiting' | 'filled';
@@ -113,9 +118,19 @@ export function AddItem() {
     // The bare piece, or null to fly the photo.
     cutout: Cutout | null;
   } | null>(null);
-  // The cut-out on the band's print, once it's made (only after saving: the photo's status
-  // before then doesn't say whether it has one).
-  const [bandCutout, setBandCutout] = useState<Cutout | null>(null);
+  // The photo's cut-out, found while she fills the fields, for the photo it was made from: a
+  // rotate, a crop or another photo is a new photo key, which leaves it behind. Also kept in a
+  // ref, so saving sees one that landed while the item was being created.
+  const [early, setEarly] = useState<{ key: string; cutout: Cutout } | null>(null);
+  const earlyRef = useRef<{ key: string; cutout: Cutout } | null>(null);
+  // The cut-out found after saving, when none came before (#106's wait).
+  const [savedCutout, setSavedCutout] = useState<Cutout | null>(null);
+  const bandCutout = savedCutout ?? (early && early.key === photoKey ? early.cutout : null);
+  // The photo's size in pixels once the print has loaded it, to lay the cut-out over the piece.
+  const [loaded, setLoaded] = useState<{ uri: string; size: Size } | null>(null);
+  const photoSize = loaded && loaded.uri === photoUri ? loaded.size : null;
+  // Stops watching the photo's status: a new photo key, the sheet closing, or the piece saved.
+  const watching = useRef<AbortController | null>(null);
   const reduceMotion = useReducedMotion();
   // Stops waiting for the cut-out when the sheet closes.
   // Made in the effect, so a remount (or Fast Refresh) starts with a fresh one, not an aborted one.
@@ -241,18 +256,33 @@ export function AddItem() {
   }
 
   // Polls the photo until the vision model has tagged it, then fills in what the user hasn't.
-  // A field the user already typed or picked is never overwritten.
+  // A field the user already typed or picked is never overwritten. The same polls watch for the
+  // cut-out, which usually comes a few seconds after the tags; when it does, the photo's
+  // background dissolves on the print while she is still filling the fields.
   useEffect(() => {
     if (!photoKey) return;
-    let cancelled = false;
+    const controller = new AbortController();
+    watching.current = controller;
+    const { signal } = controller;
+
+    // The cut-out is loaded before it's shown, so the dissolve doesn't start on a blank image.
+    const dissolve = async (path: string, box: Cutout['box']) => {
+      const cutout = await loadCutout(path, box, CUTOUT_LOAD_MS, signal);
+      if (!cutout || signal.aborted) return;
+      earlyRef.current = { key: photoKey, cutout };
+      setEarly(earlyRef.current);
+    };
 
     const poll = async () => {
+      const cutoutDeadline = Date.now() + CUTOUT_WATCH_MS;
+      let tagged = false;
+      let cutoutFound = false;
       for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
         try {
           const state = await getPhotoState(photoKey);
-          if (cancelled) return;
+          if (signal.aborted) return;
           const { tags } = state;
-          if (state.tagStatus === 'done' && tags?.recognized) {
+          if (!tagged && state.tagStatus === 'done' && tags?.recognized) {
             setName((current) => (current.trim() ? current : tags.name));
             setCategory((current) => current ?? tags.category);
             setItemColors((current) =>
@@ -265,23 +295,31 @@ export function AddItem() {
               setBrandOpen(true);
             }
             setTagging('filled');
-            return;
+            tagged = true;
+          } else if (!tagged && (state.status === 'failed' || state.tagStatus !== 'pending')) {
+            // Processing failed, tagging is off, or the model gave up: the form stays as typed.
+            setTagging('idle');
+            tagged = true;
           }
-          // Processing failed, tagging is off, or the model gave up: the form stays as typed.
-          if (state.status === 'failed' || state.tagStatus !== 'pending') break;
+          if (!cutoutFound && state.cutoutUrl) {
+            cutoutFound = true;
+            void dissolve(state.cutoutUrl, state.cutoutBox ?? null);
+          }
+          // A photo that failed gets no cut-out either.
+          if (state.status === 'failed') break;
         } catch {
           // A dropped request is no reason to stop; the next poll tries again.
         }
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-        if (cancelled) return;
+        const watchingCutout = !cutoutFound && Date.now() < cutoutDeadline;
+        if (tagged && !watchingCutout) return;
+        await pause(POLL_MS, signal);
+        if (signal.aborted) return;
       }
-      if (!cancelled) setTagging('idle');
+      if (!signal.aborted && !tagged) setTagging('idle');
     };
 
     void poll();
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [photoKey]);
 
   // "Another photo": the camera or the gallery, as the two buttons before the first photo.
@@ -311,11 +349,13 @@ export function AddItem() {
     setError(null);
     setBusy(true);
     let created: Item;
+    let photoSaved: string;
     try {
       // Usually already uploaded while the form was filled in; if that upload failed, try once more.
       const uploaded = await (upload.current ?? Promise.reject(new Error('not uploaded'))).catch(
         () => uploadPhoto(photoUri, lang),
       );
+      photoSaved = uploaded;
       created = await createItem({
         name: name.trim(),
         category,
@@ -341,7 +381,9 @@ export function AddItem() {
     }
 
     // Saved: from here nothing shows a save error or allows saving again (it would make a second
-    // piece); whatever goes wrong, the sheet just closes. `busy` stays on.
+    // piece); whatever goes wrong, the sheet just closes. `busy` stays on. The photo's status
+    // isn't needed any more: a cut-out still to come is waited for on the item.
+    watching.current?.abort();
     setSaved(true);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (andStyle) {
@@ -358,25 +400,30 @@ export function AddItem() {
       }
     }
     try {
-      await hangUp(created, category);
+      await hangUp(created, category, photoSaved);
     } catch (cause) {
       if (__DEV__) console.warn('Hanging the piece up failed', cause);
       leave(() => router.back());
     }
   }
 
-  // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone). The bare
-  // cut-out flies if it comes within a few seconds, the photo otherwise.
-  async function hangUp(created: Item, rail: ItemCategory) {
+  // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone). When the
+  // background has already dissolved on the print, the bare cut-out flies at once; otherwise it
+  // flies if it comes within a few seconds, the photo if not.
+  async function hangUp(created: Item, rail: ItemCategory, photo: string) {
     const signal = closing.current?.signal;
     if (!signal || signal.aborted) return;
-    const cutout = await waitForCutout(created, signal);
-    if (signal.aborted) return;
-    if (cutout) {
-      // The background dissolves on the print first, then the bare piece leaves it.
-      setBandCutout(cutout);
-      if (!reduceMotion) await pause(DISSOLVE_MS, signal);
+    const ready = earlyRef.current?.key === photo ? earlyRef.current.cutout : null;
+    let cutout = ready;
+    if (!cutout) {
+      cutout = await waitForCutout(created, signal);
       if (signal.aborted) return;
+      if (cutout) {
+        // The background dissolves on the print first, then the bare piece leaves it.
+        setSavedCutout(cutout);
+        if (!reduceMotion) await pause(DISSOLVE_MS, signal);
+        if (signal.aborted) return;
+      }
     }
     const from = await measureBox(picture.current);
     if (signal.aborted) return;
@@ -431,6 +478,8 @@ export function AddItem() {
             pictureRef={picture}
             note={note}
             cutout={bandCutout}
+            photoSize={photoSize}
+            onPhotoSize={(uri, size) => setLoaded({ uri, size })}
           />
 
           {photoUri ? (
@@ -601,14 +650,15 @@ export function AddItem() {
             {
               key: photoUri,
               photo: hanging.cutout ? (
-                // The bare piece with its thread-tinted shadow, as on the closet's rails.
-                <View style={[styles.fill, cutoutShadow('hanging')]} testID="hung-cutout">
-                  <Image
-                    source={{ uri: hanging.cutout.uri, headers: hanging.cutout.headers }}
-                    style={styles.fill}
-                    contentFit="contain"
-                  />
-                </View>
+                // The bare piece with its thread-tinted shadow, as on the closet's rails, placed in
+                // its slot as it was on the print, so it leaves without a jump.
+                <CutoutImage
+                  cutout={hanging.cutout}
+                  frame={PHOTO_FRAME}
+                  photo={photoSize}
+                  shadow
+                  testID="hung-cutout"
+                />
               ) : (
                 <Image
                   source={{ uri: photoUri }}

@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import type { ComponentRef, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { I18nManager, StyleSheet, Text, View } from 'react-native';
-import Animated, { Keyframe, useReducedMotion } from 'react-native-reanimated';
+import Animated, { FadeIn, Keyframe, useReducedMotion } from 'react-native-reanimated';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { Icon, type IconName } from '@/components/icon';
@@ -11,10 +11,13 @@ import { PressableScale } from '@/components/pressable-scale';
 import { CSS_EASE_OUT, durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
+import { cutoutFrame, type Size } from './cutout-frame';
 import type { Cutout } from './wait-for-cutout';
 
 export const PRINT_WIDTH = 176;
 export const PRINT_HEIGHT = 214;
+// The photo inside the print: the paper's border (9, 9, 26) and the grey's padding (10) taken off.
+export const PICTURE = { width: PRINT_WIDTH - 18 - 20, height: PRINT_HEIGHT - 35 - 20 };
 // Only the hero print is tilted (docs/design.md), the other way in RTL: rotation isn't mirrored.
 const TILT = I18nManager.isRTL ? '3deg' : '-3deg';
 
@@ -36,19 +39,24 @@ type Props = {
   note: ReactNode;
   // The piece's cut-out once it's made: the photo's background dissolves around it.
   cutout?: Cutout | null;
+  // The photo's size in pixels once it has loaded (reported by onPhotoSize), to lay the cut-out
+  // exactly over the piece.
+  photoSize?: Size | null;
+  onPhotoSize?: (uri: string, size: Size) => void;
 };
 
 // How long the photo's background takes to dissolve when the cut-out comes.
 export const DISSOLVE_MS = 400;
 
-// The cut-out comes in growing from a little smaller. The server trims a cut-out to the piece, so
-// drawn into the same frame it's larger than the piece in the photo; growing in hides that jump
-// for now. The real fix needs the server to return the cut-out's box in the photo, so the two can
-// be laid exactly over each other (follow-up).
+// The fallback for a cut-out without its box (made before the box was recorded): the server trims
+// a cut-out to the piece, so drawn over the whole frame it's larger than the piece in the photo,
+// and growing in from a little smaller hides that jump. With a box it's laid exactly over the
+// piece and only fades in.
 const cutoutIn = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.85 }] },
   100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
 }).duration(DISSOLVE_MS);
+const fadeIn = FadeIn.duration(DISSOLVE_MS).easing(EASE_OUT);
 
 // The top of the add-item screen: powder blue, the colour of something new arriving, with the
 // piece on it as a white print and round Rotate / Crop / Another photo beside it. Before a photo
@@ -64,6 +72,8 @@ export function PhotoBand({
   pictureRef,
   note,
   cutout,
+  photoSize,
+  onPhotoSize,
 }: Props) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
@@ -106,22 +116,21 @@ export function PhotoBand({
                       style={[styles.image, busy && !cutout && styles.imageBusy]}
                       contentFit="contain"
                       transition={250}
+                      onLoad={({ source }) =>
+                        onPhotoSize?.(photoUri, { width: source.width, height: source.height })
+                      }
                       accessibilityIgnoresInvertColors
+                      testID="band-image"
                     />
                   </Animated.View>
                   {cutout && (
-                    <Animated.View
-                      style={StyleSheet.absoluteFill}
-                      entering={reduceMotion ? undefined : cutoutIn}
+                    <CutoutImage
+                      cutout={cutout}
+                      frame={PICTURE}
+                      photo={photoSize ?? null}
+                      entering={reduceMotion ? 'none' : 'dissolve'}
                       testID="band-cutout"
-                    >
-                      <Image
-                        source={{ uri: cutout.uri, headers: cutout.headers }}
-                        style={styles.image}
-                        contentFit="contain"
-                        accessibilityIgnoresInvertColors
-                      />
-                    </Animated.View>
+                    />
                   )}
                 </View>
               </Animated.View>
@@ -146,6 +155,50 @@ export function PhotoBand({
         )}
       </View>
       <View style={styles.note}>{note}</View>
+    </View>
+  );
+}
+
+// The bare cut-out in a frame that shows its photo (the print's picture, or the photo's slot on
+// its way to the rail): laid exactly over the piece by its box, or over the whole frame when
+// there's no box or the photo's size isn't known yet (cut-outs made before the box was recorded).
+// `entering` is how it appears on the print; on its way to the rail it's already there.
+export function CutoutImage({
+  cutout,
+  frame,
+  photo,
+  entering = 'none',
+  shadow = false,
+  testID,
+}: {
+  cutout: Cutout;
+  frame: Size;
+  photo: Size | null;
+  entering?: 'dissolve' | 'none';
+  // The thread-tinted shadow of a piece in the closet (on its way to the rail).
+  shadow?: boolean;
+  testID?: string;
+}) {
+  const placed = cutout.box && photo ? cutoutFrame(frame, photo, cutout.box) : null;
+  const animation = entering === 'none' ? undefined : placed ? fadeIn : cutoutIn;
+  return (
+    // The photo's own directions: placed by left / top, which React Native would swap in Hebrew,
+    // while photo pixels are never mirrored.
+    <View style={[StyleSheet.absoluteFill, styles.ltr]} pointerEvents="none">
+      <Animated.View
+        style={placed ? { position: 'absolute', ...placed } : StyleSheet.absoluteFill}
+        entering={animation}
+        testID={testID}
+      >
+        <View style={[styles.image, shadow && cutoutShadow('hanging')]}>
+          <Image
+            source={{ uri: cutout.uri, headers: cutout.headers }}
+            style={styles.image}
+            contentFit="contain"
+            accessibilityIgnoresInvertColors
+          />
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -208,6 +261,9 @@ const styles = StyleSheet.create({
   },
   image: {
     flex: 1,
+  },
+  ltr: {
+    direction: 'ltr',
   },
   imageBusy: {
     opacity: 0.55,
