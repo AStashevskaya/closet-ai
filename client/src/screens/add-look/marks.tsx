@@ -245,7 +245,8 @@ export function Marks({ items, aspect, stage, picked, onToggle }: Props) {
               const dash = picked.has(index) ? undefined : [3, 4];
               return [HALO - 1, 1].map((width, layer) => (
                 <Line
-                  key={`${index}-${layer}`}
+                  // Keyed by the dash as well, so a piece put back gets a solid thread (see Loop).
+                  key={`${index}-${layer}-${dash ? 'off' : 'on'}`}
                   x1={from.x}
                   y1={from.y}
                   x2={anchor.x}
@@ -342,7 +343,9 @@ function Loop({
         { stroke: colors.text, width: LINE },
       ].map((layer) => (
         <Path
-          key={layer.stroke}
+          // Keyed by `on` too: react-native-svg keeps the old dash when strokeDasharray goes back
+          // to undefined, so the line stayed dashed after a piece was put back; a new Path is solid.
+          key={`${layer.stroke}-${on ? 'on' : 'off'}`}
           d={d}
           transform={`translate(${pad} ${pad})`}
           fill="none"
@@ -368,6 +371,8 @@ const styles = StyleSheet.create({
   },
   // A thread ring around a white one, so the bead holds on any photo, as the loops do.
   bead: {
+    // Set, not left out: iOS keeps a dashed border once it's been dashed.
+    borderStyle: 'solid',
     width: BEAD,
     height: BEAD,
     borderRadius: BEAD / 2,
@@ -375,6 +380,8 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   beadInside: {
+    // Set, not left out: iOS keeps a dashed border once it's been dashed.
+    borderStyle: 'solid',
     flex: 1,
     borderRadius: BEAD / 2,
     borderWidth: 2,
