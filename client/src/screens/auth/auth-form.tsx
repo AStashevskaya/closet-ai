@@ -55,7 +55,7 @@ const ERROR_KEYS: Record<string, ErrorKey> = {
 const TITLE_DOT_Y = 10 + 19 - DOT / 2;
 const FIELD_DOT_Y = 10 + 23 - DOT / 2;
 const BUTTON_DOT_Y = 10 + 4 + 26 - DOT / 2;
-// The auth thread is drawn a touch heavier than the add-item one: it carries the whole screen.
+// The auth thread and its dots are a touch heavier than the add-item ones (1.2), as they were built.
 const WEIGHT = 1.4;
 // The white sheet's rounded top, laid over the bottom of the band.
 const CAP = 26;
