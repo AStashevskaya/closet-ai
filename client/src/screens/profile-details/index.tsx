@@ -503,7 +503,6 @@ const styles = StyleSheet.create({
     borderEndColor: colors.divider,
   },
   statValue: {
-    // Set, not left out: iOS keeps a dashed border once it's been dashed.
     borderStyle: 'solid',
     fontFamily: fonts.displayLight,
     fontSize: 26,
@@ -556,7 +555,6 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   rowValue: {
-    // Set, not left out: iOS keeps a dashed border once it's been dashed.
     borderStyle: 'solid',
     flexShrink: 1,
     fontFamily: fonts.displayLight,

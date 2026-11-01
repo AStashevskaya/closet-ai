@@ -246,7 +246,7 @@ export function Marks({ items, aspect, stage, picked, onToggle }: Props) {
               return [HALO - 1, 1].map((width, layer) => (
                 <Line
                   // Keyed by the dash as well, so a piece put back gets a solid thread (see Loop).
-                  key={`${index}-${layer}-${dash ? 'off' : 'on'}`}
+                  key={`${index}-${layer}-${picked.has(index) ? 'on' : 'off'}`}
                   x1={from.x}
                   y1={from.y}
                   x2={anchor.x}
@@ -380,7 +380,6 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   beadInside: {
-    // Set, not left out: iOS keeps a dashed border once it's been dashed.
     borderStyle: 'solid',
     flex: 1,
     borderRadius: BEAD / 2,
