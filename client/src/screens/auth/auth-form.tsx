@@ -19,13 +19,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, maison } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
+import { DOT, INDENT, ThreadLine, ThreadStop } from '@/components/thread-stops';
 import i18n from '@/i18n';
 import { authClient } from '@/lib/auth-client';
 import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { AuthRail } from './auth-rail';
-import { DOT, INDENT, Stop, ThreadLine } from './auth-thread';
 
 // Same limit as Better Auth's default; checked here so the user gets the message without a round trip.
 const MIN_PASSWORD_LENGTH = 8;
@@ -55,6 +55,8 @@ const ERROR_KEYS: Record<string, ErrorKey> = {
 const TITLE_DOT_Y = 10 + 19 - DOT / 2;
 const FIELD_DOT_Y = 10 + 23 - DOT / 2;
 const BUTTON_DOT_Y = 10 + 4 + 26 - DOT / 2;
+// The auth thread and its dots are a touch heavier than the add-item ones (1.2), as they were built.
+const WEIGHT = 1.4;
 // The white sheet's rounded top, laid over the bottom of the band.
 const CAP = 26;
 
@@ -192,24 +194,24 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
               setBand((current) => ({ ...current, titleY }));
             }}
           >
-            <Stop kind="bead" dotY={TITLE_DOT_Y}>
+            <ThreadStop kind="bead" dotY={TITLE_DOT_Y} weight={WEIGHT}>
               <Animated.View key={mode} entering={switched ? swap : undefined}>
                 <Text style={styles.title} accessibilityRole="header">
                   {t(isSignUp ? 'auth.signUpTitle' : 'auth.welcomeTitle')}
                 </Text>
                 {isSignUp && <Text style={[maison.body, styles.intro]}>{t('auth.intro')}</Text>}
               </Animated.View>
-            </Stop>
+            </ThreadStop>
           </Animated.View>
         </View>
         <View style={styles.cap} />
 
         <Animated.View entering={rise.delay(STAGGER_STEP * 3)} style={styles.column}>
-          <ThreadLine top={reach} length={length} waiting={submitting} />
+          <ThreadLine top={reach} length={length} waiting={submitting} weight={WEIGHT} follow />
 
           {isSignUp && (
             <Animated.View entering={switched ? swap : undefined} exiting={leave}>
-              <Stop kind={name.trim() ? 'bead' : 'empty'} dotY={FIELD_DOT_Y}>
+              <ThreadStop kind={name.trim() ? 'bead' : 'empty'} dotY={FIELD_DOT_Y} weight={WEIGHT}>
                 <TextInput
                   {...field('name')}
                   placeholder={t('auth.name')}
@@ -222,11 +224,11 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
                   submitBehavior="submit"
                   onSubmitEditing={() => emailRef.current?.focus()}
                 />
-              </Stop>
+              </ThreadStop>
             </Animated.View>
           )}
           <Animated.View layout={shift}>
-            <Stop kind={email.trim() ? 'bead' : 'empty'} dotY={FIELD_DOT_Y}>
+            <ThreadStop kind={email.trim() ? 'bead' : 'empty'} dotY={FIELD_DOT_Y} weight={WEIGHT}>
               <TextInput
                 {...field('email')}
                 ref={emailRef}
@@ -242,10 +244,10 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
                 submitBehavior="submit"
                 onSubmitEditing={() => passwordRef.current?.focus()}
               />
-            </Stop>
+            </ThreadStop>
           </Animated.View>
           <Animated.View layout={shift}>
-            <Stop kind={password ? 'bead' : 'empty'} dotY={FIELD_DOT_Y}>
+            <ThreadStop kind={password ? 'bead' : 'empty'} dotY={FIELD_DOT_Y} weight={WEIGHT}>
               <TextInput
                 {...field('password')}
                 ref={passwordRef}
@@ -265,13 +267,13 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
                   {t(error)}
                 </Text>
               )}
-            </Stop>
+            </ThreadStop>
           </Animated.View>
           <Animated.View
             layout={shift}
             onLayout={(event) => setEnd(Math.round(event.nativeEvent.layout.y) + BUTTON_DOT_Y)}
           >
-            <Stop kind="bead" dotY={BUTTON_DOT_Y}>
+            <ThreadStop kind="bead" dotY={BUTTON_DOT_Y} weight={WEIGHT}>
               <Button
                 kind="bright"
                 label={t(isSignUp ? 'auth.signUp' : 'auth.signIn')}
@@ -279,7 +281,7 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
                 disabled={submitting}
                 style={styles.button}
               />
-            </Stop>
+            </ThreadStop>
           </Animated.View>
         </Animated.View>
 

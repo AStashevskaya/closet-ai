@@ -1,25 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { I18nManager, StyleSheet, View } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  FadeIn,
-  FadeOut,
-  interpolate,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 
-import { durations, EASE_OUT } from '@/motion';
+import { BEAD, runOpacity, useThreadMotion } from '@/components/thread-stops';
+import { durations } from '@/motion';
 import { colors } from '@/theme';
 
-const BEAD = 10;
 const DOT = 12;
-const DRAW_MS = 2000;
-const RUN_MS = 2400;
 // Read once: switching to or from Hebrew reloads the app (src/lib/language.ts).
 const RTL = I18nManager.isRTL;
 
@@ -36,31 +24,18 @@ type Props = {
 // along it, the one sign of waiting app-wide (docs/design.md, "Waiting"); a photo that couldn't
 // be read leaves it dashed. Along the reading direction, so it mirrors in Hebrew. Decoration: the
 // note under it and the labels on the photo say the same, so screen readers skip it.
+// It moves like every thread (`useThreadMotion`), but it's laid across, with its beads in a row
+// rather than as stops down a column, so it doesn't use `ThreadLine` / `ThreadStop`.
 export function LookThread({ state, pieces }: Props) {
-  const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
-  const drawn = useSharedValue(reduceMotion ? 1 : 0);
-  const run = useSharedValue(0);
   const waiting = state === 'waiting';
+  // Drawn in from the start: it spans the screen, so there's nothing to measure first.
+  const { drawn, run } = useThreadMotion(true, waiting);
 
-  useEffect(() => {
-    drawn.value = reduceMotion ? 1 : withTiming(1, { duration: DRAW_MS, easing: EASE_OUT });
-  }, [reduceMotion, drawn]);
-
-  useEffect(() => {
-    if (waiting && !reduceMotion) {
-      run.value = 0;
-      run.value = withRepeat(withTiming(1, { duration: RUN_MS, easing: EASE_OUT }), -1);
-    } else {
-      cancelAnimation(run);
-      run.value = 0;
-    }
-  }, [waiting, reduceMotion, run]);
-
-  const line = useAnimatedStyle(() => ({ transform: [{ scaleX: drawn.value }] }));
+  const line = useAnimatedStyle(() => ({ transform: [{ scaleX: drawn.get() }] }));
   const bead = useAnimatedStyle(() => ({
-    opacity: interpolate(run.value, [0, 0.85, 1], [1, 1, 0]),
-    transform: [{ translateX: run.value * Math.max(0, width - BEAD) * (RTL ? -1 : 1) }],
+    opacity: runOpacity(run.get()),
+    transform: [{ translateX: run.get() * Math.max(0, width - BEAD) * (RTL ? -1 : 1) }],
   }));
 
   return (
