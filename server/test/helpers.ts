@@ -32,6 +32,7 @@ import {
   tagPhoto,
   type PhotoJobDeps,
 } from "../src/modules/photos/photo-jobs";
+import { kindOf } from "../src/modules/photos/offer-ranker";
 import type { Photo, PhotosRepository } from "../src/modules/photos/photos.repository";
 import {
   checkBrief,
@@ -533,6 +534,17 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         .map((row) => ({ ...row, similarity: dot(row.embedding!, embedding) }))
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit),
+    offerCandidates: async ({ category, image, kind, byImage, byKind }) => {
+      const ranked = catalogRows
+        .filter((row) => row.category === category && row.inStock && row.embedding)
+        .map((row) => ({ ...row, similarity: dot(row.embedding!, image) }))
+        .sort((a, b) => b.similarity - a.similarity);
+      const rest = ranked
+        .slice(byImage)
+        .filter((row) => kind && kindOf(row.names.en) === kind)
+        .slice(0, byKind);
+      return [...ranked.slice(0, byImage), ...rest];
+    },
     list: async (userId, category, limit) => {
       const own = itemRows
         .filter((row) => row.ownerId === userId && row.input.photoKey)
@@ -763,17 +775,29 @@ export function unitVector(...weights: number[]): number[] {
   return Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (weights[i] ?? 0) / length);
 }
 
-// Stands in for the embedding model: answers with a fixed vector and records the calls.
-export function createStubEmbedder(vector: number[] = unitVector(1)) {
+// Stands in for the embedding model: answers with a fixed vector for every photo, another for
+// every text (along the third axis, so offerVector can place a catalog picture at a chosen
+// cosine to each), and records the calls.
+export function createStubEmbedder(vector: number[] = unitVector(1), text = unitVector(0, 0, 1)) {
   const calls: { bytes: number }[] = [];
+  const texts: string[] = [];
   const embedder: ItemEmbedder = {
     embedImage: async (image) => {
       calls.push({ bytes: image.length });
       return vector;
     },
+    embedText: async (words) => {
+      texts.push(words);
+      return text;
+    },
   };
-  return { embedder, calls };
+  return { embedder, calls, texts };
 }
+
+// A catalog picture's embedding at these cosines to the stub's photo vector, unitVector(1), and
+// to its text vector. The real text tower's cosines with pictures are small (around 0 ± 0.05).
+export const offerVector = (similarity: number, textSimilarity: number) =>
+  unitVector(similarity, Math.sqrt(1 - similarity ** 2 - textSimilarity ** 2), textSimilarity);
 
 // Stands in for fal.ai: answers with a transparent PNG the size of the input, with an opaque
 // square in the middle (the "item"), and records the calls. answer can make it fail, or find

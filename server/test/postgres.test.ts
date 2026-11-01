@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import type { Item } from "@closet-ai/shared";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
@@ -9,12 +9,13 @@ import { createAuth } from "../src/auth/auth";
 import type { Env } from "../src/config/env";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
-import { createCatalogRepository } from "../src/modules/catalog/catalog.repository";
+import { createCatalogRepository, nameKind } from "../src/modules/catalog/catalog.repository";
 import { createItemsRepository } from "../src/modules/items/items.repository";
 import { createWishesRepository } from "../src/modules/wishes/wishes.repository";
 import { createProfileRepository } from "../src/modules/profile/profile.repository";
 import { createOutfitsRepository } from "../src/modules/outfits/outfits.repository";
 import { createUsageRepository } from "../src/modules/usage/usage.repository";
+import { kindOf } from "../src/modules/photos/offer-ranker";
 import { createPhotosRepository } from "../src/modules/photos/photos.repository";
 import { createMemoryStorage } from "../src/storage/storage";
 import {
@@ -723,6 +724,88 @@ describe.skipIf(!url)("on Postgres", () => {
       .from(schema.catalogEvents)
       .where(eq(schema.catalogEvents.catalogItemId, closest[0]!.id));
     expect(events.map((e) => e.event)).toEqual(["opened"]);
+  });
+
+  it("pools offers: the closest by picture, then the closest of the same kind by name", async () => {
+    const catalog = createCatalogRepository(db.db);
+    // Its own category, so other tests' catalog items stay out of the pool.
+    const add = (externalId: string, en: string, embedding: number[], inStock = true) =>
+      catalog.upsert({
+        ...demoCatalogItem(externalId),
+        category: "accessory",
+        names: { en },
+        embedding,
+        inStock,
+      });
+    await add("A1", "Bucket hat", unitVector(1, 0));
+    await add("A2", "Wool beret", unitVector(0.99, 0.01));
+    await add("A3", "Straw basket", unitVector(0.8, 0.6));
+    await add("A4", "Leather tote bags", unitVector(1, 0, 1));
+    await add("A5", "Bag XL", unitVector(0.6, 0.8));
+    await add("A6", "Shoulder bag", unitVector(0.3, 0.7));
+    await add("A7", "Clutch bag", unitVector(1, 0), false);
+
+    const pool = await catalog.offerCandidates({
+      category: "accessory",
+      image: unitVector(1, 0),
+      kind: kindOf("leather tote bag"),
+      byImage: 2,
+      byKind: 2,
+    });
+    // The two closest, then the two closest bags after them (SQL reads "Bag XL" as a bag, as
+    // kindOf does); the basket is neither, the clutch is sold out.
+    expect(pool.map((row) => row.externalId)).toEqual(["A1", "A2", "A4", "A5"]);
+    expect(pool[2]!.similarity).toBeCloseTo(Math.SQRT1_2, 5);
+    expect(pool[2]!.embedding).toHaveLength(unitVector(1).length);
+
+    // Without a kind (a noun with no word of 3+ letters), only the closest.
+    const plain = await catalog.offerCandidates({
+      category: "accessory",
+      image: unitVector(1, 0),
+      kind: "",
+      byImage: 2,
+      byKind: 2,
+    });
+    expect(plain.map((row) => row.externalId)).toEqual(["A1", "A2"]);
+  });
+
+  it("reads the kind of piece from a name in SQL exactly as kindOf does", async () => {
+    const catalog = createCatalogRepository(db.db);
+    const names = [
+      "Dress",
+      "Bags",
+      "T-shirt",
+      "Bag XL",
+      "Wide-leg trousers",
+      "Ankle boots 2",
+      "Top handle bag",
+      "Knee-high boots",
+      "Leather tote bags",
+      "Mini skirt (black)",
+      "Sunglasses",
+      "Slip dress, silk",
+      "Cardigan in 100% wool",
+      "Café crème blouse",
+      "Bag",
+      "a b",
+      "Юбка",
+      "",
+    ];
+    // Sold out, so no pool sees them.
+    for (const [i, en] of names.entries())
+      await catalog.upsert({
+        ...demoCatalogItem(`K${i}`),
+        category: "accessory",
+        names: { en },
+        inStock: false,
+      });
+    const rows = await db.db
+      .select({ externalId: schema.catalogItems.externalId, kind: nameKind })
+      .from(schema.catalogItems)
+      .where(like(schema.catalogItems.externalId, "K%"));
+    const sqlKind = new Map(rows.map((row) => [row.externalId, row.kind ?? ""]));
+    for (const [i, en] of names.entries())
+      expect([en, sqlKind.get(`K${i}`)]).toEqual([en, kindOf(en)]);
   });
 
   it("orders the Edit by closeness to the user's wardrobe as a whole", async () => {

@@ -23,6 +23,7 @@ import {
   createStubRemover,
   createStubTagger,
   lookItems,
+  offerVector,
   shirtTags,
   testEnv as env,
   unitVector,
@@ -942,15 +943,16 @@ describe("want / can: a look matched against the wardrobe", () => {
   it("offers close partner pieces for each item, in the language asked for", async () => {
     const server = await setup();
     const anna = await signUp(server, "anna@example.com");
-    // The stub embeds every photo as unitVector(1).
     const mesh = await catalog.add({
       category: "top",
       names: { en: "Mesh top", ru: "Топ-сетка" },
-      embedding: unitVector(1),
+      colors: ["pink"],
+      embedding: offerVector(0.75, 0.06),
     });
-    // Too far from the item to offer, and a category the look has no item in.
-    await catalog.add({ category: "top", embedding: unitVector(0, 1) });
-    await catalog.add({ category: "dress", embedding: unitVector(1) });
+    // Unlike the item to the ranker (a black "ankle boot" far from its words), and a category
+    // the look has no item in.
+    await catalog.add({ category: "top", embedding: offerVector(0.6, -0.05) });
+    await catalog.add({ category: "dress", embedding: offerVector(0.75, 0.06) });
 
     const look = await uploadWant(server, anna);
     await runWorker();
@@ -964,21 +966,100 @@ describe("want / can: a look matched against the wardrobe", () => {
     expect(matches!.map((m) => m.shop.map((offer) => offer.name))).toEqual([["Топ-сетка"], []]);
     expect(matches![0]!.shop[0]).toMatchObject({ id: mesh.id, demo: true, price: 459 });
     expect(catalog.events.map((e) => [e.catalogItemId, e.event])).toEqual([[mesh.id, "shown"]]);
+    // The text tower is asked about each piece in words: colour, fabric, the kind of piece.
+    // The jeans have no bottoms to rank, so the text model isn't asked about them.
+    expect(embedding.texts).toEqual(["pink linen mesh top"]);
   });
 
-  it("offers only the same kind of accessory: a bag for a bag, not a hat", async () => {
-    const bag = { ...lookItems[0]!, name: "Black tote", category: "accessory" as const };
+  it("still matches the wardrobe when the text model fails, without offers", async () => {
+    const server = await setup();
+    jobDeps.embedder = {
+      ...embedding.embedder,
+      embedText: () => Promise.reject(new Error("no network")),
+    };
+    const cookie = await signUp(server, "anna@example.com");
+    await addItem(server, cookie, "Pink top");
+    // Offered when the text model works (the test above).
+    await catalog.add({
+      category: "top",
+      names: { en: "Mesh top" },
+      colors: ["pink"],
+      embedding: offerVector(0.75, 0.06),
+    });
+
+    const look = await uploadWant(server, cookie);
+    await runWorker();
+    const { matches } = await status(server, cookie, look);
+    expect(matches![0]).toMatchObject({ how: "same", shop: [] });
+  });
+
+  it("offers nothing for a piece without an English noun, and doesn't ask the text model", async () => {
+    const server = await setup({
+      tagger: createStubTagger(undefined, async () => [
+        { ...lookItems[0]!, name: "Розовый топ-сетка", noun: null },
+      ]).tagger,
+    });
+    const anna = await signUp(server, "anna@example.com");
+    await catalog.add({
+      category: "top",
+      names: { en: "Mesh top" },
+      colors: ["pink"],
+      embedding: offerVector(0.75, 0.06),
+    });
+
+    const look = await uploadWant(server, anna);
+    await runWorker();
+    expect((await status(server, anna, look)).matches![0]!.shop).toEqual([]);
+    expect(embedding.texts).toEqual([]);
+  });
+
+  it("finds a piece of the same kind the picture misses", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    // Ten blouses look closer than the mesh top does, and none of them fits.
+    for (let i = 0; i < 10; i++)
+      await catalog.add({
+        category: "top",
+        names: { en: "Ruffled blouse" },
+        colors: ["red"],
+        embedding: offerVector(0.8, -0.02),
+      });
+    const mesh = await catalog.add({
+      category: "top",
+      names: { en: "Sheer mesh tops" },
+      colors: ["pink"],
+      embedding: offerVector(0.6, 0.08),
+    });
+
+    const look = await uploadWant(server, anna);
+    await runWorker();
+    const { matches } = await status(server, anna, look);
+    expect(matches![0]!.shop.map((offer) => offer.id)).toEqual([mesh.id]);
+  });
+
+  it("offers a bag for a bag, not a hat that looks closer", async () => {
+    const bag = {
+      ...lookItems[0]!,
+      name: "Black tote",
+      category: "accessory" as const,
+      colors: ["black" as const],
+      fabric: "leather",
+    };
     const server = await setup({
       tagger: createStubTagger(undefined, async () => [{ ...bag, noun: "leather tote bag" }])
         .tagger,
     });
     const anna = await signUp(server, "anna@example.com");
-    // The hat is closer by embedding, the bag close enough.
-    await catalog.add({ category: "accessory", names: { en: "Bucket hat" } });
+    // The hat is closer by picture, the bag by name and by words.
+    await catalog.add({
+      category: "accessory",
+      names: { en: "Bucket hat" },
+      embedding: offerVector(0.78, 0),
+    });
     const tote = await catalog.add({
       category: "accessory",
-      names: { en: "Tote bag" },
-      embedding: unitVector(1, 0.5),
+      names: { en: "Leather tote bag" },
+      embedding: offerVector(0.7, 0.1),
     });
 
     const look = await uploadWant(server, anna);
