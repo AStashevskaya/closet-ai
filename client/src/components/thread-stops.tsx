@@ -40,6 +40,7 @@ export function useThreadMotion(measured: boolean, waiting: boolean) {
     if (!measured) return;
     drawn.set(reduced ? 1 : withTiming(1, { duration: DRAW_MS, easing: EASE_OUT }));
   }, [measured, reduced, drawn]);
+  useEffect(() => () => cancelAnimation(drawn), [drawn]);
 
   useEffect(() => {
     if (waiting && !reduced) {
@@ -86,25 +87,35 @@ export function ThreadLine({
   follow = false,
 }: LineProps) {
   const { drawn, run, reduced } = useThreadMotion(measured, waiting);
+  // Only a following line needs its size on the UI thread; otherwise it's sized in render.
   const height = useSharedValue(length);
   const track = useSharedValue(top);
   useEffect(() => {
-    const jump = !follow || reduced || height.get() === 0;
+    if (!follow) return;
+    const jump = reduced || height.get() === 0;
     const slide = { duration: durations.state, easing: EASE_OUT };
     height.set(jump ? length : withTiming(length, slide));
     track.set(jump ? top : withTiming(top, slide));
   }, [length, top, follow, reduced, height, track]);
+  useEffect(
+    () => () => {
+      cancelAnimation(height);
+      cancelAnimation(track);
+    },
+    [height, track],
+  );
 
   const line = useAnimatedStyle(() => ({ transform: [{ scaleY: drawn.get() }] }));
   const bead = useAnimatedStyle(() => ({
     opacity: runOpacity(run.get()),
-    transform: [{ translateY: run.get() * Math.max(0, height.get() - BEAD) }],
+    transform: [{ translateY: run.get() * Math.max(0, (follow ? height.get() : length) - BEAD) }],
   }));
   const size = useAnimatedStyle(() => ({ top: -track.get(), height: height.get() }));
 
   return (
     <Animated.View
-      style={[styles.track, size]}
+      testID="thread-track"
+      style={[styles.track, follow ? size : { top: -top, height: length }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
