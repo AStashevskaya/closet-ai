@@ -4,8 +4,7 @@
     "loading": "Loading",
     "offline": "No connection to the server. Check the internet and try again.",
     "today": "today",
-    "yesterday": "yesterday",
-    "cancel": "Cancel"
+    "yesterday": "yesterday"
   },
   "crop": {
     "button": "Crop photo",

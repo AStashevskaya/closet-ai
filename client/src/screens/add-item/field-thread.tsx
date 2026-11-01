@@ -38,6 +38,9 @@ export type StopKind = 'filled' | 'empty' | 'optional';
 type ThreadProps = {
   // The photo is being read: a bead runs down the thread, the one sign of waiting app-wide.
   waiting: boolean;
+  // The photo's tags filled the fields in: they settle with a short fade as the bead goes. Not
+  // when reading timed out or failed, where nothing on the thread changed.
+  filled: boolean;
   // The rail the piece will hang on, the last stop: the thread ends at its hanger.
   rail: ReactNode;
   children: ReactNode;
@@ -48,7 +51,7 @@ type ThreadProps = {
 // photo in the blue band and ends at the rail the piece will hang on, so the line means what it
 // does everywhere, a piece and its rail. The line and the bead are decoration (the stops' labels
 // say the same), so screen readers skip them. Positioned with start/end, so it mirrors in RTL.
-export function FieldThread({ waiting, rail, children }: ThreadProps) {
+export function FieldThread({ waiting, filled, rail, children }: ThreadProps) {
   const reduceMotion = useReducedMotion();
   // Where the hanger's hook is, from the top of the column: measured from the rail stop.
   const [end, setEnd] = useState(0);
@@ -74,14 +77,14 @@ export function FieldThread({ waiting, rail, children }: ThreadProps) {
       cancelAnimation(run);
       run.value = 0;
     }
-    if (wasWaiting.current && !waiting && !reduceMotion) {
+    if (wasWaiting.current && !waiting && filled && !reduceMotion) {
       settle.value = withSequence(
         withTiming(0.4, { duration: 0 }),
         withTiming(1, { duration: durations.state, easing: EASE_OUT }),
       );
     }
     wasWaiting.current = waiting;
-  }, [waiting, reduceMotion, run, settle]);
+  }, [waiting, filled, reduceMotion, run, settle]);
 
   const line = useAnimatedStyle(() => ({ transform: [{ scaleY: drawn.value }] }));
   const bead = useAnimatedStyle(() => ({

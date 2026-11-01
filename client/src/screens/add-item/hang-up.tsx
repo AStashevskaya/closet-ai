@@ -175,11 +175,9 @@ export function HangUp({ photoUri, from, category, caption, onDone }: Props) {
           </Animated.View>
         </>
       )}
-      {/* Always there, so screen readers and a tap find it before the overlay is measured. */}
-      <Animated.Text
-        style={[styles.caption, { top: move.top + PIECE_H + 24 }, captioned]}
-        accessibilityLiveRegion="polite"
-      >
+      {/* Always there, so a tap finds it before the overlay is measured. Screen readers hear it
+          once, announced on mount; the overlay's label repeats it only if they land on it. */}
+      <Animated.Text style={[styles.caption, { top: move.top + PIECE_H + 24 }, captioned]}>
         {caption}
       </Animated.Text>
     </Pressable>

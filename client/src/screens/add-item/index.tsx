@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -105,6 +106,9 @@ export function AddItem() {
   // Saved: the piece is flying to its rail, then the sheet closes.
   const [hanging, setHanging] = useState<{ from: Box | null; category: ItemCategory } | null>(null);
   const insets = useSafeAreaInsets();
+  // Where the screen starts in the window, for the keyboard (see KeyboardAvoidingView below).
+  const root = useRef<ComponentRef<typeof View>>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   // A picked photo or a typed name is worth asking about before the sheet closes; once the piece
   // is saved and hanging up, a swipe down just closes it.
   const leave = useConfirmLeave(hanging === null && (photoUri !== null || name.trim() !== ''));
@@ -265,7 +269,7 @@ export function AddItem() {
     Alert.alert(t('addItem.anotherPhoto'), undefined, [
       { text: t('addItem.takePhoto'), onPress: () => void pick('camera') },
       { text: t('addItem.choosePhoto'), onPress: () => void pick('library') },
-      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('closet.cancel'), style: 'cancel' },
     ]);
   }
 
@@ -349,16 +353,23 @@ export function AddItem() {
     ) : null;
 
   return (
-    <View style={styles.screen}>
+    <View
+      ref={root}
+      style={styles.screen}
+      onLayout={() => root.current?.measureInWindow((_x, y) => setKeyboardOffset(y))}
+    >
       <KeyboardAvoidingView
         style={styles.screen}
-        // iOS is handled by the ScrollView below; Android still needs the view to shrink.
-        behavior={Platform.OS === 'android' ? 'height' : undefined}
+        // The view shrinks above the keyboard on both platforms, so the bar under the scroll (the
+        // Hang button and its errors) stays in sight. It measures itself from its parent, not the
+        // window, so on iOS it's told where the sheet starts (the sheet's top and the header).
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? keyboardOffset : 0}
       >
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
-          // iOS insets the scroll view by the keyboard and keeps the focused field above it.
+          // iOS keeps the focused field in sight; the inset is only what the keyboard still covers.
           automaticallyAdjustKeyboardInsets
           keyboardDismissMode="interactive"
         >
@@ -377,6 +388,7 @@ export function AddItem() {
           {photoUri ? (
             <FieldThread
               waiting={tagging === 'waiting'}
+              filled={tagging === 'filled'}
               rail={
                 <Animated.View entering={rise.delay(STAGGER_STEP * 4)}>
                   <RailStop category={category} label={t('addItem.hangingOn')}>
@@ -545,15 +557,16 @@ export function AddItem() {
   );
 }
 
-// Where the photo in the print is on screen, or null if it doesn't say in time (it then flies
-// from the rail itself).
+// Where the photo in the print is on screen, or null if it doesn't say in time or is scrolled
+// out of sight (it then hangs on the rail without flying in from far off-screen).
 function measure(view: ComponentRef<typeof View> | null): Promise<Box | null> {
   return new Promise((resolve) => {
     if (!view) return resolve(null);
     const timer = setTimeout(() => resolve(null), MEASURE_MS);
     view.measureInWindow((x, y, width, height) => {
       clearTimeout(timer);
-      resolve(width > 0 ? { x, y, width, height } : null);
+      const visible = width > 0 && y + height > 0 && y < Dimensions.get('window').height;
+      resolve(visible ? { x, y, width, height } : null);
     });
   });
 }

@@ -1,6 +1,50 @@
-import { flightFrom } from './hang-up';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+
+import { flightFrom, HangUp } from './hang-up';
 
 const overlay = { x: 0, y: 100, width: 390, height: 700 };
+
+describe('<HangUp />', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  function hangUp(onDone: () => void) {
+    return render(
+      <HangUp
+        photoUri="file:///small.jpg"
+        from={null}
+        category="top"
+        caption="On the Tops rail"
+        onDone={onDone}
+      />,
+    );
+  }
+
+  test('closes once, whether tapped or timed out', async () => {
+    const onDone = jest.fn();
+    await hangUp(onDone);
+    await fireEvent.press(screen.getByText('On the Tops rail'));
+    await act(() => jest.advanceTimersByTimeAsync(5000));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  test('closes on its own after the swing', async () => {
+    const onDone = jest.fn();
+    await hangUp(onDone);
+    await act(() => jest.advanceTimersByTimeAsync(3000));
+    expect(onDone).not.toHaveBeenCalled();
+    await act(() => jest.advanceTimersByTimeAsync(500));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  test('does nothing once the sheet is gone', async () => {
+    const onDone = jest.fn();
+    await hangUp(onDone);
+    await screen.unmount();
+    await act(() => jest.advanceTimersByTimeAsync(5000));
+    expect(onDone).not.toHaveBeenCalled();
+  });
+});
 
 describe('flightFrom', () => {
   test('hangs the piece on a rail across the middle of the screen', () => {
