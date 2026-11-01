@@ -1,29 +1,37 @@
-import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useRef, useState, type ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
+  AccessibilityInfo,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
+  type TextInputProps,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button, maison } from '@/components/maison';
+import { PressableScale } from '@/components/pressable-scale';
+import i18n from '@/i18n';
 import { authClient } from '@/lib/auth-client';
-import { rise, STAGGER_STEP } from '@/motion';
+import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
+
+import { AuthRail } from './auth-rail';
+import { DOT, INDENT, Stop, ThreadLine } from './auth-thread';
 
 // Same limit as Better Auth's default; checked here so the user gets the message without a round trip.
 const MIN_PASSWORD_LENGTH = 8;
 
 type Mode = 'sign-in' | 'sign-up';
+type Field = 'name' | 'email' | 'password';
 type ErrorKey =
   | 'auth.errors.required'
   | 'auth.errors.passwordTooShort'
@@ -42,22 +50,58 @@ const ERROR_KEYS: Record<string, ErrorKey> = {
   INVALID_EMAIL: 'auth.errors.invalidEmail',
 };
 
-export function AuthForm({ mode }: { mode: Mode }) {
+// Where each stop's dot sits, so it lines up with the first line of the title, the middle of a
+// field and the middle of the button (stops start with 10 pt of padding).
+const TITLE_DOT_Y = 10 + 19 - DOT / 2;
+const FIELD_DOT_Y = 10 + 23 - DOT / 2;
+const BUTTON_DOT_Y = 10 + 4 + 26 - DOT / 2;
+// The white sheet's rounded top, laid over the bottom of the band.
+const CAP = 26;
+
+const swap = FadeIn.duration(durations.enter).easing(EASE_OUT);
+const leave = FadeOut.duration(durations.state);
+const shift = LinearTransition.duration(durations.state).easing(EASE_OUT);
+
+// Sign-up and sign-in (decided 2026-10-31, prototype `~/Desktop/closet/wrinkle-lab/design-adding`,
+// "auth", direction "Выбрано"): one powder-blue band (the first screen a new person sees is
+// something new arriving) with the wordmark, the tagline in a pill and a rail of swaying hangers;
+// then one thread from the title's bead down through the fields to the button, the bead at its
+// end. Both routes render this screen, and switching between them happens here rather than by
+// navigating, so only the hangers fill or empty and the words change; nothing enters again.
+export function AuthForm({ mode: initialMode }: { mode: Mode }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState(initialMode);
+  // Set on the first switch: from then on what changes fades in, before it the entrance shows it.
+  const [switched, setSwitched] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [focused, setFocused] = useState<Field | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Measured, so the thread runs from the title's bead on the band to the button's.
+  const [band, setBand] = useState({ height: 0, titleY: 0 });
+  const [end, setEnd] = useState(0);
+  const emailRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const isSignUp = mode === 'sign-up';
 
+  function fail(key: ErrorKey) {
+    setError(key);
+    // iOS doesn't read out a new alert by itself.
+    AccessibilityInfo.announceForAccessibility(t(key));
+  }
+
   async function submit() {
+    if (submitting) return;
+    // Out of the way, so the error or the running bead is in view.
+    Keyboard.dismiss();
     if (!email.trim() || !password || (isSignUp && !name.trim())) {
-      return setError('auth.errors.required');
+      return fail('auth.errors.required');
     }
     if (isSignUp && password.length < MIN_PASSWORD_LENGTH) {
-      return setError('auth.errors.passwordTooShort');
+      return fail('auth.errors.passwordTooShort');
     }
 
     setError(null);
@@ -69,14 +113,34 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       // On success the session updates and the protected routes in _layout switch screens.
       if (result.error) {
-        setError(ERROR_KEYS[result.error.code ?? ''] ?? 'auth.errors.generic');
+        fail(ERROR_KEYS[result.error.code ?? ''] ?? 'auth.errors.generic');
       }
     } catch {
       // Server errors come back in result.error; a throw means the request never got an answer.
-      setError('auth.errors.network');
+      fail('auth.errors.network');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function toggle() {
+    setMode(isSignUp ? 'sign-in' : 'sign-up');
+    setSwitched(true);
+    setError(null);
+  }
+
+  // The thread starts under the title's bead and ends in the middle of the button's.
+  const reach = band.height - (band.titleY + TITLE_DOT_Y + DOT);
+  const length = band.height > 0 && end > 0 ? reach + end : 0;
+
+  function field(which: Field): Partial<TextInputProps> {
+    return {
+      style: [styles.field, focused === which && styles.fieldFocused],
+      placeholderTextColor: colors.textMuted,
+      onFocus: () => setFocused(which),
+      onBlur: () => setFocused((current) => (current === which ? null : current)),
+      editable: !submitting,
+    };
   }
 
   return (
@@ -85,86 +149,153 @@ export function AuthForm({ mode }: { mode: Mode }) {
       // iOS is handled by the ScrollView below; Android still needs the view to shrink.
       behavior={Platform.OS === 'android' ? 'height' : undefined}
     >
-      {/* Dark icons: the screen is always light pink, even in dark mode. */}
+      {/* Dark icons: the band is always light blue, even in dark mode. */}
       <StatusBar style="dark" />
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
         // iOS insets the scroll view by the keyboard and keeps the focused field above it.
         automaticallyAdjustKeyboardInsets
         keyboardDismissMode="interactive"
         bounces={false}
       >
-        <View style={[styles.hero, { paddingTop: insets.top + 56 }]}>
-          <Animated.Text entering={rise} style={styles.wordmark}>
-            {t('app.name')}
-          </Animated.Text>
-          <Text style={styles.tagline}>{t('app.tagline')}</Text>
+        <View
+          style={[styles.band, { paddingTop: insets.top + 20 }]}
+          onLayout={(event) => {
+            const height = Math.round(event.nativeEvent.layout.height);
+            setBand((current) => ({ ...current, height }));
+          }}
+        >
+          <Animated.View entering={rise} style={styles.brand}>
+            <Text style={styles.wordmark}>{t('app.name')}</Text>
+            <View style={styles.pill}>
+              <Text style={styles.tagline}>{t('app.tagline')}</Text>
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={rise.delay(STAGGER_STEP)}>
+            <AuthRail filled={!isSignUp} />
+            <Animated.Text key={mode} entering={switched ? swap : undefined} style={styles.caption}>
+              {t(isSignUp ? 'auth.railEmpty' : 'auth.railWaiting')}
+            </Animated.Text>
+          </Animated.View>
+
+          <Animated.View
+            entering={rise.delay(STAGGER_STEP * 2)}
+            style={styles.column}
+            onLayout={(event: LayoutChangeEvent) => {
+              const titleY = Math.round(event.nativeEvent.layout.y);
+              setBand((current) => ({ ...current, titleY }));
+            }}
+          >
+            <Stop kind="bead" dotY={TITLE_DOT_Y}>
+              <Animated.View key={mode} entering={switched ? swap : undefined}>
+                <Text style={styles.title} accessibilityRole="header">
+                  {t(isSignUp ? 'auth.signUpTitle' : 'auth.welcomeTitle')}
+                </Text>
+                {isSignUp && <Text style={[maison.body, styles.intro]}>{t('auth.intro')}</Text>}
+              </Animated.View>
+            </Stop>
+          </Animated.View>
         </View>
+        <View style={styles.cap} />
 
-        <Animated.View entering={rise.delay(STAGGER_STEP)} style={styles.body}>
-          <Text style={styles.title} accessibilityRole="header">
-            {t(isSignUp ? 'auth.signUpTitle' : 'auth.welcomeTitle')}
-          </Text>
-          <Text style={[styles.text, styles.intro]}>{t('auth.intro')}</Text>
+        <Animated.View entering={rise.delay(STAGGER_STEP * 3)} style={styles.column}>
+          <ThreadLine top={reach} length={length} waiting={submitting} />
 
-          <View style={styles.fields}>
-            {isSignUp && (
+          {isSignUp && (
+            <Animated.View entering={switched ? swap : undefined} exiting={leave}>
+              <Stop kind={name.trim() ? 'bead' : 'empty'} dotY={FIELD_DOT_Y}>
+                <TextInput
+                  {...field('name')}
+                  placeholder={t('auth.name')}
+                  accessibilityLabel={t('auth.name')}
+                  value={name}
+                  onChangeText={setName}
+                  autoComplete="name"
+                  textContentType="name"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => emailRef.current?.focus()}
+                />
+              </Stop>
+            </Animated.View>
+          )}
+          <Animated.View layout={shift}>
+            <Stop kind={email.trim() ? 'bead' : 'empty'} dotY={FIELD_DOT_Y}>
               <TextInput
-                style={styles.input}
-                placeholder={t('auth.name')}
-                placeholderTextColor={colors.textMuted}
-                value={name}
-                onChangeText={setName}
-                autoComplete="name"
-                textContentType="name"
+                {...field('email')}
+                ref={emailRef}
+                placeholder={t('auth.email')}
+                accessibilityLabel={t('auth.email')}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordRef.current?.focus()}
               />
-            )}
-            <TextInput
-              style={styles.input}
-              placeholder={t('auth.email')}
-              placeholderTextColor={colors.textMuted}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              textContentType="emailAddress"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={t('auth.password')}
-              placeholderTextColor={colors.textMuted}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              textContentType={isSignUp ? 'newPassword' : 'password'}
-            />
-
-            {error && (
-              <Text style={[styles.text, styles.error]} accessibilityRole="alert">
-                {t(error)}
-              </Text>
-            )}
-
-            <Pressable
-              style={[styles.button, submitting && styles.buttonBusy]}
-              onPress={submit}
-              disabled={submitting}
-              accessibilityRole="button"
-            >
-              {submitting ? (
-                <ActivityIndicator color={colors.onAccent} />
-              ) : (
-                <Text style={styles.buttonText}>{t(isSignUp ? 'auth.signUp' : 'auth.signIn')}</Text>
+            </Stop>
+          </Animated.View>
+          <Animated.View layout={shift}>
+            <Stop kind={password ? 'bead' : 'empty'} dotY={FIELD_DOT_Y}>
+              <TextInput
+                {...field('password')}
+                ref={passwordRef}
+                placeholder={t('auth.password')}
+                accessibilityLabel={t('auth.password')}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                textContentType={isSignUp ? 'newPassword' : 'password'}
+                returnKeyType="go"
+                onSubmitEditing={() => void submit()}
+              />
+              {isSignUp && <Text style={styles.hint}>{t('auth.passwordHint')}</Text>}
+              {error && (
+                <Text style={styles.error} accessibilityRole="alert">
+                  {t(error)}
+                </Text>
               )}
-            </Pressable>
+            </Stop>
+          </Animated.View>
+          <Animated.View
+            layout={shift}
+            onLayout={(event) => setEnd(Math.round(event.nativeEvent.layout.y) + BUTTON_DOT_Y)}
+          >
+            <Stop kind="bead" dotY={BUTTON_DOT_Y}>
+              <Button
+                kind="bright"
+                label={t(isSignUp ? 'auth.signUp' : 'auth.signIn')}
+                onPress={() => void submit()}
+                disabled={submitting}
+                style={styles.button}
+              />
+            </Stop>
+          </Animated.View>
+        </Animated.View>
 
-            <Link href={isSignUp ? '/sign-in' : '/sign-up'} replace style={styles.link}>
-              {t(isSignUp ? 'auth.toSignIn' : 'auth.toSignUp')}
-            </Link>
-          </View>
+        <Animated.View entering={rise.delay(STAGGER_STEP * 4)} layout={shift}>
+          <PressableScale
+            onPress={toggle}
+            disabled={submitting}
+            style={styles.switch}
+            accessibilityRole="link"
+            accessibilityLabel={`${t(isSignUp ? 'auth.haveAccount' : 'auth.noAccount')} ${t(
+              isSignUp ? 'auth.toSignIn' : 'auth.toSignUp',
+            )}`}
+          >
+            <Text style={styles.switchText}>
+              {t(isSignUp ? 'auth.haveAccount' : 'auth.noAccount')}{' '}
+              <Text style={styles.switchAction}>
+                {t(isSignUp ? 'auth.toSignIn' : 'auth.toSignUp')}
+              </Text>
+            </Text>
+          </PressableScale>
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -179,90 +310,121 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flexGrow: 1,
-    paddingBottom: 32,
   },
-  // The one bright block of the app's first screen, edge to edge, with the wordmark on it.
-  hero: {
-    paddingHorizontal: 24,
-    paddingBottom: 36,
-    gap: 6,
+  // Powder blue: the first screen a new person sees is something new arriving.
+  band: {
+    paddingBottom: 34,
     backgroundColor: colors.ground,
+  },
+  brand: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
   },
   wordmark: {
     fontFamily: fonts.displayLight,
-    fontSize: 72,
-    lineHeight: 76,
-    letterSpacing: 3,
+    fontSize: 40,
+    lineHeight: 44,
+    // The same Latin wordmark in Hebrew, set in its wider display face, so a little less spacing.
+    letterSpacing: i18n.language === 'he' ? 4 : 7,
     color: colors.text,
-    textAlign: 'left',
+    textAlign: 'center',
+  },
+  pill: {
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.text,
   },
   tagline: {
     fontFamily: fonts.body,
-    fontSize: 14,
+    fontSize: 12,
     color: colors.text,
-    textAlign: 'left',
+    textAlign: 'center',
   },
-  body: {
-    paddingHorizontal: 24,
-    paddingTop: 30,
-    gap: 8,
+  caption: {
+    marginTop: -26,
+    paddingHorizontal: 20,
+    fontFamily: fonts.hand,
+    // Gveret Levin runs larger than Marck Script.
+    fontSize: i18n.language === 'he' ? 15 : 19,
+    lineHeight: 24,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  column: {
+    marginHorizontal: 20,
+    paddingStart: INDENT,
   },
   title: {
     fontFamily: fonts.displayLight,
-    fontSize: 40,
-    lineHeight: 44,
+    fontSize: 34,
+    lineHeight: 38,
     color: colors.text,
-    textAlign: 'left',
-  },
-  text: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 20,
     textAlign: 'left',
   },
   intro: {
-    color: colors.textSecondary,
+    marginTop: 4,
+    color: colors.text,
   },
-  fields: {
-    marginTop: 18,
-    gap: 10,
+  // The white sheet the fields are on, its rounded top over the band.
+  cap: {
+    height: CAP,
+    marginTop: -CAP,
+    borderTopStartRadius: CAP,
+    borderTopEndRadius: CAP,
+    backgroundColor: colors.background,
   },
-  // Underlined, as on a brand's checkout, instead of boxed.
-  input: {
-    height: 52,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.textMuted,
-    fontFamily: fonts.body,
-    fontSize: 15,
+  // Underlined in the display face; the one being typed in fills with blue (something being
+  // edited right now). The side padding is pulled back out, so the text lines up with the title.
+  field: {
+    minHeight: 46,
+    marginHorizontal: -6,
+    paddingHorizontal: 6,
+    paddingTop: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1.2,
+    borderBottomColor: colors.text,
+    fontFamily: fonts.displayLight,
+    fontSize: 24,
     color: colors.text,
     textAlign: 'left',
   },
+  fieldFocused: {
+    backgroundColor: colors.ground,
+  },
+  hint: {
+    ...maison.note,
+    marginTop: 6,
+  },
   error: {
-    fontFamily: fonts.bodyMedium,
-    color: colors.error,
-  },
-  button: {
-    height: 52,
-    marginTop: 18,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-  },
-  buttonBusy: {
-    opacity: 0.8,
-  },
-  buttonText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 15,
-    color: colors.onAccent,
-  },
-  link: {
-    paddingVertical: 12,
+    marginTop: 8,
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
+    lineHeight: 20,
+    color: colors.error,
+    textAlign: 'left',
+  },
+  button: {
+    marginTop: 4,
+  },
+  switch: {
+    minHeight: 44,
+    marginTop: 6,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  switchText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  switchAction: {
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
     textDecorationLine: 'underline',
-    textAlign: 'center',
   },
 });
