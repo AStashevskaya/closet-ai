@@ -21,10 +21,17 @@ async function partnerOffers(
   item: LookItem,
   embedding: number[],
 ) {
+  // Offers are extras: the text model failing to download is no reason to fail the look (the
+  // ranker can't score without it, so no offers then).
+  const text = await embedder.embedText(offerText(item)).catch((error: unknown) => {
+    console.log(JSON.stringify({ msg: "offers skipped", reason: String(error) }));
+    return null;
+  });
+  if (!text) return [];
   const pool = await catalog.offerCandidates({
     category: item.category,
     image: embedding,
-    text: await embedder.embedText(offerText(item)),
+    text,
     kind: kindOf(item.noun || item.name),
     byImage: POOL_BY_IMAGE,
     byKind: POOL_BY_KIND,

@@ -970,6 +970,28 @@ describe("want / can: a look matched against the wardrobe", () => {
     expect(embedding.texts).toEqual(["pink linen mesh top", "blue denim wide-leg jeans"]);
   });
 
+  it("still matches the wardrobe when the text model fails, without offers", async () => {
+    const server = await setup();
+    jobDeps.embedder = {
+      ...embedding.embedder,
+      embedText: () => Promise.reject(new Error("no network")),
+    };
+    const cookie = await signUp(server, "anna@example.com");
+    await addItem(server, cookie, "Pink top");
+    // Offered when the text model works (the test above).
+    await catalog.add({
+      category: "top",
+      names: { en: "Mesh top" },
+      colors: ["pink"],
+      embedding: offerVector(0.75, 0.06),
+    });
+
+    const look = await uploadWant(server, cookie);
+    await runWorker();
+    const { matches } = await status(server, cookie, look);
+    expect(matches![0]).toMatchObject({ how: "same", shop: [] });
+  });
+
   it("finds a piece of the same kind the picture misses", async () => {
     const server = await setup();
     const anna = await signUp(server, "anna@example.com");
