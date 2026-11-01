@@ -8,6 +8,12 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Locally tests run two workers and one package at a time (.npmrc, the packages' test
+    # scripts) so a laptop doesn't freeze; the runner has the cores for more.
+    env:
+      npm_config_workspace_concurrency: 4
+      JEST_WORKERS: 3
+      VITEST_FORKS: 4
     # Same image as docker-compose.yml; the server's Postgres tests run against it.
     services:
       postgres:
