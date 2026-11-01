@@ -43,7 +43,7 @@ const RAIL_AT = 0.4;
 const RAIL_INSET = 22;
 // Room between pieces hung together; past a few they get smaller to fit on the rail.
 const GAP = 10;
-const FLIGHT_MS = 1200;
+export const FLIGHT_MS = 1200;
 const LIFT = 14;
 const TILT = I18nManager.isRTL ? 3 : -3;
 // In a batch the pieces go one after another (docs/design.md).

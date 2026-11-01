@@ -48,7 +48,7 @@ import { colors, fonts } from '@/theme';
 import { ColorSwatches } from './color-swatches';
 import type { Size } from './cutout-frame';
 import { FieldThread, RailStop, Stop } from './field-thread';
-import { HangUp, measureBox, PHOTO_FRAME, type Box } from './hang-up';
+import { FLIGHT_MS, HangUp, measureBox, PHOTO_FRAME, type Box } from './hang-up';
 import { CutoutImage, DISSOLVE_MS, PhotoBand } from './photo-band';
 import { loadCutout, pause, waitForCutout, type Cutout } from './wait-for-cutout';
 
@@ -58,11 +58,15 @@ const MAX_PHOTOS = 20;
 // usually answers in 4–6 s; after half a minute the form simply stays as the user typed it.
 const POLL_MS = 1500;
 const MAX_POLLS = 20;
-// The same polls watch for the piece's cut-out (usually a few seconds after the tags), so the
-// background dissolves while she fills the fields; past this the print stays a photo until saved.
+// The same polls (every POLL_MS) watch for the piece's cut-out, which the server starts after the
+// tags, so the background dissolves while she fills the fields; past this the print stays a photo
+// until saved. The cap is a guess: a photo of the piece worn never gets a cut-out, and the status
+// doesn't say so (the tagger's onPerson stays on the server). A `cutoutStatus` on the photo's
+// status would let the screen stop at once instead.
 export const CUTOUT_WATCH_MS = 20_000;
-// How long the cut-out may take to load once it's there.
-const CUTOUT_LOAD_MS = 10_000;
+// How long the cut-out may take to load once it's there; a load that fails or takes longer is
+// tried again on the next poll, within the cap.
+const CUTOUT_LOAD_MS = 5000;
 
 // idle: nothing to show; waiting: the model is looking at the photo; filled: fields came from it.
 type Tagging = 'idle' | 'waiting' | 'filled';
@@ -266,11 +270,13 @@ export function AddItem() {
     const { signal } = controller;
 
     // The cut-out is loaded before it's shown, so the dissolve doesn't start on a blank image.
+    // False when it didn't load (or the photo changed meanwhile).
     const dissolve = async (path: string, box: Cutout['box']) => {
       const cutout = await loadCutout(path, box, CUTOUT_LOAD_MS, signal);
-      if (!cutout || signal.aborted) return;
+      if (!cutout || signal.aborted) return false;
       earlyRef.current = { key: photoKey, cutout };
       setEarly(earlyRef.current);
+      return true;
     };
 
     const poll = async () => {
@@ -301,9 +307,11 @@ export function AddItem() {
             setTagging('idle');
             tagged = true;
           }
+          // Found only once it has loaded: a failed or slow load is tried again on the next poll.
+          // The tags come first (the server cuts after tagging), so waiting here holds up nothing.
           if (!cutoutFound && state.cutoutUrl) {
-            cutoutFound = true;
-            void dissolve(state.cutoutUrl, state.cutoutBox ?? null);
+            cutoutFound = await dissolve(state.cutoutUrl, state.cutoutBox ?? null);
+            if (signal.aborted) return;
           }
           // A photo that failed gets no cut-out either.
           if (state.status === 'failed') break;
@@ -656,6 +664,7 @@ export function AddItem() {
                   cutout={hanging.cutout}
                   frame={PHOTO_FRAME}
                   photo={photoSize}
+                  growMs={FLIGHT_MS}
                   shadow
                   testID="hung-cutout"
                 />

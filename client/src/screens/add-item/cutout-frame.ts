@@ -30,3 +30,19 @@ export function cutoutFrame(frame: Size, photo: Size, box: ItemBox): Frame | nul
     height: pieceHeight + pad * 2,
   };
 }
+
+// The whole frame: where a cut-out is drawn with "contain", as the closet draws its pieces.
+export const wholeFrame = ({ width, height }: Size): Frame => ({ left: 0, top: 0, width, height });
+
+// The frame `progress` of the way (0..1) from `from` to `to`: the cut-out growing from where it
+// was over the piece on the print to its whole slot as it flies. Runs on the UI thread.
+export function between(from: Frame, to: Frame, progress: number): Frame {
+  'worklet';
+  const at = (a: number, b: number) => a + (b - a) * progress;
+  return {
+    left: at(from.left, to.left),
+    top: at(from.top, to.top),
+    width: at(from.width, to.width),
+    height: at(from.height, to.height),
+  };
+}

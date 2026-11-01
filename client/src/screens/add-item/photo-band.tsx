@@ -1,8 +1,15 @@
 import { Image } from 'expo-image';
-import type { ComponentRef, ReactNode, Ref } from 'react';
+import { useEffect, type ComponentRef, type ReactNode, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { I18nManager, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, Keyframe, useReducedMotion } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  Keyframe,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { Icon, type IconName } from '@/components/icon';
@@ -11,7 +18,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { CSS_EASE_OUT, durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-import { cutoutFrame, type Size } from './cutout-frame';
+import { between, cutoutFrame, wholeFrame, type Size } from './cutout-frame';
 import type { Cutout } from './wait-for-cutout';
 
 export const PRINT_WIDTH = 176;
@@ -77,6 +84,9 @@ export function PhotoBand({
 }: Props) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
+  // A cut-out with a box waits for the photo's size, so it's laid over the piece from the start
+  // instead of over the whole picture and then jumping into place.
+  const bare = cutout && (!cutout.box || photoSize) ? cutout : null;
   // The cross-fade from photo to cut-out; with reduced motion it simply swaps.
   const dissolve = (property: 'opacity' | 'backgroundColor') => ({
     transitionProperty: property,
@@ -104,16 +114,16 @@ export function PhotoBand({
               {/* With the cut-out the background dissolves: the grey turns to the paper and the
                   photo fades from under the bare piece, which stays on the print. */}
               <Animated.View
-                style={[styles.picture, cutout && styles.pictureBare, dissolve('backgroundColor')]}
+                style={[styles.picture, bare && styles.pictureBare, dissolve('backgroundColor')]}
               >
                 <View ref={pictureRef} style={styles.image} collapsable={false}>
                   <Animated.View
-                    style={[styles.image, cutout ? styles.gone : null, dissolve('opacity')]}
+                    style={[styles.image, bare ? styles.gone : null, dissolve('opacity')]}
                     testID="band-photo"
                   >
                     <Image
                       source={{ uri: photoUri }}
-                      style={[styles.image, busy && !cutout && styles.imageBusy]}
+                      style={[styles.image, busy && !bare && styles.imageBusy]}
                       contentFit="contain"
                       transition={250}
                       onLoad={({ source }) =>
@@ -123,9 +133,9 @@ export function PhotoBand({
                       testID="band-image"
                     />
                   </Animated.View>
-                  {cutout && (
+                  {bare && (
                     <CutoutImage
-                      cutout={cutout}
+                      cutout={bare}
                       frame={PICTURE}
                       photo={photoSize ?? null}
                       entering={reduceMotion ? 'none' : 'dissolve'}
@@ -161,13 +171,16 @@ export function PhotoBand({
 
 // The bare cut-out in a frame that shows its photo (the print's picture, or the photo's slot on
 // its way to the rail): laid exactly over the piece by its box, or over the whole frame when
-// there's no box or the photo's size isn't known yet (cut-outs made before the box was recorded).
-// `entering` is how it appears on the print; on its way to the rail it's already there.
+// there's no box or the photo's size isn't known (cut-outs made before the box was recorded).
+// `entering` is how it appears on the print. On its way to the rail (`growMs`) it starts where it
+// was over the piece and grows to the whole slot, drawn with "contain" as the closet draws its
+// pieces, so it lands their size; with reduced motion it's that size at once.
 export function CutoutImage({
   cutout,
   frame,
   photo,
   entering = 'none',
+  growMs,
   shadow = false,
   testID,
 }: {
@@ -175,21 +188,32 @@ export function CutoutImage({
   frame: Size;
   photo: Size | null;
   entering?: 'dissolve' | 'none';
+  growMs?: number;
   // The thread-tinted shadow of a piece in the closet (on its way to the rail).
   shadow?: boolean;
   testID?: string;
 }) {
+  const reduceMotion = useReducedMotion();
   const placed = cutout.box && photo ? cutoutFrame(frame, photo, cutout.box) : null;
+  const whole = wholeFrame(frame);
+  const from = placed ?? whole;
+  const to = growMs === undefined ? from : whole;
+  const grows = growMs !== undefined && placed !== null && !reduceMotion;
+  const grown = useSharedValue(grows ? 0 : 1);
+  useEffect(() => {
+    if (grows) grown.value = withTiming(1, { duration: growMs, easing: EASE_OUT });
+  }, [grows, growMs, grown]);
+  const sized = useAnimatedStyle(() => between(from, to, grown.value), [from, to]);
   const animation = entering === 'none' ? undefined : placed ? fadeIn : cutoutIn;
   return (
     // The photo's own directions: placed by left / top, which React Native would swap in Hebrew,
     // while photo pixels are never mirrored.
-    <View style={[StyleSheet.absoluteFill, styles.ltr]} pointerEvents="none">
-      <Animated.View
-        style={placed ? { position: 'absolute', ...placed } : StyleSheet.absoluteFill}
-        entering={animation}
-        testID={testID}
-      >
+    <View
+      style={[StyleSheet.absoluteFill, styles.ltr]}
+      pointerEvents="none"
+      testID={testID && `${testID}-frame`}
+    >
+      <Animated.View style={[styles.placed, sized]} entering={animation} testID={testID}>
         <View style={[styles.image, shadow && cutoutShadow('hanging')]}>
           <Image
             source={{ uri: cutout.uri, headers: cutout.headers }}
@@ -264,6 +288,9 @@ const styles = StyleSheet.create({
   },
   ltr: {
     direction: 'ltr',
+  },
+  placed: {
+    position: 'absolute',
   },
   imageBusy: {
     opacity: 0.55,
