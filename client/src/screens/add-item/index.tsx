@@ -7,13 +7,13 @@ import {
   type Season,
 } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -46,7 +46,7 @@ import { colors, fonts } from '@/theme';
 
 import { ColorSwatches } from './color-swatches';
 import { FieldThread, RailStop, Stop } from './field-thread';
-import { HangUp, type Box } from './hang-up';
+import { HangUp, measureBox, type Box } from './hang-up';
 import { PhotoBand } from './photo-band';
 
 // Photos picked at once from the gallery.
@@ -55,8 +55,6 @@ const MAX_PHOTOS = 20;
 // usually answers in 4–6 s; after half a minute the form simply stays as the user typed it.
 const POLL_MS = 1500;
 const MAX_POLLS = 20;
-// How long "Hang it up" waits for the print to say where it is before flying from the rail.
-const MEASURE_MS = 150;
 
 // idle: nothing to show; waiting: the model is looking at the photo; filled: fields came from it.
 type Tagging = 'idle' | 'waiting' | 'filled';
@@ -320,7 +318,7 @@ export function AddItem() {
         }
       }
       // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone).
-      setHanging({ from: await measure(picture.current), category });
+      setHanging({ from: await measureBox(picture.current), category });
     } catch (cause) {
       setBusy(false);
       const code = limitReached(cause);
@@ -546,29 +544,21 @@ export function AddItem() {
       <PhotoCropper uri={cropping} onCancel={() => setCropping(null)} onDone={cropped} />
       {hanging && photoUri && (
         <HangUp
-          photoUri={photoUri}
-          from={hanging.from}
-          category={hanging.category}
+          pieces={[
+            {
+              key: photoUri,
+              photo: <Image source={{ uri: photoUri }} style={styles.fill} contentFit="contain" />,
+              from: hanging.from,
+              category: hanging.category,
+              tilted: true,
+            },
+          ]}
           caption={t('addItem.hungOn', { rail: t(`closet.filters.${hanging.category}`) })}
           onDone={() => leave(() => router.back())}
         />
       )}
     </View>
   );
-}
-
-// Where the photo in the print is on screen, or null if it doesn't say in time or is scrolled
-// out of sight (it then hangs on the rail without flying in from far off-screen).
-function measure(view: ComponentRef<typeof View> | null): Promise<Box | null> {
-  return new Promise((resolve) => {
-    if (!view) return resolve(null);
-    const timer = setTimeout(() => resolve(null), MEASURE_MS);
-    view.measureInWindow((x, y, width, height) => {
-      clearTimeout(timer);
-      const visible = width > 0 && y + height > 0 && y < Dimensions.get('window').height;
-      resolve(visible ? { x, y, width, height } : null);
-    });
-  });
 }
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
@@ -651,6 +641,10 @@ const styles = StyleSheet.create({
   },
   off: {
     opacity: 0.5,
+  },
+  fill: {
+    width: '100%',
+    height: '100%',
   },
   error: {
     fontFamily: fonts.bodyMedium,
