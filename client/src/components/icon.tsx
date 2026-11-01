@@ -21,6 +21,8 @@ const PATHS = {
   // A quarter turn clockwise.
   rotate: 'M20 12a8 8 0 1 1-2.34-5.66L20 8.5M20 3.5v5h-5',
   crop: 'M7 3v14h14M3 7h14v14',
+  camera:
+    'M3 8.5h3.6l1.7-2.5h7.4l1.7 2.5H21V19H3zM12 16.6a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z',
 } as const;
 
 export type IconName = keyof typeof PATHS;
