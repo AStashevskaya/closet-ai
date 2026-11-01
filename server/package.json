@@ -10,7 +10,7 @@
     "dev:worker": "tsx watch --env-file=.env src/worker.ts",
     "start:worker": "node dist/worker.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --poolOptions.forks.minForks=1 --poolOptions.forks.maxForks=${VITEST_FORKS:-2}",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

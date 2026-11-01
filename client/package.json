@@ -65,7 +65,7 @@
     "web": "expo start --web",
     "lint": "expo lint --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
+    "test": "jest --maxWorkers=${JEST_WORKERS:-2}",
     "test:watch": "jest --watch"
   },
   "private": true,
