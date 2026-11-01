@@ -105,8 +105,9 @@ export function AddItem() {
   // Saved: the piece is flying to its rail, then the sheet closes.
   const [hanging, setHanging] = useState<{ from: Box | null; category: ItemCategory } | null>(null);
   const insets = useSafeAreaInsets();
-  // A picked photo or a typed name is worth asking about before the sheet closes.
-  const leave = useConfirmLeave(photoUri !== null || name.trim() !== '');
+  // A picked photo or a typed name is worth asking about before the sheet closes; once the piece
+  // is saved and hanging up, a swipe down just closes it.
+  const leave = useConfirmLeave(hanging === null && (photoUri !== null || name.trim() !== ''));
 
   async function pick(source: 'camera' | 'library') {
     if (source === 'camera') {

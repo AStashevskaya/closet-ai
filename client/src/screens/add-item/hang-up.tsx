@@ -123,17 +123,19 @@ export function HangUp({ photoUri, from, category, caption, onDone }: Props) {
   }, [ready, reduceMotion, veil, flight, swing, shown]);
 
   const move = flightFrom(from, overlay ?? { x: 0, y: 0, width: 0, height: 0 });
+  // Plain numbers for the worklet, listed as its dependencies: they change once, when measured.
+  const { x, y, scale } = move;
   const piece = useAnimatedStyle(() => {
     const p = flight.value;
     return {
       transform: [
-        { translateX: interpolate(p, [0, 0.22, 1], [move.x, move.x, 0]) },
-        { translateY: interpolate(p, [0, 0.22, 1], [move.y, move.y - LIFT, 0]) },
-        { scale: interpolate(p, [0, 0.22, 1], [move.scale, move.scale * 1.04, 1]) },
+        { translateX: interpolate(p, [0, 0.22, 1], [x, x, 0]) },
+        { translateY: interpolate(p, [0, 0.22, 1], [y, y - LIFT, 0]) },
+        { scale: interpolate(p, [0, 0.22, 1], [scale, scale * 1.04, 1]) },
         { rotate: `${interpolate(p, [0, 1], [TILT, 0])}deg` },
       ],
     };
-  });
+  }, [x, y, scale]);
   const hanger = useAnimatedStyle(() => ({
     opacity: interpolate(flight.value, [0, 0.7, 1], [0, 0, 1]),
   }));
