@@ -83,7 +83,8 @@ export async function matchLookItems(
       const cut = remover
         ? await cutOutByName(remover, crop, item, { fromLook: true }).catch(() => null)
         : null;
-      const query = cut ? await flattenOnWhite(await processCutout(cut)) : crop;
+      const cutout = cut ? await processCutout(cut) : null;
+      const query = cutout ? await flattenOnWhite(cutout.webp) : crop;
       const embedding = await embedder.embedImage(query);
       const shop = catalog ? await partnerOffers(catalog, embedder, item, embedding) : [];
       const noMatch: LookMatch = { ...NO_MATCH, shop };

@@ -3,6 +3,7 @@ import type {
   CreateItemInput,
   Item,
   ItemDetail,
+  ItemBox,
   PhotoStatus,
   SimilarItem,
   UpdateItemInput,
@@ -46,7 +47,13 @@ export const cutoutPath = (itemId: string, cutoutKey: string) =>
 export type PhotoVariant = "photo" | "cutout";
 
 // What toItem needs from the item's photo row (left-joined, so its fields may be null).
-type PhotoFields = { photoStatus: PhotoStatus | null; cutoutKey: string | null };
+type PhotoFields = {
+  photoStatus: PhotoStatus | null;
+  cutoutKey: string | null;
+  // Absent (undefined) where the query doesn't select it, as for outfit cards: the item then
+  // carries no cutoutBox at all. null is a cut-out made before its box was recorded.
+  cutoutBox?: ItemBox | null;
+};
 
 type ItemRow = typeof items.$inferSelect;
 
@@ -64,7 +71,8 @@ export function toColumns(input: UpdateItemInput & { photoKey?: string }) {
 // The photo URL only appears once the worker has stored the WebP; until then the app
 // shows a placeholder and polls while photoStatus is "processing". The cut-out URL comes a few
 // seconds later, once the background is removed.
-export function toItem(row: ItemRow, { photoStatus, cutoutKey }: PhotoFields): Item {
+export function toItem(row: ItemRow, { photoStatus, cutoutKey, cutoutBox }: PhotoFields): Item {
+  const cutout = photoStatus === "ready" && row.photoKey ? cutoutKey : null;
   return {
     id: row.id,
     name: row.name,
@@ -75,16 +83,18 @@ export function toItem(row: ItemRow, { photoStatus, cutoutKey }: PhotoFields): I
     price: row.priceMinor === null ? null : row.priceMinor / 100,
     currency: row.currency,
     photoUrl: photoStatus === "ready" && row.photoKey ? photoPath(row.id, row.photoKey) : undefined,
-    cutoutUrl:
-      photoStatus === "ready" && row.photoKey && cutoutKey
-        ? cutoutPath(row.id, cutoutKey)
-        : undefined,
+    cutoutUrl: cutout ? cutoutPath(row.id, cutout) : undefined,
+    cutoutBox: cutout && cutoutBox !== undefined ? cutoutBox : undefined,
     photoStatus: photoStatus ?? undefined,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
-const photoFields = { photoStatus: photos.status, cutoutKey: photos.cutoutKey };
+const photoFields = {
+  photoStatus: photos.status,
+  cutoutKey: photos.cutoutKey,
+  cutoutBox: photos.cutoutBox,
+};
 
 export function createItemsRepository(db: Db): ItemsRepository {
   async function get(ownerId: string, itemId: string): Promise<ItemDetail | null> {

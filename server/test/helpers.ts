@@ -100,7 +100,11 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         currency,
         createdAt,
       },
-      { photoStatus: photo?.status ?? null, cutoutKey: photo?.cutoutKey ?? null },
+      {
+        photoStatus: photo?.status ?? null,
+        cutoutKey: photo?.cutoutKey ?? null,
+        cutoutBox: photo?.cutoutBox ?? null,
+      },
     );
   };
 
@@ -176,6 +180,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         lookItems: null,
         matches: null,
         cutoutKey: null,
+        cutoutBox: null,
         createdAt: stamp(),
       });
     },
@@ -189,6 +194,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         lookItems: null,
         matches: null,
         cutoutKey: null,
+        cutoutBox: null,
         createdAt: stamp(),
       });
     },
@@ -241,9 +247,9 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       const row = photoRows.get(key);
       if (row) row.embedding = embedding;
     },
-    setCutout: async (key, cutoutKey) => {
+    setCutout: async (key, cutoutKey, cutoutBox) => {
       const row = photoRows.get(key);
-      if (row) row.cutoutKey = cutoutKey;
+      if (row) Object.assign(row, { cutoutKey, cutoutBox });
     },
     listWithoutCutout: async () =>
       [...photoRows.values()]

@@ -17,7 +17,7 @@ import type { Storage } from "../../storage/storage";
 import type { PhotoQueue } from "../../queue/photo-queue";
 import { cutoutKeyFor, deletePhoto } from "../photos/photo-jobs";
 import { photoPrefix } from "../photos/photos.routes";
-import { rotateQuarter } from "../photos/process-photo";
+import { rotateBoxQuarter, rotateQuarter } from "../photos/process-photo";
 import type { PhotosRepository } from "../photos/photos.repository";
 import type { WishesRepository } from "../wishes/wishes.repository";
 import type { ItemsRepository } from "./items.repository";
@@ -108,7 +108,12 @@ export const itemsRoutes =
         if (cutout && turnedCutoutKey) {
           await storage.put(turnedCutoutKey, await rotateQuarter(cutout.body), "image/webp");
         }
-        await photos.copyAs(key, { key: turnedKey, cutoutKey: turnedCutoutKey });
+        // The box turns with the cut-out, so the turned photo still dissolves into it in place.
+        await photos.copyAs(key, {
+          key: turnedKey,
+          cutoutKey: turnedCutoutKey,
+          cutoutBox: turnedCutoutKey && photo.cutoutBox ? rotateBoxQuarter(photo.cutoutBox) : null,
+        });
         if (!(await repo.setPhotoKey(user.id, id, turnedKey)))
           throw httpError(404, "item not found");
 
