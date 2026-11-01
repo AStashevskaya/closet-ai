@@ -78,6 +78,8 @@ export async function modelCopy(image: Uint8Array): Promise<Uint8Array> {
 }
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+// Pixels this close to transparent count as background, for trimming and for an empty cut-out.
+const CUTOUT_ALPHA_THRESHOLD = 10;
 
 // The stored cut-out, and where the piece sits in the photo it was cut out of (0..1, the
 // opaque pixels without the padding), so the app can lay it exactly over the piece.
@@ -91,10 +93,14 @@ export interface Cutout {
 // The PNG covers the whole photo, but not necessarily at the photo's size (a remover may work
 // on a smaller copy), so the box is measured against the PNG's own sides: a share of its
 // width is the same share of the photo's.
-export async function processCutout(png: Uint8Array): Promise<Cutout> {
+// null when nothing in the PNG is opaque: sharp's trim then keeps the whole image, which would
+// make an invisible cut-out with a box over the whole photo, laid over it to erase it.
+export async function processCutout(png: Uint8Array): Promise<Cutout | null> {
   const { width: fullWidth = 1, height: fullHeight = 1 } = await sharp(png).metadata();
+  const alpha = await sharp(png).ensureAlpha().extractChannel(3).stats();
+  if ((alpha.channels[0]?.max ?? 0) <= CUTOUT_ALPHA_THRESHOLD) return null;
   const { data: trimmed, info } = await sharp(png)
-    .trim({ background: TRANSPARENT, threshold: 10 })
+    .trim({ background: TRANSPARENT, threshold: CUTOUT_ALPHA_THRESHOLD })
     .toBuffer({ resolveWithObject: true });
   const { width, height } = info;
   // sharp reports the offsets as negative numbers (where the original's corner now lies),

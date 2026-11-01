@@ -149,12 +149,12 @@ export async function cutOutPhoto(
     }
   }
   const png = await cutOutByName(remover, file.body, tags);
-  // No item found: the photo keeps its background, and is embedded as it is.
-  if (png) {
+  // No item found (or an empty mask): the photo keeps its background, and is embedded as it is.
+  const cutout = png ? await processCutout(png) : null;
+  if (cutout) {
     const cutoutKey = photo.cutoutKey ? redoneCutoutKey(photo.key) : cutoutKeyFor(photo.key);
-    const { webp, box } = await processCutout(png);
-    await storage.put(cutoutKey, webp, "image/webp");
-    await photos.setCutout(photo.key, cutoutKey, box);
+    await storage.put(cutoutKey, cutout.webp, "image/webp");
+    await photos.setCutout(photo.key, cutoutKey, cutout.box);
     if (photo.cutoutKey) await storage.delete(photo.cutoutKey);
   }
   if (embedder) await queue.enqueueEmbedding(photo.key);

@@ -636,11 +636,25 @@ describe("background removal", () => {
     const own = await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: anna } });
     expect(own.statusCode).toBe(200);
     expect(own.headers["content-type"]).toBe("image/webp");
+    expect(own.headers["cache-control"]).toContain("immutable");
     expect((await sharp(own.rawPayload).metadata()).hasAlpha).toBe(true);
+    // Once the cut-out is redone, the old URL still answers, but isn't kept: the phone would
+    // otherwise show the old cut-out under the new box.
+    await cutOutPhoto(jobDeps, photoKey);
+    const stale = await server.inject({
+      method: "GET",
+      url: cutoutUrl!,
+      headers: { cookie: anna },
+    });
+    expect(stale.statusCode).toBe(200);
+    expect(stale.headers["cache-control"]).toBe("no-cache");
+    const { cutoutUrl: redone } = (await status(anna)).json<PhotoState>();
+    expect(redone).not.toBe(cutoutUrl);
+    const fresh = await server.inject({ method: "GET", url: redone!, headers: { cookie: anna } });
+    expect(fresh.headers["cache-control"]).toContain("immutable");
     // Someone else's key answers like a missing one, on both routes.
     expect(
-      (await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: maya } }))
-        .statusCode,
+      (await server.inject({ method: "GET", url: redone!, headers: { cookie: maya } })).statusCode,
     ).toBe(404);
     expect((await status(maya)).statusCode).toBe(404);
 
@@ -653,7 +667,7 @@ describe("background removal", () => {
         payload: { name: "Shirt", category: "top", colors: ["white"], photoKey },
       })
     ).json<Item>();
-    expect(item.cutoutBox).toEqual(cutoutBox);
+    expect(item.cutoutBox).toEqual((await status(anna)).json<PhotoState>().cutoutBox);
   });
 
   it("gives a redone cut-out a URL of its own and deletes the old one", async () => {

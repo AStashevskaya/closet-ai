@@ -173,14 +173,17 @@ export const photosRoutes =
         const user = request.user as SessionUser;
         const photo = await photos.get(request.query.key);
         // Someone else's photo answers like a missing one.
-        const file =
-          photo?.ownerId === user.id && photo.cutoutKey ? await storage.get(photo.cutoutKey) : null;
-        if (!file) throw httpError(404, "no cut-out");
+        const cutoutKey = photo?.ownerId === user.id ? photo.cutoutKey : null;
+        const file = cutoutKey ? await storage.get(cutoutKey) : null;
+        if (!cutoutKey || !file) throw httpError(404, "no cut-out");
         // A cut-out key never changes content (a redone one gets a new key), so the phone can
-        // keep it; "private" keeps shared caches from storing someone's wardrobe.
+        // keep it for good, but only under the URL of that key: an old or missing `v` would
+        // otherwise keep a redone cut-out under the old one, out of step with the status's box.
+        // "private" keeps shared caches from storing someone's wardrobe.
+        const current = request.query.v === keyVersion(cutoutKey);
         return reply
           .header("content-type", file.contentType)
-          .header("cache-control", "private, max-age=31536000, immutable")
+          .header("cache-control", current ? "private, max-age=31536000, immutable" : "no-cache")
           .send(Buffer.from(file.body));
       },
     );

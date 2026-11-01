@@ -50,7 +50,8 @@ export type PhotoVariant = "photo" | "cutout";
 type PhotoFields = {
   photoStatus: PhotoStatus | null;
   cutoutKey: string | null;
-  // Absent where only the URLs are needed.
+  // Absent (undefined) where the query doesn't select it, as for outfit cards: the item then
+  // carries no cutoutBox at all. null is a cut-out made before its box was recorded.
   cutoutBox?: ItemBox | null;
 };
 

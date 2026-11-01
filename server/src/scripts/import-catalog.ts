@@ -43,7 +43,9 @@ const embedder = createFashionSiglipEmbedder(env.MODEL_CACHE_DIR);
 
 const items = feed.parse(JSON.parse(await readFile(path.join(folder, "feed.json"), "utf8")));
 for (const { image, price, ...item } of items) {
-  const { webp: picture } = await processCutout(await readFile(path.join(folder, image)));
+  const cutout = await processCutout(await readFile(path.join(folder, image)));
+  if (!cutout) throw new Error(`${image} is fully transparent`);
+  const picture = cutout.webp;
   const imageKey = `catalog/${item.externalId}.webp`;
   await s3.storage.put(imageKey, picture, "image/webp");
   await catalog.upsert({

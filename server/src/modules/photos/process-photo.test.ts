@@ -100,10 +100,12 @@ const removerPng = (
     .toBuffer();
 
 describe("processCutout", () => {
+  // A cut-out of a PNG known to have a piece on it.
+  const cutOut = async (png: Buffer) => (await processCutout(png))!;
   const box = { xMin: 0.1, yMin: 0.2, xMax: 0.6, yMax: 0.5 };
 
   it("records where the piece sits in the photo, and pads the stored cut-out", async () => {
-    const { webp, box: found } = await processCutout(await removerPng(400, 300, [40, 60, 200, 90]));
+    const { webp, box: found } = await cutOut(await removerPng(400, 300, [40, 60, 200, 90]));
     expect(found).toEqual(box);
     // The piece plus CUTOUT_PADDING of its longer side all round.
     const pad = Math.round(200 * CUTOUT_PADDING);
@@ -116,19 +118,28 @@ describe("processCutout", () => {
 
   it("gives the same box when the remover answers at another size than the photo", async () => {
     // The same photo as above, at 2.5×: a share of the PNG is the same share of the photo.
-    const { box: found } = await processCutout(await removerPng(1000, 750, [100, 150, 500, 225]));
+    const { box: found } = await cutOut(await removerPng(1000, 750, [100, 150, 500, 225]));
     expect(found).toEqual(box);
   });
 
   it("spans the whole photo when the piece reaches every edge", async () => {
-    const { box: found } = await processCutout(await removerPng(120, 80, [0, 0, 120, 80]));
+    const { box: found } = await cutOut(await removerPng(120, 80, [0, 0, 120, 80]));
     expect(found).toEqual({ xMin: 0, yMin: 0, xMax: 1, yMax: 1 });
+  });
+
+  it("makes no cut-out of a fully transparent PNG, rather than one over the whole photo", async () => {
+    const empty = await sharp({
+      create: { width: 120, height: 80, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .png()
+      .toBuffer();
+    expect(await processCutout(empty)).toBeNull();
   });
 
   it("turns the box as the photo is turned a quarter clockwise", async () => {
     const png = await removerPng(400, 300, [40, 60, 200, 90]);
     const turned = await sharp(png).rotate(90).png().toBuffer();
-    const { box: found } = await processCutout(turned);
+    const { box: found } = await cutOut(turned);
     const expected = rotateBoxQuarter(box);
     for (const side of ["xMin", "yMin", "xMax", "yMax"] as const) {
       expect(found[side]).toBeCloseTo(expected[side], 10);
