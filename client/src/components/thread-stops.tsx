@@ -208,6 +208,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   dot: {
+    // Set, not left out: iOS keeps a dashed border once it's been dashed.
+    borderStyle: 'solid',
     position: 'absolute',
     start: THREAD_X - INDENT - DOT / 2,
     width: DOT,
