@@ -2,14 +2,16 @@ import { Image } from 'expo-image';
 import type { ComponentRef, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { I18nManager, StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { Keyframe, useReducedMotion } from 'react-native-reanimated';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { Icon, type IconName } from '@/components/icon';
 import { maison } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
-import { CSS_EASE_OUT, durations, rise, STAGGER_STEP } from '@/motion';
+import { CSS_EASE_OUT, durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
+
+import type { Cutout } from './wait-for-cutout';
 
 export const PRINT_WIDTH = 176;
 export const PRINT_HEIGHT = 214;
@@ -32,7 +34,21 @@ type Props = {
   pictureRef?: Ref<ComponentRef<typeof View>>;
   // A line under the print: what's going on with the photo.
   note: ReactNode;
+  // The piece's cut-out once it's made: the photo's background dissolves around it.
+  cutout?: Cutout | null;
 };
+
+// How long the photo's background takes to dissolve when the cut-out comes.
+export const DISSOLVE_MS = 400;
+
+// The cut-out comes in growing from a little smaller. The server trims a cut-out to the piece, so
+// drawn into the same frame it's larger than the piece in the photo; growing in hides that jump
+// for now. The real fix needs the server to return the cut-out's box in the photo, so the two can
+// be laid exactly over each other (follow-up).
+const cutoutIn = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.85 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
+}).duration(DISSOLVE_MS);
 
 // The top of the add-item screen: powder blue, the colour of something new arriving, with the
 // piece on it as a white print and round Rotate / Crop / Another photo beside it. Before a photo
@@ -47,8 +63,16 @@ export function PhotoBand({
   onAnother,
   pictureRef,
   note,
+  cutout,
 }: Props) {
   const { t } = useTranslation();
+  const reduceMotion = useReducedMotion();
+  // The cross-fade from photo to cut-out; with reduced motion it simply swaps.
+  const dissolve = (property: 'opacity' | 'backgroundColor') => ({
+    transitionProperty: property,
+    transitionDuration: reduceMotion ? 0 : DISSOLVE_MS,
+    transitionTimingFunction: CSS_EASE_OUT,
+  });
   return (
     <View style={styles.band}>
       <View style={styles.stage}>
@@ -67,17 +91,40 @@ export function PhotoBand({
                 },
               ]}
             >
-              <View style={styles.picture}>
+              {/* With the cut-out the background dissolves: the grey turns to the paper and the
+                  photo fades from under the bare piece, which stays on the print. */}
+              <Animated.View
+                style={[styles.picture, cutout && styles.pictureBare, dissolve('backgroundColor')]}
+              >
                 <View ref={pictureRef} style={styles.image} collapsable={false}>
-                  <Image
-                    source={{ uri: photoUri }}
-                    style={[styles.image, busy && styles.imageBusy]}
-                    contentFit="contain"
-                    transition={250}
-                    accessibilityIgnoresInvertColors
-                  />
+                  <Animated.View
+                    style={[styles.image, cutout ? styles.gone : null, dissolve('opacity')]}
+                    testID="band-photo"
+                  >
+                    <Image
+                      source={{ uri: photoUri }}
+                      style={[styles.image, busy && !cutout && styles.imageBusy]}
+                      contentFit="contain"
+                      transition={250}
+                      accessibilityIgnoresInvertColors
+                    />
+                  </Animated.View>
+                  {cutout && (
+                    <Animated.View
+                      style={StyleSheet.absoluteFill}
+                      entering={reduceMotion ? undefined : cutoutIn}
+                      testID="band-cutout"
+                    >
+                      <Image
+                        source={{ uri: cutout.uri, headers: cutout.headers }}
+                        style={styles.image}
+                        contentFit="contain"
+                        accessibilityIgnoresInvertColors
+                      />
+                    </Animated.View>
+                  )}
                 </View>
-              </View>
+              </Animated.View>
               <Text style={styles.caption} numberOfLines={1}>
                 {caption.trim() || '…'}
               </Text>
@@ -164,6 +211,12 @@ const styles = StyleSheet.create({
   },
   imageBusy: {
     opacity: 0.55,
+  },
+  pictureBare: {
+    backgroundColor: colors.paper,
+  },
+  gone: {
+    opacity: 0,
   },
   caption: {
     position: 'absolute',

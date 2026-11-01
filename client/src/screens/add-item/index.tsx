@@ -1,6 +1,7 @@
 import {
   ITEM_CATEGORIES,
   type Currency,
+  type Item,
   type ItemCategory,
   type ItemColor,
   type LimitCode,
@@ -22,11 +23,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandPriceFields } from '@/components/brand-price-fields';
 import { Chip } from '@/components/chip';
+import { cutoutShadow } from '@/components/cutout-shadow';
 import { Icon } from '@/components/icon';
 import { MAX_COLORS } from '@/components/item-fields';
 import { Button, maison } from '@/components/maison';
@@ -47,7 +49,8 @@ import { colors, fonts } from '@/theme';
 import { ColorSwatches } from './color-swatches';
 import { FieldThread, RailStop, Stop } from './field-thread';
 import { HangUp, measureBox, type Box } from './hang-up';
-import { PhotoBand } from './photo-band';
+import { DISSOLVE_MS, PhotoBand } from './photo-band';
+import { pause, waitForCutout, type Cutout } from './wait-for-cutout';
 
 // Photos picked at once from the gallery.
 const MAX_PHOTOS = 20;
@@ -101,15 +104,34 @@ export function AddItem() {
   const [nameFocused, setNameFocused] = useState(false);
   // The photo inside the print, where "Hang it up" starts.
   const picture = useRef<ComponentRef<typeof View>>(null);
-  // Saved: the piece is flying to its rail, then the sheet closes.
-  const [hanging, setHanging] = useState<{ from: Box | null; category: ItemCategory } | null>(null);
+  // Saved: the screen waits a moment for the piece's cut-out (the bead runs down the thread), then
+  // the piece flies to its rail and the sheet closes.
+  const [saved, setSaved] = useState(false);
+  const [hanging, setHanging] = useState<{
+    from: Box | null;
+    category: ItemCategory;
+    // The bare piece, or null to fly the photo.
+    cutout: Cutout | null;
+  } | null>(null);
+  // The cut-out on the band's print, once it's made (only after saving: the photo's status
+  // before then doesn't say whether it has one).
+  const [bandCutout, setBandCutout] = useState<Cutout | null>(null);
+  const reduceMotion = useReducedMotion();
+  // Stops waiting for the cut-out when the sheet closes.
+  // Made in the effect, so a remount (or Fast Refresh) starts with a fresh one, not an aborted one.
+  const closing = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    closing.current = controller;
+    return () => controller.abort();
+  }, []);
   const insets = useSafeAreaInsets();
   // Where the screen starts in the window, for the keyboard (see KeyboardAvoidingView below).
   const root = useRef<ComponentRef<typeof View>>(null);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   // A picked photo or a typed name is worth asking about before the sheet closes; once the piece
-  // is saved and hanging up, a swipe down just closes it.
-  const leave = useConfirmLeave(hanging === null && (photoUri !== null || name.trim() !== ''));
+  // is saved, a swipe down just closes it.
+  const leave = useConfirmLeave(!saved && (photoUri !== null || name.trim() !== ''));
 
   async function pick(source: 'camera' | 'library') {
     if (source === 'camera') {
@@ -288,12 +310,13 @@ export function AddItem() {
 
     setError(null);
     setBusy(true);
+    let created: Item;
     try {
       // Usually already uploaded while the form was filled in; if that upload failed, try once more.
       const uploaded = await (upload.current ?? Promise.reject(new Error('not uploaded'))).catch(
         () => uploadPhoto(photoUri, lang),
       );
-      const created = await createItem({
+      created = await createItem({
         name: name.trim(),
         category,
         colors: itemColors,
@@ -303,22 +326,6 @@ export function AddItem() {
         price: paid,
         currency: paid === null ? null : currency,
       });
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (andStyle) {
-        try {
-          const { id } = await askWearWith({ itemId: created.id }, lang);
-          leave(() =>
-            router.replace({ pathname: '/styled/[id]', params: styledParams(id, created, null) }),
-          );
-          return;
-        } catch (cause) {
-          // The item is saved either way; only the outfits didn't start.
-          const code = limitReached(cause);
-          Alert.alert(code ? limitText(t, i18n.language, code) : t('wearWith.failed'));
-        }
-      }
-      // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone).
-      setHanging({ from: await measureBox(picture.current), category });
     } catch (cause) {
       setBusy(false);
       const code = limitReached(cause);
@@ -330,8 +337,50 @@ export function AddItem() {
       // The user sees a generic message; the real error goes to the Metro terminal.
       if (__DEV__) console.warn('Saving the item failed', cause);
       fail('addItem.errors.save');
-      setBusy(false);
+      return;
     }
+
+    // Saved: from here nothing shows a save error or allows saving again (it would make a second
+    // piece); whatever goes wrong, the sheet just closes. `busy` stays on.
+    setSaved(true);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (andStyle) {
+      try {
+        const { id } = await askWearWith({ itemId: created.id }, lang);
+        leave(() =>
+          router.replace({ pathname: '/styled/[id]', params: styledParams(id, created, null) }),
+        );
+        return;
+      } catch (cause) {
+        // The item is saved either way; only the outfits didn't start.
+        const code = limitReached(cause);
+        Alert.alert(code ? limitText(t, i18n.language, code) : t('wearWith.failed'));
+      }
+    }
+    try {
+      await hangUp(created, category);
+    } catch (cause) {
+      if (__DEV__) console.warn('Hanging the piece up failed', cause);
+      leave(() => router.back());
+    }
+  }
+
+  // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone). The bare
+  // cut-out flies if it comes within a few seconds, the photo otherwise.
+  async function hangUp(created: Item, rail: ItemCategory) {
+    const signal = closing.current?.signal;
+    if (!signal || signal.aborted) return;
+    const cutout = await waitForCutout(created, signal);
+    if (signal.aborted) return;
+    if (cutout) {
+      // The background dissolves on the print first, then the bare piece leaves it.
+      setBandCutout(cutout);
+      if (!reduceMotion) await pause(DISSOLVE_MS, signal);
+      if (signal.aborted) return;
+    }
+    const from = await measureBox(picture.current);
+    if (signal.aborted) return;
+    setHanging({ from, category: rail, cutout });
   }
 
   const note =
@@ -381,12 +430,15 @@ export function AddItem() {
             onAnother={another}
             pictureRef={picture}
             note={note}
+            cutout={bandCutout}
           />
 
           {photoUri ? (
             <FieldThread
-              waiting={tagging === 'waiting'}
-              filled={tagging === 'filled'}
+              // Reading the photo, or saved and waiting for the cut-out: the same one sign.
+              waiting={tagging === 'waiting' || (saved && hanging === null)}
+              // The settle fade is for tags landing, not for the piece leaving.
+              filled={tagging === 'filled' && !saved}
               rail={
                 <Animated.View entering={rise.delay(STAGGER_STEP * 4)}>
                   <RailStop category={category} label={t('addItem.hangingOn')}>
@@ -510,7 +562,8 @@ export function AddItem() {
                 kind="bright"
                 label={t('addItem.hang')}
                 onPress={() => void save()}
-                busy={busy && hanging === null}
+                // Once saved, the bead on the thread is the only sign of waiting.
+                busy={busy && !saved}
                 disabled={busy}
               />
               <PressableScale
@@ -547,7 +600,23 @@ export function AddItem() {
           pieces={[
             {
               key: photoUri,
-              photo: <Image source={{ uri: photoUri }} style={styles.fill} contentFit="contain" />,
+              photo: hanging.cutout ? (
+                // The bare piece with its thread-tinted shadow, as on the closet's rails.
+                <View style={[styles.fill, cutoutShadow('hanging')]} testID="hung-cutout">
+                  <Image
+                    source={{ uri: hanging.cutout.uri, headers: hanging.cutout.headers }}
+                    style={styles.fill}
+                    contentFit="contain"
+                  />
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.fill}
+                  contentFit="contain"
+                  testID="hung-photo"
+                />
+              ),
               from: hanging.from,
               category: hanging.category,
               tilted: true,

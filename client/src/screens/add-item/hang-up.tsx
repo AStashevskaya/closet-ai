@@ -123,8 +123,9 @@ type Props = {
 // "Hang it up" (decided 2026-10-31), the signature move for anything entering the closet: the
 // print's frame fades, the photo flies to a rail, its hanger appears, it swings once and settles,
 // then a handwritten caption names the rail and the sheet closes. Several pieces go one after
-// another. A tap closes it at once. With reduced motion the pieces are simply there. The cut-out
-// isn't made yet when a piece is saved, so the photo itself flies.
+// another. A tap closes it at once. With reduced motion the pieces are simply there. What flies
+// is the caller's: the bare cut-out when it has one (add-item waits a moment for it), the photo
+// otherwise.
 export function HangUp({ pieces, caption, onDone }: Props) {
   const reduceMotion = useReducedMotion();
   const ref = useRef<ComponentRef<typeof View>>(null);
