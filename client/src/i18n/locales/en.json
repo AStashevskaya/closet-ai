@@ -146,12 +146,12 @@
   },
   "auth": {
     "signIn": "Sign in",
-    "signUp": "Create account",
-    "name": "Name",
+    "signUp": "Start my closet",
+    "name": "Your name",
     "email": "Email",
     "password": "Password",
-    "toSignUp": "No account yet? Create one",
-    "toSignIn": "Already have an account? Sign in",
+    "toSignUp": "Start one",
+    "toSignIn": "Sign in",
     "signOut": "Sign out",
     "errors": {
       "required": "Fill in all fields",
@@ -162,9 +162,14 @@
       "network": "Can't reach the server. Check your connection and try again.",
       "generic": "Something went wrong. Try again."
     },
-    "welcomeTitle": "Welcome",
+    "welcomeTitle": "Welcome back",
     "signUpTitle": "Start your closet",
-    "intro": "Put together outfits from your own closet, sell what you don't wear and find similar pieces for less."
+    "intro": "Put looks together from your closet, sell what you don't wear and find something similar for less.",
+    "haveAccount": "Have an account?",
+    "noAccount": "No account?",
+    "railEmpty": "Your closet goes here",
+    "railWaiting": "Your closet is waiting",
+    "passwordHint": "8 characters or more"
   },
   "seasons": {
     "spring": "Spring",
