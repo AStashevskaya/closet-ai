@@ -68,6 +68,21 @@ export type CreateItemInput = z.infer<typeof createItemInput>;
 export const priceHasCurrency = (input: { price?: number | null; currency?: string | null }) =>
   input.price == null || input.currency != null;
 
+// Where an item is in its photo, relative to the image: 0..1 from the left and top edges.
+export const itemBox = z.object({
+  xMin: z.number().min(0).max(1),
+  yMin: z.number().min(0).max(1),
+  xMax: z.number().min(0).max(1),
+  yMax: z.number().min(0).max(1),
+});
+export type ItemBox = z.infer<typeof itemBox>;
+
+// Room the stored cut-out leaves around the piece on every side, as a share of the piece's
+// longer side (in pixels). A cut-out image of longer side L holds the piece inset by
+// L × CUTOUT_PADDING / (1 + 2 × CUTOUT_PADDING) on each side, which is how the app lays it
+// over the photo by its cutoutBox (to within a pixel: the server rounds the padding).
+export const CUTOUT_PADDING = 0.06;
+
 export const item = createItemInput.omit({ photoKey: true }).extend({
   id: z.string().uuid(),
   createdAt: z.string().datetime(),
@@ -76,6 +91,10 @@ export const item = createItemInput.omit({ photoKey: true }).extend({
   // The same photo with the background removed (transparent WebP). Set a few seconds after
   // photoUrl, or never when background removal is off or failed: show photoUrl until then.
   cutoutUrl: z.string().optional(),
+  // Where the cut-out's piece sits in the photo (without the padding, see CUTOUT_PADDING), so
+  // the app can lay the cut-out exactly over it. null for cut-outs made before it was recorded;
+  // absent when there is no cutoutUrl.
+  cutoutBox: itemBox.nullable().optional(),
   photoStatus: photoStatus.optional(),
 });
 export type Item = z.infer<typeof item>;
@@ -136,15 +155,6 @@ export type TagStatus = z.infer<typeof tagStatus>;
 export const PHOTO_KINDS = ["item", "look", "want", "wear", "inspiration"] as const;
 export const photoKind = z.enum(PHOTO_KINDS);
 export type PhotoKind = z.infer<typeof photoKind>;
-
-// Where an item is in its photo, relative to the image: 0..1 from the left and top edges.
-export const itemBox = z.object({
-  xMin: z.number().min(0).max(1),
-  yMin: z.number().min(0).max(1),
-  xMax: z.number().min(0).max(1),
-  yMax: z.number().min(0).max(1),
-});
-export type ItemBox = z.infer<typeof itemBox>;
 
 // One item found on a look photo: its tags and its box.
 export const lookItem = itemTags.omit({ recognized: true }).extend({ box: itemBox });
@@ -208,6 +218,11 @@ export const photoState = z.object({
   matches: z
     .array(z.object({ how: matchKind, item: item.nullable(), shop: z.array(catalogItem) }))
     .nullable(),
+  // The piece cut out of its background, once it is (the add-item form dissolves the background
+  // while she fills the fields), and where it sits in the photo (as on an item). Absent until
+  // then, and from servers before this field: optional so installed app builds keep working.
+  cutoutUrl: z.string().optional(),
+  cutoutBox: itemBox.nullable().optional(),
 });
 export type PhotoState = z.infer<typeof photoState>;
 

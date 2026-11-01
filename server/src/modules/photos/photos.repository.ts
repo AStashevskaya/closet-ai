@@ -1,4 +1,5 @@
 import type {
+  ItemBox,
   ItemCategory,
   ItemTags,
   LookItem,
@@ -22,6 +23,7 @@ export interface Photo {
   lookItems: LookItem[] | null;
   matches: LookMatch[] | null;
   cutoutKey: string | null;
+  cutoutBox: ItemBox | null;
 }
 
 // A wardrobe item that may match an item on a "want" look, with what its photo is stored as.
@@ -49,7 +51,10 @@ export interface PhotosRepository {
   get(key: string): Promise<Photo | null>;
   // A copy of a ready photo stored under new keys (the photo turned by the user): same owner,
   // kind, tags and embedding.
-  copyAs(key: string, copy: { key: string; cutoutKey: string | null }): Promise<void>;
+  copyAs(
+    key: string,
+    copy: { key: string; cutoutKey: string | null; cutoutBox: ItemBox | null },
+  ): Promise<void>;
   // The processed WebP is stored and the original deleted.
   markReady(key: string): Promise<void>;
   markFailed(key: string): Promise<void>;
@@ -64,7 +69,7 @@ export interface PhotosRepository {
     limit: number,
   ): Promise<ClosestItem[]>;
   setEmbedding(key: string, embedding: number[]): Promise<void>;
-  setCutout(key: string, cutoutKey: string): Promise<void>;
+  setCutout(key: string, cutoutKey: string, box: ItemBox): Promise<void>;
   // Ready photos with no cut-out yet: what the cut-out backfill script queues.
   listWithoutCutout(): Promise<string[]>;
   // Ready photos that have no embedding yet: what the backfill script queues.
@@ -89,6 +94,7 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     lookItems: photos.lookItems,
     matches: photos.matches,
     cutoutKey: photos.cutoutKey,
+    cutoutBox: photos.cutoutBox,
   };
 
   return {
@@ -163,8 +169,8 @@ export function createPhotosRepository(db: Db): PhotosRepository {
       await db.update(photos).set({ embedding }).where(eq(photos.key, key));
     },
 
-    async setCutout(key, cutoutKey) {
-      await db.update(photos).set({ cutoutKey }).where(eq(photos.key, key));
+    async setCutout(key, cutoutKey, cutoutBox) {
+      await db.update(photos).set({ cutoutKey, cutoutBox }).where(eq(photos.key, key));
     },
 
     async listWithoutCutout() {

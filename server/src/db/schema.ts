@@ -15,6 +15,7 @@ import {
   SPEND_ACTIONS,
   type AppLanguage,
   type BuyVerdict,
+  type ItemBox,
   type ItemTags,
   type LookItem,
   type LookMatch,
@@ -84,6 +85,10 @@ export const photos = pgTable(
     // Storage key of the item cut out of its background (a WebP with transparency, next to the
     // photo); null until the worker has made it, or when background removal is off.
     cutoutKey: text("cutout_key"),
+    // Where the cut-out's piece sits in this photo (0..1, without the cut-out's padding), so the
+    // app can lay the cut-out over it. Null with no cut-out, and for cut-outs made before it was
+    // recorded (they would need the remover again to measure).
+    cutoutBox: jsonb("cutout_box").$type<ItemBox>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

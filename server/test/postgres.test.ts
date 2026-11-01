@@ -407,12 +407,19 @@ describe.skipIf(!url)("on Postgres", () => {
       })
     ).json<Item>();
 
-    await photos.setCutout(key, `photos/${user!.id}/cut-cutout.webp`);
+    const box = { xMin: 0.1, yMin: 0.2, xMax: 0.7, yMax: 0.9 };
+    await photos.setCutout(key, `photos/${user!.id}/cut-cutout.webp`, box);
     expect(await photos.listWithoutCutout()).not.toContain(key);
+    expect((await photos.get(key))?.cutoutBox).toEqual(box);
     const item = (
       await app.inject({ method: "GET", url: `/api/items/${id}`, headers: { cookie } })
     ).json<Item>();
     expect(item.cutoutUrl).toMatch(new RegExp(`^/api/items/${id}/photo\\?variant=cutout&v=`));
+    expect(item.cutoutBox).toEqual(box);
+    const [listed] = (
+      await app.inject({ method: "GET", url: "/api/items", headers: { cookie } })
+    ).json<Item[]>();
+    expect(listed?.cutoutBox).toEqual(box);
   });
 
   it("copies a photo under new keys and points the item at the copy", async () => {
@@ -441,7 +448,12 @@ describe.skipIf(!url)("on Postgres", () => {
     ).json<Item>();
 
     const turned = `photos/${user!.id}/after.webp`;
-    await photos.copyAs(key, { key: turned, cutoutKey: `photos/${user!.id}/after-cutout.webp` });
+    const turnedBox = { xMin: 0.1, yMin: 0.2, xMax: 0.7, yMax: 0.9 };
+    await photos.copyAs(key, {
+      key: turned,
+      cutoutKey: `photos/${user!.id}/after-cutout.webp`,
+      cutoutBox: turnedBox,
+    });
     const items = createItemsRepository(db.db);
     expect(await items.setPhotoKey(user!.id, id, turned)).toBe(true);
     expect(await items.setPhotoKey("someone-else", id, key)).toBe(false);
@@ -451,6 +463,7 @@ describe.skipIf(!url)("on Postgres", () => {
       status: "ready",
       tags: shirtTags,
       cutoutKey: `photos/${user!.id}/after-cutout.webp`,
+      cutoutBox: turnedBox,
     });
     expect(await items.photoKey(user!.id, id, "photo")).toBe(turned);
   });

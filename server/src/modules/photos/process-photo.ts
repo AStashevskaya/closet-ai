@@ -1,3 +1,4 @@
+import { CUTOUT_PADDING, type ItemBox } from "@closet-ai/shared";
 import sharp from "sharp";
 
 // Sharp enough for a full-screen photo on a phone and for cropping into it (1024 px at quality
@@ -76,22 +77,54 @@ export async function modelCopy(image: Uint8Array): Promise<Uint8Array> {
     .toBuffer();
 }
 
-// Room left around a cut-out item, as a share of its longer side, so it doesn't touch the edges
-// of a card.
-const CUTOUT_PADDING = 0.06;
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+
+// The stored cut-out, and where the piece sits in the photo it was cut out of (0..1, the
+// opaque pixels without the padding), so the app can lay it exactly over the piece.
+export interface Cutout {
+  webp: Uint8Array;
+  box: ItemBox;
+}
 
 // Turns the background remover's PNG into the stored cut-out: the empty margins trimmed, a
 // little even padding added back, WebP with transparency.
-export async function processCutout(png: Uint8Array): Promise<Uint8Array> {
-  const trimmed = await sharp(png).trim({ background: TRANSPARENT, threshold: 10 }).toBuffer();
-  const { width = 0, height = 0 } = await sharp(trimmed).metadata();
+// The PNG covers the whole photo, but not necessarily at the photo's size (a remover may work
+// on a smaller copy), so the box is measured against the PNG's own sides: a share of its
+// width is the same share of the photo's.
+export async function processCutout(png: Uint8Array): Promise<Cutout> {
+  const { width: fullWidth = 1, height: fullHeight = 1 } = await sharp(png).metadata();
+  const { data: trimmed, info } = await sharp(png)
+    .trim({ background: TRANSPARENT, threshold: 10 })
+    .toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
+  // sharp reports the offsets as negative numbers (where the original's corner now lies),
+  // and leaves them out when nothing was trimmed.
+  const left = -(info.trimOffsetLeft ?? 0);
+  const top = -(info.trimOffsetTop ?? 0);
+  const share = (value: number, side: number) => Math.min(1, Math.max(0, value / side));
+  const box = {
+    xMin: share(left, fullWidth),
+    yMin: share(top, fullHeight),
+    xMax: share(left + width, fullWidth),
+    yMax: share(top + height, fullHeight),
+  };
   const pad = Math.round(Math.max(width, height) * CUTOUT_PADDING);
-  return sharp(trimmed)
+  const webp = await sharp(trimmed)
     .extend({ top: pad, bottom: pad, left: pad, right: pad, background: TRANSPARENT })
     .webp({ quality: WEBP_QUALITY, alphaQuality: 90, effort: 6 })
     .toBuffer();
+  return { webp, box };
 }
+
+// A cut-out's box after its photo is turned a quarter clockwise, as rotateQuarter turns it: a
+// point (x, y) goes to (1 − y, x). Turning the box is exact and costs nothing, where clearing
+// it would leave a turned photo unable to dissolve into its cut-out.
+export const rotateBoxQuarter = (box: ItemBox): ItemBox => ({
+  xMin: 1 - box.yMax,
+  yMin: box.xMin,
+  xMax: 1 - box.yMin,
+  yMax: box.xMax,
+});
 
 // A stored photo or cut-out turned a quarter clockwise, when the user asks: transparency kept.
 export async function rotateQuarter(webp: Uint8Array): Promise<Uint8Array> {

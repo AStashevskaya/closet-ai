@@ -162,6 +162,13 @@
       "when": 1793198213111,
       "tag": "0022_dislike_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793546749957,
+      "tag": "0023_photo_cutout_box",
+      "breakpoints": true
     }
   ]
 }

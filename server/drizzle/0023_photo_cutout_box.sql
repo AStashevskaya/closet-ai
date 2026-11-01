@@ -1,0 +1,1 @@
+ALTER TABLE "photos" ADD COLUMN "cutout_box" jsonb;

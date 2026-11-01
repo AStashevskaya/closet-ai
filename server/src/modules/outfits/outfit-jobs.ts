@@ -370,8 +370,9 @@ async function heroFromPhoto(
     const whole = png ? await isWhole(png, photo.tags.category).catch(() => false) : false;
     if (png && whole) {
       cutoutKey = cutoutKeyFor(photo.key);
-      await storage.put(cutoutKey, await processCutout(png), "image/webp");
-      await photos.setCutout(photo.key, cutoutKey);
+      const { webp, box } = await processCutout(png);
+      await storage.put(cutoutKey, webp, "image/webp");
+      await photos.setCutout(photo.key, cutoutKey, box);
     }
   }
   const image = cutoutKey ? await storage.get(cutoutKey) : crop;

@@ -152,8 +152,9 @@ export async function cutOutPhoto(
   // No item found: the photo keeps its background, and is embedded as it is.
   if (png) {
     const cutoutKey = photo.cutoutKey ? redoneCutoutKey(photo.key) : cutoutKeyFor(photo.key);
-    await storage.put(cutoutKey, await processCutout(png), "image/webp");
-    await photos.setCutout(photo.key, cutoutKey);
+    const { webp, box } = await processCutout(png);
+    await storage.put(cutoutKey, webp, "image/webp");
+    await photos.setCutout(photo.key, cutoutKey, box);
     if (photo.cutoutKey) await storage.delete(photo.cutoutKey);
   }
   if (embedder) await queue.enqueueEmbedding(photo.key);
