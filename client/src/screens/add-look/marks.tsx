@@ -1,6 +1,6 @@
 import type { ItemBox, LookItem } from '@closet-ai/shared';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Line, Path } from 'react-native-svg';
 
@@ -77,14 +77,44 @@ const SPACE_X = 6;
 const SPACE_Y = 4;
 const TIE = 10;
 
+// How much more covering a label weighs than covering a mark, when a label has nowhere free to go.
+const LABEL_WEIGHT = 4;
+
+function overlap(a: Rect, b: Rect) {
+  const width = Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left);
+  const height = Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top);
+  return width > 0 && height > 0 ? width * height : 0;
+}
+
 export type Placed = { left: number; top: number; anchor: { x: number; y: number } };
 
 // Where each mark's label goes: largest mark first, each in the first free spot around it (above,
 // beside, below, inside), on the stage and clear of the labels placed before it. With no free
-// spot it goes above, pushed onto the stage. Returned by the piece's index.
+// spot (a crowded photo) it takes, of the same spots pushed onto the stage, the one that covers
+// least of the labels placed and of the other marks, labels counting most: a label hidden under
+// another can't be tapped. Returned by the piece's index.
 export function placeLabels(marks: Mark[], sizes: Size[], stage: Stage): Placed[] {
   const placed: (Placed & Size)[] = [];
   const out: Placed[] = [];
+  const leastCovering = (spots: Placed[], size: Size, own: number) => {
+    let best = spots[0]!;
+    let bestCost = Infinity;
+    for (const spot of spots) {
+      const at = {
+        left: Math.max(MARGIN, Math.min(stage.width - MARGIN - size.width, spot.left)),
+        top: Math.max(MARGIN, Math.min(stage.height - MARGIN - size.height, spot.top)),
+        ...size,
+      };
+      const cost =
+        LABEL_WEIGHT * placed.reduce((sum, other) => sum + overlap(at, other), 0) +
+        marks.reduce((sum, mark) => sum + (mark.index === own ? 0 : overlap(at, mark.at)), 0);
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = { ...spot, left: at.left, top: at.top };
+      }
+    }
+    return best;
+  };
   for (const { index, at } of marks) {
     const { width, height } = sizes[index]!;
     const cx = at.left + at.width / 2;
@@ -116,12 +146,7 @@ export function placeLabels(marks: Mark[], sizes: Size[], stage: Stage): Placed[
           spot.top < other.top + other.height + SPACE_Y &&
           other.top < spot.top + height + SPACE_Y,
       );
-    const first = spots[0]!;
-    const spot = spots.find(free) ?? {
-      ...first,
-      left: Math.max(MARGIN, Math.min(stage.width - MARGIN - width, first.left)),
-      top: Math.max(MARGIN, Math.min(stage.height - MARGIN - height, first.top)),
-    };
+    const spot = spots.find(free) ?? leastCovering(spots, { width, height }, index);
     placed.push({ ...spot, width, height });
     out[index] = spot;
   }
@@ -151,9 +176,20 @@ const HALO = 3.4;
 // them and are hidden from assistive tech.
 export function Marks({ items, aspect, stage, picked, onToggle }: Props) {
   const marks = marksOf(items, aspect, stage);
-  // Each label's size, measured once off-screen before the labels are placed.
-  const [sizes, setSizes] = useState<(Size | undefined)[]>(() => items.map(() => undefined));
-  const measured = sizes.every(Boolean);
+  // Each label's size, measured off-screen before the labels are placed, and again when the
+  // system text size changes. Fonts need no wait: the root layout keeps the splash up until they
+  // have loaded (src/app/_layout.tsx); if they fail to load, the fallback font is used from the
+  // start, so the sizes measured then stay right.
+  const { fontScale } = useWindowDimensions();
+  const [measuring, setMeasuring] = useState(() => ({
+    fontScale,
+    sizes: items.map((): Size | undefined => undefined),
+  }));
+  if (measuring.fontScale !== fontScale) {
+    setMeasuring({ fontScale, sizes: items.map(() => undefined) });
+  }
+  const { sizes } = measuring;
+  const measured = measuring.fontScale === fontScale && sizes.every(Boolean);
   const labels = measured ? placeLabels(marks, sizes as Size[], stage) : null;
   // Where each piece's mark is in the drawing order, for its entrance.
   const order = new Map(marks.map((mark, k) => [mark.index, k]));
@@ -267,7 +303,10 @@ export function Marks({ items, aspect, stage, picked, onToggle }: Props) {
               testID="measure-label"
               onLayout={(event) => {
                 const { width, height } = event.nativeEvent.layout;
-                setSizes((old) => old.map((size, k) => (k === index ? { width, height } : size)));
+                setMeasuring((old) => ({
+                  ...old,
+                  sizes: old.sizes.map((size, k) => (k === index ? { width, height } : size)),
+                }));
               }}
             >
               <Text style={styles.labelText} numberOfLines={1}>
@@ -375,6 +414,7 @@ const styles = StyleSheet.create({
   measure: {
     position: 'absolute',
     top: 0,
+    // Left, not start: the marks' layer is LTR on purpose (photo pixels aren't mirrored).
     left: 0,
     opacity: 0,
     alignItems: 'flex-start',

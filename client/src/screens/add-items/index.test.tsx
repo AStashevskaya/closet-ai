@@ -82,7 +82,7 @@ describe('<AddItems />', () => {
     expect(uploadPhoto).toHaveBeenCalledTimes(3);
     expect(uploadPhoto).toHaveBeenCalledWith('file:///shirt.jpg', 'en');
 
-    await fireEvent.press(screen.getByText('Add 2 items'));
+    await fireEvent.press(screen.getByText('Add 2 pieces'));
 
     await waitFor(() => expect(mockBack).toHaveBeenCalled());
     expect(createItem).toHaveBeenCalledTimes(2);
@@ -103,7 +103,7 @@ describe('<AddItems />', () => {
     await screen.findByText('Blue jeans');
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Blue jeans' }));
     await screen.findByText("Couldn't recognise it — add it on its own");
-    await fireEvent.press(screen.getByText('Add 1 item'));
+    await fireEvent.press(screen.getByText('Add 1 piece'));
 
     await waitFor(() => expect(mockBack).toHaveBeenCalled());
     expect(createItem).toHaveBeenCalledTimes(1);
@@ -119,11 +119,11 @@ describe('<AddItems />', () => {
     await render(<AddItems />);
     await screen.findByText("Couldn't recognise it — add it on its own");
     await screen.findByText('Blue jeans');
-    await fireEvent.press(screen.getByText('Add 2 items'));
+    await fireEvent.press(screen.getByText('Add 2 pieces'));
 
     expect(await screen.findByText("Couldn't add some of the items. Try again.")).toBeOnTheScreen();
     expect(screen.getByText('Added')).toBeOnTheScreen();
-    expect(screen.getByText('Add 1 item')).toBeOnTheScreen();
+    expect(screen.getByText('Add 1 piece')).toBeOnTheScreen();
     expect(mockBack).not.toHaveBeenCalled();
   });
   test('saves what was corrected in the list', async () => {
@@ -132,7 +132,7 @@ describe('<AddItems />', () => {
     await fireEvent.press(await screen.findByLabelText('Edit Blue jeans'));
     await fireEvent.changeText(screen.getByDisplayValue('Blue jeans'), 'Wide-leg jeans');
     await fireEvent.press(screen.getByText('Blue'));
-    await fireEvent.press(screen.getByText('Add 2 items'));
+    await fireEvent.press(screen.getByText('Add 2 pieces'));
 
     await waitFor(() => expect(mockBack).toHaveBeenCalled());
     expect(createItem).toHaveBeenCalledWith(
@@ -145,7 +145,7 @@ describe('<AddItems />', () => {
     await screen.findByText("Couldn't recognise it — add it on its own");
     await fireEvent.press(await screen.findByLabelText('Edit White shirt'));
     await fireEvent.changeText(screen.getByDisplayValue('White shirt'), ' ');
-    await fireEvent.press(screen.getByText('Add 2 items'));
+    await fireEvent.press(screen.getByText('Add 2 pieces'));
 
     expect(
       screen.getByText('Fill in a name and at least one color for each ticked item'),
@@ -160,8 +160,8 @@ describe('<AddItems />', () => {
     await fireEvent.press(screen.getAllByLabelText('Rotate photo')[0]!);
 
     await waitFor(() => expect(uploadPhoto).toHaveBeenCalledWith('file:///shirt-turned.jpg', 'en'));
-    await waitFor(() => expect(screen.getByText('Add 2 items')).toBeEnabled());
-    await fireEvent.press(screen.getByText('Add 2 items'));
+    await waitFor(() => expect(screen.getByText('Add 2 pieces')).toBeEnabled());
+    await fireEvent.press(screen.getByText('Add 2 pieces'));
 
     await waitFor(() => expect(mockBack).toHaveBeenCalled());
     expect(createItem).toHaveBeenCalledWith(
@@ -183,6 +183,6 @@ describe('<AddItems />', () => {
     await fireEvent.press(buttons[buttons.length - 1]!);
 
     expect(await screen.findByText('Grey cardigan')).toBeOnTheScreen();
-    expect(screen.getByText('Add 3 items')).toBeOnTheScreen();
+    expect(screen.getByText('Add 3 pieces')).toBeOnTheScreen();
   });
 });

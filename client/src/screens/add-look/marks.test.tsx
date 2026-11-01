@@ -1,6 +1,6 @@
 import type { ItemBox, LookItem } from '@closet-ai/shared';
 
-import { marksOf, placeLabels, rectOf, stageOf } from './marks';
+import { marksOf, placeLabels, rectOf, stageOf, type Placed } from './marks';
 
 const item = (box: ItemBox): LookItem => ({
   name: 'Piece',
@@ -115,5 +115,39 @@ describe('placeLabels', () => {
     const small = rectOf(items[0]!.box, 1, stage);
     // The first piece's label is tied to the first piece.
     expect(Math.abs(placed[0]!.anchor.x - (small.left + small.width / 2))).toBeLessThan(40);
+  });
+
+  test('on a crowded photo no label hides another one whole', () => {
+    // A full-length selfie: coat, top, trousers, and a row of small things close together
+    // (rings, a watch, a bracelet), more than there are free spots around them.
+    const stage = stageOf(9 / 16, 360);
+    const small = [0.36, 0.4, 0.44, 0.48, 0.52, 0.56].map((x) =>
+      item({ xMin: x, yMin: 0.5, xMax: x + 0.03, yMax: 0.515 }),
+    );
+    const items = [
+      item({ xMin: 0.15, yMin: 0.15, xMax: 0.85, yMax: 0.6 }),
+      item({ xMin: 0.3, yMin: 0.2, xMax: 0.7, yMax: 0.45 }),
+      item({ xMin: 0.25, yMin: 0.45, xMax: 0.75, yMax: 0.9 }),
+      ...small,
+    ];
+    const size = { width: 110, height: 28 };
+    const placed = placeLabels(
+      marksOf(items, 9 / 16, stage),
+      items.map(() => size),
+      stage,
+    );
+    const covered = (p: Placed, q: Placed) => {
+      const w = Math.min(p.left, q.left) + size.width - Math.max(p.left, q.left);
+      const h = Math.min(p.top, q.top) + size.height - Math.max(p.top, q.top);
+      return w > 0 && h > 0 ? w * h : 0;
+    };
+    for (let a = 0; a < placed.length; a++) {
+      for (let b = a + 1; b < placed.length; b++) {
+        // Some of each label stays free to tap.
+        expect(covered(placed[a]!, placed[b]!)).toBeLessThan(size.width * size.height * 0.75);
+      }
+      expect(placed[a]!.left).toBeGreaterThanOrEqual(0);
+      expect(placed[a]!.left + size.width).toBeLessThanOrEqual(stage.width);
+    }
   });
 });

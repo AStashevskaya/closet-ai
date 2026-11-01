@@ -348,7 +348,7 @@ export function AddLook() {
         {adding ? (
           <Button
             kind="bright"
-            label={t('addLook.addPieces', { count: picked.size })}
+            label={t('addLook.add', { count: picked.size })}
             onPress={() => void save()}
             busy={busy && hanging === null}
             disabled={busy}
