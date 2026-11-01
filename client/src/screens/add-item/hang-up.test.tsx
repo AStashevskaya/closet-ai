@@ -11,9 +11,7 @@ describe('<HangUp />', () => {
   function hangUp(onDone: () => void) {
     return render(
       <HangUp
-        photoUri="file:///small.jpg"
-        from={null}
-        category="top"
+        pieces={[{ key: 'one', photo: null, from: null, category: 'top' }]}
         caption="On the Tops rail"
         onDone={onDone}
       />,
@@ -73,5 +71,38 @@ describe('flightFrom', () => {
 
   test('flies from the rail itself when the print could not be measured', () => {
     expect(flightFrom(null, overlay)).toMatchObject({ x: 0, y: 0, scale: 1 });
+  });
+
+  test('hangs a batch side by side, smaller when they would not fit', () => {
+    const pieces = [0, 1, 2].map((index) => flightFrom(null, overlay, index, 3));
+    // Left to right in reading order, around the middle.
+    expect(pieces[0]!.rest.x).toBeLessThan(0);
+    expect(pieces[1]!.rest.x).toBeCloseTo(0);
+    expect(pieces[2]!.rest.x).toBeCloseTo(-pieces[0]!.rest.x);
+    // Two fit at full size; eight don't.
+    expect(flightFrom(null, overlay, 0, 2).rest.scale).toBe(1);
+    const many = flightFrom(null, overlay, 0, 8);
+    expect(many.rest.scale).toBeLessThan(1);
+    expect(many.bottom).toBeLessThan(pieces[0]!.bottom);
+  });
+});
+
+describe('<HangUp /> with a batch', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  test('waits for the last piece before it closes', async () => {
+    const onDone = jest.fn();
+    await render(
+      <HangUp
+        pieces={['a', 'b', 'c'].map((key) => ({ key, photo: null, from: null, category: 'top' }))}
+        caption="3 pieces in your closet"
+        onDone={onDone}
+      />,
+    );
+    await act(() => jest.advanceTimersByTimeAsync(3300));
+    expect(onDone).not.toHaveBeenCalled();
+    await act(() => jest.advanceTimersByTimeAsync(300));
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 });

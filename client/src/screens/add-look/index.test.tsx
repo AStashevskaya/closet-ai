@@ -1,5 +1,5 @@
 import type { LookItem } from '@closet-ai/shared';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import i18n from '@/i18n';
@@ -80,27 +80,74 @@ beforeEach(async () => {
   jest.mocked(addLookItems).mockResolvedValue([]);
 });
 
+// The marks, the thread and the measuring copies are hidden from screen readers.
+const hidden = { includeHiddenElements: true };
+
+// Labels are placed once their sizes are known; Jest has no layout, so it is given here.
+async function measureLabels() {
+  for (const label of screen.getAllByTestId('measure-label', hidden)) {
+    await fireEvent(label, 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 96, height: 28 } },
+    });
+  }
+}
+
+async function findPieces() {
+  findAfterOnePoll(found);
+  await render(<AddLook />);
+  await fireEvent.press(screen.getByText('Choose from gallery'));
+  await screen.findByText('Found 2 pieces — tap one to leave it out', {}, { timeout: 3000 });
+  await measureLabels();
+}
+
 describe('<AddLook />', () => {
-  test('uploads the selfie as a look and lists the items found on it', async () => {
+  test('uploads the selfie as a look and marks the pieces found on it', async () => {
     findAfterOnePoll(found);
     await render(<AddLook />);
     await fireEvent.press(screen.getByText('Choose from gallery'));
 
     expect(uploadPhoto).toHaveBeenCalledWith('file:///small.jpg', 'en', 'look');
+    // Waiting: the same screen, a bead running along the look's thread.
     expect(screen.getByText('Looking for the items you’re wearing…')).toBeOnTheScreen();
-    expect(await screen.findByText('Pink tweed top', {}, { timeout: 3000 })).toBeOnTheScreen();
-    expect(screen.getByText('White sandals')).toBeOnTheScreen();
-    expect(screen.getByText('Add 2 items')).toBeOnTheScreen();
+    expect(screen.getByTestId('thread-waiting', hidden)).toBeOnTheScreen();
+
+    expect(
+      await screen.findByText('Found 2 pieces — tap one to leave it out', {}, { timeout: 3000 }),
+    ).toBeOnTheScreen();
+    await measureLabels();
+    expect(
+      screen.getByRole('checkbox', { name: 'Pink tweed top', checked: true }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('checkbox', { name: 'White sandals', checked: true }),
+    ).toBeOnTheScreen();
+    expect(screen.getAllByTestId(/^loop-/, hidden)).toHaveLength(2);
+    expect(screen.getAllByTestId('bead-on', hidden)).toHaveLength(2);
+    expect(screen.getByText('Add 2 pieces')).toBeOnTheScreen();
   });
 
-  test('adds only the items left ticked', async () => {
-    findAfterOnePoll(found);
-    await render(<AddLook />);
-    await fireEvent.press(screen.getByText('Choose from gallery'));
-    await screen.findByText('White sandals', {}, { timeout: 3000 });
+  test('a tap on a label or a loop leaves the piece out', async () => {
+    await findPieces();
 
     await fireEvent.press(screen.getByRole('checkbox', { name: 'White sandals' }));
-    await fireEvent.press(screen.getByText('Add 1 item'));
+    expect(
+      screen.getByRole('checkbox', { name: 'White sandals', checked: false }),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('Add 1 piece')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('bead-off', hidden)).toHaveLength(1);
+
+    await fireEvent.press(screen.getByTestId('loop-0', hidden));
+    expect(screen.getByText('Add 0 pieces')).toBeOnTheScreen();
+    // And back in.
+    await fireEvent.press(screen.getByTestId('loop-0', hidden));
+    expect(screen.getByText('Add 1 piece')).toBeOnTheScreen();
+  });
+
+  test('adds only the pieces left in, then hangs them up', async () => {
+    await findPieces();
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'White sandals' }));
+    await fireEvent.press(screen.getByText('Add 1 piece'));
 
     expect(addLookItems).toHaveBeenCalledWith({
       photoKey: 'photos/u1/look.webp',
@@ -114,20 +161,33 @@ describe('<AddLook />', () => {
         },
       ],
     });
-    await waitFor(() => expect(mockBack).toHaveBeenCalled());
+    // "Hang it up" names the count; a tap closes it at once.
+    const caption = await screen.findByText('1 piece in your closet');
+    expect(mockBack).not.toHaveBeenCalled();
+    await fireEvent.press(caption);
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
-  test('asks for at least one item', async () => {
-    findAfterOnePoll(found);
-    await render(<AddLook />);
-    await fireEvent.press(screen.getByText('Choose from gallery'));
-    await screen.findByText('White sandals', {}, { timeout: 3000 });
+  test('says so when saving fails, and keeps the pieces', async () => {
+    jest.mocked(addLookItems).mockRejectedValueOnce(new Error('500'));
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await findPieces();
+
+    await fireEvent.press(screen.getByText('Add 2 pieces'));
+
+    expect(await screen.findByText('Couldn’t add the items. Try again.')).toBeOnTheScreen();
+    expect(screen.queryByText('2 pieces in your closet')).not.toBeOnTheScreen();
+    expect(screen.getByText('Add 2 pieces')).toBeOnTheScreen();
+  });
+
+  test('asks for at least one piece', async () => {
+    await findPieces();
 
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Pink tweed top' }));
     await fireEvent.press(screen.getByRole('checkbox', { name: 'White sandals' }));
-    await fireEvent.press(screen.getByText('Add 0 items'));
+    await fireEvent.press(screen.getByText('Add 0 pieces'));
 
-    expect(screen.getByText('Tick at least one item')).toBeOnTheScreen();
+    expect(screen.getByText('Keep at least one piece')).toBeOnTheScreen();
     expect(addLookItems).not.toHaveBeenCalled();
   });
 
@@ -144,9 +204,11 @@ describe('<AddLook />', () => {
       ),
     ).toBeOnTheScreen();
     expect(screen.queryByText(/^Add /)).not.toBeOnTheScreen();
+    // Another photo takes the bottom again.
+    expect(screen.getByText('Choose from gallery')).toBeOnTheScreen();
   });
 
-  test('says so when the photo can’t be read', async () => {
+  test('says so when the photo can’t be read, the thread left dashed', async () => {
     jest.mocked(getPhotoState).mockResolvedValue({
       status: 'ready',
       tagStatus: 'failed',
@@ -160,5 +222,7 @@ describe('<AddLook />', () => {
     expect(
       await screen.findByText('Couldn’t read this photo. Try again.', {}, { timeout: 3000 }),
     ).toBeOnTheScreen();
+    expect(screen.getByTestId('thread-unread', hidden)).toBeOnTheScreen();
+    expect(screen.queryByTestId('thread-waiting', hidden)).not.toBeOnTheScreen();
   });
 });
