@@ -1,3 +1,4 @@
+import type { Item } from '@closet-ai/shared';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 import { colors } from '@/theme';
@@ -6,6 +7,16 @@ import { colors } from '@/theme';
 // hanger for bottoms, a bare hook for bags and accessories, a small clip for a photo print still
 // waiting for its cut-out.
 export type HangerKind = 'coat' | 'clip' | 'hook' | 'print';
+
+// What a piece hangs from, by its category, as on her rails.
+export const HANGERS: Record<Item['category'], HangerKind> = {
+  top: 'coat',
+  dress: 'coat',
+  outerwear: 'coat',
+  bottom: 'clip',
+  shoes: 'hook',
+  accessory: 'hook',
+};
 
 export const HANGER_WIDTH = 84;
 export const HANGER_HEIGHT = 34;

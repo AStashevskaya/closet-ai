@@ -1,4 +1,4 @@
-import type { CatalogItem, Item, LimitCode, LookItem, MatchKind } from '@closet-ai/shared';
+import type { LimitCode } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,7 +11,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
-import { LookCollage } from '@/components/look-collage';
 import { PartnerOffers } from '@/components/partner-offers';
 import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
@@ -24,13 +23,12 @@ import { durations } from '@/motion';
 import { LookCrop } from '@/screens/add-look/look-crop';
 import { colors, fonts } from '@/theme';
 
+import { Beads, Curtain, type Found } from './curtain';
+
 // Finding the items and comparing each with the wardrobe takes 10–20 s; after a minute and a
 // half the screen gives up.
 const POLL_MS = 1500;
 const MAX_POLLS = 60;
-
-type Match = { how: MatchKind; item: Item | null; shop: CatalogItem[] };
-type Found = { item: LookItem; match: Match };
 
 // The screenshot picked, uploaded and read: from nothing picked yet to its items and matches.
 type Look =
@@ -150,7 +148,6 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       ? look.found.flatMap(({ match }) => (match.item ? [match.item] : []))
       : [];
   const owned = mine.length;
-  const collage = [...new Map(mine.map((item) => [item.id, item])).values()];
 
   const pickButton = (label: string, primary: boolean) => (
     <PressableScale
@@ -188,6 +185,29 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
             <Text style={styles.left}>{t('limits.left', { left, limit: usage!.want.limit })}</Text>
           )}
         </>
+      ) : look.status === 'found' && look.found.length > 0 && owned === 0 ? (
+        // Nothing of hers to show behind a curtain: her look, and the rows say what to find.
+        <Animated.View entering={FadeIn.duration(durations.enter)}>
+          <Image
+            source={{ uri: look.uri }}
+            style={[styles.photo, { aspectRatio: look.aspect }]}
+            contentFit="contain"
+            accessibilityIgnoresInvertColors
+          />
+          <Text style={styles.noneOwned} accessibilityLiveRegion="polite">
+            {t('want.noneOwned')}
+          </Text>
+        </Animated.View>
+      ) : look.status === 'found' && look.found.length > 0 ? (
+        <Animated.View entering={FadeIn.duration(durations.enter)}>
+          <Curtain uri={look.uri} aspect={look.aspect} found={look.found} headers={headers} />
+          <View accessible accessibilityLiveRegion="polite">
+            <Beads
+              found={look.found}
+              summary={t('want.summary', { owned, count: look.found.length })}
+            />
+          </View>
+        </Animated.View>
       ) : (
         <Image
           source={{ uri: look.uri }}
@@ -198,7 +218,7 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       )}
 
       {/* Keyed by the state, so each message fades in after the last one. */}
-      {look.status !== 'empty' && (
+      {look.status !== 'empty' && !(look.status === 'found' && look.found.length > 0) && (
         <Animated.View
           key={look.status}
           style={styles.status}
@@ -207,21 +227,12 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
           accessibilityLiveRegion="polite"
         >
           {look.status === 'finding' && <HangerLoader size="small" />}
-          <Text style={[styles.statusText, look.status === 'found' && styles.summary]}>
+          <Text style={styles.statusText}>
             {look.status === 'finding' && t('want.finding')}
             {look.status === 'failed' &&
               (look.offline ? t('common.offline') : t('want.errors.find'))}
-            {look.status === 'found' &&
-              (look.found.length > 0
-                ? t('want.summary', { owned, count: look.found.length })
-                : t('want.none'))}
+            {look.status === 'found' && t('want.none')}
           </Text>
-        </Animated.View>
-      )}
-
-      {collage.length > 0 && (
-        <Animated.View entering={FadeIn.duration(durations.enter)}>
-          <LookCollage items={collage} headers={headers} caption={t('want.collage')} />
         </Animated.View>
       )}
 
@@ -323,6 +334,14 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
+  noneOwned: {
+    marginTop: 16,
+    fontFamily: fonts.displayLight,
+    fontSize: 24,
+    lineHeight: 28,
+    color: colors.text,
+    textAlign: 'center',
+  },
   status: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -337,12 +356,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     textAlign: 'center',
-  },
-  summary: {
-    fontFamily: fonts.displayLight,
-    fontSize: 28,
-    lineHeight: 32,
-    color: colors.text,
   },
   row: {
     flexDirection: 'row',
