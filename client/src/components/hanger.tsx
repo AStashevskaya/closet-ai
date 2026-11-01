@@ -28,16 +28,27 @@ export const HANGER_PIVOT_Y = 3;
 const HOOK = 'M37.5 5C37.5 2 39.5.6 42 .6s4.5 1.6 4.5 4c0 2.8-4.5 3.4-4.5 6.9';
 
 // One thin stroke on an 84×34 grid, like the icons. Dashed for a piece that isn't hers yet.
-export function Hanger({ kind, dashed = false }: { kind: HangerKind; dashed?: boolean }) {
+// `width` scales the whole hanger (same grid); the line keeps its weight on screen, so a small
+// hanger isn't drawn in a hairline.
+export function Hanger({
+  kind,
+  dashed = false,
+  width = HANGER_WIDTH,
+}: {
+  kind: HangerKind;
+  dashed?: boolean;
+  width?: number;
+}) {
+  const line = HANGER_WIDTH / width;
   return (
     <Svg
-      width={HANGER_WIDTH}
-      height={HANGER_HEIGHT}
+      width={width}
+      height={(width * HANGER_HEIGHT) / HANGER_WIDTH}
       viewBox={`0 0 ${HANGER_WIDTH} ${HANGER_HEIGHT}`}
       fill="none"
       stroke={dashed ? colors.textMuted : colors.text}
-      strokeWidth={1.3}
-      strokeDasharray={dashed ? [2.5, 3] : undefined}
+      strokeWidth={1.3 * line}
+      strokeDasharray={dashed ? [2.5 * line, 3 * line] : undefined}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
