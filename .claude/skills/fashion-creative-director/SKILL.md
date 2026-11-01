@@ -66,6 +66,8 @@ Every major proposal answers:
 
 If the result looks generic, rework the composition before implementing.
 
+Before calling a screen done, design every state it can be in, not only the full one: waiting (the same screen, per the waiting rule in `docs/design.md`), empty, failed with a way to retry, offline, a used-up limit, a denied camera or photo permission, and very long Russian text. Keep "nothing here yet" apart from "couldn't load".
+
 ## Signature identity
 
 Look for chances to build recognizable product signatures: a distinctive way of showing wardrobe items, outfit-composition interactions, unexpected navigation, an editorial type system, memorable empty states, signature transitions, a distinctive treatment of clothing imagery. A signature is reusable and recognizable across screens, not a one-off gimmick. Existing candidates to build on or challenge: the collage pages (cut-outs on paper, tape, handwritten captions), `HangerLoader`, the thread (the rails and tab bar line that always means a connection), the hand-drawn heart "where love" is, the cherry `colors.bead`, the slow rise-and-settle stagger. What each sign means, and the signatures decided since (powder blue = new or being edited, dashed = not hers yet, prints vs bare cut-outs, "Hang it up", marks on photos), is in `docs/design.md`: keep to it, or say why a screen should break it.

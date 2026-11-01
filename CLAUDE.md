@@ -27,6 +27,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `docs/product.md`: roadmap, Free / Premium, outfit taste, feature boundaries, partner items, Want / Can, the brand demo.
 - `docs/design.md`: the design rules (what the thread, dashed, blue, the bead, the heart, prints and handwriting mean; motion; marks on photos) and the screens decided but not built yet. Read it before any UI work.
 - `.claude/skills/fashion-creative-director`: the creative-director skill for UI work (new screens, redesigns, motion): three directions and approval before building anything significant.
+- Manual skills (run on request, never automatically): `/closet-security-review` (before a tester build, on auth/storage PRs), `/closet-release-check` (before TestFlight / store), `/closet-outfit-eval` (a change that claims better looks or picks), `/closet-ai-cost` (before setting limits or prices).
 - Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
 ## Stack
