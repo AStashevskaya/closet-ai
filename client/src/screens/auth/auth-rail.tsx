@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useReducedMotion,
@@ -27,6 +28,12 @@ const SWAY_OFFSET_MS = 700;
 // Silhouettes appear one after another, and how faint they are once they're there.
 const FILL_STEP = 120;
 const FAINT = 0.34;
+
+// How visible a silhouette is, 0 (an empty hanger) to FAINT, for how far it has come in (0 to 1).
+export function silhouetteOpacity(shown: number) {
+  'worklet';
+  return shown * FAINT;
+}
 
 // Faint pieces on the hangers, drawn on a 74×110 grid from the neck down: a tee, a dress, a long
 // coat, a shirt and a knit. Shapes, not photos: they only say "your clothes go here".
@@ -75,7 +82,12 @@ function SwayingHanger({
   const shown = useSharedValue(0);
 
   useEffect(() => {
-    if (reduced) return;
+    if (reduced) {
+      // Hangs straight (0.5 is the middle of the sway).
+      cancelAnimation(sway);
+      sway.set(0.5);
+      return;
+    }
     // Starts part of the way into its first sway, then swings back and forth for good.
     const start = ((index * SWAY_OFFSET_MS) % SWAY_MS) / SWAY_MS;
     const ease = Easing.inOut(Easing.sin);
@@ -86,6 +98,7 @@ function SwayingHanger({
         withRepeat(withTiming(0, { duration: SWAY_MS, easing: ease }), -1, true),
       ),
     );
+    return () => cancelAnimation(sway);
   }, [index, reduced, sway]);
 
   useEffect(() => {
@@ -108,7 +121,7 @@ function SwayingHanger({
     transform: [{ rotate: `${(sway.get() * 2 - 1) * SWAY_DEG}deg` }],
   }));
   const piece = useAnimatedStyle(() => ({
-    opacity: shown.get() * FAINT,
+    opacity: silhouetteOpacity(shown.get()),
     transform: [{ translateY: (shown.get() - 1) * 10 }],
   }));
 

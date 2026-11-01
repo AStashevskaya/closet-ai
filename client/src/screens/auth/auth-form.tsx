@@ -127,6 +127,10 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
     setMode(isSignUp ? 'sign-in' : 'sign-up');
     setSwitched(true);
     setError(null);
+    // The screen doesn't change under a screen reader's focus (it stays on the link), so say where she is.
+    AccessibilityInfo.announceForAccessibility(
+      t(isSignUp ? 'auth.welcomeTitle' : 'auth.signUpTitle'),
+    );
   }
 
   // The thread starts under the title's bead and ends in the middle of the button's.

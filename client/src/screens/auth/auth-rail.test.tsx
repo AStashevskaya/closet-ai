@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
 
-import { AuthRail } from './auth-rail';
+import { AuthRail, silhouetteOpacity } from './auth-rail';
 
 describe('<AuthRail />', () => {
   test('hangs five pieces, hidden from screen readers', async () => {
@@ -21,5 +21,11 @@ describe('<AuthRail />', () => {
     const after = screen.getAllByTestId('auth-rail-piece', { includeHiddenElements: true });
     expect(after).toHaveLength(5);
     expect(after[0]).toBe(before[0]);
+  });
+
+  test('an empty hanger shows nothing; a filled one a faint piece', () => {
+    expect(silhouetteOpacity(0)).toBe(0);
+    expect(silhouetteOpacity(1)).toBeGreaterThan(0);
+    expect(silhouetteOpacity(1)).toBeLessThan(0.5);
   });
 });

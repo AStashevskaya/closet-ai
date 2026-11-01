@@ -93,8 +93,13 @@ describe('<AuthForm mode="sign-in" />', () => {
     await render(<AuthForm mode="sign-in" />);
     expect(screen.getByText('Your closet is waiting')).toBeOnTheScreen();
     await fill('Email', 'anna@example.com');
+    const emailField = screen.getByPlaceholderText('Email');
 
     await fireEvent.press(screen.getByRole('link', { name: 'No account? Start one' }));
+
+    // The same field, not a new screen: nothing enters again.
+    expect(screen.getByPlaceholderText('Email')).toBe(emailField);
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith('Start your closet');
 
     expect(screen.getByRole('header')).toHaveTextContent('Start your closet');
     expect(screen.getByText('Your closet goes here')).toBeOnTheScreen();

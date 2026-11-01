@@ -16,8 +16,8 @@ import { colors } from '@/theme';
 
 // The thread of the auth screens: from the title's bead on the blue band down through the fields
 // to the button, the bead at its end. The same approach as the add-item fields' thread
-// (`screens/add-item/field-thread.tsx`, PR #101); kept separate until that one is merged, then the
-// line and the stop can be shared.
+// (`screens/add-item/field-thread.tsx`, PR #101); kept separate until that one is merged.
+// TODO: once #101 is in, share one thread line and stop between the two screens.
 
 // Where the thread runs, from the start edge of the column, and where the stops' content starts.
 export const THREAD_X = 9;
@@ -43,6 +43,16 @@ export function ThreadLine({ top, length, waiting }: LineProps) {
   const drawn = useSharedValue(reduced ? 1 : 0);
   const run = useSharedValue(0);
   const measured = length > 0;
+  // Follows the stops when they slide (a field in or out, an error), so the line stays on the
+  // button's bead instead of jumping ahead of it.
+  const height = useSharedValue(length);
+  const track = useSharedValue(top);
+  useEffect(() => {
+    const first = height.get() === 0;
+    const slide = { duration: durations.state, easing: EASE_OUT };
+    height.set(first || reduced ? length : withTiming(length, slide));
+    track.set(first || reduced ? top : withTiming(top, slide));
+  }, [length, top, reduced, height, track]);
 
   useEffect(() => {
     if (!measured) return;
@@ -53,21 +63,22 @@ export function ThreadLine({ top, length, waiting }: LineProps) {
     if (waiting && !reduced) {
       run.set(0);
       run.set(withRepeat(withTiming(1, { duration: RUN_MS, easing: EASE_OUT }), -1));
-    } else {
-      cancelAnimation(run);
-      run.set(0);
+      return () => cancelAnimation(run);
     }
+    cancelAnimation(run);
+    run.set(0);
   }, [waiting, reduced, run]);
 
   const line = useAnimatedStyle(() => ({ transform: [{ scaleY: drawn.get() }] }));
   const bead = useAnimatedStyle(() => ({
     opacity: interpolate(run.get(), [0, 0.85, 1], [1, 1, 0]),
-    transform: [{ translateY: run.get() * Math.max(0, length - BEAD) }],
+    transform: [{ translateY: run.get() * Math.max(0, height.get() - BEAD) }],
   }));
+  const size = useAnimatedStyle(() => ({ top: -track.get(), height: height.get() }));
 
   return (
-    <View
-      style={[styles.track, { top: -top, height: length }]}
+    <Animated.View
+      style={[styles.track, size]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
@@ -79,7 +90,7 @@ export function ThreadLine({ top, length, waiting }: LineProps) {
           exiting={FadeOut.duration(durations.state)}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 
