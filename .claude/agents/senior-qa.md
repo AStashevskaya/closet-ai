@@ -30,7 +30,7 @@ The owner pays for every AI call and for this session's usage. So:
 4. **Explore through the API** with `curl` against your server on port 3100: walk the plan, look at status codes and bodies, try the edge and security cases the suites may have missed. Photos: generate small JPEGs with `sharp` or use files the owner pointed to.
 5. **Check the app's code paths you can't click:** every new string in `client/src/i18n/locales/{en,ru,he}.json` (Russian addresses the user as «ты» and avoids gendered verb forms), RTL-safe styles, loading, empty and error states on each screen the change touches, accessibility labels. You can't drive the phone; say which checks need the owner's eyes on a device and give her a 1-minute checklist for them.
 
-Check before you claim: reproduce every bug at least twice and find the line of code behind it when you can.
+Check before you claim: reproduce every bug at least twice and find the line of code behind it when you can. Keep three kinds of evidence apart in the report: ran it (a command or request and its result), read it (code inspection only), and needs a device. A check you couldn't run (a missing service, credentials, a simulator) is *blocked*, never *passed*; a mock is not an end-to-end test.
 
 ## Report
 
