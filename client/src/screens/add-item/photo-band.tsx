@@ -2,13 +2,13 @@ import { Image } from 'expo-image';
 import type { ComponentRef, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { I18nManager, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
+import Animated, { Keyframe, useReducedMotion } from 'react-native-reanimated';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { Icon, type IconName } from '@/components/icon';
 import { maison } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
-import { CSS_EASE_OUT, durations, rise, STAGGER_STEP } from '@/motion';
+import { CSS_EASE_OUT, durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import type { Cutout } from './wait-for-cutout';
@@ -40,6 +40,15 @@ type Props = {
 
 // How long the photo's background takes to dissolve when the cut-out comes.
 export const DISSOLVE_MS = 400;
+
+// The cut-out comes in growing from a little smaller. The server trims a cut-out to the piece, so
+// drawn into the same frame it's larger than the piece in the photo; growing in hides that jump
+// for now. The real fix needs the server to return the cut-out's box in the photo, so the two can
+// be laid exactly over each other (follow-up).
+const cutoutIn = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.85 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
+}).duration(DISSOLVE_MS);
 
 // The top of the add-item screen: powder blue, the colour of something new arriving, with the
 // piece on it as a white print and round Rotate / Crop / Another photo beside it. Before a photo
@@ -103,7 +112,7 @@ export function PhotoBand({
                   {cutout && (
                     <Animated.View
                       style={StyleSheet.absoluteFill}
-                      entering={reduceMotion ? undefined : FadeIn.duration(DISSOLVE_MS)}
+                      entering={reduceMotion ? undefined : cutoutIn}
                       testID="band-cutout"
                     >
                       <Image

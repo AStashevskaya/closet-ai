@@ -1,6 +1,7 @@
 import {
   ITEM_CATEGORIES,
   type Currency,
+  type Item,
   type ItemCategory,
   type ItemColor,
   type LimitCode,
@@ -49,7 +50,7 @@ import { ColorSwatches } from './color-swatches';
 import { FieldThread, RailStop, Stop } from './field-thread';
 import { HangUp, measureBox, type Box } from './hang-up';
 import { DISSOLVE_MS, PhotoBand } from './photo-band';
-import { waitForCutout, type Cutout } from './wait-for-cutout';
+import { pause, waitForCutout, type Cutout } from './wait-for-cutout';
 
 // Photos picked at once from the gallery.
 const MAX_PHOTOS = 20;
@@ -117,9 +118,11 @@ export function AddItem() {
   const [bandCutout, setBandCutout] = useState<Cutout | null>(null);
   const reduceMotion = useReducedMotion();
   // Stops waiting for the cut-out when the sheet closes.
-  const closing = useRef(new AbortController());
+  // Made in the effect, so a remount (or Fast Refresh) starts with a fresh one, not an aborted one.
+  const closing = useRef<AbortController | null>(null);
   useEffect(() => {
-    const controller = closing.current;
+    const controller = new AbortController();
+    closing.current = controller;
     return () => controller.abort();
   }, []);
   const insets = useSafeAreaInsets();
@@ -307,12 +310,13 @@ export function AddItem() {
 
     setError(null);
     setBusy(true);
+    let created: Item;
     try {
       // Usually already uploaded while the form was filled in; if that upload failed, try once more.
       const uploaded = await (upload.current ?? Promise.reject(new Error('not uploaded'))).catch(
         () => uploadPhoto(photoUri, lang),
       );
-      const created = await createItem({
+      created = await createItem({
         name: name.trim(),
         category,
         colors: itemColors,
@@ -322,33 +326,6 @@ export function AddItem() {
         price: paid,
         currency: paid === null ? null : currency,
       });
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (andStyle) {
-        try {
-          const { id } = await askWearWith({ itemId: created.id }, lang);
-          leave(() =>
-            router.replace({ pathname: '/styled/[id]', params: styledParams(id, created, null) }),
-          );
-          return;
-        } catch (cause) {
-          // The item is saved either way; only the outfits didn't start.
-          const code = limitReached(cause);
-          Alert.alert(code ? limitText(t, i18n.language, code) : t('wearWith.failed'));
-        }
-      }
-      // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone). The
-      // bare cut-out flies if it comes within a few seconds, the photo otherwise.
-      setSaved(true);
-      const signal = closing.current.signal;
-      const cutout = await waitForCutout(created, signal);
-      if (signal.aborted) return;
-      if (cutout) {
-        // The background dissolves on the print first, then the bare piece leaves it.
-        setBandCutout(cutout);
-        if (!reduceMotion) await new Promise((resolve) => setTimeout(resolve, DISSOLVE_MS));
-        if (signal.aborted) return;
-      }
-      setHanging({ from: await measureBox(picture.current), category, cutout });
     } catch (cause) {
       setBusy(false);
       const code = limitReached(cause);
@@ -360,8 +337,50 @@ export function AddItem() {
       // The user sees a generic message; the real error goes to the Metro terminal.
       if (__DEV__) console.warn('Saving the item failed', cause);
       fail('addItem.errors.save');
-      setBusy(false);
+      return;
     }
+
+    // Saved: from here nothing shows a save error or allows saving again (it would make a second
+    // piece); whatever goes wrong, the sheet just closes. `busy` stays on.
+    setSaved(true);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (andStyle) {
+      try {
+        const { id } = await askWearWith({ itemId: created.id }, lang);
+        leave(() =>
+          router.replace({ pathname: '/styled/[id]', params: styledParams(id, created, null) }),
+        );
+        return;
+      } catch (cause) {
+        // The item is saved either way; only the outfits didn't start.
+        const code = limitReached(cause);
+        Alert.alert(code ? limitText(t, i18n.language, code) : t('wearWith.failed'));
+      }
+    }
+    try {
+      await hangUp(created, category);
+    } catch (cause) {
+      if (__DEV__) console.warn('Hanging the piece up failed', cause);
+      leave(() => router.back());
+    }
+  }
+
+  // "Hang it up": the piece flies to its rail, then the sheet closes (HangUp's onDone). The bare
+  // cut-out flies if it comes within a few seconds, the photo otherwise.
+  async function hangUp(created: Item, rail: ItemCategory) {
+    const signal = closing.current?.signal;
+    if (!signal || signal.aborted) return;
+    const cutout = await waitForCutout(created, signal);
+    if (signal.aborted) return;
+    if (cutout) {
+      // The background dissolves on the print first, then the bare piece leaves it.
+      setBandCutout(cutout);
+      if (!reduceMotion) await pause(DISSOLVE_MS, signal);
+      if (signal.aborted) return;
+    }
+    const from = await measureBox(picture.current);
+    if (signal.aborted) return;
+    setHanging({ from, category: rail, cutout });
   }
 
   const note =

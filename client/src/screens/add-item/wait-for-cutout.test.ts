@@ -43,7 +43,39 @@ describe('waitForCutout', () => {
     const waiting = waitForCutout(saved, new AbortController().signal);
     await jest.advanceTimersByTimeAsync(CUTOUT_WAIT_MS + CUTOUT_POLL_MS);
     expect(await waiting).toBeNull();
-    expect(getItem).toHaveBeenCalledTimes(CUTOUT_WAIT_MS / CUTOUT_POLL_MS);
+    // Every half second until the clock runs out.
+    expect(getItem).toHaveBeenCalledTimes(CUTOUT_WAIT_MS / CUTOUT_POLL_MS - 1);
+  });
+
+  test('gives up on time even when a request hangs', async () => {
+    jest.mocked(getItem).mockReturnValue(new Promise(() => {}));
+    let result: unknown = 'waiting';
+    void waitForCutout(saved, new AbortController().signal).then((r) => (result = r));
+    await jest.advanceTimersByTimeAsync(CUTOUT_WAIT_MS);
+    expect(result).toBeNull();
+    expect(getItem).toHaveBeenCalledTimes(1);
+  });
+
+  test('stops early when the photo failed', async () => {
+    jest
+      .mocked(getItem)
+      .mockResolvedValue({ ...saved, photoStatus: 'failed', tags: null } as never);
+    const waiting = waitForCutout(saved, new AbortController().signal);
+    await jest.advanceTimersByTimeAsync(CUTOUT_POLL_MS);
+    expect(await waiting).toBeNull();
+    expect(getItem).toHaveBeenCalledTimes(1);
+  });
+
+  test('takes nothing that arrives after the sheet closed', async () => {
+    let answer: (value: never) => void = () => {};
+    jest.mocked(getItem).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const closing = new AbortController();
+    const waiting = waitForCutout(saved, closing.signal);
+    await jest.advanceTimersByTimeAsync(CUTOUT_POLL_MS);
+    closing.abort();
+    answer(detail('/c'));
+    expect(await waiting).toBeNull();
+    expect(Image.prefetch).not.toHaveBeenCalled();
   });
 
   test('stops asking when the sheet closes', async () => {

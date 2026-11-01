@@ -28,8 +28,13 @@ jest.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: jest.fn(),
 }));
 // Leaving needs a real navigator; the screens' own navigations go straight through here.
+// `mockGuarded` records whether a swipe down would ask first, render by render.
+const mockGuarded = jest.fn();
 jest.mock('@/lib/use-confirm-leave', () => ({
-  useConfirmLeave: () => (navigate: () => void) => navigate(),
+  useConfirmLeave: (unsaved: boolean) => {
+    mockGuarded(unsaved);
+    return (navigate: () => void) => navigate();
+  },
 }));
 // The cropper reads the safe area.
 jest.mock(
@@ -271,13 +276,44 @@ describe('<AddItem />', () => {
       await fireEvent.press(screen.getByText('Hang it in the closet'));
     }
 
-    test('at once when the saved piece already has one', async () => {
+    test('asks before a swipe down closes it until saved, then not', async () => {
+      jest.mocked(getItem).mockReturnValue(new Promise(() => {}));
+      jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+      await render(<AddItem />);
+      await fillForm();
+      expect(mockGuarded).toHaveBeenLastCalledWith(true);
+
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+      // Still waiting for the cut-out, but already saved.
+      expect(mockGuarded).toHaveBeenLastCalledWith(false);
+    });
+
+    test("doesn't save twice when hanging up goes wrong after saving", async () => {
+      jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+      jest.mocked(getItem).mockRejectedValue(new Error('offline'));
+      jest.mocked(Image.prefetch).mockRejectedValue(new Error('broken'));
+      await render(<AddItem />);
+      await fillForm();
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+      await act(() => jest.advanceTimersByTimeAsync(6000));
+
+      expect(
+        screen.queryByText("Couldn't save the item. Try again.", { includeHiddenElements: true }),
+      ).not.toBeOnTheScreen();
+      expect(
+        screen.getByLabelText('Hang it in the closet', { includeHiddenElements: true }),
+      ).toBeDisabled();
+      expect(createItem).toHaveBeenCalledTimes(1);
+    });
+
+    test('shows the cut-out on the print, then flies it at once when it is there', async () => {
       await render(<AddItem />);
       await fillForm();
       await fireEvent.press(screen.getByText('Hang it in the closet'));
       await act(() => jest.advanceTimersByTimeAsync(0));
 
-      // First the background dissolves on the print: the cut-out over the photo, which fades.
+      // First the cut-out is on the print over the photo, which is set to fade (the cross-fade
+      // itself runs natively and isn't seen here).
       expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
       expect(screen.getByTestId('band-photo')).toHaveStyle({ opacity: 0 });
       expect(
