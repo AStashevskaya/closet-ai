@@ -25,7 +25,7 @@ afterEach(() => jest.useRealTimers());
 describe('waitForCutout', () => {
   test('takes a cut-out the item already has, without asking again', async () => {
     const cutout = await waitForCutout({ ...saved, cutoutUrl: '/c' }, new AbortController().signal);
-    expect(cutout).toEqual({ uri: 'http://api/c', headers: { cookie: 's=1' } });
+    expect(cutout).toEqual({ uri: 'http://api/c', headers: { cookie: 's=1' }, box: null });
     expect(getItem).not.toHaveBeenCalled();
     expect(Image.prefetch).toHaveBeenCalledWith('http://api/c', { headers: { cookie: 's=1' } });
   });
@@ -34,8 +34,18 @@ describe('waitForCutout', () => {
     jest.mocked(getItem).mockResolvedValueOnce(detail()).mockResolvedValue(detail('/c'));
     const waiting = waitForCutout(saved, new AbortController().signal);
     await jest.advanceTimersByTimeAsync(CUTOUT_POLL_MS * 2);
-    expect(await waiting).toEqual({ uri: 'http://api/c', headers: { cookie: 's=1' } });
+    expect(await waiting).toEqual({ uri: 'http://api/c', headers: { cookie: 's=1' }, box: null });
     expect(getItem).toHaveBeenCalledTimes(2);
+  });
+
+  test('carries the box the cut-out sits in', async () => {
+    const box = { xMin: 0.1, yMin: 0.2, xMax: 0.6, yMax: 0.9 };
+    jest
+      .mocked(getItem)
+      .mockResolvedValue({ ...saved, cutoutUrl: '/c', cutoutBox: box, tags: null });
+    const waiting = waitForCutout(saved, new AbortController().signal);
+    await jest.advanceTimersByTimeAsync(CUTOUT_POLL_MS);
+    expect(await waiting).toEqual({ uri: 'http://api/c', headers: { cookie: 's=1' }, box });
   });
 
   test('gives up after a while', async () => {

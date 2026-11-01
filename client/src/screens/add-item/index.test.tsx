@@ -16,6 +16,8 @@ import {
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 
 import { AddItem } from '.';
+import { between, cutoutFrame, wholeFrame } from './cutout-frame';
+import { PHOTO_FRAME } from './hang-up';
 
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockBack = jest.fn();
@@ -372,6 +374,277 @@ describe('<AddItem />', () => {
 
       expect(getItem).toHaveBeenCalledTimes(asked);
       expect(mockBack).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('dissolves the background while she fills the fields', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const box = { xMin: 0.2, yMin: 0.25, xMax: 0.6, yMax: 0.75 };
+    const cutoutPath = '/api/photos/cutout?key=p1&v=1';
+    const withCutout = {
+      status: 'ready' as const,
+      tagStatus: null,
+      tags: null,
+      lookItems: null,
+      matches: null,
+      cutoutUrl: cutoutPath,
+      cutoutBox: box,
+    };
+    const noCutout = { ...withCutout, cutoutUrl: undefined, cutoutBox: undefined };
+    // The 1000×2000 photo the print reports in these tests.
+    const photo = { width: 1000, height: 2000 };
+
+    // The print has loaded the photo.
+    async function photoLoaded() {
+      await fireEvent(screen.getByTestId('band-image'), 'load', {
+        nativeEvent: { cacheType: 'none', source: { url: '', ...photo } },
+      });
+    }
+
+    // A view's style, flattened.
+    function styleOf(testID: string) {
+      const style = screen.getByTestId(testID, { includeHiddenElements: true }).props.style;
+      return Object.assign({}, ...[style].flat(3).filter(Boolean));
+    }
+
+    test('as soon as the photo status brings the cut-out, before saving', async () => {
+      // Tagged first, the cut-out a poll later.
+      jest
+        .mocked(getPhotoState)
+        .mockResolvedValueOnce({ ...noCutout, tagStatus: 'done', tags })
+        .mockResolvedValue({ ...withCutout, tagStatus: 'done', tags });
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await photoLoaded();
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      expect(screen.getByLabelText('Name')).toHaveDisplayValue('White linen shirt');
+      expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+
+      await act(() => jest.advanceTimersByTimeAsync(1500));
+      expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
+      expect(screen.getByTestId('band-photo')).toHaveStyle({ opacity: 0 });
+      expect(Image.prefetch).toHaveBeenCalledWith(`http://api${cutoutPath}`, {
+        headers: { cookie: 's=1' },
+      });
+      expect(createItem).not.toHaveBeenCalled();
+
+      // Found: no more asking.
+      const asked = jest.mocked(getPhotoState).mock.calls.length;
+      await act(() => jest.advanceTimersByTimeAsync(10_000));
+      expect(getPhotoState).toHaveBeenCalledTimes(asked);
+    });
+
+    test('lays the cut-out over the piece by its box, in the photo’s own directions', async () => {
+      jest.mocked(getPhotoState).mockResolvedValue(withCutout);
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await photoLoaded();
+      await act(() => jest.advanceTimersByTimeAsync(0));
+
+      // The print's picture is 138×159; the 1000×2000 photo fits as 79.5×159 from x = 29.25.
+      // The piece is 31.8×79.5 at (45.15, 39.75), with 6% of 79.5 = 4.77 padding all round.
+      const flat = styleOf('band-cutout');
+      expect(flat.position).toBe('absolute');
+      expect(flat.left).toBeCloseTo(40.38);
+      expect(flat.top).toBeCloseTo(34.98);
+      expect(flat.width).toBeCloseTo(41.34);
+      expect(flat.height).toBeCloseTo(89.04);
+      // left / top are the photo's: not swapped in Hebrew.
+      expect(screen.getByTestId('band-cutout-frame')).toHaveStyle({ direction: 'ltr' });
+    });
+
+    test('waits for the photo’s size before laying a boxed cut-out on the print', async () => {
+      jest.mocked(getPhotoState).mockResolvedValue(withCutout);
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      // Loaded, but not drawn over the whole picture first (it would jump into place).
+      expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('band-photo')).not.toHaveStyle({ opacity: 0 });
+
+      await photoLoaded();
+      expect(styleOf('band-cutout').left).toBeCloseTo(40.38);
+    });
+
+    test('over the whole picture when the cut-out has no box', async () => {
+      jest.mocked(getPhotoState).mockResolvedValue({ ...withCutout, cutoutBox: null });
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await act(() => jest.advanceTimersByTimeAsync(0));
+
+      // The fallback: the whole picture, grown in from a little smaller (no size needed).
+      expect(styleOf('band-cutout')).toMatchObject({ left: 0, top: 0, width: 138, height: 159 });
+    });
+
+    test('tries the load again on the next poll when it fails', async () => {
+      jest.mocked(getPhotoState).mockResolvedValue(withCutout);
+      jest.mocked(Image.prefetch).mockResolvedValueOnce(false).mockResolvedValue(true);
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await photoLoaded();
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+
+      await act(() => jest.advanceTimersByTimeAsync(1500));
+      expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
+      expect(Image.prefetch).toHaveBeenCalledTimes(2);
+    });
+
+    test('then "Hang it in the closet" flies it at once, from the print to its slot', async () => {
+      jest.mocked(getPhotoState).mockResolvedValue(withCutout);
+      // The item doesn't say it has one: the print's is taken, nothing is waited for.
+      jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+      await render(<AddItem />);
+      await fillForm();
+      await photoLoaded();
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+      // Only the print's place is measured (which Jest never answers: 150 ms), with no wait for
+      // the item's cut-out and no second dissolve (400 ms).
+      await act(() => jest.advanceTimersByTimeAsync(200));
+      expect(getItem).not.toHaveBeenCalled();
+      // It leaves exactly where it was on the print, scaled to the slot (110×127)…
+      const placed = cutoutFrame(PHOTO_FRAME, photo, box);
+      const flying = styleOf('hung-cutout');
+      expect(flying.left).toBeCloseTo(placed?.left ?? NaN);
+      expect(flying.top).toBeCloseTo(placed?.top ?? NaN);
+      expect(flying.width).toBeCloseTo(placed?.width ?? NaN);
+      expect(flying.height).toBeCloseTo(placed?.height ?? NaN);
+      // …and grows over the flight to the whole slot, as the closet draws its pieces.
+      expect(between(flying, wholeFrame(PHOTO_FRAME), 1)).toEqual({
+        left: 0,
+        top: 0,
+        width: PHOTO_FRAME.width,
+        height: PHOTO_FRAME.height,
+      });
+    });
+
+    test('a save stops the watch, and the item’s cut-out is waited for instead', async () => {
+      jest.mocked(getPhotoState).mockResolvedValue(noCutout);
+      jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+      jest
+        .mocked(getItem)
+        .mockResolvedValue({ id: 'new-item', cutoutUrl: '/cutouts/new.webp' } as never);
+      await render(<AddItem />);
+      await fillForm();
+      await act(() => jest.advanceTimersByTimeAsync(1500));
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+      const asked = jest.mocked(getPhotoState).mock.calls.length;
+
+      await act(() => jest.advanceTimersByTimeAsync(1500));
+      expect(getPhotoState).toHaveBeenCalledTimes(asked);
+      expect(getItem).toHaveBeenCalled();
+      expect(screen.getByTestId('hung-cutout', { includeHiddenElements: true })).toBeOnTheScreen();
+    });
+
+    test('a cut-out of an earlier photo is not flown for one uploaded again on save', async () => {
+      // Photo 1 dissolves; photo 2's upload fails, so saving uploads it again under a new key.
+      jest
+        .mocked(uploadPhoto)
+        .mockResolvedValueOnce('photos/u1/p1.webp')
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue('photos/u1/p2.webp');
+      jest.mocked(getPhotoState).mockResolvedValue({ ...withCutout, cutoutBox: null });
+      jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+      await render(<AddItem />);
+      await fillForm();
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
+
+      jest.mocked(shrinkPhoto).mockResolvedValueOnce('file:///second.jpg');
+      await fireEvent.press(screen.getByText('Another photo'));
+      await chooseInAlert('Take a photo');
+      expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByText('Hang it in the closet'));
+      expect(jest.mocked(createItem).mock.calls[0]?.[0].photoKey).toBe('photos/u1/p2.webp');
+      await act(() => jest.advanceTimersByTimeAsync(600));
+      // Not the first photo's cut-out: the new item's is asked for.
+      expect(getItem).toHaveBeenCalledWith('new-item');
+    });
+
+    test('a rotate starts again for the turned photo', async () => {
+      jest.mocked(rotatePhoto).mockResolvedValue('file:///turned.jpg');
+      jest.mocked(uploadPhoto).mockResolvedValueOnce('photos/u1/p1.webp');
+      jest.mocked(uploadPhoto).mockResolvedValueOnce('photos/u1/p2.webp');
+      jest
+        .mocked(getPhotoState)
+        .mockImplementation(async (key) => (key === 'photos/u1/p1.webp' ? withCutout : noCutout));
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await photoLoaded();
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByLabelText('Rotate'));
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+      expect(getPhotoState).toHaveBeenLastCalledWith('photos/u1/p2.webp');
+
+      // The turned photo's cut-out dissolves it again once it's there.
+      await photoLoaded();
+      jest.mocked(getPhotoState).mockResolvedValue({
+        ...withCutout,
+        cutoutUrl: '/api/photos/cutout?key=p2&v=1',
+      });
+      await act(() => jest.advanceTimersByTimeAsync(1500));
+      expect(screen.getByTestId('band-cutout')).toBeOnTheScreen();
+      expect(Image.prefetch).toHaveBeenLastCalledWith('http://api/api/photos/cutout?key=p2&v=1', {
+        headers: { cookie: 's=1' },
+      });
+    });
+
+    test('a cut-out of the old photo that loads after a rotate is dropped', async () => {
+      jest.mocked(rotatePhoto).mockResolvedValue('file:///turned.jpg');
+      jest
+        .mocked(uploadPhoto)
+        .mockResolvedValueOnce('photos/u1/p1.webp')
+        .mockResolvedValue('photos/u1/p2.webp');
+      jest
+        .mocked(getPhotoState)
+        .mockImplementation(async (key) => (key === 'photos/u1/p1.webp' ? withCutout : noCutout));
+      // Photo 1's cut-out loads slowly: held until the test lets it go.
+      let loaded: (ok: boolean) => void = () => {};
+      jest.mocked(Image.prefetch).mockReturnValueOnce(new Promise((resolve) => (loaded = resolve)));
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await photoLoaded();
+      await act(() => jest.advanceTimersByTimeAsync(0));
+      expect(Image.prefetch).toHaveBeenCalledTimes(1);
+
+      await fireEvent.press(screen.getByLabelText('Rotate'));
+      await photoLoaded();
+      await act(async () => loaded(true));
+      await act(() => jest.advanceTimersByTimeAsync(1500));
+      expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('band-photo')).not.toHaveStyle({ opacity: 0 });
+    });
+
+    test('gives up watching after a while', async () => {
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await act(() => jest.advanceTimersByTimeAsync(25_000));
+      const asked = jest.mocked(getPhotoState).mock.calls.length;
+      // Every 1.5 s within the 20 s cap, no faster.
+      expect(asked).toBeLessThanOrEqual(15);
+      await act(() => jest.advanceTimersByTimeAsync(10_000));
+      expect(getPhotoState).toHaveBeenCalledTimes(asked);
+      expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+    });
+
+    test('stops asking when the sheet closes', async () => {
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      await act(() => jest.advanceTimersByTimeAsync(3000));
+      const asked = jest.mocked(getPhotoState).mock.calls.length;
+      expect(asked).toBeGreaterThan(1);
+      await screen.unmount();
+      await act(() => jest.advanceTimersByTimeAsync(30_000));
+      expect(getPhotoState).toHaveBeenCalledTimes(asked);
     });
   });
 

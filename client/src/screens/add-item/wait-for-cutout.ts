@@ -1,4 +1,4 @@
-import type { Item } from '@closet-ai/shared';
+import type { Item, ItemBox } from '@closet-ai/shared';
 import { Image } from 'expo-image';
 
 import { absoluteUrl, getItem, sessionHeaders } from '@/lib/api';
@@ -9,8 +9,10 @@ import { absoluteUrl, getItem, sessionHeaders } from '@/lib/api';
 export const CUTOUT_POLL_MS = 500;
 export const CUTOUT_WAIT_MS = 5000;
 
-// What flies to the rail: the cut-out, already in the image cache, and the session to load it with.
-export type Cutout = { uri: string; headers: Record<string, string> };
+// What flies to the rail: the cut-out, already in the image cache, the session to load it with,
+// and where the piece sits in the photo (null for cut-outs made before that was recorded: the
+// print then grows it in from a little smaller, see photo-band.tsx).
+export type Cutout = { uri: string; headers: Record<string, string>; box: ItemBox | null };
 
 // Waits for a just-saved item's cut-out and loads it, so "Hang it up" flies the bare piece and
 // not the photo with its background (owner, 2026-11-01: "with a piece of bed"). Null when none
@@ -21,6 +23,7 @@ export async function waitForCutout(item: Item, signal: AbortSignal): Promise<Cu
   const deadline = Date.now() + CUTOUT_WAIT_MS;
   const left = () => deadline - Date.now();
   let path = item.cutoutUrl ?? null;
+  let box = item.cutoutBox ?? null;
   while (!path) {
     await pause(Math.min(CUTOUT_POLL_MS, left()), signal);
     if (signal.aborted || left() <= 0) return null;
@@ -29,15 +32,28 @@ export async function waitForCutout(item: Item, signal: AbortSignal): Promise<Cu
     // Timed out or dropped: the next poll tries again, while there's time.
     if (!latest) continue;
     path = latest.cutoutUrl ?? null;
+    box = latest.cutoutBox ?? null;
     // The photo itself failed: no cut-out will follow it.
     if (!path && latest.photoStatus === 'failed') return null;
   }
-  const headers = await within(sessionHeaders(), left(), signal);
+  return loadCutout(path, box, left(), signal);
+}
+
+// Loads a cut-out (an API path) into the image cache with the session cookie, so it shows at
+// once when it's drawn: on the print while she fills the fields, or on its way to the rail. Null
+// if it doesn't load within `ms` or `signal` aborts first.
+export async function loadCutout(
+  path: string,
+  box: ItemBox | null,
+  ms: number,
+  signal: AbortSignal,
+): Promise<Cutout | null> {
+  const deadline = Date.now() + ms;
+  const headers = await within(sessionHeaders(), ms, signal);
   if (!headers || signal.aborted) return null;
   const uri = absoluteUrl(path);
-  // Loaded before it flies, so the piece doesn't appear blank on the way.
-  const loaded = await within(Image.prefetch(uri, { headers }), left(), signal);
-  return loaded && !signal.aborted ? { uri, headers } : null;
+  const loaded = await within(Image.prefetch(uri, { headers }), deadline - Date.now(), signal);
+  return loaded && !signal.aborted ? { uri, headers, box } : null;
 }
 
 // Waits `ms`, or less if `signal` aborts first.
