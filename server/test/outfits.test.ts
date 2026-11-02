@@ -1466,6 +1466,196 @@ describe("an item from a photo", () => {
     expect(await fromPhoto()).toMatchObject({ loose: false, wishAskAt: null });
   });
 
+  describe("DELETE /api/wear-with/:id", () => {
+    const remove = ({ server }: Setup, cookie: string, id: string) =>
+      server.inject({ method: "DELETE", url: `/api/wear-with/${id}`, headers: { cookie } });
+    const get = ({ server }: Setup, cookie: string, url: string) =>
+      server.inject({ method: "GET", url, headers: { cookie } });
+    const react = ({ server }: Setup, cookie: string, outfitId: string, payload: object) =>
+      server.inject({
+        method: "POST",
+        url: `/api/outfits/${outfitId}/reactions`,
+        headers: { cookie },
+        payload,
+      });
+
+    it("deletes her own styling only, once, and keeps the piece", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      const boris = await signUp(s, "boris@example.com");
+      const skirt = await addItem(s, anna, "bottom");
+      await addItem(s, anna, "top");
+      const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+      await s.runJobs();
+
+      expect((await remove(s, boris.cookie, id)).statusCode).toBe(404);
+      expect((await get(s, anna.cookie, `/api/wear-with/${id}`)).statusCode).toBe(200);
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+      expect((await get(s, anna.cookie, `/api/wear-with/${id}`)).statusCode).toBe(404);
+      expect((await get(s, anna.cookie, "/api/wear-with")).json<StyledEntry[]>()).toEqual([]);
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(404);
+      expect((await get(s, anna.cookie, `/api/items/${skirt.id}`)).statusCode).toBe(200);
+    });
+
+    it("needs a session", async () => {
+      const s = await setup();
+      const res = await s.server.inject({
+        method: "DELETE",
+        url: "/api/wear-with/00000000-0000-4000-8000-000000000000",
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("never gives a try back: a deleted styling still counts toward the limit", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      const pieces = [];
+      for (let i = 0; i < 6; i++) pieces.push(await addItem(s, anna, "top"));
+      const monthStart = periodStart("month", s.clock.now);
+      for (const piece of pieces.slice(0, 5)) {
+        const { id } = (await ask(s, anna.cookie, piece.id)).json<{ id: string }>();
+        await s.runJobs();
+        expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+      }
+      const usage = (await get(s, anna.cookie, "/api/usage")).json<Usage>();
+      expect(usage.wear_with).toMatchObject({ used: 5, limit: 5 });
+      expect(await s.repositories.usageRepository.spentBy(anna.userId, monthStart)).toBe(
+        5 * ESTIMATED_COST_MICROS.wear_with,
+      );
+      const over = await ask(s, anna.cookie, pieces[5]!.id);
+      expect(over.statusCode).toBe(429);
+      expect(over.json<{ message: string }>().message).toBe("limit:wear_with");
+    });
+
+    it("asks afresh after a delete, for a try of its own, rather than reusing it", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      const skirt = await addItem(s, anna, "bottom");
+      const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+      await s.runJobs();
+      await remove(s, anna.cookie, id);
+
+      const again = await ask(s, anna.cookie, skirt.id);
+      expect(again.statusCode).toBe(202);
+      expect(again.json<{ id: string }>().id).not.toBe(id);
+      expect((await get(s, anna.cookie, "/api/usage")).json<Usage>().wear_with.used).toBe(2);
+    });
+
+    it("keeps what she told about the looks for the brief, and only that", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      const skirt = await addItem(s, anna, "bottom");
+      await addItem(s, anna, "top");
+      const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+      await s.runJobs();
+      const looks = (await view(s, anna.cookie, id)).outfits;
+      expect(looks.length).toBeGreaterThan(2);
+      await react(s, anna.cookie, looks[0]!.id, { reaction: "like" });
+      await react(s, anna.cookie, looks[1]!.id, { reaction: "dislike", reason: "match" });
+      const outfits = s.repositories.outfitsRepository;
+      const before = await outfits.reactedOutfits(anna.userId, 20);
+      expect(before).toHaveLength(2);
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+
+      expect(await outfits.reactedOutfits(anna.userId, 20)).toEqual(before);
+      expect(await outfits.reactedOutfitCount(anna.userId)).toBe(2);
+      // Gone everywhere she could see it, and the look she didn't react to is gone for good.
+      expect((await get(s, anna.cookie, `/api/wear-with/${id}`)).statusCode).toBe(404);
+      expect((await get(s, anna.cookie, "/api/wear-with")).json<StyledEntry[]>()).toEqual([]);
+      expect((await outfits.view(id, anna.userId, "en"))!.outfits.map((o) => o.id)).toEqual([
+        looks[0]!.id,
+        looks[1]!.id,
+      ]);
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(404);
+      // And it isn't asked about again as the last request for this piece.
+      expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
+    });
+
+    it("takes a loose piece's wish with it, and leaves its photo to the cleanup", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      await addItem(s, anna, "top");
+      const id = await styleFromPhoto(s, anna.cookie);
+      const { photoKey } = (await view(s, anna.cookie, id)).addable!;
+      await s.server.inject({
+        method: "POST",
+        url: "/api/wishes",
+        headers: { cookie: anna.cookie },
+        payload: { requestId: id },
+      });
+      const look = (await view(s, anna.cookie, id)).outfits[0]!;
+      await react(s, anna.cookie, look.id, { reaction: "dislike", reason: "style" });
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+
+      expect(s.repositories.wishesRepository.rows).toEqual([]);
+      expect(await s.repositories.wishesRepository.countDue(anna.userId, new Date(2100, 0))).toBe(
+        0,
+      );
+      expect((await get(s, anna.cookie, `/api/wear-with/${id}/photo`)).statusCode).toBe(404);
+      expect(await s.repositories.outfitsRepository.reactedOutfitCount(anna.userId)).toBe(1);
+      await deleteUnattachedPhotos(s.photoDeps, new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
+      expect(await s.repositories.photosRepository.get(photoKey)).toBeNull();
+    });
+
+    it("leaves the photo of a piece she has since added to her closet", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      await addItem(s, anna, "top");
+      const id = await styleFromPhoto(s, anna.cookie);
+      const addable = (await view(s, anna.cookie, id)).addable!;
+      const item = (
+        await s.server.inject({
+          method: "POST",
+          url: "/api/items",
+          headers: { cookie: anna.cookie },
+          payload: addable,
+        })
+      ).json<Item>();
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+
+      await deleteUnattachedPhotos(s.photoDeps, new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
+      expect(await s.repositories.photosRepository.get(addable.photoKey)).not.toBeNull();
+      expect((await get(s, anna.cookie, `/api/items/${item.id}`)).statusCode).toBe(200);
+    });
+
+    it("costs no model call when deleted before composing starts", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      const skirt = await addItem(s, anna, "bottom");
+      const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+      await s.runJobs();
+
+      expect(s.stub.composeCalls).toEqual([]);
+      expect((await get(s, anna.cookie, `/api/wear-with/${id}`)).statusCode).toBe(404);
+      expect((await get(s, anna.cookie, "/api/usage")).json<Usage>().wear_with.used).toBe(1);
+    });
+
+    it("drops the answer when deleted while the model is writing it", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      const skirt = await addItem(s, anna, "bottom");
+      await addItem(s, anna, "top");
+      const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+      const compose = s.stub.stylist.compose.bind(s.stub.stylist);
+      s.stub.stylist.compose = async (input) => {
+        expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+        return compose(input);
+      };
+
+      await s.runJobs();
+
+      expect(s.stub.composeCalls).toHaveLength(1);
+      expect(await s.repositories.outfitsRepository.getRequest(id)).toBeNull();
+      expect((await get(s, anna.cookie, "/api/wear-with")).json<StyledEntry[]>()).toEqual([]);
+    });
+  });
+
   it("saves a piece to her wishes once, and asks a week later whether she still wants it", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
