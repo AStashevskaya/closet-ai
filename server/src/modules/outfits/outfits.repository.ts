@@ -352,10 +352,11 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
             ),
           ),
         );
-        // Without its key the photo is the hourly cleanup's, unless a closet item uses it.
+        // Without its key the photo is the hourly cleanup's, unless a closet item uses it. What the
+        // piece was and whether to buy it go too: the brief reads neither.
         await tx
           .update(outfitRequests)
-          .set({ itemId: null, heroPhotoKey: null })
+          .set({ itemId: null, heroPhotoKey: null, heroNoun: null, verdict: null })
           .where(eq(outfitRequests.id, requestId));
         return true;
       });

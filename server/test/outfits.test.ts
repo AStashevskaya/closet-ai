@@ -1600,6 +1600,30 @@ describe("an item from a photo", () => {
       expect(await s.repositories.photosRepository.get(photoKey)).toBeNull();
     });
 
+    it("keeps nothing of a loose piece but the looks she reacted to", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      await addItem(s, anna, "top");
+      const id = await styleFromPhoto(s, anna.cookie);
+      const outfits = s.repositories.outfitsRepository;
+      const before = (await outfits.getRequest(id))!;
+      expect(before.heroNoun).not.toBeNull();
+      expect(before.verdict).not.toBeNull();
+      const look = (await view(s, anna.cookie, id)).outfits[0]!;
+      await react(s, anna.cookie, look.id, { reaction: "like" });
+      const reacted = await outfits.reactedOutfits(anna.userId, 20);
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+
+      expect(await outfits.getRequest(id)).toMatchObject({
+        itemId: null,
+        heroPhotoKey: null,
+        heroNoun: null,
+        verdict: null,
+      });
+      expect(await outfits.reactedOutfits(anna.userId, 20)).toEqual(reacted);
+    });
+
     it("leaves the photo of a piece she has since added to her closet", async () => {
       const s = await setup();
       const anna = await signUp(s, "anna@example.com");

@@ -741,6 +741,31 @@ describe.skipIf(!url)("on Postgres", () => {
         .statusCode,
     ).toBe(200);
 
+    // A loose piece she reacted to: what it was and the verdict on it go, the reaction stays.
+    const reactedCrop = `photos/${userId}/styled-reacted-crop.webp`;
+    await photos.createReady({ key: reactedCrop, ownerId: userId, tags: shirtTags });
+    const bought = await outfits.createRequest(
+      userId,
+      { heroPhotoKey: reactedCrop, heroNoun: "linen shirt" },
+      1,
+    );
+    await outfits.saveOutfits(
+      bought,
+      userId,
+      [look("Reacted", null)],
+      { micros: 1 },
+      { call: "think", reason: "You have one like it", twinItemId: item.id },
+    );
+    const [reactedLook] = (await outfits.view(bought, userId, "en"))!.outfits;
+    await outfits.react(reactedLook!.id, userId, "like");
+    expect((await del(bought)).statusCode).toBe(204);
+    expect(await outfits.getRequest(bought)).toMatchObject({
+      heroPhotoKey: null,
+      heroNoun: null,
+      verdict: null,
+    });
+    expect(await outfits.reactedOutfitCount(userId)).toBe(2);
+
     // The look being written when it was deleted isn't stored, and nothing fails.
     const composing = await outfits.createRequest(userId, { itemId: item.id }, 1);
     expect((await del(composing)).statusCode).toBe(204);

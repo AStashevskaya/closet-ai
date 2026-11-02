@@ -402,8 +402,9 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       for (const wish of wishRows.filter((w) => w.requestId === requestId)) {
         wishRows.splice(wishRows.indexOf(wish), 1);
       }
-      if (looks.some(reacted)) Object.assign(request, { itemId: null, heroPhotoKey: null });
-      else requests.splice(requests.indexOf(request), 1);
+      if (looks.some(reacted)) {
+        Object.assign(request, { itemId: null, heroPhotoKey: null, heroNoun: null, verdict: null });
+      } else requests.splice(requests.indexOf(request), 1);
       return true;
     },
     view: async (requestId, userId, lang) => {
