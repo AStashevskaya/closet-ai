@@ -99,45 +99,66 @@ describe('<WearWith />', () => {
     expect(getWearWith).toHaveBeenCalledWith('req-1', 'en');
   });
 
-  // Presses "Delete" in the confirmation of the styling's delete button.
-  async function deleteStyling(name: string) {
-    await fireEvent.press(await screen.findByRole('button', { name }));
-    const [title, message, buttons] = jest.mocked(Alert.alert).mock.calls.at(-1)!;
-    expect(title).toBe('Delete this styling?');
-    expect(message).toContain("can't be undone");
-    await act(async () => buttons!.find((b) => b.style === 'destructive')!.onPress!());
-  }
+  describe('deleting the styling', () => {
+    let alert: jest.SpyInstance;
+    beforeEach(() => {
+      alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      alert.mockRestore();
+      jest.useRealTimers();
+    });
 
-  test('deletes the styling from the outfits screen and goes back', async () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    jest.mocked(getWearWith).mockResolvedValue(done);
-    await render(<WearWith id="req-1" />);
-    await deleteStyling('Delete the styling of Mauve satin skirt');
-    expect(deleteWearWith).toHaveBeenCalledWith('req-1');
-    expect(mockBack).toHaveBeenCalledTimes(1);
-    alert.mockRestore();
-  });
+    // Presses "Delete" in the confirmation of the styling's delete button.
+    async function deleteStyling(name: string) {
+      await fireEvent.press(await screen.findByRole('button', { name }));
+      const [title, message, buttons] = jest.mocked(Alert.alert).mock.calls.at(-1)!;
+      expect(title).toBe('Delete this styling?');
+      expect(message).toContain("can't be undone");
+      await act(async () => buttons!.find((b) => b.style === 'destructive')!.onPress!());
+    }
 
-  test('stays on the screen and says so when the delete fails', async () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    jest.mocked(getWearWith).mockResolvedValue(done);
-    jest.mocked(deleteWearWith).mockRejectedValueOnce(new ApiError(500, 'boom'));
-    await render(<WearWith id="req-1" />);
-    await deleteStyling('Delete the styling of Mauve satin skirt');
-    expect(alert).toHaveBeenLastCalledWith("Couldn't delete the styling. Try again.");
-    expect(mockBack).not.toHaveBeenCalled();
-    expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
-    alert.mockRestore();
-  });
+    test('deletes it from the outfits screen and goes back', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      await render(<WearWith id="req-1" />);
+      await deleteStyling('Delete the styling of Mauve satin skirt');
+      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
+      expect(mockBack).toHaveBeenCalledTimes(1);
+    });
 
-  test('can delete while the looks are still being composed, and when they failed', async () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'pending', outfits: [] });
-    await render(<WearWith id="req-1" />);
-    await deleteStyling('Delete styling');
-    expect(deleteWearWith).toHaveBeenCalledWith('req-1');
-    expect(mockBack).toHaveBeenCalledTimes(1);
-    alert.mockRestore();
+    test('stays on the screen and says so when the delete fails', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      jest.mocked(deleteWearWith).mockRejectedValueOnce(new ApiError(500, 'boom'));
+      await render(<WearWith id="req-1" />);
+      await deleteStyling('Delete the styling of Mauve satin skirt');
+      expect(alert).toHaveBeenLastCalledWith("Couldn't delete the styling. Try again.");
+      expect(mockBack).not.toHaveBeenCalled();
+      expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    });
+
+    test('can delete while the looks are being composed, and leaving stops the polling', async () => {
+      jest.useFakeTimers();
+      jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'pending', outfits: [] });
+      const { unmount } = await render(<WearWith id="req-1" />);
+      await deleteStyling('Delete styling');
+      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
+      expect(mockBack).toHaveBeenCalledTimes(1);
+
+      // Going back unmounts the screen; the router is mocked here, so the test does it.
+      await unmount();
+      const polls = jest.mocked(getWearWith).mock.calls.length;
+      await act(() => jest.advanceTimersByTimeAsync(10_000));
+      expect(getWearWith).toHaveBeenCalledTimes(polls);
+    });
+
+    test('can delete a styling whose looks failed', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'failed', outfits: [] });
+      await render(<WearWith id="req-1" />);
+      expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
+      await deleteStyling('Delete styling');
+      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
+      expect(mockBack).toHaveBeenCalledTimes(1);
+    });
   });
 
   test('labels every partner piece and opens its card', async () => {
