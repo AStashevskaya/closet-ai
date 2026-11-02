@@ -16,6 +16,7 @@ import {
   count,
   countDistinct,
   desc,
+  DrizzleQueryError,
   eq,
   gt,
   inArray,
@@ -178,6 +179,10 @@ export interface OutfitsRepository {
   addedSince(userId: string, since: Date): Promise<{ items: number; looks: number }>;
 }
 
+// Drizzle wraps the driver's error, which has Postgres's code.
+const isForeignKeyViolation = (error: unknown) =>
+  error instanceof DrizzleQueryError && (error.cause as { code?: string }).code === "23503";
+
 // The current opinion is the latest like / dislike / none, with a dislike's reason; "wore" is
 // counted.
 export function summarize(
@@ -325,12 +330,15 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
 
     async deleteRequest(requestId, userId) {
       return db.transaction(async (tx) => {
+        // Locked, so a second delete at once waits for this one, then reads the row as it left it:
+        // gone, or with neither piece. It finds nothing to delete, and answers false.
         const [own] = await tx
           .select({ id: outfitRequests.id })
           .from(outfitRequests)
           .where(
             and(eq(outfitRequests.id, requestId), eq(outfitRequests.userId, userId), aboutAPiece),
-          );
+          )
+          .for("update");
         if (!own) return false;
         const reacted = await tx
           .selectDistinct({ id: outfits.id })
@@ -433,7 +441,13 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .from(outfits)
         .where(and(eq(outfits.id, outfitId), eq(outfits.userId, userId)));
       if (!own) return false;
-      await db.insert(outfitReactions).values({ outfitId, userId, reaction, reason });
+      try {
+        await db.insert(outfitReactions).values({ outfitId, userId, reaction, reason });
+      } catch (cause) {
+        // The look went after the check: its styling was deleted just now.
+        if (isForeignKeyViolation(cause)) return false;
+        throw cause;
+      }
       return true;
     },
 

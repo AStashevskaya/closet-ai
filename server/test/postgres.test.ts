@@ -775,6 +775,90 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await looks(composing)).toBe(0);
   });
 
+  it("answers a second delete at once with 404, with or without a reaction", async () => {
+    const cookie = await signUp("delete-twice@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "delete-twice@example.com"));
+    const userId = user!.id;
+    const photos = createPhotosRepository(db.db);
+    const outfits = createOutfitsRepository(db.db);
+    const key = `photos/${userId}/twice.webp`;
+    await photos.createReady({ key, ownerId: userId, tags: shirtTags });
+    const item = (
+      await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "Shirt", category: "top", colors: ["white"], photoKey: key },
+      })
+    ).json<Item>();
+    const styled = async () => {
+      const id = await outfits.createRequest(userId, { itemId: item.id }, 1);
+      await outfits.saveOutfits(
+        id,
+        userId,
+        [{ caption: "Look", occasion: "", why: "", missing: null, pieces: [] }],
+        { micros: 1 },
+      );
+      return id;
+    };
+    const twice = async (id: string) => {
+      const del = () =>
+        app.inject({ method: "DELETE", url: `/api/wear-with/${id}`, headers: { cookie } });
+      const answers = await Promise.all([del(), del()]);
+      return answers.map((res) => res.statusCode).sort();
+    };
+
+    expect(await twice(await styled())).toEqual([204, 404]);
+
+    const reacted = await styled();
+    const [look] = (await outfits.view(reacted, userId, "en"))!.outfits;
+    await outfits.react(look!.id, userId, "like");
+    expect(await twice(reacted)).toEqual([204, 404]);
+    expect(await outfits.reactedOutfitCount(userId)).toBe(1);
+  });
+
+  it("answers false, not an error, when a look goes between the check and the reaction", async () => {
+    await signUp("react-race@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "react-race@example.com"));
+    const userId = user!.id;
+    const outfits = createOutfitsRepository(db.db);
+    const key = `photos/${userId}/race.webp`;
+    await createPhotosRepository(db.db).createReady({ key, ownerId: userId, tags: shirtTags });
+    const id = await outfits.createRequest(userId, { heroPhotoKey: key, heroNoun: null }, 1);
+    await outfits.saveOutfits(
+      id,
+      userId,
+      [{ caption: "Look", occasion: "", why: "", missing: null, pieces: [] }],
+      { micros: 1 },
+    );
+    const [look] = (await outfits.view(id, userId, "en"))!.outfits;
+
+    // The check finds the look; the insert then points to one that isn't there, as after a delete.
+    const insertFor = (outfitId: string) =>
+      new Proxy(db.db, {
+        get: (target, prop): unknown =>
+          prop === "insert"
+            ? () => ({
+                values: (row: typeof schema.outfitReactions.$inferInsert) =>
+                  target.insert(schema.outfitReactions).values({ ...row, outfitId }),
+              })
+            : Reflect.get(target, prop),
+      });
+    const racing = createOutfitsRepository(insertFor("00000000-0000-4000-8000-000000000000"));
+    expect(await racing.react(look!.id, userId, "like")).toBe(false);
+
+    // Any other failure is still an error: a reaction the enum doesn't know, say.
+    await expect(
+      outfits.react(look!.id, userId, "nonsense" as unknown as "like"),
+    ).rejects.toThrow();
+  });
+
   it("lists only photos no item points to, created before the cutoff", async () => {
     const cookie = await signUp("cleanup@example.com");
     const [user] = await db.db
