@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { I18nManager, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   FadeOut,
@@ -15,7 +15,8 @@ import { durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';
 
 // A thread drawn down a column with its stops on it: the add-item fields and the auth screens
-// (docs/design.md, "The thread" and "Waiting"). The look's horizontal thread shares the motion.
+// (docs/design.md, "The thread" and "Waiting"). Threads that run across (the look's, the closet's
+// rail) share the motion and the bead's way along them (`runAcross`).
 
 // Where the thread runs, from the start edge of the column, and where the stops' content starts.
 export const THREAD_X = 9;
@@ -26,6 +27,8 @@ export const BEAD = 10;
 export const LINE_WEIGHT = 1.2;
 const DRAW_MS = 2000;
 const RUN_MS = 2400;
+// Read once: switching to or from Hebrew reloads the app (src/lib/language.ts).
+const RTL = I18nManager.isRTL;
 
 // The motion every thread has: it draws itself in once it's measured (at once with Reduce
 // Motion), and while something is waited for a bead runs along it, over and over (with Reduce
@@ -61,6 +64,39 @@ export function runOpacity(run: number) {
   return interpolate(run, [0, 0.85, 1], [1, 1, 0]);
 }
 
+// The running bead laid across, along the reading direction, so it mirrors in Hebrew.
+export function runAcross(run: number, width: number) {
+  'worklet';
+  return {
+    opacity: runOpacity(run),
+    transform: [{ translateX: run * Math.max(0, width - BEAD) * (RTL ? -1 : 1) }],
+  };
+}
+
+// The waiting bead on a line that runs across (a rail): put it inside the line, which it measures
+// by itself. With Reduce Motion there's no bead at all. Decoration, so screen readers skip it.
+export function BeadAcross({ waiting }: { waiting: boolean }) {
+  const [width, setWidth] = useState(0);
+  const { run, reduced } = useThreadMotion(false, waiting);
+  const bead = useAnimatedStyle(() => runAcross(run.get(), width));
+  return (
+    <View
+      style={styles.across}
+      onLayout={(event) => setWidth(Math.round(event.nativeEvent.layout.width))}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {waiting && !reduced && (
+        <Animated.View
+          testID="thread-waiting"
+          style={[styles.acrossBead, bead]}
+          exiting={FadeOut.duration(durations.state)}
+        />
+      )}
+    </View>
+  );
+}
+
 type LineProps = {
   // How far above the column the line starts, and how long it is (both measured by the screen).
   top: number;
@@ -74,6 +110,8 @@ type LineProps = {
   // Follow the stops when they slide (a field in or out, an error), so the line stays on the last
   // stop instead of jumping ahead of it. Off: it takes a new length at once.
   follow?: boolean;
+  // Where the thread runs from the start edge, for a column with another THREAD_X.
+  x?: number;
 };
 
 // The line itself, behind the stops of its column (render it first). Decoration (the stops say
@@ -85,6 +123,7 @@ export function ThreadLine({
   measured = length > 0,
   weight = LINE_WEIGHT,
   follow = false,
+  x = THREAD_X,
 }: LineProps) {
   const { drawn, run, reduced } = useThreadMotion(measured, waiting);
   // Only a following line needs its size on the UI thread; otherwise it's sized in render.
@@ -115,7 +154,7 @@ export function ThreadLine({
   return (
     <Animated.View
       testID="thread-track"
-      style={[styles.track, follow ? size : { top: -top, height: length }]}
+      style={[styles.track, { start: x - BEAD / 2 }, follow ? size : { top: -top, height: length }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
@@ -183,7 +222,6 @@ const styles = StyleSheet.create({
   // Absolute children sit from the column's outer edge, padding included.
   track: {
     position: 'absolute',
-    start: THREAD_X - BEAD / 2,
     width: BEAD,
     pointerEvents: 'none',
   },
@@ -197,6 +235,23 @@ const styles = StyleSheet.create({
   bead: {
     position: 'absolute',
     top: 0,
+    start: 0,
+    width: BEAD,
+    height: BEAD,
+    borderRadius: BEAD / 2,
+    backgroundColor: colors.bead,
+  },
+  across: {
+    position: 'absolute',
+    start: 0,
+    end: 0,
+    top: '50%',
+    height: 0,
+    pointerEvents: 'none',
+  },
+  acrossBead: {
+    position: 'absolute',
+    top: -BEAD / 2,
     start: 0,
     width: BEAD,
     height: BEAD,

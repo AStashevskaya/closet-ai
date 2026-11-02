@@ -3,7 +3,7 @@ import { I18nManager, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 
-import { BEAD, runOpacity, useThreadMotion } from '@/components/thread-stops';
+import { BEAD, runAcross, useThreadMotion } from '@/components/thread-stops';
 import { durations } from '@/motion';
 import { colors } from '@/theme';
 
@@ -33,10 +33,7 @@ export function LookThread({ state, pieces }: Props) {
   const { drawn, run } = useThreadMotion(true, waiting);
 
   const line = useAnimatedStyle(() => ({ transform: [{ scaleX: drawn.get() }] }));
-  const bead = useAnimatedStyle(() => ({
-    opacity: runOpacity(run.get()),
-    transform: [{ translateX: run.get() * Math.max(0, width - BEAD) * (RTL ? -1 : 1) }],
-  }));
+  const bead = useAnimatedStyle(() => runAcross(run.get(), width));
 
   return (
     <View
