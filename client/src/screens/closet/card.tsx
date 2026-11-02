@@ -6,19 +6,8 @@ import Animated, { FadeOut, Keyframe, useReducedMotion } from 'react-native-rean
 import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
-import { CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
+import { arrive, CSS_EASE_OUT, durations, EASE_OUT } from '@/motion';
 import { colors, fonts } from '@/theme';
-
-// Cards come up out of nothing, slowly, one after another; the picture inside settles from a
-// slight zoom a little longer, as on a brand's site.
-const rise = new Keyframe({
-  0: { opacity: 0, transform: [{ translateY: 28 }] },
-  100: { opacity: 1, transform: [{ translateY: 0 }], easing: EASE_OUT },
-}).duration(durations.enter);
-const settle = new Keyframe({
-  0: { transform: [{ scale: 1.14 }] },
-  100: { transform: [{ scale: 1 }], easing: EASE_OUT },
-}).duration(durations.settle);
 
 const badgeIn = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.85 }] },
@@ -56,7 +45,7 @@ export function ClosetCard({
 
   return (
     <Animated.View
-      entering={enterDelay === undefined ? undefined : rise.delay(enterDelay)}
+      entering={enterDelay === undefined ? undefined : arrive.delay(enterDelay)}
       style={[
         styles.cell,
         {
@@ -79,12 +68,7 @@ export function ClosetCard({
         }}
       >
         <View style={styles.tile}>
-          <Animated.View
-            style={styles.fill}
-            entering={enterDelay === undefined ? undefined : settle.delay(enterDelay)}
-          >
-            <ItemPhoto item={item} headers={headers} style={styles.photo} />
-          </Animated.View>
+          <ItemPhoto item={item} headers={headers} style={styles.photo} />
         </View>
         <View style={styles.caption}>
           <Text style={styles.name} numberOfLines={1}>
@@ -128,9 +112,6 @@ const styles = StyleSheet.create({
     aspectRatio: 3 / 4,
     overflow: 'hidden',
     backgroundColor: colors.hero,
-  },
-  fill: {
-    flex: 1,
   },
   photo: {
     flex: 1,

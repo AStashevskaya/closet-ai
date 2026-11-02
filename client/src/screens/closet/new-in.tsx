@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
-  Keyframe,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -16,26 +15,22 @@ import Animated, {
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
-import { durations, EASE_OUT } from '@/motion';
+import { arrive } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 type Props = {
   item: Item;
   headers: Record<string, string> | undefined;
   onPress: () => void;
+  // Settles in with the rest of the closet; coming back from edit mode it's simply there again.
+  settling: boolean;
 };
-
-// The block settles in from a little zoom, the way a brand's home page opens.
-const settle = new Keyframe({
-  0: { opacity: 0, transform: [{ scale: 1.04 }] },
-  100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
-}).duration(durations.settle);
 
 const BREATH_MS = 7000;
 
 // The newest item on the bright colour: the one editorial block of the closet, with its own
 // way into "what do I wear this with?".
-export function NewIn({ item, headers, onPress }: Props) {
+export function NewIn({ item, headers, onPress, settling }: Props) {
   const { t } = useTranslation();
   const reduced = useReducedMotion();
   // The picture breathes, very slowly.
@@ -54,7 +49,7 @@ export function NewIn({ item, headers, onPress }: Props) {
 
   const url = item.cutoutUrl ?? item.photoUrl;
   return (
-    <Animated.View entering={settle}>
+    <Animated.View entering={settling ? arrive : undefined}>
       <PressableScale
         style={styles.block}
         onPress={onPress}

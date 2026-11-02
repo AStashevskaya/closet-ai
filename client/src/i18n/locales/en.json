@@ -33,6 +33,7 @@
       "accessory": "Accessories"
     },
     "empty": "Your closet is empty. Photograph your first item.",
+    "emptyCategory": "Nothing here yet.",
     "loadError": "Couldn't load your closet.",
     "retry": "Try again",
     "delete": "Delete",
