@@ -219,6 +219,23 @@ describe('<WearWith />', () => {
     await render(<WearWith id="req-1" />);
     expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
   });
+  test('stops asking at once when the styling is gone', async () => {
+    jest.mocked(getWearWith).mockRejectedValue(new ApiError(404, 'request not found'));
+    await render(<WearWith id="req-1" />);
+    expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
+    expect(getWearWith).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps asking through a dropped request', async () => {
+    jest.useFakeTimers();
+    jest.mocked(getWearWith).mockRejectedValueOnce(new Error('dropped')).mockResolvedValue(done);
+    await render(<WearWith id="req-1" />);
+    await act(() => jest.advanceTimersByTimeAsync(2000));
+    expect(getWearWith).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    jest.useRealTimers();
+  });
+
   test('says whether a piece is worth buying, and opens the one she already has', async () => {
     jest.mocked(getWearWith).mockResolvedValue({
       ...done,
