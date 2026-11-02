@@ -409,6 +409,8 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   dotMine: {
+    // Set, not left out: iOS keeps a dashed border once it's been dashed.
+    borderStyle: 'solid',
     borderWidth: 1.2,
     borderColor: colors.text,
     backgroundColor: colors.bead,

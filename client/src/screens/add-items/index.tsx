@@ -497,6 +497,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   card: {
+    // Set, not left out: iOS keeps a dashed border once it's been dashed.
+    borderStyle: 'solid',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.divider,
