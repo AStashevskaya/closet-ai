@@ -15,6 +15,7 @@ import { addWish, createItem, sessionHeaders } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { limitText } from '@/lib/limits';
 import { rise, STAGGER_STEP } from '@/motion';
+import { DeleteStyling, useDeleteStyling } from '@/screens/style-it/delete-styling';
 import { ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
@@ -24,7 +25,10 @@ import { useWearWith } from './use-wear-with';
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const { state, setWishId, react } = useWearWith(id);
+  // Leaving the screen stops its polling, so this works while the looks are being composed too.
+  const deleting = useDeleteStyling(id, () => router.back());
   const [headers, setHeaders] = useState<Record<string, string>>();
 
   useEffect(() => {
@@ -85,6 +89,7 @@ export function WearWith({ id }: { id: string }) {
       <View style={styles.center} accessibilityLiveRegion="polite">
         <HangerLoader />
         <Text style={styles.composing}>{t('wearWith.composing')}</Text>
+        <DeleteStyling control={deleting} style={styles.deleteCentered} />
       </View>
     );
   }
@@ -92,6 +97,7 @@ export function WearWith({ id }: { id: string }) {
     return (
       <View style={styles.center}>
         <Text style={styles.message}>{t('wearWith.failed')}</Text>
+        <DeleteStyling control={deleting} style={styles.deleteCentered} />
       </View>
     );
   }
@@ -143,6 +149,7 @@ export function WearWith({ id }: { id: string }) {
             </View>
           )}
           {state.outfits.length === 0 && <Text style={styles.empty}>{t('wearWith.empty')}</Text>}
+          <DeleteStyling control={deleting} name={hero?.name} />
         </Animated.View>
       </ThreadRow>
       {state.outfits.map((outfit, index) => (
@@ -246,6 +253,9 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 32,
     backgroundColor: colors.background,
+  },
+  deleteCentered: {
+    alignSelf: 'center',
   },
   message: {
     fontFamily: fonts.body,

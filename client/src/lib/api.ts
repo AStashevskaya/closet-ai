@@ -221,6 +221,11 @@ export async function deleteInspiration(key: string): Promise<void> {
   await send(`/api/inspiration?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
 }
 
+// Deletes a styling for good. It doesn't give its try back.
+export async function deleteWearWith(id: string): Promise<void> {
+  await send(`/api/wear-with/${id}`, { method: 'DELETE' });
+}
+
 // Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.
 export function rotateItem(id: string): Promise<ItemDetail> {
   return request(`/api/items/${id}/rotate`, itemDetail, { method: 'POST' });

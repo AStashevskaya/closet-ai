@@ -1,11 +1,12 @@
 import type { Item, StyledEntry, WearWithRequest } from '@closet-ai/shared';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert, ScrollView } from 'react-native';
+import { AccessibilityInfo, Alert, ScrollView } from 'react-native';
 
 import { seedFrom } from '@/components/hand-drawn';
 import i18n from '@/i18n';
 import {
   askWearWith,
+  deleteWearWith,
   getUsage,
   getWearWith,
   listItems,
@@ -36,6 +37,7 @@ jest.mock('@/lib/api', () => ({
   listItems: jest.fn(),
   listStyled: jest.fn(),
   askWearWith: jest.fn(),
+  deleteWearWith: jest.fn(),
   getWearWith: jest.fn(),
   reactToOutfit: jest.fn(),
   getUsage: jest.fn(),
@@ -140,6 +142,100 @@ describe('<StyleIt />', () => {
       1,
     );
     expect(getWearWith).not.toHaveBeenCalled();
+  });
+
+  // Presses "Delete" in the confirmation, which says plainly what deleting does.
+  async function confirmDelete() {
+    const [title, message, buttons] = alert.mock.calls.at(-1)!;
+    expect(title).toBe('Delete this styling?');
+    expect(message).toContain("can't be undone");
+    expect(message).toContain("the try doesn't come back");
+    expect(deleteWearWith).not.toHaveBeenCalled();
+    await act(async () => {
+      buttons!.find((button) => button.style === 'destructive')!.onPress!();
+    });
+  }
+
+  test('deletes a stop with a visible button, after asking, without opening it', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    await render(<StyleIt />);
+    await fireEvent.press(
+      await screen.findByRole('button', { name: 'Delete the styling of Leather jacket' }),
+    );
+    expect(screen.queryByTestId('open-stop')).toBeNull();
+    await confirmDelete();
+    expect(deleteWearWith).toHaveBeenCalledWith(styled.id);
+    await waitFor(() => expect(screen.queryByLabelText('Outfits with Leather jacket')).toBeNull());
+    expect(announce).toHaveBeenCalledWith('Styling deleted');
+  });
+
+  test('offers delete to screen readers as an action of the stop', async () => {
+    await render(<StyleIt />);
+    const stop = await screen.findByLabelText('Outfits with Leather jacket');
+    expect(stop.props.accessibilityActions).toEqual([{ name: 'delete', label: 'Delete styling' }]);
+    await act(async () => {
+      stop.props.onAccessibilityAction({ nativeEvent: { actionName: 'delete' } });
+    });
+    expect(alert).toHaveBeenCalledWith(
+      'Delete this styling?',
+      expect.any(String),
+      expect.any(Array),
+    );
+  });
+
+  test('a failed delete says so and keeps the stop, so it can be tried again', async () => {
+    jest.mocked(deleteWearWith).mockRejectedValueOnce(new ApiError(500, 'boom'));
+    await render(<StyleIt />);
+    const name = 'Delete the styling of Leather jacket';
+    await fireEvent.press(await screen.findByRole('button', { name }));
+    await confirmDelete();
+    expect(alert).toHaveBeenLastCalledWith("Couldn't delete the styling. Try again.");
+    expect(screen.getByLabelText('Outfits with Leather jacket')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name })).toBeEnabled();
+  });
+
+  test('a styling the server no longer has counts as deleted', async () => {
+    jest.mocked(deleteWearWith).mockRejectedValueOnce(new ApiError(404, 'request not found'));
+    await render(<StyleIt />);
+    await fireEvent.press(
+      await screen.findByRole('button', { name: 'Delete the styling of Leather jacket' }),
+    );
+    await confirmDelete();
+    await waitFor(() => expect(screen.queryByLabelText('Outfits with Leather jacket')).toBeNull());
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  test('deletes a styling still being composed, and stops asking for its looks', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    jest
+      .mocked(getWearWith)
+      .mockResolvedValue({ ...looks('req-1'), status: 'pending', outfits: [] });
+    await render(<StyleIt />);
+    await pickSkirt();
+    await fireEvent.press(
+      await screen.findByRole('button', { name: 'Delete the styling of Satin midi skirt' }),
+    );
+    await confirmDelete();
+    expect(deleteWearWith).toHaveBeenCalledWith('req-1');
+    await waitFor(() => expect(screen.queryByTestId('open-stop')).toBeNull());
+    expect(screen.queryByText(/Satin midi skirt/)).toBeNull();
+  });
+
+  test("a list read just before a delete doesn't bring the stop back", async () => {
+    let answer!: (list: StyledEntry[]) => void;
+    await render(<StyleIt />);
+    const name = 'Delete the styling of Leather jacket';
+    await screen.findByRole('button', { name });
+    jest
+      .mocked(listStyled)
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    jest.mocked(getWearWith).mockResolvedValue(looks('req-1'));
+    await pickSkirt();
+    await fireEvent.press(await screen.findByRole('button', { name }));
+    await confirmDelete();
+    await act(async () => answer([styled]));
+    expect(screen.queryByLabelText('Outfits with Leather jacket')).toBeNull();
   });
 
   test("says the closet couldn't be read, not that it's empty, and tries again", async () => {

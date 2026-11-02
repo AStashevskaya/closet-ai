@@ -47,6 +47,8 @@ export function StyleIt() {
   // The closet couldn't be read and there's none from before: say so rather than "it's empty".
   const [itemsFailed, setItemsFailed] = useState(false);
   const [styled, setStyled] = useState<StyledEntry[]>([]);
+  // Deleted here: a list read just before must not bring them back.
+  const [deleted, setDeleted] = useState<ReadonlySet<string>>(new Set());
   // When the list was read: the diary's wishes count their week down from it.
   const [readAt, setReadAt] = useState(0);
   const [headers, setHeaders] = useState<Record<string, string>>();
@@ -130,12 +132,19 @@ export function StyleIt() {
     }
   }
 
+  function onDeleted(id: string) {
+    setDeleted((before) => new Set(before).add(id));
+    // Its stop goes, and with it the polling for its looks.
+    setChosen((open) => (open?.requestId === id ? null : open));
+  }
+
   // A closet piece can be asked about afresh; one styled before has its request polled again.
   const asked = chosen?.item;
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
   // The piece just asked about is on top before the list catches up with it.
+  const listed = styled.filter((entry) => !deleted.has(entry.id));
   const entries: StyledEntry[] =
-    chosen && !styled.some((entry) => entry.id === chosen.requestId)
+    chosen && !listed.some((entry) => entry.id === chosen.requestId)
       ? [
           {
             id: chosen.requestId,
@@ -149,9 +158,9 @@ export function StyleIt() {
             // Its looks are still being written.
             previews: [],
           },
-          ...styled,
+          ...listed,
         ]
-      : styled;
+      : listed;
 
   return (
     <ScrollView
@@ -242,6 +251,7 @@ export function StyleIt() {
                   asking={asking !== null}
                   joined={index > 0}
                   continues={index < entries.length - 1}
+                  onDeleted={() => onDeleted(entry.id)}
                 />
               </View>
             ) : (
@@ -252,6 +262,7 @@ export function StyleIt() {
                 joined={index > 0}
                 last={index === entries.length - 1}
                 now={readAt}
+                onDeleted={() => onDeleted(entry.id)}
                 onOpen={() => {
                   // Not hers yet: its own screen, with the verdict and "Add to wishes" / "Add to
                   // my closet", rather than the looks alone.
