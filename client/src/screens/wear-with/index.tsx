@@ -3,19 +3,19 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { AccessibilityInfo, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeOut, useReducedMotion } from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
 import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, HANGERS } from '@/components/hanger';
-import { HangerLoader } from '@/components/hanger-loader';
 import { Button } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
+import { BEAD, ThreadLine } from '@/components/thread-stops';
 import { addWish, createItem, sessionHeaders } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { limitText } from '@/lib/limits';
-import { rise, STAGGER_STEP } from '@/motion';
-import { ThreadRow } from '@/screens/style-it/thread-row';
+import { arrive, durations, STAGGER_STEP } from '@/motion';
+import { KNOT_Y, THREAD_X, ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
 import { OutfitCard } from './outfit-card';
@@ -24,8 +24,22 @@ import { useWearWith } from './use-wear-with';
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
-  const { state, setWishId, react } = useWearWith(id);
+  const { state, setWishId, react, retry } = useWearWith(id);
   const [headers, setHeaders] = useState<Record<string, string>>();
+  const reduced = useReducedMotion();
+  // How tall the piece's row is, for the waiting bead's run down its thread.
+  const [rowHeight, setRowHeight] = useState(0);
+
+  // The bead is hidden from screen readers, and a live region only speaks on Android.
+  const waitingFor =
+    state.status !== 'pending'
+      ? null
+      : state.composing
+        ? t('wearWith.composing')
+        : t('common.loading');
+  useEffect(() => {
+    if (waitingFor) AccessibilityInfo.announceForAccessibility(waitingFor);
+  }, [waitingFor]);
 
   useEffect(() => {
     // An effect can't be async itself, so the async work goes in an inner function.
@@ -80,84 +94,125 @@ export function WearWith({ id }: { id: string }) {
     }
   }
 
-  if (state.status === 'pending') {
-    return (
-      <View style={styles.center} accessibilityLiveRegion="polite">
-        <HangerLoader />
-        <Text style={styles.composing}>{t('wearWith.composing')}</Text>
-      </View>
-    );
-  }
   if (state.status === 'failed') {
     return (
       <View style={styles.center}>
-        <Text style={styles.message}>{t('wearWith.failed')}</Text>
+        <Text style={styles.message}>
+          {t(state.offline ? 'common.offline' : 'wearWith.failed')}
+        </Text>
+        <Button kind="outline" label={t('wearWith.retry')} onPress={retry} />
       </View>
     );
   }
 
-  // The piece itself: the hero of its outfits; with none (nothing in her closet goes with it), its
-  // photo by the request (as the server serves it) and the name it'd be added under.
+  // One layout while it waits and after (docs/design.md, "Waiting"): the piece and its thread stay,
+  // and what comes with the looks settles in around them; nothing here enters again.
+  const waiting = state.status === 'pending';
+  const outfits = waiting ? [] : state.outfits;
+  // The piece itself: the hero of its outfits; with none yet, or none at all (nothing in her closet
+  // goes with it), its photo by the request (as the server serves it) and the name it'd be added
+  // under. A closet piece's isn't known here until its looks come.
   const hero =
-    state.outfits.flatMap((o) => o.pieces).find((p) => p.hero)?.item ??
+    outfits.flatMap((o) => o.pieces).find((p) => p.hero)?.item ??
     (state.addable && {
       id,
       name: state.addable.name,
       category: state.addable.category,
       photoUrl: `/api/wear-with/${id}/photo`,
     });
-  // Nothing to add means it's in her closet already: hers.
-  const hers = !state.addable || adding === 'added';
-  const { verdict } = state;
+  // Nothing to add means it's in her closet already: hers. Waiting is never drawn dashed, whatever
+  // the piece turns out to be.
+  const hers = waiting || !state.addable || adding === 'added';
+  const verdict = waiting ? null : state.verdict;
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {/* On a thread like Style it's (decided 2026-10-29, prototype
-          `~/Desktop/closet/wrinkle-lab/design-photo-outfits`, direction A), dashed while the piece
-          isn't hers yet; solid once it's in her closet. */}
-      <ThreadRow kind="root" dashed={!hers} hollow={!hers} last={state.outfits.length === 0}>
-        <Animated.View entering={rise} style={styles.head}>
-          <View style={styles.piece}>
-            {hero && <BarePiece item={hero} headers={headers} style={styles.pieceImage} />}
-            {verdict && <Verdict verdict={verdict} />}
-          </View>
-          {hero && <Text style={styles.heroName}>{hero.name}</Text>}
-          {verdict?.twin && hero && <Similar piece={hero} twin={verdict.twin} headers={headers} />}
-          {state.addable && (
-            <View style={styles.actions}>
-              <Button
-                kind={state.wishId ? 'outline' : 'bright'}
-                label={t(state.wishId ? 'wishes.added' : 'wishes.add')}
-                onPress={wish}
-                disabled={state.wishId !== null}
-                busy={wishing}
-                style={styles.action}
-              />
-              <Button
-                kind="outline"
-                label={t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
-                onPress={addToCloset}
-                disabled={adding === 'added'}
-                busy={adding === 'busy'}
-                style={styles.action}
-              />
+      <View onLayout={(event) => setRowHeight(Math.round(event.nativeEvent.layout.height))}>
+        {/* On a thread like Style it's (decided 2026-10-29, prototype
+            `~/Desktop/closet/wrinkle-lab/design-photo-outfits`, direction A), dashed while the piece
+            isn't hers yet; solid once it's in her closet. */}
+        <ThreadRow
+          kind="root"
+          dashed={!hers}
+          hollow={!hers}
+          last={!waiting && outfits.length === 0}
+        >
+          <View style={[styles.head, waiting && styles.headWaiting]}>
+            <View style={styles.piece}>
+              {/* Its place is kept until the piece is known. */}
+              {(hero || waiting) && (
+                <BarePiece item={hero ?? {}} headers={headers} style={styles.pieceImage} />
+              )}
+              {verdict && <Verdict verdict={verdict} />}
             </View>
-          )}
-          {state.outfits.length === 0 && <Text style={styles.empty}>{t('wearWith.empty')}</Text>}
-        </Animated.View>
-      </ThreadRow>
-      {state.outfits.map((outfit, index) => (
+            {hero && (
+              <Animated.Text style={styles.heroName} entering={arrive}>
+                {hero.name}
+              </Animated.Text>
+            )}
+            {waiting && (
+              <Animated.View
+                exiting={FadeOut.duration(durations.state)}
+                accessible
+                accessibilityRole="progressbar"
+                accessibilityLabel={waitingFor ?? undefined}
+                accessibilityLiveRegion="polite"
+              >
+                {state.composing && <Text style={styles.empty}>{t('wearWith.composing')}</Text>}
+              </Animated.View>
+            )}
+            {verdict?.twin && hero && (
+              <Similar piece={hero} twin={verdict.twin} headers={headers} />
+            )}
+            {!waiting && state.addable && (
+              <Animated.View style={styles.actions} entering={arrive}>
+                <Button
+                  kind={state.wishId ? 'outline' : 'bright'}
+                  label={t(state.wishId ? 'wishes.added' : 'wishes.add')}
+                  onPress={wish}
+                  disabled={state.wishId !== null}
+                  busy={wishing}
+                  style={styles.action}
+                />
+                <Button
+                  kind="outline"
+                  label={t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
+                  onPress={addToCloset}
+                  disabled={adding === 'added'}
+                  busy={adding === 'busy'}
+                  style={styles.action}
+                />
+              </Animated.View>
+            )}
+            {!waiting && outfits.length === 0 && (
+              <Animated.Text style={styles.empty} entering={arrive}>
+                {t('wearWith.empty')}
+              </Animated.Text>
+            )}
+          </View>
+        </ThreadRow>
+        {/* From the knot down the thread; mounted all along so the bead fades as it goes. No line of
+            its own: the row draws that. With Reduce Motion there's no bead, just the screen. */}
+        <ThreadLine
+          top={-(KNOT_Y - BEAD / 2)}
+          length={Math.max(0, rowHeight - KNOT_Y)}
+          waiting={waiting && !reduced}
+          measured={false}
+          x={THREAD_X}
+        />
+      </View>
+      {outfits.map((outfit, index) => (
         <ThreadRow
           key={outfit.id}
           kind="branch"
           dashed={!hers}
-          last={index === state.outfits.length - 1}
+          last={index === outfits.length - 1}
           delay={(index + 1) * STAGGER_STEP}
         >
-          <Animated.View style={styles.look} entering={rise.delay((index + 1) * STAGGER_STEP)}>
+          <Animated.View style={styles.look} entering={arrive.delay((index + 1) * STAGGER_STEP)}>
             <OutfitCard
               outfit={outfit}
               index={index}
-              total={state.outfits.length}
+              total={outfits.length}
               headers={headers}
               onReact={react}
               heroLoose={!hers}
@@ -173,11 +228,11 @@ export function WearWith({ id }: { id: string }) {
 function Verdict({ verdict }: { verdict: NonNullable<WearWithRequest['verdict']> }) {
   const { t } = useTranslation();
   return (
-    <View style={styles.verdict} accessibilityRole="summary">
+    <Animated.View style={styles.verdict} accessibilityRole="summary" entering={arrive}>
       <Text style={styles.verdictTitle}>{t('verdict.title')}</Text>
       <Text style={styles.verdictCall}>{t(`verdict.${verdict.call}`)}</Text>
       <Text style={styles.verdictReason}>{verdict.reason}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -195,7 +250,7 @@ function Similar({
   const { t } = useTranslation();
   const router = useRouter();
   return (
-    <View style={styles.similar}>
+    <Animated.View style={styles.similar} entering={arrive}>
       <Text style={styles.verdictTitle}>{t('verdict.twin')}</Text>
       <View style={styles.rail}>
         <View style={styles.railLine} />
@@ -223,7 +278,7 @@ function Similar({
           </Text>
         </PressableScale>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -261,16 +316,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'left',
   },
-  composing: {
-    fontFamily: fonts.displayLight,
-    fontSize: 24,
-    lineHeight: 30,
-    color: colors.text,
-    textAlign: 'center',
-  },
   head: {
     paddingBottom: 34,
     gap: 14,
+  },
+  // Room for the thread the bead runs down, with nothing hanging off it yet.
+  headWaiting: {
+    minHeight: 420,
   },
   piece: {
     flexDirection: 'row',
