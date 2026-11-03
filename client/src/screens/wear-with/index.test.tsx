@@ -563,6 +563,29 @@ describe('<WearWith />', () => {
       });
     });
 
+    test('tells a screen reader, since the pressed button leaves the screen', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<WearWith id="req-1" />);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+
+      expect(announce).toHaveBeenLastCalledWith(
+        'Not me, look 1 of 1. Why not? One tap teaches your stylist.',
+      );
+    });
+
+    test('names the reasons as a group, also once the visible question has gone', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({
+        ...done,
+        outfits: [{ ...look, opinion: 'dislike', reason: 'weather' }],
+      });
+      await render(<WearWith id="req-1" />);
+
+      // By label, not by role: the group isn't `accessible` itself, or its radios couldn't be reached.
+      const group = await screen.findByLabelText('Why not? One tap teaches your stylist.');
+      expect(group.props.accessibilityRole).toBe('radiogroup');
+      expect(screen.queryByText('Why not? One tap teaches your stylist.')).toBeNull();
+    });
   });
 
   test('says so when the outfits could not be put together', async () => {
