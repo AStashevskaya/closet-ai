@@ -486,6 +486,83 @@ describe('<WearWith />', () => {
       ).toBeChecked();
       expect(screen.queryByText('Why not? One tap teaches your stylist.')).toBeNull();
     });
+
+    describe('when the dislike fails', () => {
+      const id = look.id;
+      // Holds the next reaction open until the test says how it ended.
+      function holdReaction() {
+        let fail!: () => void;
+        let pass!: () => void;
+        jest.mocked(reactToOutfit).mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              pass = resolve;
+              fail = () => reject(new Error('dropped'));
+            }),
+        );
+        return { fail: () => fail(), pass: () => pass() };
+      }
+      const reason = { name: 'Wrong for the weather, look 1 of 1' };
+
+      test('its reason is never sent, and the look goes back to unrated', async () => {
+        jest.mocked(getWearWith).mockResolvedValue(done);
+        const dislike = holdReaction();
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('radio', reason));
+        await act(async () => dislike.fail());
+
+        expect(reactToOutfit).toHaveBeenCalledTimes(1);
+        expect(reactToOutfit).toHaveBeenCalledWith(id, 'dislike');
+        expect(screen.getByRole('button', { name: 'Not me, look 1 of 1' })).toBeOnTheScreen();
+        expect(screen.queryByRole('radio')).toBeNull();
+      });
+
+      test('a liked look goes back to liked, not to unrated', async () => {
+        jest.mocked(getWearWith).mockResolvedValue({
+          ...done,
+          outfits: [{ ...look, opinion: 'like' }],
+        });
+        const dislike = holdReaction();
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('radio', reason));
+        await act(async () => dislike.fail());
+
+        expect(reactToOutfit).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Like, look 1 of 1' })).toBeSelected();
+      });
+
+      test('what she did next still counts: the failure does not undo it', async () => {
+        jest.mocked(getWearWith).mockResolvedValue(done);
+        const dislike = holdReaction();
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('button', { name: 'Like, look 1 of 1' }));
+        await act(async () => dislike.fail());
+
+        expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'like');
+        expect(screen.getByRole('button', { name: 'Like, look 1 of 1' })).toBeSelected();
+      });
+
+      test('a second reason still goes out after a failed first one', async () => {
+        jest.mocked(getWearWith).mockResolvedValue({
+          ...done,
+          outfits: [{ ...look, opinion: 'dislike', reason: null }],
+        });
+        jest.mocked(reactToOutfit).mockRejectedValueOnce(new Error('dropped'));
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('radio', reason));
+        await waitFor(() => expect(screen.getByRole('radio', reason)).not.toBeChecked());
+
+        await fireEvent.press(screen.getByRole('radio', reason));
+        await waitFor(() => expect(reactToOutfit).toHaveBeenCalledTimes(2));
+        expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike', 'weather');
+        expect(screen.getByRole('radio', reason)).toBeChecked();
+      });
+    });
+
   });
 
   test('says so when the outfits could not be put together', async () => {
