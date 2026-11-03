@@ -16,8 +16,8 @@ import { ApiError, isOffline } from '@/lib/api-error';
 import { colors, fonts } from '@/theme';
 
 // Deleting a styling, after saying plainly what it does. A failure tells her and keeps the stop;
-// a styling the server no longer has counts as deleted. Works while its looks are being composed:
-// the server drops the answer, and the screen's polling stops as the stop goes.
+// a styling the server no longer has counts as deleted. A closed diary stop can't tell if its looks
+// are still being composed, so it can delete one that is: the server drops the answer.
 export function useDeleteStyling(requestId: string, onDeleted: () => void) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
@@ -51,7 +51,7 @@ export function useDeleteStyling(requestId: string, onDeleted: () => void) {
 
 type Props = {
   control: ReturnType<typeof useDeleteStyling>;
-  // Told apart by screen readers when the screen lists many; unknown while looks are composed.
+  // Told apart by screen readers when the screen lists many; unknown when no piece is shown.
   name?: string;
   style?: StyleProp<ViewStyle>;
 };

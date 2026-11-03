@@ -303,6 +303,7 @@ describe('<WearWith />', () => {
       const { unmount } = await render(<WearWith id="req-1" />);
       await unmount();
       const polls = jest.mocked(getWearWith).mock.calls.length;
+      expect(polls).toBeGreaterThan(0);
       await act(() => jest.advanceTimersByTimeAsync(10_000));
       expect(getWearWith).toHaveBeenCalledTimes(polls);
     });

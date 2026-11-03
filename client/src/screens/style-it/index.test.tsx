@@ -205,7 +205,7 @@ describe('<StyleIt />', () => {
     expect(alert).toHaveBeenCalledTimes(1);
   });
 
-  test('the open stop offers no delete while its looks are composed, and does once they are', async () => {
+  test('the open stop offers no delete while its looks are composed', async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     jest
       .mocked(getWearWith)
@@ -213,17 +213,21 @@ describe('<StyleIt />', () => {
     await render(<StyleIt />);
     await pickSkirt();
     expect(await screen.findByTestId('open-stop')).toBeOnTheScreen();
+    await waitFor(() => expect(getWearWith).toHaveBeenCalled());
+    // Lets the server's "pending" answer reach the screen before looking.
+    await act(async () => {});
     expect(
       screen.queryByRole('button', { name: 'Delete the styling of Satin midi skirt' }),
     ).toBeNull();
+  });
 
+  test('the open stop offers the delete once its looks came', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     jest.mocked(getWearWith).mockResolvedValue(looks('req-1'));
+    await render(<StyleIt />);
+    await pickSkirt();
     expect(
-      await screen.findByRole(
-        'button',
-        { name: 'Delete the styling of Satin midi skirt' },
-        { timeout: 3000 },
-      ),
+      await screen.findByRole('button', { name: 'Delete the styling of Satin midi skirt' }),
     ).toBeOnTheScreen();
   });
 
