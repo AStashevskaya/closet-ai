@@ -279,15 +279,19 @@ describe('<StyleIt />', () => {
     expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike', 'weather');
   });
 
-  test("folds a look that isn't hers, asks why in a tap, and brings it back", async () => {
+  test("keeps a look that isn't hers in place, asks why in a tap, and brings it back", async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     await render(<StyleIt />);
     await pickSkirt();
     await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
     const id = looks('req-1').outfits[0]!.id;
     expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike');
-    expect(screen.queryByText('The tee makes the satin offhand.')).toBeNull();
+    expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
     expect(screen.getByText('Why not? One tap teaches your stylist.')).toBeOnTheScreen();
+    // Her answer is the reasons now: the reactions wait until she brings it back.
+    expect(screen.queryByRole('button', { name: 'Not me, look 1 of 1' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Like, look 1 of 1' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Wore it, look 1 of 1' })).toBeNull();
 
     await fireEvent.press(
       screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' }),
@@ -303,6 +307,29 @@ describe('<StyleIt />', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
     expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'none');
     expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Like, look 1 of 1' })).toBeOnTheScreen();
+    expect(screen.queryByRole('radio')).toBeNull();
+  });
+
+  test('a look liked and then rejected loses its heart', async () => {
+    jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
+    await render(<StyleIt />);
+    await pickSkirt();
+    const heart = `drawn-${seedFrom(looks('req-1').outfits[0]!.id)}`;
+    // The look's own heart hangs on its wire, which is drawn once it has a width.
+    await fireEvent(
+      await screen.findByLabelText('Сатин после спорта, Satin midi skirt'),
+      'layout',
+      {
+        nativeEvent: { layout: { width: 300 } },
+      },
+    );
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Like, look 1 of 1' }));
+    expect(screen.getByTestId(heart, { includeHiddenElements: true })).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Not me, look 1 of 1' }));
+    expect(screen.queryByTestId(heart, { includeHiddenElements: true })).toBeNull();
   });
 
   test('styles a closet piece in the mood picked, its outfits growing right here', async () => {

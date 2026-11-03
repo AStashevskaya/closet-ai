@@ -1,12 +1,14 @@
 import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { AccessibilityInfo, Alert } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 
+import { DIMMED_OPACITY } from '@/components/dimmable';
 import i18n from '@/i18n';
 import { addWish, createItem, deleteWearWith, getWearWith, reactToOutfit } from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
 import { ThreadRow } from '@/screens/style-it/thread-row';
+import { colors } from '@/theme';
 
 import { WearWith } from '.';
 
@@ -383,6 +385,207 @@ describe('<WearWith />', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Wore it, look 1 of 1' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Wore it · 1, look 1 of 1' }));
     expect(screen.getByRole('button', { name: 'Wore it · 2, look 1 of 1' })).toBeOnTheScreen();
+  });
+
+  describe('"Not mine"', () => {
+    const boots: CatalogItem = {
+      id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a99',
+      brand: 'STUDIO EDIT',
+      name: 'Ankle boots',
+      category: 'shoes',
+      colors: ['black'],
+      price: 459,
+      currency: 'ILS',
+      url: 'https://brand.example/p/P070',
+      imageUrl: '/api/catalog/boots/photo?v=1',
+      inStock: true,
+      demo: true,
+    };
+    const look = done.outfits[0]!;
+    const hidden = { includeHiddenElements: true };
+
+    test('keeps the whole look on the screen, dimmed, its words still readable', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({
+        ...done,
+        outfits: [
+          { ...look, pieces: [...look.pieces, { hero: false, item: null, catalogItem: boots }] },
+        ],
+      });
+      await render(<WearWith id="req-1" />);
+      await fireEvent(
+        await screen.findByLabelText(
+          'Сатин после спорта, Mauve satin skirt, Grey tee, Ankle boots',
+        ),
+        'layout',
+        { nativeEvent: { layout: { width: 300 } } },
+      );
+      await fireEvent.press(screen.getByRole('button', { name: 'Not me, look 1 of 1' }));
+
+      expect(screen.getByText('01 / 01 · Not me')).toBeOnTheScreen();
+      expect(screen.getByText('weekend in town')).toBeOnTheScreen();
+      expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+      expect(screen.getByText('Mauve satin skirt · Grey tee')).toBeOnTheScreen();
+      expect(screen.getByText('Missing: chunky white sneakers')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', {
+          name: 'Partner · demo brand: STUDIO EDIT, Ankle boots, ₪459',
+        }),
+      ).toBeOnTheScreen();
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(3);
+
+      // Pictures fade; words change colour instead and stay outside what's faded.
+      const pictures = screen.getByTestId('look-pictures', hidden);
+      expect(pictures).toHaveStyle({ opacity: DIMMED_OPACITY });
+      expect(screen.getByTestId('partner-picture', hidden)).toHaveStyle({
+        opacity: DIMMED_OPACITY,
+      });
+      expect(within(pictures).queryByText('Сатин после спорта', hidden)).toBeNull();
+      expect(screen.getByText('Сатин после спорта', hidden)).toHaveStyle({
+        color: colors.textSecondary,
+      });
+      expect(screen.getByText('The tee makes the satin offhand.')).toHaveStyle({
+        color: colors.textSecondary,
+      });
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
+      expect(screen.getByTestId('look-pictures', hidden)).toHaveStyle({ opacity: 1 });
+      expect(screen.getByText('The tee makes the satin offhand.')).toHaveStyle({
+        color: colors.text,
+      });
+    });
+
+    test('does not remount the mobile, either way', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      await render(<WearWith id="req-1" />);
+      // The mobile keeps its measured width in its own state. A remount would lose it and take the
+      // pieces away until the next layout, which this test never sends again.
+      await fireEvent(
+        await screen.findByLabelText('Сатин после спорта, Mauve satin skirt, Grey tee'),
+        'layout',
+        { nativeEvent: { layout: { width: 300 } } },
+      );
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(2);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Not me, look 1 of 1' }));
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(2);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(2);
+    });
+
+    test('a look already rejected opens with its pieces and its reason', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({
+        ...done,
+        outfits: [{ ...look, opinion: 'dislike', reason: 'weather' }],
+      });
+      await render(<WearWith id="req-1" />);
+
+      expect(await screen.findByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' }),
+      ).toBeChecked();
+      expect(screen.queryByText('Why not? One tap teaches your stylist.')).toBeNull();
+    });
+
+    describe('when the dislike fails', () => {
+      const id = look.id;
+      // Holds the next reaction open until the test says how it ended.
+      function holdReaction() {
+        let fail!: () => void;
+        let pass!: () => void;
+        jest.mocked(reactToOutfit).mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              pass = resolve;
+              fail = () => reject(new Error('dropped'));
+            }),
+        );
+        return { fail: () => fail(), pass: () => pass() };
+      }
+      const reason = { name: 'Wrong for the weather, look 1 of 1' };
+
+      test('its reason is never sent, and the look goes back to unrated', async () => {
+        jest.mocked(getWearWith).mockResolvedValue(done);
+        const dislike = holdReaction();
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('radio', reason));
+        await act(async () => dislike.fail());
+
+        expect(reactToOutfit).toHaveBeenCalledTimes(1);
+        expect(reactToOutfit).toHaveBeenCalledWith(id, 'dislike');
+        expect(screen.getByRole('button', { name: 'Not me, look 1 of 1' })).toBeOnTheScreen();
+        expect(screen.queryByRole('radio')).toBeNull();
+      });
+
+      test('a liked look goes back to liked, not to unrated', async () => {
+        jest.mocked(getWearWith).mockResolvedValue({
+          ...done,
+          outfits: [{ ...look, opinion: 'like' }],
+        });
+        const dislike = holdReaction();
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('radio', reason));
+        await act(async () => dislike.fail());
+
+        expect(reactToOutfit).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Like, look 1 of 1' })).toBeSelected();
+      });
+
+      test('what she did next still counts: the failure does not undo it', async () => {
+        jest.mocked(getWearWith).mockResolvedValue(done);
+        const dislike = holdReaction();
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
+        await fireEvent.press(screen.getByRole('button', { name: 'Like, look 1 of 1' }));
+        await act(async () => dislike.fail());
+
+        expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'like');
+        expect(screen.getByRole('button', { name: 'Like, look 1 of 1' })).toBeSelected();
+      });
+
+      test('a second reason still goes out after a failed first one', async () => {
+        jest.mocked(getWearWith).mockResolvedValue({
+          ...done,
+          outfits: [{ ...look, opinion: 'dislike', reason: null }],
+        });
+        jest.mocked(reactToOutfit).mockRejectedValueOnce(new Error('dropped'));
+        await render(<WearWith id="req-1" />);
+        await fireEvent.press(await screen.findByRole('radio', reason));
+        await waitFor(() => expect(screen.getByRole('radio', reason)).not.toBeChecked());
+
+        await fireEvent.press(screen.getByRole('radio', reason));
+        await waitFor(() => expect(reactToOutfit).toHaveBeenCalledTimes(2));
+        expect(reactToOutfit).toHaveBeenLastCalledWith(id, 'dislike', 'weather');
+        expect(screen.getByRole('radio', reason)).toBeChecked();
+      });
+    });
+
+    test('tells a screen reader, since the pressed button leaves the screen', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<WearWith id="req-1" />);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Not me, look 1 of 1' }));
+
+      expect(announce).toHaveBeenLastCalledWith(
+        'Not me, look 1 of 1. Why not? One tap teaches your stylist.',
+      );
+    });
+
+    test('names the reasons as a group, also once the visible question has gone', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({
+        ...done,
+        outfits: [{ ...look, opinion: 'dislike', reason: 'weather' }],
+      });
+      await render(<WearWith id="req-1" />);
+
+      // By label, not by role: the group isn't `accessible` itself, or its radios couldn't be reached.
+      const group = await screen.findByLabelText('Why not? One tap teaches your stylist.');
+      expect(group.props.accessibilityRole).toBe('radiogroup');
+      expect(screen.queryByText('Why not? One tap teaches your stylist.')).toBeNull();
+    });
   });
 
   test('says so when the outfits could not be put together', async () => {

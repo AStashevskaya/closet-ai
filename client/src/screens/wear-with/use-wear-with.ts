@@ -125,6 +125,13 @@ export function useWearWith(id: string | null) {
   // go one after the other, and the server keeps the latest, so a reason that overtook its dislike
   // would be lost (senior-qa, 2026-10-29).
   const sending = useRef(new Map<string, Promise<void>>());
+  // Each outfit's opinion as the server last confirmed it, and how many opinions are on their way.
+  // What's on screen may be ahead of the server, so this, not the screen, is what a failure goes
+  // back to; and a reason is only sent on top of a dislike the server took (a reason on its own
+  // would reject the look on the server after the screen had gone back).
+  const opinions = useRef(
+    new Map<string, { confirmed: Pick<Outfit, 'opinion' | 'reason'>; onTheirWay: number }>(),
+  );
 
   // Shown at once; if the server doesn't take it, it goes back. Built from the current outfits,
   // so two quick taps count twice and reactions to other outfits since then stay.
@@ -132,7 +139,17 @@ export function useWearWith(id: string | null) {
     if (state.status !== 'done') return;
     void Haptics.selectionAsync();
     const before = state.outfits.find((o) => o.id === outfit.id);
-    const was = { opinion: before?.opinion ?? null, reason: before?.reason ?? null };
+    let known = opinions.current.get(outfit.id);
+    // Nothing on its way: what's on screen came from the server.
+    if (!known || known.onTheirWay === 0) {
+      known = {
+        confirmed: { opinion: before?.opinion ?? null, reason: before?.reason ?? null },
+        onTheirWay: 0,
+      };
+      opinions.current.set(outfit.id, known);
+    }
+    const opinion = known;
+    if (reaction !== 'wore') opinion.onTheirWay += 1;
     const apply = (change: (o: Outfit) => Outfit) =>
       update(id, (current) =>
         current.status === 'done'
@@ -148,20 +165,36 @@ export function useWearWith(id: string | null) {
         : // A new opinion has no reason until she gives one.
           { ...o, opinion: reaction === 'none' ? null : reaction, reason: reason ?? null },
     );
+    // Goes back to what the server has, unless she has reacted since: then the later one decides.
+    const opinionSettled = () => {
+      opinion.onTheirWay -= 1;
+      if (opinion.onTheirWay === 0) apply((o) => ({ ...o, ...opinion.confirmed }));
+    };
     const send = async () => {
+      if (reason && opinion.confirmed.opinion !== 'dislike') {
+        opinionSettled();
+        return;
+      }
       try {
         await (reason
           ? reactToOutfit(outfit.id, reaction, reason)
           : reactToOutfit(outfit.id, reaction));
+        if (reaction === 'wore') return;
+        opinion.confirmed = {
+          opinion: reaction === 'none' ? null : reaction,
+          reason: reason ?? null,
+        };
+        opinion.onTheirWay -= 1;
       } catch {
-        apply((o) =>
-          reaction === 'wore'
-            ? { ...o, woreCount: Math.max(0, o.woreCount - 1) }
-            : { ...o, ...was },
-        );
+        if (reaction === 'wore') {
+          apply((o) => ({ ...o, woreCount: Math.max(0, o.woreCount - 1) }));
+        } else {
+          opinionSettled();
+        }
       }
     };
-    // `send` never rejects, so one failed reaction doesn't stop the ones after it.
+    // `send` never rejects, so one failed reaction doesn't stop the ones after it, except a reason,
+    // which has nothing to add to a dislike that didn't get through.
     const sent = (sending.current.get(outfit.id) ?? Promise.resolve()).then(send);
     sending.current.set(outfit.id, sent);
   }
