@@ -369,7 +369,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     getRequest: async (id) => requests.find((r) => r.id === id) ?? null,
     history: async (userId, limit) =>
       requests
-        .filter((r) => r.userId === userId && r.status === "done")
+        .filter((r) => r.userId === userId && r.status === "done" && (r.itemId || r.heroPhotoKey))
         .reverse()
         .slice(0, limit),
     latestDone: async (userId, itemId, mood) =>
@@ -380,14 +380,32 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         )
         .at(-1) ?? null,
     saveOutfits: async (requestId, userId, looks, _cost, verdict = null) => {
+      const request = requests.find((r) => r.id === requestId);
+      if (!request) return false;
       for (const look of looks)
         storedOutfits.push({ ...look, id: randomUUID(), requestId, userId });
-      const request = requests.find((r) => r.id === requestId);
-      if (request) Object.assign(request, { status: "done", verdict });
+      Object.assign(request, { status: "done", verdict });
+      return true;
     },
     markFailed: async (requestId) => {
       const request = requests.find((r) => r.id === requestId);
       if (request) request.status = "failed";
+    },
+    deleteRequest: async (requestId, userId) => {
+      const request = requests.find((r) => r.id === requestId && r.userId === userId);
+      if (!request || (!request.itemId && !request.heroPhotoKey)) return false;
+      const reacted = (o: { id: string }) => reactions.some((r) => r.outfitId === o.id);
+      const looks = storedOutfits.filter((o) => o.requestId === requestId);
+      for (const look of looks.filter((o) => !reacted(o))) {
+        storedOutfits.splice(storedOutfits.indexOf(look), 1);
+      }
+      for (const wish of wishRows.filter((w) => w.requestId === requestId)) {
+        wishRows.splice(wishRows.indexOf(wish), 1);
+      }
+      if (looks.some(reacted)) {
+        Object.assign(request, { itemId: null, heroPhotoKey: null, heroNoun: null, verdict: null });
+      } else requests.splice(requests.indexOf(request), 1);
+      return true;
     },
     view: async (requestId, userId, lang) => {
       const request = requests.find((r) => r.id === requestId && r.userId === userId);

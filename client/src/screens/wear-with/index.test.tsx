@@ -1,20 +1,22 @@
 import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AccessibilityInfo, Alert } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 
 import i18n from '@/i18n';
-import { addWish, createItem, getWearWith, reactToOutfit } from '@/lib/api';
+import { addWish, createItem, deleteWearWith, getWearWith, reactToOutfit } from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
 import { ThreadRow } from '@/screens/style-it/thread-row';
 
 import { WearWith } from '.';
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+const mockBack = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: mockBack }) }));
 
 jest.mock('@/lib/api', () => ({
   addWish: jest.fn(),
+  deleteWearWith: jest.fn(),
   getWearWith: jest.fn(),
   reactToOutfit: jest.fn(),
   createItem: jest.fn(),
@@ -235,6 +237,68 @@ describe('<WearWith />', () => {
     expect(getWearWith).toHaveBeenCalledWith('req-1', 'en');
   });
 
+  describe('deleting the styling', () => {
+    let alert: jest.SpyInstance;
+    beforeEach(() => {
+      alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      alert.mockRestore();
+      jest.useRealTimers();
+    });
+
+    // Presses "Delete" in the confirmation of the styling's delete button.
+    async function deleteStyling(name: string) {
+      await fireEvent.press(await screen.findByRole('button', { name }));
+      const [title, message, buttons] = jest.mocked(Alert.alert).mock.calls.at(-1)!;
+      expect(title).toBe('Delete this styling?');
+      expect(message).toContain("can't be undone");
+      await act(async () => buttons!.find((b) => b.style === 'destructive')!.onPress!());
+    }
+
+    test('deletes it from the outfits screen and goes back', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      await render(<WearWith id="req-1" />);
+      await deleteStyling('Delete the styling of Mauve satin skirt');
+      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
+      expect(mockBack).toHaveBeenCalledTimes(1);
+    });
+
+    test('stays on the screen and says so when the delete fails', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      jest.mocked(deleteWearWith).mockRejectedValueOnce(new ApiError(500, 'boom'));
+      await render(<WearWith id="req-1" />);
+      await deleteStyling('Delete the styling of Mauve satin skirt');
+      expect(alert).toHaveBeenLastCalledWith("Couldn't delete the styling. Try again.");
+      expect(mockBack).not.toHaveBeenCalled();
+      expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    });
+
+    test('can delete while the looks are being composed, and leaving stops the polling', async () => {
+      jest.useFakeTimers();
+      jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'pending', outfits: [] });
+      const { unmount } = await render(<WearWith id="req-1" />);
+      await deleteStyling('Delete styling');
+      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
+      expect(mockBack).toHaveBeenCalledTimes(1);
+
+      // Going back unmounts the screen; the router is mocked here, so the test does it.
+      await unmount();
+      const polls = jest.mocked(getWearWith).mock.calls.length;
+      await act(() => jest.advanceTimersByTimeAsync(10_000));
+      expect(getWearWith).toHaveBeenCalledTimes(polls);
+    });
+
+    test('can delete a styling whose looks failed', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'failed', outfits: [] });
+      await render(<WearWith id="req-1" />);
+      expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
+      await deleteStyling('Delete styling');
+      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
+      expect(mockBack).toHaveBeenCalledTimes(1);
+    });
+  });
+
   test('labels every partner piece and opens its card', async () => {
     const boots: CatalogItem = {
       id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a99',
@@ -314,6 +378,23 @@ describe('<WearWith />', () => {
     await render(<WearWith id="req-1" />);
     expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
   });
+  test('stops asking at once when the styling is gone', async () => {
+    jest.mocked(getWearWith).mockRejectedValue(new ApiError(404, 'request not found'));
+    await render(<WearWith id="req-1" />);
+    expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
+    expect(getWearWith).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps asking through a dropped request', async () => {
+    jest.useFakeTimers();
+    jest.mocked(getWearWith).mockRejectedValueOnce(new Error('dropped')).mockResolvedValue(done);
+    await render(<WearWith id="req-1" />);
+    await act(() => jest.advanceTimersByTimeAsync(2000));
+    expect(getWearWith).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+    jest.useRealTimers();
+  });
+
   test('says whether a piece is worth buying, and opens the one she already has', async () => {
     jest.mocked(getWearWith).mockResolvedValue({
       ...done,

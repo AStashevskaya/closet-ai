@@ -10,7 +10,21 @@ import type {
   StyleSummary,
   WearWithRequest,
 } from "@closet-ai/shared";
-import { and, asc, count, countDistinct, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  DrizzleQueryError,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+} from "drizzle-orm";
 import type { ModelTokens } from "../../ai/stylist";
 import type { Db } from "../../db/client";
 import {
@@ -22,6 +36,7 @@ import {
   outfits,
   photos,
   styleBriefs,
+  wishes,
 } from "../../db/schema";
 import { toCatalogItem } from "../catalog/catalog.repository";
 import { toItem } from "../items/items.repository";
@@ -109,14 +124,19 @@ export interface OutfitsRepository {
     mood: OutfitMood | null,
   ): Promise<OutfitRequestRow | null>;
   // Stores the outfits (and, for an item from a photo, the verdict) and marks the request done.
+  // false when the request is gone: she deleted it while it was being composed.
   saveOutfits(
     requestId: string,
     userId: string,
     looks: NewOutfit[],
     cost: { micros: number; tokens?: ModelTokens },
     verdict?: BuyVerdict | null,
-  ): Promise<void>;
+  ): Promise<boolean>;
   markFailed(requestId: string): Promise<void>;
+  // Deletes her styling; false when it isn't hers or is already gone. Its wish and every look she
+  // never reacted to go. Looks she did react to stay for the brief, on a row with neither piece,
+  // the state a deleted item already leaves: out of the diary, and read by nothing else.
+  deleteRequest(requestId: string, userId: string): Promise<boolean>;
   // The request's outfits with their items and the user's reactions; null when not theirs.
   // Partner pieces are named in the language asked for.
   view(requestId: string, userId: string, lang: AppLanguage): Promise<WearWithRequest | null>;
@@ -159,6 +179,10 @@ export interface OutfitsRepository {
   addedSince(userId: string, since: Date): Promise<{ items: number; looks: number }>;
 }
 
+// Drizzle wraps the driver's error, which has Postgres's code.
+const isForeignKeyViolation = (error: unknown) =>
+  error instanceof DrizzleQueryError && (error.cause as { code?: string }).code === "23503";
+
 // The current opinion is the latest like / dislike / none, with a dislike's reason; "wore" is
 // counted.
 export function summarize(
@@ -188,6 +212,9 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     verdict: outfitRequests.verdict,
     createdAt: outfitRequests.createdAt,
   };
+
+  // A request about a piece: the others are what deleting a styling or its item leaves.
+  const aboutAPiece = or(isNotNull(outfitRequests.itemId), isNotNull(outfitRequests.heroPhotoKey));
 
   return {
     async wardrobe(userId) {
@@ -244,7 +271,9 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return db
         .select(requestColumns)
         .from(outfitRequests)
-        .where(and(eq(outfitRequests.userId, userId), eq(outfitRequests.status, "done")))
+        .where(
+          and(eq(outfitRequests.userId, userId), eq(outfitRequests.status, "done"), aboutAPiece),
+        )
         .orderBy(desc(outfitRequests.createdAt))
         .limit(limit);
     },
@@ -267,7 +296,14 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     },
 
     async saveOutfits(requestId, userId, looks, cost, verdict = null) {
-      await db.transaction(async (tx) => {
+      return db.transaction(async (tx) => {
+        // First, so a request deleted meanwhile is noticed before any look points to it.
+        const updated = await tx
+          .update(outfitRequests)
+          .set({ status: "done", costMicros: cost.micros, tokens: cost.tokens ?? null, verdict })
+          .where(eq(outfitRequests.id, requestId))
+          .returning({ id: outfitRequests.id });
+        if (updated.length === 0) return false;
         for (const [position, look] of looks.entries()) {
           const [saved] = await tx
             .insert(outfits)
@@ -281,10 +317,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
               );
           }
         }
-        await tx
-          .update(outfitRequests)
-          .set({ status: "done", costMicros: cost.micros, tokens: cost.tokens ?? null, verdict })
-          .where(eq(outfitRequests.id, requestId));
+        return true;
       });
     },
 
@@ -293,6 +326,48 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .update(outfitRequests)
         .set({ status: "failed" })
         .where(eq(outfitRequests.id, requestId));
+    },
+
+    async deleteRequest(requestId, userId) {
+      return db.transaction(async (tx) => {
+        // Locked, so a second delete at once waits for this one, then reads the row as it left it:
+        // gone, or with neither piece. It finds nothing to delete, and answers false.
+        const [own] = await tx
+          .select({ id: outfitRequests.id })
+          .from(outfitRequests)
+          .where(
+            and(eq(outfitRequests.id, requestId), eq(outfitRequests.userId, userId), aboutAPiece),
+          )
+          .for("update");
+        if (!own) return false;
+        const reacted = await tx
+          .selectDistinct({ id: outfits.id })
+          .from(outfits)
+          .innerJoin(outfitReactions, eq(outfitReactions.outfitId, outfits.id))
+          .where(eq(outfits.requestId, requestId));
+        if (reacted.length === 0) {
+          // Looks, pieces and the wish go with it (foreign keys).
+          await tx.delete(outfitRequests).where(eq(outfitRequests.id, requestId));
+          return true;
+        }
+        await tx.delete(wishes).where(eq(wishes.requestId, requestId));
+        await tx.delete(outfits).where(
+          and(
+            eq(outfits.requestId, requestId),
+            notInArray(
+              outfits.id,
+              reacted.map((look) => look.id),
+            ),
+          ),
+        );
+        // Without its key the photo is the hourly cleanup's, unless a closet item uses it. What the
+        // piece was and whether to buy it go too: the brief reads neither.
+        await tx
+          .update(outfitRequests)
+          .set({ itemId: null, heroPhotoKey: null, heroNoun: null, verdict: null })
+          .where(eq(outfitRequests.id, requestId));
+        return true;
+      });
     },
 
     async view(requestId, userId, lang) {
@@ -366,7 +441,13 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .from(outfits)
         .where(and(eq(outfits.id, outfitId), eq(outfits.userId, userId)));
       if (!own) return false;
-      await db.insert(outfitReactions).values({ outfitId, userId, reaction, reason });
+      try {
+        await db.insert(outfitReactions).values({ outfitId, userId, reaction, reason });
+      } catch (cause) {
+        // The look went after the check: its styling was deleted just now.
+        if (isForeignKeyViolation(cause)) return false;
+        throw cause;
+      }
       return true;
     },
 

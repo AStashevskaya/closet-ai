@@ -264,7 +264,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       ],
     };
   });
-  await outfits.saveOutfits(
+  // Deleted while the model was writing: nothing to keep, and nothing was shown.
+  const stored = await outfits.saveOutfits(
     requestId,
     request.userId,
     saved,
@@ -275,6 +276,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       twinItemId: (verdict.twin !== null && byN.get(verdict.twin)?.id) || null,
     },
   );
+  if (!stored) return;
 
   // How often she gets fewer looks than asked for because of the hidden ones (PR #73's trade-off).
   if (saved.length < looks.length) {

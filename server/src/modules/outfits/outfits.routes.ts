@@ -194,6 +194,11 @@ export const outfitsRoutes =
         const found = await outfits.view(request.params.id, user.id, request.query.lang);
         const row = await outfits.getRequest(request.params.id);
         if (!found || !row) throw httpError(404, "request not found");
+        // Done, with neither piece: deleted, or about an item deleted since. Only its reacted looks
+        // are left, for the brief. (A pending one whose item went is about to be marked failed.)
+        if (row.status === "done" && !row.itemId && !row.heroPhotoKey) {
+          throw httpError(404, "request not found");
+        }
         if (!row.heroPhotoKey) return found;
 
         // An item from a photo: shown from its own photo, and addable to the wardrobe unless it
@@ -240,6 +245,20 @@ export const outfitsRoutes =
             pieces: outfit.pieces.map((piece) => (piece.hero ? { ...piece, item: hero } : piece)),
           })),
         };
+      },
+    );
+
+    // Deleting a styling never gives a try back: limits count usage_events, which it doesn't touch.
+    // The piece stays; so do the looks she reacted to, for the brief (see deleteRequest).
+    app.delete(
+      "/wear-with/:id",
+      { schema: { params: z.object({ id: z.string().uuid() }) } },
+      async (request, reply) => {
+        const user = request.user as SessionUser;
+        if (!(await outfits.deleteRequest(request.params.id, user.id))) {
+          throw httpError(404, "request not found");
+        }
+        return reply.code(204).send();
       },
     );
 

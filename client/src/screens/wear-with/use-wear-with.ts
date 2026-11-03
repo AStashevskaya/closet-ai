@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo } from 'react-native';
 
 import { getWearWith, reactToOutfit } from '@/lib/api';
-import { isOffline } from '@/lib/api-error';
+import { ApiError, isOffline } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 
 // The model takes about 10 s; after a minute and a half the screen gives up.
@@ -99,6 +99,8 @@ export function useWearWith(id: string | null) {
             setResult({ id, state: { status: 'pending', composing, addable } });
           }
         } catch (cause) {
+          // Deleted, say on another phone: asking again won't bring it back.
+          if (cause instanceof ApiError && cause.status === 404) break;
           // A dropped request is no reason to stop; the next poll tries again.
           offline = isOffline(cause) ? offline + 1 : 0;
           if (offline === MAX_OFFLINE_POLLS) break;

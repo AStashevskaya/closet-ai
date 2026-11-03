@@ -1,9 +1,9 @@
 import type { WearWithRequest } from '@closet-ai/shared';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import i18n from '@/i18n';
-import { askWearWith, getUsage, getWearWith } from '@/lib/api';
+import { askWearWith, deleteWearWith, getUsage, getWearWith } from '@/lib/api';
 import { ApiError } from '@/lib/api-error';
 
 import { Styled } from '.';
@@ -12,11 +12,13 @@ jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
-// Only so the real router isn't loaded: partner pieces use it, and these outfits have none.
-jest.mock('expo-router', () => ({}));
+// So the real router isn't loaded; deleting the styling goes back.
+const mockBack = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
 jest.mock('@/lib/api', () => ({
   ApiError: jest.requireActual('@/lib/api-error').ApiError,
   askWearWith: jest.fn(),
+  deleteWearWith: jest.fn(),
   getWearWith: jest.fn(),
   reactToOutfit: jest.fn(),
   getUsage: jest.fn(),
@@ -62,6 +64,27 @@ describe('<Styled />', () => {
     expect(screen.getByRole('header', { name: 'Outfits with Satin midi skirt' })).toBeOnTheScreen();
     expect(await screen.findByText('The tee makes the satin offhand.')).toBeOnTheScreen();
     expect(getWearWith).toHaveBeenCalledWith('req-1', 'en');
+  });
+
+  test('goes back once the styling is deleted, and stays if that fails', async () => {
+    jest.mocked(getWearWith).mockResolvedValue(looks('req-1'));
+    jest.mocked(deleteWearWith).mockRejectedValueOnce(new ApiError(500, 'boom'));
+    await render(<Styled requestId="req-1" piece={piece} mood={null} />);
+    const del = async () => {
+      await fireEvent.press(
+        await screen.findByRole('button', { name: 'Delete the styling of Satin midi skirt' }),
+      );
+      const buttons = alert.mock.calls.at(-1)![2]!;
+      await act(async () => buttons.find((b) => b.style === 'destructive')!.onPress!());
+    };
+
+    await del();
+    expect(alert).toHaveBeenLastCalledWith("Couldn't delete the styling. Try again.");
+    expect(mockBack).not.toHaveBeenCalled();
+
+    await del();
+    expect(deleteWearWith).toHaveBeenLastCalledWith('req-1');
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
   test('asks about the piece afresh, in the same mood, when the outfits failed', async () => {

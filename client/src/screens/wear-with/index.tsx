@@ -15,6 +15,7 @@ import { addWish, createItem, sessionHeaders } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { limitText } from '@/lib/limits';
 import { arrive, durations, STAGGER_STEP } from '@/motion';
+import { DeleteStyling, useDeleteStyling } from '@/screens/style-it/delete-styling';
 import { KNOT_Y, THREAD_X, ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
@@ -24,7 +25,10 @@ import { useWearWith } from './use-wear-with';
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
 export function WearWith({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const { state, setWishId, react, retry } = useWearWith(id);
+  // Leaving the screen stops its polling, so this works while the looks are being composed too.
+  const deleting = useDeleteStyling(id, () => router.back());
   const [headers, setHeaders] = useState<Record<string, string>>();
   const reduced = useReducedMotion();
   // How tall the piece's row is, for the waiting bead's run down its thread.
@@ -101,6 +105,7 @@ export function WearWith({ id }: { id: string }) {
           {t(state.offline ? 'common.offline' : 'wearWith.failed')}
         </Text>
         <Button kind="outline" label={t('wearWith.retry')} onPress={retry} />
+        <DeleteStyling control={deleting} style={styles.deleteCentered} />
       </View>
     );
   }
@@ -188,6 +193,7 @@ export function WearWith({ id }: { id: string }) {
                 {t('wearWith.empty')}
               </Animated.Text>
             )}
+            <DeleteStyling control={deleting} name={waiting ? undefined : hero?.name} />
           </View>
         </ThreadRow>
         {/* From the knot down the thread; mounted all along so the bead fades as it goes. No line of
@@ -301,6 +307,9 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 32,
     backgroundColor: colors.background,
+  },
+  deleteCentered: {
+    alignSelf: 'center',
   },
   message: {
     fontFamily: fonts.body,

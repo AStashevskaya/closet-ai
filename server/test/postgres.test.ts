@@ -663,6 +663,202 @@ describe.skipIf(!url)("on Postgres", () => {
     });
   });
 
+  it("deletes a styling, keeping the piece and the looks she reacted to", async () => {
+    const cookie = await signUp("delete-styling@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "delete-styling@example.com"));
+    const userId = user!.id;
+    const photos = createPhotosRepository(db.db);
+    const outfits = createOutfitsRepository(db.db);
+    const wishes = createWishesRepository(db.db);
+    const key = `photos/${userId}/styled.webp`;
+    await photos.createReady({ key, ownerId: userId, tags: shirtTags });
+    const item = (
+      await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "Shirt", category: "top", colors: ["white"], photoKey: key },
+      })
+    ).json<Item>();
+    const look = (caption: string, itemId: string | null) => ({
+      caption,
+      occasion: "coffee",
+      why: "high-low",
+      missing: null,
+      pieces: [{ hero: true, itemId }],
+    });
+    const del = (id: string, as = cookie) =>
+      app.inject({ method: "DELETE", url: `/api/wear-with/${id}`, headers: { cookie: as } });
+    const looks = async (requestId: string) =>
+      (await db.db.select().from(schema.outfits).where(eq(schema.outfits.requestId, requestId)))
+        .length;
+
+    // A loose piece with a wish and no reactions: the whole row goes, its photo to the cleanup.
+    const crop = `photos/${userId}/styled-crop.webp`;
+    await photos.createReady({ key: crop, ownerId: userId, tags: shirtTags });
+    const loose = await outfits.createRequest(userId, { heroPhotoKey: crop, heroNoun: "shirt" }, 1);
+    expect(await outfits.saveOutfits(loose, userId, [look("Loose", null)], { micros: 1 })).toBe(
+      true,
+    );
+    await wishes.add(userId, loose, new Date(0));
+    expect((await del(loose, await signUp("not-the-owner@example.com"))).statusCode).toBe(404);
+    expect(await outfits.getRequest(loose)).not.toBeNull();
+    expect((await del(loose)).statusCode).toBe(204);
+    expect(await outfits.getRequest(loose)).toBeNull();
+    expect(await looks(loose)).toBe(0);
+    expect(await wishes.countDue(userId, new Date())).toBe(0);
+    expect(
+      (await photos.listUnattached(new Date(Date.now() + 60_000))).map((p) => p.key),
+    ).toContain(crop);
+
+    // A closet piece she reacted to: the reacted look stays for the brief, the rest goes.
+    const styled = await outfits.createRequest(userId, { itemId: item.id }, 1);
+    await outfits.saveOutfits(styled, userId, [look("Kept", item.id), look("Dropped", item.id)], {
+      micros: 1,
+    });
+    const [kept] = (await outfits.view(styled, userId, "en"))!.outfits;
+    await outfits.react(kept!.id, userId, "dislike", "match");
+    const before = await outfits.reactedOutfits(userId, 5);
+    expect((await del(styled)).statusCode).toBe(204);
+
+    expect(await outfits.reactedOutfits(userId, 5)).toEqual(before);
+    expect(before[0]).toMatchObject({ opinion: "dislike", reason: "match" });
+    expect(before[0]!.description).toContain("Shirt");
+    expect(await outfits.reactedOutfitCount(userId)).toBe(1);
+    expect(await looks(styled)).toBe(1);
+    expect(await outfits.history(userId, 5)).toEqual([]);
+    expect(await outfits.latestDone(userId, item.id, null)).toBeNull();
+    expect((await del(styled)).statusCode).toBe(404);
+    expect(
+      (await app.inject({ method: "GET", url: `/api/wear-with/${styled}`, headers: { cookie } }))
+        .statusCode,
+    ).toBe(404);
+    expect(
+      (await app.inject({ method: "GET", url: `/api/items/${item.id}`, headers: { cookie } }))
+        .statusCode,
+    ).toBe(200);
+
+    // A loose piece she reacted to: what it was and the verdict on it go, the reaction stays.
+    const reactedCrop = `photos/${userId}/styled-reacted-crop.webp`;
+    await photos.createReady({ key: reactedCrop, ownerId: userId, tags: shirtTags });
+    const bought = await outfits.createRequest(
+      userId,
+      { heroPhotoKey: reactedCrop, heroNoun: "linen shirt" },
+      1,
+    );
+    await outfits.saveOutfits(
+      bought,
+      userId,
+      [look("Reacted", null)],
+      { micros: 1 },
+      { call: "think", reason: "You have one like it", twinItemId: item.id },
+    );
+    const [reactedLook] = (await outfits.view(bought, userId, "en"))!.outfits;
+    await outfits.react(reactedLook!.id, userId, "like");
+    expect((await del(bought)).statusCode).toBe(204);
+    expect(await outfits.getRequest(bought)).toMatchObject({
+      heroPhotoKey: null,
+      heroNoun: null,
+      verdict: null,
+    });
+    expect(await outfits.reactedOutfitCount(userId)).toBe(2);
+
+    // The look being written when it was deleted isn't stored, and nothing fails.
+    const composing = await outfits.createRequest(userId, { itemId: item.id }, 1);
+    expect((await del(composing)).statusCode).toBe(204);
+    expect(
+      await outfits.saveOutfits(composing, userId, [look("Late", item.id)], { micros: 1 }),
+    ).toBe(false);
+    expect(await looks(composing)).toBe(0);
+  });
+
+  it("answers a second delete at once with 404, with or without a reaction", async () => {
+    const cookie = await signUp("delete-twice@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "delete-twice@example.com"));
+    const userId = user!.id;
+    const photos = createPhotosRepository(db.db);
+    const outfits = createOutfitsRepository(db.db);
+    const key = `photos/${userId}/twice.webp`;
+    await photos.createReady({ key, ownerId: userId, tags: shirtTags });
+    const item = (
+      await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: "Shirt", category: "top", colors: ["white"], photoKey: key },
+      })
+    ).json<Item>();
+    const styled = async () => {
+      const id = await outfits.createRequest(userId, { itemId: item.id }, 1);
+      await outfits.saveOutfits(
+        id,
+        userId,
+        [{ caption: "Look", occasion: "", why: "", missing: null, pieces: [] }],
+        { micros: 1 },
+      );
+      return id;
+    };
+    const twice = async (id: string) => {
+      const del = () =>
+        app.inject({ method: "DELETE", url: `/api/wear-with/${id}`, headers: { cookie } });
+      const answers = await Promise.all([del(), del()]);
+      return answers.map((res) => res.statusCode).sort();
+    };
+
+    expect(await twice(await styled())).toEqual([204, 404]);
+
+    const reacted = await styled();
+    const [look] = (await outfits.view(reacted, userId, "en"))!.outfits;
+    await outfits.react(look!.id, userId, "like");
+    expect(await twice(reacted)).toEqual([204, 404]);
+    expect(await outfits.reactedOutfitCount(userId)).toBe(1);
+  });
+
+  it("answers false, not an error, when a look goes between the check and the reaction", async () => {
+    await signUp("react-race@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "react-race@example.com"));
+    const userId = user!.id;
+    const outfits = createOutfitsRepository(db.db);
+    const key = `photos/${userId}/race.webp`;
+    await createPhotosRepository(db.db).createReady({ key, ownerId: userId, tags: shirtTags });
+    const id = await outfits.createRequest(userId, { heroPhotoKey: key, heroNoun: null }, 1);
+    await outfits.saveOutfits(
+      id,
+      userId,
+      [{ caption: "Look", occasion: "", why: "", missing: null, pieces: [] }],
+      { micros: 1 },
+    );
+    const [look] = (await outfits.view(id, userId, "en"))!.outfits;
+
+    // The check finds the look; the insert then points to one that isn't there, as after a delete.
+    const insertFor = (outfitId: string) =>
+      new Proxy(db.db, {
+        get: (target, prop): unknown =>
+          prop === "insert"
+            ? () => ({
+                values: (row: typeof schema.outfitReactions.$inferInsert) =>
+                  target.insert(schema.outfitReactions).values({ ...row, outfitId }),
+              })
+            : Reflect.get(target, prop),
+      });
+    const racing = createOutfitsRepository(insertFor("00000000-0000-4000-8000-000000000000"));
+    expect(await racing.react(look!.id, userId, "like")).toBe(false);
+
+    // Any other failure is still an error: a reaction the enum doesn't know, say.
+    await expect(
+      outfits.react(look!.id, userId, "nonsense" as unknown as "like"),
+    ).rejects.toThrow();
+  });
+
   it("lists only photos no item points to, created before the cutoff", async () => {
     const cookie = await signUp("cleanup@example.com");
     const [user] = await db.db
