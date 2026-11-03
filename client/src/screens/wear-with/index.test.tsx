@@ -1,12 +1,14 @@
 import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { AccessibilityInfo, Alert } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 
+import { DIMMED_OPACITY } from '@/components/dimmable';
 import i18n from '@/i18n';
 import { addWish, createItem, deleteWearWith, getWearWith, reactToOutfit } from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
 import { ThreadRow } from '@/screens/style-it/thread-row';
+import { colors } from '@/theme';
 
 import { WearWith } from '.';
 
@@ -383,6 +385,107 @@ describe('<WearWith />', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Wore it, look 1 of 1' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Wore it · 1, look 1 of 1' }));
     expect(screen.getByRole('button', { name: 'Wore it · 2, look 1 of 1' })).toBeOnTheScreen();
+  });
+
+  describe('"Not mine"', () => {
+    const boots: CatalogItem = {
+      id: '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a99',
+      brand: 'STUDIO EDIT',
+      name: 'Ankle boots',
+      category: 'shoes',
+      colors: ['black'],
+      price: 459,
+      currency: 'ILS',
+      url: 'https://brand.example/p/P070',
+      imageUrl: '/api/catalog/boots/photo?v=1',
+      inStock: true,
+      demo: true,
+    };
+    const look = done.outfits[0]!;
+    const hidden = { includeHiddenElements: true };
+
+    test('keeps the whole look on the screen, dimmed, its words still readable', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({
+        ...done,
+        outfits: [
+          { ...look, pieces: [...look.pieces, { hero: false, item: null, catalogItem: boots }] },
+        ],
+      });
+      await render(<WearWith id="req-1" />);
+      await fireEvent(
+        await screen.findByLabelText(
+          'Сатин после спорта, Mauve satin skirt, Grey tee, Ankle boots',
+        ),
+        'layout',
+        { nativeEvent: { layout: { width: 300 } } },
+      );
+      await fireEvent.press(screen.getByRole('button', { name: 'Not me, look 1 of 1' }));
+
+      expect(screen.getByText('01 / 01 · Not me')).toBeOnTheScreen();
+      expect(screen.getByText('weekend in town')).toBeOnTheScreen();
+      expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+      expect(screen.getByText('Mauve satin skirt · Grey tee')).toBeOnTheScreen();
+      expect(screen.getByText('Missing: chunky white sneakers')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', {
+          name: 'Partner · demo brand: STUDIO EDIT, Ankle boots, ₪459',
+        }),
+      ).toBeOnTheScreen();
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(3);
+
+      // Pictures fade; words change colour instead and stay outside what's faded.
+      const pictures = screen.getByTestId('look-pictures', hidden);
+      expect(pictures).toHaveStyle({ opacity: DIMMED_OPACITY });
+      expect(screen.getByTestId('partner-picture', hidden)).toHaveStyle({
+        opacity: DIMMED_OPACITY,
+      });
+      expect(within(pictures).queryByText('Сатин после спорта', hidden)).toBeNull();
+      expect(screen.getByText('Сатин после спорта', hidden)).toHaveStyle({
+        color: colors.textSecondary,
+      });
+      expect(screen.getByText('The tee makes the satin offhand.')).toHaveStyle({
+        color: colors.textSecondary,
+      });
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
+      expect(screen.getByTestId('look-pictures', hidden)).toHaveStyle({ opacity: 1 });
+      expect(screen.getByText('The tee makes the satin offhand.')).toHaveStyle({
+        color: colors.text,
+      });
+    });
+
+    test('does not remount the mobile, either way', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      await render(<WearWith id="req-1" />);
+      // The mobile keeps its measured width in its own state. A remount would lose it and take the
+      // pieces away until the next layout, which this test never sends again.
+      await fireEvent(
+        await screen.findByLabelText('Сатин после спорта, Mauve satin skirt, Grey tee'),
+        'layout',
+        { nativeEvent: { layout: { width: 300 } } },
+      );
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(2);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Not me, look 1 of 1' }));
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(2);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Bring it back, look 1 of 1' }));
+      expect(screen.getAllByTestId('hung-piece', hidden)).toHaveLength(2);
+    });
+
+    test('a look already rejected opens with its pieces and its reason', async () => {
+      jest.mocked(getWearWith).mockResolvedValue({
+        ...done,
+        outfits: [{ ...look, opinion: 'dislike', reason: 'weather' }],
+      });
+      await render(<WearWith id="req-1" />);
+
+      expect(await screen.findByText('The tee makes the satin offhand.')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('radio', { name: 'Wrong for the weather, look 1 of 1' }),
+      ).toBeChecked();
+      expect(screen.queryByText('Why not? One tap teaches your stylist.')).toBeNull();
+    });
   });
 
   test('says so when the outfits could not be put together', async () => {

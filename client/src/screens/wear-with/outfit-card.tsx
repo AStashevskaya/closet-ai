@@ -27,52 +27,14 @@ type Props = {
 // One composed outfit: the look hanging as a mobile (a little heart on its wire once liked), the occasion, the
 // stylist's idea, the pieces, partner pieces, what's missing, and the reactions.
 // Shared by the outfits screen and Style it.
-export function OutfitCard(props: Props) {
-  return props.outfit.opinion === 'dislike' ? <Rejected {...props} /> : <Look {...props} />;
-}
-
-// "Not mine" (decided 2026-10-28): the look folds into a strip, asks why in one tap (optional,
-// read by the brief), and can be brought back.
-function Rejected({ outfit, index, total, onReact }: Props) {
+//
+// "Not mine" (owner's call, 2026-11-03, replacing the strip of 2026-10-28: the pictures vanished and
+// she couldn't tell it was the same look): the look stays where it is, dimmed, with the reasons
+// (optional, read by the brief) and "Bring it back" in place of the reactions. One component for both
+// states, so the mobile isn't remounted and doesn't swing in again.
+export function OutfitCard({ outfit, index, total, headers, onReact, heroLoose = false }: Props) {
   const { t } = useTranslation();
-  const about = (label: string) => t('wearWith.reactTo', { reaction: label, n: index + 1, total });
-  return (
-    <View style={styles.rejected}>
-      <Text style={styles.number}>
-        {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')} ·{' '}
-        {t('wearWith.dislike')}
-      </Text>
-      <Text style={styles.rejectedCaption}>{outfit.caption}</Text>
-      {!outfit.reason && <Text style={styles.pieces}>{t('wearWith.why')}</Text>}
-      <View style={styles.reactions} accessibilityRole="radiogroup">
-        {DISLIKE_REASONS.map((reason) => (
-          <Reaction
-            key={reason}
-            label={t(`wearWith.reasons.${reason}`)}
-            a11yLabel={about(t(`wearWith.reasons.${reason}`))}
-            on={outfit.reason === reason}
-            radio
-            onPress={() => {
-              if (outfit.reason !== reason) onReact(outfit, 'dislike', reason);
-            }}
-          />
-        ))}
-      </View>
-      <PressableScale
-        style={styles.undo}
-        onPress={() => onReact(outfit, 'none')}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={about(t('wearWith.undo'))}
-      >
-        <Text style={styles.undoText}>{t('wearWith.undo')}</Text>
-      </PressableScale>
-    </View>
-  );
-}
-
-function Look({ outfit, index, total, headers, onReact, heroLoose = false }: Props) {
-  const { t } = useTranslation();
+  const rejected = outfit.opinion === 'dislike';
   const pieces = outfit.pieces.flatMap((p) => (p.item ? [p.item] : []));
   const heroId = outfit.pieces.find((p) => p.hero)?.item?.id;
   // Labelled: partner shoes or a bag where the closet had none for the look, and now and
@@ -80,10 +42,15 @@ function Look({ outfit, index, total, headers, onReact, heroLoose = false }: Pro
   const partners = outfit.pieces.flatMap((p) => (p.catalogItem ? [p.catalogItem] : []));
   // Three looks have three "Like" buttons: a screen reader hears which look each one is for.
   const about = (reaction: string) => t('wearWith.reactTo', { reaction, n: index + 1, total });
+  const wore =
+    outfit.woreCount > 0
+      ? t('wearWith.woreCount', { count: outfit.woreCount })
+      : t('wearWith.wore');
   return (
     <View style={styles.card}>
       <Text style={styles.number}>
         {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+        {rejected && ` · ${t('wearWith.dislike')}`}
       </Text>
       <OutfitMobile
         pieces={[
@@ -101,12 +68,14 @@ function Look({ outfit, index, total, headers, onReact, heroLoose = false }: Pro
         caption={outfit.caption}
         loved={outfit.opinion === 'like'}
         seed={seedFrom(outfit.id)}
+        dimmed={rejected}
       />
-      <Text style={styles.occasion}>{outfit.occasion}</Text>
-      <Text style={styles.why}>{outfit.why}</Text>
+      {/* Quieter by colour, not opacity: faded text would fall below 4.5:1. */}
+      <Text style={[styles.occasion, rejected && styles.quieter]}>{outfit.occasion}</Text>
+      <Text style={[styles.why, rejected && styles.quieter]}>{outfit.why}</Text>
       <Text style={styles.pieces}>{pieces.map((p) => p.name).join(' · ')}</Text>
       {partners.map((partner) => (
-        <PartnerPiece key={partner.id} item={partner} headers={headers} />
+        <PartnerPiece key={partner.id} item={partner} headers={headers} dimmed={rejected} />
       ))}
       {outfit.missing && (
         <View style={styles.missing}>
@@ -115,34 +84,55 @@ function Look({ outfit, index, total, headers, onReact, heroLoose = false }: Pro
           </Text>
         </View>
       )}
-      <View style={styles.reactions}>
-        <Reaction
-          label={t('wearWith.like')}
-          a11yLabel={about(t('wearWith.like'))}
-          on={outfit.opinion === 'like'}
-          onPress={() => onReact(outfit, outfit.opinion === 'like' ? 'none' : 'like')}
-        />
-        <Reaction
-          label={t('wearWith.dislike')}
-          a11yLabel={about(t('wearWith.dislike'))}
-          on={outfit.opinion === 'dislike'}
-          onPress={() => onReact(outfit, 'dislike')}
-        />
-        <Reaction
-          label={
-            outfit.woreCount > 0
-              ? t('wearWith.woreCount', { count: outfit.woreCount })
-              : t('wearWith.wore')
-          }
-          a11yLabel={about(
-            outfit.woreCount > 0
-              ? t('wearWith.woreCount', { count: outfit.woreCount })
-              : t('wearWith.wore'),
-          )}
-          on={outfit.woreCount > 0}
-          onPress={() => onReact(outfit, 'wore')}
-        />
-      </View>
+      {rejected ? (
+        <>
+          {!outfit.reason && <Text style={styles.askWhy}>{t('wearWith.why')}</Text>}
+          <View style={styles.reactions} accessibilityRole="radiogroup">
+            {DISLIKE_REASONS.map((reason) => (
+              <Reaction
+                key={reason}
+                label={t(`wearWith.reasons.${reason}`)}
+                a11yLabel={about(t(`wearWith.reasons.${reason}`))}
+                on={outfit.reason === reason}
+                radio
+                onPress={() => {
+                  if (outfit.reason !== reason) onReact(outfit, 'dislike', reason);
+                }}
+              />
+            ))}
+          </View>
+          <PressableScale
+            style={styles.undo}
+            onPress={() => onReact(outfit, 'none')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={about(t('wearWith.undo'))}
+          >
+            <Text style={styles.undoText}>{t('wearWith.undo')}</Text>
+          </PressableScale>
+        </>
+      ) : (
+        <View style={styles.reactions}>
+          <Reaction
+            label={t('wearWith.like')}
+            a11yLabel={about(t('wearWith.like'))}
+            on={outfit.opinion === 'like'}
+            onPress={() => onReact(outfit, outfit.opinion === 'like' ? 'none' : 'like')}
+          />
+          <Reaction
+            label={t('wearWith.dislike')}
+            a11yLabel={about(t('wearWith.dislike'))}
+            on={false}
+            onPress={() => onReact(outfit, 'dislike')}
+          />
+          <Reaction
+            label={wore}
+            a11yLabel={about(wore)}
+            on={outfit.woreCount > 0}
+            onPress={() => onReact(outfit, 'wore')}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -176,14 +166,14 @@ const styles = StyleSheet.create({
   card: {
     gap: 8,
   },
-  rejected: {
-    gap: 8,
-    paddingBottom: 6,
+  quieter: {
+    color: colors.textSecondary,
   },
-  rejectedCaption: {
-    fontFamily: fonts.hand,
-    fontSize: 22,
-    lineHeight: 28,
+  askWhy: {
+    marginTop: 8,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
     color: colors.textSecondary,
     textAlign: 'left',
   },
