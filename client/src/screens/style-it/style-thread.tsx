@@ -72,7 +72,8 @@ export function StyleThread({
           <Text style={styles.chosenTitle} accessibilityRole="header">
             {t('styleIt.open', { name: chosen.name })}
           </Text>
-          <DeleteStyling control={deleting} name={chosen.name} />
+          {/* While it waits for the looks, there's nothing to delete yet. */}
+          {looks.status !== 'pending' && <DeleteStyling control={deleting} name={chosen.name} />}
         </View>
       </ThreadRow>
       {looks.status === 'pending' && (

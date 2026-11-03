@@ -274,15 +274,33 @@ describe('<WearWith />', () => {
       expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
     });
 
-    test('can delete while the looks are being composed, and leaving stops the polling', async () => {
+    test('offers no delete on the first load, before anything is known', async () => {
+      jest.mocked(getWearWith).mockReturnValue(new Promise(() => {}));
+      await render(<WearWith id="req-1" />);
+      expect(
+        screen.getByTestId('thread-waiting', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText('Delete styling')).not.toBeOnTheScreen();
+    });
+
+    test('offers no delete until the looks arrive', async () => {
+      jest.useFakeTimers();
+      jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'pending', outfits: [] });
+      await render(<WearWith id="req-1" />);
+      await act(() => jest.advanceTimersByTimeAsync(2000));
+      expect(screen.queryByText('Delete styling')).not.toBeOnTheScreen();
+
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      await act(() => jest.advanceTimersByTimeAsync(2000));
+      expect(
+        screen.getByRole('button', { name: 'Delete the styling of Mauve satin skirt' }),
+      ).toBeOnTheScreen();
+    });
+
+    test('leaving while the looks are being composed stops the polling', async () => {
       jest.useFakeTimers();
       jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'pending', outfits: [] });
       const { unmount } = await render(<WearWith id="req-1" />);
-      await deleteStyling('Delete styling');
-      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
-      expect(mockBack).toHaveBeenCalledTimes(1);
-
-      // Going back unmounts the screen; the router is mocked here, so the test does it.
       await unmount();
       const polls = jest.mocked(getWearWith).mock.calls.length;
       await act(() => jest.advanceTimersByTimeAsync(10_000));

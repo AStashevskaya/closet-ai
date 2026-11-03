@@ -205,20 +205,26 @@ describe('<StyleIt />', () => {
     expect(alert).toHaveBeenCalledTimes(1);
   });
 
-  test('deletes a styling still being composed, and stops asking for its looks', async () => {
+  test('the open stop offers no delete while its looks are composed, and does once they are', async () => {
     jest.mocked(askWearWith).mockResolvedValue({ id: 'req-1' });
     jest
       .mocked(getWearWith)
       .mockResolvedValue({ ...looks('req-1'), status: 'pending', outfits: [] });
     await render(<StyleIt />);
     await pickSkirt();
-    await fireEvent.press(
-      await screen.findByRole('button', { name: 'Delete the styling of Satin midi skirt' }),
-    );
-    await confirmDelete();
-    expect(deleteWearWith).toHaveBeenCalledWith('req-1');
-    await waitFor(() => expect(screen.queryByTestId('open-stop')).toBeNull());
-    expect(screen.queryByText(/Satin midi skirt/)).toBeNull();
+    expect(await screen.findByTestId('open-stop')).toBeOnTheScreen();
+    expect(
+      screen.queryByRole('button', { name: 'Delete the styling of Satin midi skirt' }),
+    ).toBeNull();
+
+    jest.mocked(getWearWith).mockResolvedValue(looks('req-1'));
+    expect(
+      await screen.findByRole(
+        'button',
+        { name: 'Delete the styling of Satin midi skirt' },
+        { timeout: 3000 },
+      ),
+    ).toBeOnTheScreen();
   });
 
   test("a list read just before a delete doesn't bring the stop back", async () => {
