@@ -31,7 +31,7 @@ type Props = {
   loved?: boolean;
   // Any number, the same for the same look, so its heart keeps its shape.
   seed?: number;
-  // A look she said no to: the wire and pieces faded, the name in a quieter colour, still readable.
+  // A look she said no to: the wire and pieces faded; the name only a small step in colour, to stay readable.
   dimmed?: boolean;
 };
 
@@ -103,7 +103,7 @@ export function OutfitMobile({
       accessibilityLabel={[caption, ...pieces.map((p) => p.name)].filter(Boolean).join(', ')}
     >
       {width > 0 && (
-        <Dimmable dimmed={dimmed} style={{ height }} testID="look-pictures">
+        <Dimmable dimmed={dimmed} overlapping style={{ height }} testID="look-pictures">
           <Svg
             width={width}
             height={height}

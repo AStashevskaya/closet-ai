@@ -13,8 +13,8 @@ import { colors, fonts } from '@/theme';
 type Props = {
   item: CatalogItem;
   headers: Record<string, string> | undefined;
-  // Under a look she said no to: the picture faded, the name quieter. The label stays as it is: a
-  // partner's piece is always labelled as one.
+  // Under a look she said no to: the picture faded, the name a small step in colour. The label stays
+  // as it is: a partner's piece is always labelled as one.
   dimmed?: boolean;
 };
 

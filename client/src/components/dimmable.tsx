@@ -5,25 +5,28 @@ import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { CSS_EASE_OUT, durations } from '@/motion';
 
 // Faint enough to read as set aside, still clear enough to recognise the look. Only for pictures:
-// text under this would fall below 4.5:1, so text goes to a quieter theme colour instead.
+// text under this would fall below 4.5:1, so the pictures carry the dimming and text only takes a
+// small step in colour.
 export const DIMMED_OPACITY = 0.45;
 
 type Props = {
   dimmed: boolean;
+  // Several children over one another. Android otherwise applies the opacity to each on its own, so
+  // a string would show through the piece it holds. Costs an offscreen layer, so only where needed.
+  overlapping?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
   children?: ReactNode;
 };
 
 // Pictures set aside: they fade on the UI thread (a CSS transition, nothing re-renders per frame);
-// with reduced motion they change at once. The compositing flag is for Android, which otherwise
-// applies the opacity to each child on its own, so a string would show through the piece it holds.
-export function Dimmable({ dimmed, style, testID, children }: Props) {
+// with reduced motion they change at once.
+export function Dimmable({ dimmed, overlapping = false, style, testID, children }: Props) {
   const reduceMotion = useReducedMotion();
   return (
     <Animated.View
       testID={testID}
-      needsOffscreenAlphaCompositing
+      needsOffscreenAlphaCompositing={overlapping}
       style={[
         style,
         {
