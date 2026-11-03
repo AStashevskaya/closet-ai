@@ -5,7 +5,7 @@ import {
   type OutfitReaction,
 } from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 
 import { seedFrom } from '@/components/hand-drawn';
 import { OutfitMobile } from '@/components/outfit-mobile';
@@ -70,9 +70,10 @@ export function OutfitCard({ outfit, index, total, headers, onReact, heroLoose =
         seed={seedFrom(outfit.id)}
         dimmed={rejected}
       />
-      {/* Quieter by colour, not opacity: faded text would fall below 4.5:1. */}
-      <Text style={[styles.occasion, rejected && styles.quieter]}>{outfit.occasion}</Text>
-      <Text style={[styles.why, rejected && styles.quieter]}>{outfit.why}</Text>
+      {/* The pictures carry the dimming. The words only take a small step in colour, since faded
+          text would fall below 4.5:1. */}
+      <Text style={[styles.occasion, rejected && styles.wordsSetAside]}>{outfit.occasion}</Text>
+      <Text style={[styles.why, rejected && styles.wordsSetAside]}>{outfit.why}</Text>
       <Text style={styles.pieces}>{pieces.map((p) => p.name).join(' · ')}</Text>
       {partners.map((partner) => (
         <PartnerPiece key={partner.id} item={partner} headers={headers} dimmed={rejected} />
@@ -87,7 +88,12 @@ export function OutfitCard({ outfit, index, total, headers, onReact, heroLoose =
       {rejected ? (
         <>
           {!outfit.reason && <Text style={styles.askWhy}>{t('wearWith.why')}</Text>}
-          <View style={styles.reactions} accessibilityRole="radiogroup">
+          {/* Named here too: the visible question goes once a reason is picked. */}
+          <View
+            style={styles.reactions}
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('wearWith.why')}
+          >
             {DISLIKE_REASONS.map((reason) => (
               <Reaction
                 key={reason}
@@ -123,7 +129,13 @@ export function OutfitCard({ outfit, index, total, headers, onReact, heroLoose =
             label={t('wearWith.dislike')}
             a11yLabel={about(t('wearWith.dislike'))}
             on={false}
-            onPress={() => onReact(outfit, 'dislike')}
+            onPress={() => {
+              onReact(outfit, 'dislike');
+              // This button leaves the screen under a screen reader's focus: say what happened.
+              AccessibilityInfo.announceForAccessibility(
+                `${about(t('wearWith.dislike'))}. ${t('wearWith.why')}`,
+              );
+            }}
           />
           <Reaction
             label={wore}
@@ -166,7 +178,7 @@ const styles = StyleSheet.create({
   card: {
     gap: 8,
   },
-  quieter: {
+  wordsSetAside: {
     color: colors.textSecondary,
   },
   askWhy: {
