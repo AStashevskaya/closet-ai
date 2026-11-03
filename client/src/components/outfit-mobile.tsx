@@ -12,6 +12,7 @@ import Animated, {
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
+import { Dimmable } from '@/components/dimmable';
 import { HandDrawn } from '@/components/hand-drawn';
 import { absoluteUrl } from '@/lib/api';
 import { colors, fonts } from '@/theme';
@@ -30,6 +31,8 @@ type Props = {
   loved?: boolean;
   // Any number, the same for the same look, so its heart keeps its shape.
   seed?: number;
+  // A look she said no to: the wire and pieces faded, the name in a quieter colour, still readable.
+  dimmed?: boolean;
 };
 
 // Across the look as it's worn, start to end: layers and tops first, shoes and bags last.
@@ -80,7 +83,14 @@ const wireY = (x: number, width: number) => {
 // `~/Desktop/closet/wrinkle-lab/design-photo-outfits`, card "Подвеска"): each piece on a string at
 // its own length, her pieces on solid ones, what isn't hers on dashed ones, the name of the look
 // by hand below. The wire is drawn left to right and mirrored in RTL, like the thread.
-export function OutfitMobile({ pieces, headers, caption, loved = false, seed = 1 }: Props) {
+export function OutfitMobile({
+  pieces,
+  headers,
+  caption,
+  loved = false,
+  seed = 1,
+  dimmed = false,
+}: Props) {
   const [width, setWidth] = useState(0);
   const hung = width > 0 ? hang(pieces, width) : [];
   const height = Math.max(...hung.map((h) => h.drop + (h.width * 4) / 3), 120) + WIRE_Y + SAG + 8;
@@ -93,7 +103,7 @@ export function OutfitMobile({ pieces, headers, caption, loved = false, seed = 1
       accessibilityLabel={[caption, ...pieces.map((p) => p.name)].filter(Boolean).join(', ')}
     >
       {width > 0 && (
-        <View style={{ height }}>
+        <Dimmable dimmed={dimmed} style={{ height }} testID="look-pictures">
           <Svg
             width={width}
             height={height}
@@ -148,9 +158,9 @@ export function OutfitMobile({ pieces, headers, caption, loved = false, seed = 1
               <HandDrawn shape="heart" drawn seed={seed} fill />
             </View>
           )}
-        </View>
+        </Dimmable>
       )}
-      <Text style={styles.caption} numberOfLines={2}>
+      <Text style={[styles.caption, dimmed && styles.captionDimmed]} numberOfLines={2}>
         {caption}
       </Text>
     </View>
@@ -238,5 +248,8 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     color: colors.text,
     textAlign: 'left',
+  },
+  captionDimmed: {
+    color: colors.textSecondary,
   },
 });

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Dimmable } from '@/components/dimmable';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { priceLabel } from '@/lib/price';
@@ -12,10 +13,13 @@ import { colors, fonts } from '@/theme';
 type Props = {
   item: CatalogItem;
   headers: Record<string, string> | undefined;
+  // Under a look she said no to: the picture faded, the name quieter. The label stays as it is: a
+  // partner's piece is always labelled as one.
+  dimmed?: boolean;
 };
 
 // A partner brand's piece under a look: always labelled as a partner's, and opens its card.
-export function PartnerPiece({ item, headers }: Props) {
+export function PartnerPiece({ item, headers, dimmed = false }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const label = t(item.demo ? 'partner.demoLabel' : 'partner.label');
@@ -28,7 +32,7 @@ export function PartnerPiece({ item, headers }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${item.brand}, ${item.name}, ${price}`}
     >
-      <View style={styles.frame}>
+      <Dimmable dimmed={dimmed} style={styles.frame} testID="partner-picture">
         {headers && (
           <Image
             source={{ uri: absoluteUrl(item.imageUrl), headers }}
@@ -38,10 +42,10 @@ export function PartnerPiece({ item, headers }: Props) {
             accessibilityIgnoresInvertColors
           />
         )}
-      </View>
+      </Dimmable>
       <View style={styles.text}>
         <Text style={styles.label}>{label}</Text>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, dimmed && styles.nameDimmed]} numberOfLines={1}>
           {item.brand} · {item.name}
         </Text>
         <Text style={styles.price}>{price}</Text>
@@ -93,6 +97,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     textAlign: 'left',
+  },
+  nameDimmed: {
+    color: colors.textSecondary,
   },
   price: {
     fontFamily: fonts.body,
