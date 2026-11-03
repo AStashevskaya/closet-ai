@@ -193,7 +193,13 @@ export function WearWith({ id }: { id: string }) {
                 {t('wearWith.empty')}
               </Animated.Text>
             )}
-            <DeleteStyling control={deleting} name={waiting ? undefined : hero?.name} />
+            {/* At the bottom while it waits: right under the photo, the wish button would arrive
+                under a finger on its way here. */}
+            <DeleteStyling
+              control={deleting}
+              name={waiting ? undefined : hero?.name}
+              style={waiting && styles.deleteWaiting}
+            />
           </View>
         </ThreadRow>
         {/* From the knot down the thread; mounted all along so the bead fades as it goes. No line of
@@ -332,6 +338,9 @@ const styles = StyleSheet.create({
   // Room for the thread the bead runs down, with nothing hanging off it yet.
   headWaiting: {
     minHeight: 420,
+  },
+  deleteWaiting: {
+    marginTop: 'auto',
   },
   piece: {
     flexDirection: 'row',
