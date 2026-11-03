@@ -13,7 +13,11 @@ import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import { createLimits, ESTIMATED_COST_MICROS, periodStart } from "../src/modules/usage/limits";
 import { checkBrief, refreshBrief, type OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
-import { deleteUnattachedPhotos, type PhotoJobDeps } from "../src/modules/photos/photo-jobs";
+import {
+  cutoutKeyFor,
+  deleteUnattachedPhotos,
+  type PhotoJobDeps,
+} from "../src/modules/photos/photo-jobs";
 import type { ItemEmbedder } from "../src/ai/item-embedder";
 import { createMemoryStorage } from "../src/storage/storage";
 import {
@@ -1573,12 +1577,22 @@ describe("an item from a photo", () => {
       expect((await ask(s, anna.cookie, skirt.id)).statusCode).toBe(202);
     });
 
-    it("takes a loose piece's wish with it, and leaves its photo to the cleanup", async () => {
+    // Her photo, its cut-out and its row, all gone with no clock moved and no cleanup run.
+    async function expectPhotoGone(s: Setup, key: string, cutoutKey: string) {
+      expect(await s.repositories.photosRepository.get(key)).toBeNull();
+      expect(await s.storage.get(key)).toBeNull();
+      expect(await s.storage.get(cutoutKey)).toBeNull();
+    }
+
+    it("takes a loose piece's wish and its photo with it, at once", async () => {
       const s = await setup();
       const anna = await signUp(s, "anna@example.com");
       await addItem(s, anna, "top");
       const id = await styleFromPhoto(s, anna.cookie);
       const { photoKey } = (await view(s, anna.cookie, id)).addable!;
+      const { cutoutKey } = (await s.repositories.photosRepository.get(photoKey))!;
+      expect(cutoutKey).toBeTruthy();
+      expect(await s.storage.get(cutoutKey!)).not.toBeNull();
       await s.server.inject({
         method: "POST",
         url: "/api/wishes",
@@ -1596,8 +1610,81 @@ describe("an item from a photo", () => {
       );
       expect((await get(s, anna.cookie, `/api/wear-with/${id}/photo`)).statusCode).toBe(404);
       expect(await s.repositories.outfitsRepository.reactedOutfitCount(anna.userId)).toBe(1);
+      await expectPhotoGone(s, photoKey, cutoutKey!);
+    });
+
+    it("takes the photo with it when she reacted to nothing, too", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      await addItem(s, anna, "top");
+      const id = await styleFromPhoto(s, anna.cookie);
+      const { photoKey } = (await view(s, anna.cookie, id)).addable!;
+      const { cutoutKey } = (await s.repositories.photosRepository.get(photoKey))!;
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+
+      expect(await s.repositories.outfitsRepository.getRequest(id)).toBeNull();
+      await expectPhotoGone(s, photoKey, cutoutKey!);
+    });
+
+    it("never touches someone else's photo", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      const boris = await signUp(s, "boris@example.com");
+      await addItem(s, anna, "top");
+      const id = await styleFromPhoto(s, anna.cookie);
+      const { photoKey } = (await view(s, anna.cookie, id)).addable!;
+
+      expect((await remove(s, boris.cookie, id)).statusCode).toBe(404);
+
+      expect(await s.repositories.photosRepository.get(photoKey)).not.toBeNull();
+      expect(await s.storage.get(photoKey)).not.toBeNull();
+    });
+
+    it("still deletes the styling when storage fails, and the cleanup tries the files again", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      await addItem(s, anna, "top");
+      const id = await styleFromPhoto(s, anna.cookie);
+      const { photoKey } = (await view(s, anna.cookie, id)).addable!;
+      const { cutoutKey } = (await s.repositories.photosRepository.get(photoKey))!;
+      vi.spyOn(s.storage, "delete").mockRejectedValueOnce(new Error("storage is down"));
+
+      expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+
+      expect((await get(s, anna.cookie, `/api/wear-with/${id}`)).statusCode).toBe(404);
+      expect(await s.repositories.photosRepository.get(photoKey)).not.toBeNull();
       await deleteUnattachedPhotos(s.photoDeps, new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
-      expect(await s.repositories.photosRepository.get(photoKey)).toBeNull();
+      await expectPhotoGone(s, photoKey, cutoutKey!);
+    });
+
+    it("leaves no cut-out behind when deleted while the piece is being cut out", async () => {
+      const s = await setup();
+      const anna = await signUp(s, "anna@example.com");
+      await addItem(s, anna, "top");
+      const { photoKey: uploaded } = (await uploadWear(s, anna.cookie)).json<{
+        photoKey: string;
+      }>();
+      await s.runPhotoJobs();
+      const { id } = (
+        await s.server.inject({
+          method: "POST",
+          url: "/api/wear-with",
+          headers: { cookie: anna.cookie },
+          payload: { photoKey: uploaded, index: 1 },
+        })
+      ).json<{ id: string }>();
+      const key = (await s.repositories.outfitsRepository.getRequest(id))!.heroPhotoKey!;
+      const removeBackground = s.cut.remover.removeBackground.bind(s.cut.remover);
+      s.cut.remover.removeBackground = async (image, name) => {
+        expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
+        return removeBackground(image, name);
+      };
+
+      await s.runJobs();
+
+      await expectPhotoGone(s, key, cutoutKeyFor(key));
+      expect(s.stub.composeCalls).toEqual([]);
     });
 
     it("keeps nothing of a loose piece but the looks she reacted to", async () => {
@@ -1641,6 +1728,7 @@ describe("an item from a photo", () => {
 
       expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
 
+      expect(await s.storage.get(addable.photoKey)).not.toBeNull();
       await deleteUnattachedPhotos(s.photoDeps, new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
       expect(await s.repositories.photosRepository.get(addable.photoKey)).not.toBeNull();
       expect((await get(s, anna.cookie, `/api/items/${item.id}`)).statusCode).toBe(200);
