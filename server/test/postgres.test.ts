@@ -696,7 +696,7 @@ describe.skipIf(!url)("on Postgres", () => {
       (await db.db.select().from(schema.outfits).where(eq(schema.outfits.requestId, requestId)))
         .length;
 
-    // A loose piece with a wish and no reactions: the whole row goes, its photo to the cleanup.
+    // A loose piece with a wish and no reactions: the whole row goes, and its photo at once.
     const crop = `photos/${userId}/styled-crop.webp`;
     await photos.createReady({ key: crop, ownerId: userId, tags: shirtTags });
     const loose = await outfits.createRequest(userId, { heroPhotoKey: crop, heroNoun: "shirt" }, 1);
@@ -710,9 +710,7 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await outfits.getRequest(loose)).toBeNull();
     expect(await looks(loose)).toBe(0);
     expect(await wishes.countDue(userId, new Date())).toBe(0);
-    expect(
-      (await photos.listUnattached(new Date(Date.now() + 60_000))).map((p) => p.key),
-    ).toContain(crop);
+    expect(await photos.get(crop)).toBeNull();
 
     // A closet piece she reacted to: the reacted look stays for the brief, the rest goes.
     const styled = await outfits.createRequest(userId, { itemId: item.id }, 1);
@@ -818,6 +816,41 @@ describe.skipIf(!url)("on Postgres", () => {
     await outfits.react(look!.id, userId, "like");
     expect(await twice(reacted)).toEqual([204, 404]);
     expect(await outfits.reactedOutfitCount(userId)).toBe(1);
+  });
+
+  it("keeps a reaction still being saved while its styling is deleted", async () => {
+    const cookie = await signUp("delete-reaction@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "delete-reaction@example.com"));
+    const userId = user!.id;
+    const outfits = createOutfitsRepository(db.db);
+    const key = `photos/${userId}/reaction.webp`;
+    await createPhotosRepository(db.db).createReady({ key, ownerId: userId, tags: shirtTags });
+    const id = await outfits.createRequest(userId, { heroPhotoKey: key, heroNoun: null }, 1);
+    await outfits.saveOutfits(
+      id,
+      userId,
+      [{ caption: "Look", occasion: "", why: "", missing: null, pieces: [] }],
+      { micros: 1 },
+    );
+    const [look] = (await outfits.view(id, userId, "en"))!.outfits;
+
+    // The reaction is written, not committed, when the delete starts. A delete that gets there
+    // late only sees it committed and passes, so the wait can't make this fail by chance.
+    let deleted: Promise<{ statusCode: number }> | undefined;
+    await db.db.transaction(async (tx) => {
+      await tx
+        .insert(schema.outfitReactions)
+        .values({ outfitId: look!.id, userId, reaction: "like" });
+      deleted = app.inject({ method: "DELETE", url: `/api/wear-with/${id}`, headers: { cookie } });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+
+    expect((await deleted!).statusCode).toBe(204);
+    expect(await outfits.reactedOutfitCount(userId)).toBe(1);
+    expect((await outfits.view(id, userId, "en"))!.outfits.map((o) => o.id)).toEqual([look!.id]);
   });
 
   it("answers false, not an error, when a look goes between the check and the reaction", async () => {

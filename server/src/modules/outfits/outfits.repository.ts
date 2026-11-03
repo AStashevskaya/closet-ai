@@ -340,6 +340,14 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           )
           .for("update");
         if (!own) return false;
+        // Its looks are locked too, before reading which have reactions. A reaction being written
+        // holds its look's key: this waits for it and then sees it. One that comes later waits for
+        // this, then lands on a look that stayed, or finds its look gone and answers false.
+        await tx
+          .select({ id: outfits.id })
+          .from(outfits)
+          .where(eq(outfits.requestId, requestId))
+          .for("update");
         const reacted = await tx
           .selectDistinct({ id: outfits.id })
           .from(outfits)
@@ -360,8 +368,8 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
             ),
           ),
         );
-        // Without its key the photo is the hourly cleanup's, unless a closet item uses it. What the
-        // piece was and whether to buy it go too: the brief reads neither.
+        // The route deletes the photo, unless a closet item uses it. What the piece was and whether
+        // to buy it go too: the brief reads neither.
         await tx
           .update(outfitRequests)
           .set({ itemId: null, heroPhotoKey: null, heroNoun: null, verdict: null })

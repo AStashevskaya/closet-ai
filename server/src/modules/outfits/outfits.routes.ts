@@ -18,6 +18,7 @@ import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { Storage } from "../../storage/storage";
 import type { ItemsRepository } from "../items/items.repository";
+import { deletePhoto } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { photoPrefix } from "../photos/photos.routes";
 import { cropToBox } from "../photos/process-photo";
@@ -249,14 +250,26 @@ export const outfitsRoutes =
     );
 
     // Deleting a styling never gives a try back: limits count usage_events, which it doesn't touch.
-    // The piece stays; so do the looks she reacted to, for the brief (see deleteRequest).
+    // A closet piece stays; so do the looks she reacted to, for the brief (see deleteRequest). A
+    // piece from a photo goes with it, photo and cut-out at once, unless she added it to her closet.
     app.delete(
       "/wear-with/:id",
       { schema: { params: z.object({ id: z.string().uuid() }) } },
       async (request, reply) => {
         const user = request.user as SessionUser;
+        // Read first: the delete clears it. Each styling crops a photo of its own, so no other uses it.
+        const key = (await outfits.getRequest(request.params.id))?.heroPhotoKey;
         if (!(await outfits.deleteRequest(request.params.id, user.id))) {
           throw httpError(404, "request not found");
+        }
+        if (key) {
+          try {
+            if (!(await outfits.isAttached(key))) await deletePhoto({ photos, storage }, key);
+          } catch (error) {
+            // The styling is already gone, so she still gets 204. No request points to the photo
+            // now, so the hourly cleanup job tries again.
+            request.log.warn({ err: error, key }, "failed to delete a styling's photo");
+          }
         }
         return reply.code(204).send();
       },

@@ -83,6 +83,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   // A wardrobe item saved a moment ago may still have its photo processing ("save and style it"):
   // a plain error, so the queue tries again in a few seconds. Gone for good after the retries.
   if (!hero && request.itemId) throw new Error("the item's photo is not ready yet");
+  // Deleted meanwhile, and its photo with it: nothing went wrong, there's just nothing to do.
+  if (!hero && !(await outfits.getRequest(requestId))) return;
   if (!hero) throw new PermanentOutfitError("the item from the photo is gone");
   const heroFile = await storage.get(hero.imageKey);
   if (!heroFile) throw new PermanentOutfitError("the item's picture is missing from storage");
@@ -375,6 +377,11 @@ async function heroFromPhoto(
       cutoutKey = cutoutKeyFor(photo.key);
       await storage.put(cutoutKey, cutout.webp, "image/webp");
       await photos.setCutout(photo.key, cutoutKey, cutout.box);
+      // Deleted while fal was working: with the row gone, nothing would ever delete this file.
+      if (!(await photos.get(photo.key))) {
+        await storage.delete(cutoutKey);
+        return undefined;
+      }
     }
   }
   const image = cutoutKey ? await storage.get(cutoutKey) : crop;
