@@ -1,9 +1,11 @@
 import type { Item } from '@closet-ai/shared';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert, type AlertButton } from 'react-native';
+import { AccessibilityInfo, Alert, type AlertButton } from 'react-native';
+import * as Reanimated from 'react-native-reanimated';
 
 import i18n from '@/i18n';
 import { deleteItem, listItems } from '@/lib/api';
+import { OfflineError } from '@/lib/api-error';
 
 import { Closet } from '.';
 
@@ -69,6 +71,121 @@ beforeEach(async () => {
 });
 
 describe('<Closet />', () => {
+  describe('waiting in place', () => {
+    // A load that stays open until the test answers it.
+    function pendingLoad() {
+      let resolve: (items: Item[]) => void = () => {};
+      let reject: (cause: Error) => void = () => {};
+      list.mockReturnValue(
+        new Promise<Item[]>((res, rej) => {
+          resolve = res;
+          reject = rej;
+        }),
+      );
+      return {
+        answer: (items: Item[]) => act(async () => resolve(items)),
+        fail: (cause: Error) => act(async () => reject(cause)),
+      };
+    }
+
+    test('shows the title and one rail with the bead, and nothing it can not know yet', async () => {
+      pendingLoad();
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<Closet />);
+
+      expect(screen.getByRole('header', { name: 'My wardrobe' })).toBeOnTheScreen();
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.getByTestId('rail-waiting')).toBeOnTheScreen();
+      expect(screen.getAllByTestId('thread-waiting', { includeHiddenElements: true })).toHaveLength(
+        1,
+      );
+      expect(announce).toHaveBeenCalledWith('Loading');
+      // No rail names, no empty state, no error, no edit.
+      expect(screen.queryByText('Tops')).not.toBeOnTheScreen();
+      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+      expect(screen.queryByText('Edit')).not.toBeOnTheScreen();
+    });
+
+    test('the bead goes and the rails settle in under the same title', async () => {
+      const load = pendingLoad();
+      await render(<Closet />);
+      const title = screen.getByRole('header', { name: 'My wardrobe' });
+
+      await load.answer([shirt]);
+
+      expect(screen.getByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
+      expect(screen.queryByTestId('rail-waiting')).not.toBeOnTheScreen();
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      // The very same element: the screen wasn't laid out anew.
+      expect(screen.getByRole('header', { name: 'My wardrobe' })).toBe(title);
+    });
+
+    test('an empty closet says so only once the load has ended', async () => {
+      const load = pendingLoad();
+      await render(<Closet />);
+      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+
+      await load.answer([]);
+
+      expect(screen.getByText(/Your closet is empty/)).toBeOnTheScreen();
+      expect(screen.queryByTestId('rail-waiting')).not.toBeOnTheScreen();
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+    });
+
+    test('a failed load offers to retry, and waits in place again', async () => {
+      const load = pendingLoad();
+      await render(<Closet />);
+      await load.fail(new Error('500'));
+
+      expect(screen.getByText("Couldn't load your closet.")).toBeOnTheScreen();
+      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('rail-waiting')).not.toBeOnTheScreen();
+
+      const again = pendingLoad();
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(screen.getByTestId('rail-waiting')).toBeOnTheScreen();
+      await again.answer([shirt]);
+      expect(screen.getByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
+    });
+
+    test('offline says so and offers to retry too', async () => {
+      const load = pendingLoad();
+      await render(<Closet />);
+      await load.fail(new OfflineError());
+
+      expect(screen.getByText(/No connection to the server/)).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
+      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+    });
+
+    test('with Reduce Motion the rail is there without a bead, and still announced', async () => {
+      const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
+      pendingLoad();
+      await render(<Closet />);
+
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(
+        screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true }),
+      ).toHaveLength(0);
+      reduced.mockReturnValue(false);
+    });
+
+    test('a reload in place does not bring the waiting rail back', async () => {
+      // A new photo has the closet checked again shortly, under what's shown; that check fails.
+      const fresh = { ...shirt, photoStatus: 'processing' as const };
+      list.mockResolvedValueOnce([fresh]).mockRejectedValue(new Error('500'));
+      await render(<Closet />);
+      await screen.findByRole('button', { name: 'White linen shirt' });
+
+      await waitFor(() => expect(list).toHaveBeenCalledTimes(2), { timeout: 3000 });
+      expect(screen.queryByTestId('rail-waiting')).not.toBeOnTheScreen();
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
+    });
+  });
+
   test('hangs each item on the rail of its category', async () => {
     list.mockResolvedValue([shirt]);
     await render(<Closet />);

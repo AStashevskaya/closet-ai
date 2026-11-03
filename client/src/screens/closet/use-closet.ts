@@ -3,9 +3,10 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert } from 'react-native';
+import { AccessibilityInfo, Alert } from 'react-native';
 
 import { deleteItem, listItems, sessionHeaders } from '@/lib/api';
+import { isOffline } from '@/lib/api-error';
 import { durations } from '@/motion';
 
 const PHOTO_POLL_MS = 1500;
@@ -14,7 +15,9 @@ const PHOTO_POLL_MS = 1500;
 const CUTOUT_WAIT_MS = 20_000;
 
 export type ClosetState =
-  { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: Item[] };
+  | { status: 'loading' }
+  | { status: 'error'; offline: boolean }
+  | { status: 'ready'; items: Item[] };
 
 // The user's items, shared by the closet and a category's "See all" screen: loaded whenever the
 // screen comes into view, checked again while new photos are processed, and deleted after asking.
@@ -32,9 +35,11 @@ export function useCloset() {
     try {
       const items = await listItems();
       setState({ status: 'ready', items });
-    } catch {
+    } catch (cause) {
       // A failed reload keeps the closet already shown; only a first load shows the error.
-      setState((current) => (current.status === 'ready' ? current : { status: 'error' }));
+      setState((current) =>
+        current.status === 'ready' ? current : { status: 'error', offline: isOffline(cause) },
+      );
     }
   }, []);
 
@@ -79,6 +84,17 @@ export function useCloset() {
     const timer = setTimeout(() => void load(), PHOTO_POLL_MS);
     return () => clearTimeout(timer);
   }, [state, load, focused]);
+
+  // The bead on the rail is hidden from screen readers, and a live region only speaks on Android.
+  const spoken =
+    state.status === 'loading'
+      ? t('common.loading')
+      : state.status === 'error'
+        ? t(state.offline ? 'common.offline' : 'closet.loadError')
+        : null;
+  useEffect(() => {
+    if (spoken) AccessibilityInfo.announceForAccessibility(spoken);
+  }, [spoken]);
 
   const retry = () => {
     setState({ status: 'loading' });

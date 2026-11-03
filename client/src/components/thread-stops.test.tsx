@@ -4,12 +4,28 @@ import * as Reanimated from 'react-native-reanimated';
 
 import { colors } from '@/theme';
 
-import { ThreadLine, ThreadStop, useThreadMotion } from './thread-stops';
+import { BeadAcross, ThreadLine, ThreadStop, useThreadMotion } from './thread-stops';
 
 // The line and its beads are decoration, hidden from screen readers.
 const hidden = { includeHiddenElements: true };
 
 afterEach(() => jest.restoreAllMocks());
+
+describe('BeadAcross', () => {
+  test('runs only while something is waited for', async () => {
+    await render(<BeadAcross waiting />);
+    expect(screen.getByTestId('thread-waiting', hidden)).toBeOnTheScreen();
+
+    await screen.rerender(<BeadAcross waiting={false} />);
+    expect(screen.queryByTestId('thread-waiting', hidden)).not.toBeOnTheScreen();
+  });
+
+  test('with Reduce Motion there is no bead', async () => {
+    jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
+    await render(<BeadAcross waiting />);
+    expect(screen.queryByTestId('thread-waiting', hidden)).not.toBeOnTheScreen();
+  });
+});
 
 describe('ThreadLine', () => {
   test('runs a bead only while something is waited for', async () => {

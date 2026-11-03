@@ -1,10 +1,11 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { LinearTransition } from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { HANGER_PIVOT_Y } from '@/components/hanger';
-import { durations, EASE_OUT, rise } from '@/motion';
+import { BeadAcross } from '@/components/thread-stops';
+import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { RailPiece } from './rail-piece';
@@ -23,8 +24,10 @@ type Props = {
   headers: Record<string, string> | undefined;
   editing: boolean;
   leaving: ReadonlySet<string>;
-  // Only set on the first load, so rails don't replay their entrance when the closet reloads.
+  // Only set on the first load: the rail's parts settle in, and don't again when the closet reloads.
   enterDelay?: number;
+  // The line was already there while the closet loaded, at this very place: it doesn't arrive.
+  lineStays?: boolean;
   onOpen: (item: Item) => void;
   onLongPress: () => void;
   onDelete: (item: Item) => void;
@@ -41,6 +44,7 @@ export function Rail({
   editing,
   leaving,
   enterDelay,
+  lineStays = false,
   onOpen,
   onLongPress,
   onDelete,
@@ -51,13 +55,11 @@ export function Rail({
   const shoes = category === 'shoes';
   // Shoes stand still, so their rail has no pendulums to step.
   const { onScroll, swing } = useRailSwing(category, shoes ? [] : items.map((item) => item.id));
+  const settle = enterDelay === undefined ? undefined : arrive.delay(enterDelay);
 
   return (
-    <Animated.View
-      style={styles.rail}
-      entering={enterDelay === undefined ? undefined : rise.delay(enterDelay)}
-    >
-      <View style={styles.head}>
+    <View style={styles.rail}>
+      <Animated.View style={styles.head} entering={settle}>
         <Text
           style={styles.title}
           accessibilityRole="header"
@@ -78,23 +80,23 @@ export function Rail({
         >
           <Text style={styles.seeAllText}>{t('closet.seeAll')}</Text>
         </Pressable>
-      </View>
+      </Animated.View>
 
       <View>
-        {/* Decoration: the rail with a bracket at each end, or the floor shoes stand on. */}
-        <View
-          style={shoes ? styles.floor : styles.line}
-          pointerEvents="none"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          {!shoes && (
-            <>
-              <View style={[styles.bracket, styles.bracketStart]} />
-              <View style={[styles.bracket, styles.bracketEnd]} />
-            </>
-          )}
-        </View>
+        {shoes ? (
+          // Decoration: the floor shoes stand on.
+          <Animated.View
+            style={styles.floor}
+            entering={settle}
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        ) : (
+          <Animated.View style={styles.linePlace} entering={lineStays ? undefined : settle}>
+            <RailLine />
+          </Animated.View>
+        )}
         <Animated.FlatList
           horizontal
           onScroll={onScroll}
@@ -107,19 +109,77 @@ export function Rail({
           initialNumToRender={5}
           windowSize={5}
           extraData={{ editing, leaving, headers }}
-          renderItem={({ item }) => (
-            <RailPiece
-              item={item}
-              headers={headers}
-              editing={editing}
-              leaving={leaving.has(item.id)}
-              swing={swing}
-              onPress={editing ? undefined : () => onOpen(item)}
-              onLongPress={onLongPress}
-              onDelete={() => onDelete(item)}
-            />
+          renderItem={({ item, index }) => (
+            <Animated.View
+              entering={
+                enterDelay === undefined
+                  ? undefined
+                  : arrive.delay(enterDelay + index * STAGGER_STEP)
+              }
+            >
+              <RailPiece
+                item={item}
+                headers={headers}
+                editing={editing}
+                leaving={leaving.has(item.id)}
+                swing={swing}
+                onPress={editing ? undefined : () => onOpen(item)}
+                onLongPress={onLongPress}
+                onDelete={() => onDelete(item)}
+              />
+            </Animated.View>
           )}
         />
+      </View>
+    </View>
+  );
+}
+
+// The rail itself: an ink line across the screen with a bracket at each end. While something is
+// waited for a bead runs along it, the one sign of waiting (docs/design.md, "Waiting"). Decoration,
+// so screen readers skip it; `style` places it.
+export function RailLine({
+  waiting,
+  style,
+}: {
+  // Left out on a rail that never waits, which then needn't carry the bead's motion.
+  waiting?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      style={[styles.line, style]}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <View style={[styles.bracket, styles.bracketStart]} />
+      <View style={[styles.bracket, styles.bracketEnd]} />
+      {waiting !== undefined && <BeadAcross waiting={waiting} />}
+    </View>
+  );
+}
+
+// The closet still loading: the first rail's place, its line where the line will hang. The
+// categories aren't known yet, so no name and no second rail. It goes with a short fade over the
+// real rail's line, which comes at this same place when nothing is featured above the rails.
+export function RailWaiting() {
+  const { t } = useTranslation();
+  return (
+    <Animated.View
+      testID="rail-waiting"
+      style={styles.rail}
+      exiting={FadeOut.duration(durations.state)}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={t('common.loading')}
+      accessibilityLiveRegion="polite"
+    >
+      <View style={styles.headWaiting} />
+      <View style={styles.trackWaiting}>
+        <View style={styles.linePlace}>
+          <RailLine waiting />
+        </View>
       </View>
     </Animated.View>
   );
@@ -169,12 +229,21 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     paddingHorizontal: 22,
   },
+  // A rail's head without its name, as tall as one with it.
+  headWaiting: {
+    minHeight: 44,
+  },
+  trackWaiting: {
+    height: TRACK_TOP + HANGER_PIVOT_Y + 16,
+  },
   // Runs through the hooks, edge to edge.
-  line: {
+  linePlace: {
     position: 'absolute',
     start: 0,
     end: 0,
     top: TRACK_TOP + HANGER_PIVOT_Y - LINE / 2,
+  },
+  line: {
     height: LINE,
     backgroundColor: colors.text,
   },

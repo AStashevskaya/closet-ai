@@ -1,10 +1,12 @@
 import type { CatalogItem, Item, WearWithRequest } from '@closet-ai/shared';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { AccessibilityInfo, Alert } from 'react-native';
+import * as Reanimated from 'react-native-reanimated';
 
 import i18n from '@/i18n';
 import { addWish, createItem, deleteWearWith, getWearWith, reactToOutfit } from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
+import { ThreadRow } from '@/screens/style-it/thread-row';
 
 import { WearWith } from '.';
 
@@ -21,6 +23,12 @@ jest.mock('@/lib/api', () => ({
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
   absoluteUrl: (path: string) => `http://api${path}`,
 }));
+
+// The real row, with its props on record.
+jest.mock('@/screens/style-it/thread-row', () => {
+  const actual = jest.requireActual('@/screens/style-it/thread-row');
+  return { ...actual, ThreadRow: jest.fn(actual.ThreadRow) };
+});
 
 const item = (id: string, name: string, category: Item['category']): Item => ({
   id,
@@ -66,6 +74,136 @@ beforeEach(async () => {
   jest.clearAllMocks();
   await i18n.changeLanguage('en');
   jest.mocked(reactToOutfit).mockResolvedValue();
+});
+
+describe('<WearWith /> waiting in place', () => {
+  const composing: WearWithRequest = {
+    id: 'req-1',
+    status: 'pending',
+    outfits: [],
+    addable: {
+      name: 'Mauve satin skirt',
+      category: 'bottom',
+      colors: ['pink'],
+      seasons: [],
+      photoKey: 'photos/skirt.webp',
+    },
+    verdict: null,
+    wishId: null,
+  };
+  // The running bead, whichever way it's hidden from screen readers.
+  const bead = () => screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true });
+  // Whether the piece's own thread was last drawn dashed.
+  const rootDashed = () =>
+    jest
+      .mocked(ThreadRow)
+      .mock.calls.filter(([props]) => props.kind === 'root')
+      .at(-1)?.[0].dashed;
+
+  test('the first load: the thread and the bead, no caption until it is being composed', async () => {
+    jest.mocked(getWearWith).mockReturnValue(new Promise(() => {}));
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    await render(<WearWith id="req-1" />);
+
+    expect(bead()).toHaveLength(1);
+    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+    expect(announce).toHaveBeenCalledWith('Loading');
+    expect(screen.queryByText('Putting looks together from your closet…')).not.toBeOnTheScreen();
+    expect(screen.queryByText("Couldn't put looks together. Try again.")).not.toBeOnTheScreen();
+  });
+
+  test('composing: the piece on its thread with the bead, nothing hanging off it', async () => {
+    jest.mocked(getWearWith).mockResolvedValue(composing);
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText('Mauve satin skirt')).toBeOnTheScreen();
+    expect(screen.getByTestId('bare-piece').props.source).toEqual([
+      expect.objectContaining({ uri: 'http://api/api/wear-with/req-1/photo' }),
+    ]);
+    expect(screen.getByText('Putting looks together from your closet…')).toBeOnTheScreen();
+    expect(announce).toHaveBeenCalledWith('Putting looks together from your closet…');
+    expect(bead()).toHaveLength(1);
+    // Waiting is never drawn dashed, though this piece isn't hers.
+    expect(rootDashed()).toBe(false);
+    // The actions and the empty note come with the result.
+    expect(screen.queryByRole('button', { name: 'Add to my closet' })).not.toBeOnTheScreen();
+    expect(screen.queryByText(/nothing in your closet/i)).not.toBeOnTheScreen();
+  });
+
+  test('the bead goes and the looks settle in beside the same piece', async () => {
+    jest.mocked(getWearWith).mockResolvedValueOnce(composing).mockResolvedValue(done);
+    await render(<WearWith id="req-1" />);
+
+    expect(
+      await screen.findByLabelText(
+        'Сатин после спорта, Mauve satin skirt, Grey tee',
+        {},
+        { timeout: 4000 },
+      ),
+    ).toBeOnTheScreen();
+    expect(bead()).toHaveLength(0);
+    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+  });
+
+  test('a piece not hers turns dashed only when the result comes', async () => {
+    jest
+      .mocked(getWearWith)
+      .mockResolvedValueOnce(composing)
+      .mockResolvedValue({ ...done, addable: composing.addable, outfits: [] });
+    await render(<WearWith id="req-1" />);
+    await screen.findByText('Putting looks together from your closet…');
+    expect(rootDashed()).toBe(false);
+
+    await waitFor(() => expect(rootDashed()).toBe(true), { timeout: 4000 });
+  });
+
+  test('no looks is apart from a failure: it says so without offering to try again', async () => {
+    jest.mocked(getWearWith).mockResolvedValue({ ...done, outfits: [] });
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText(i18n.t('wearWith.empty'))).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeOnTheScreen();
+    expect(bead()).toHaveLength(0);
+  });
+
+  test('a failure offers to try again, and waits in place again', async () => {
+    jest
+      .mocked(getWearWith)
+      .mockResolvedValueOnce({ ...done, status: 'failed', outfits: [] })
+      .mockReturnValue(new Promise(() => {}));
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText("Couldn't put looks together. Try again.")).toBeOnTheScreen();
+    expect(bead()).toHaveLength(0);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    expect(bead()).toHaveLength(1);
+    expect(screen.queryByText("Couldn't put looks together. Try again.")).not.toBeOnTheScreen();
+  });
+
+  test('offline for a while it stops waiting, says so and offers to try again', async () => {
+    jest.mocked(getWearWith).mockRejectedValue(new OfflineError());
+    await render(<WearWith id="req-1" />);
+    expect(bead()).toHaveLength(1);
+
+    expect(
+      await screen.findByText(/No connection to the server/, {}, { timeout: 12000 }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
+    expect(getWearWith).toHaveBeenCalledTimes(5);
+  }, 14000);
+
+  test('with Reduce Motion the piece and its thread are there without a bead', async () => {
+    const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
+    jest.mocked(getWearWith).mockResolvedValue(composing);
+    await render(<WearWith id="req-1" />);
+
+    expect(await screen.findByText('Mauve satin skirt')).toBeOnTheScreen();
+    expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
+    expect(bead()).toHaveLength(0);
+    reduced.mockReturnValue(false);
+  });
 });
 
 describe('<WearWith />', () => {
@@ -136,17 +274,36 @@ describe('<WearWith />', () => {
       expect(screen.getByText('The tee makes the satin offhand.')).toBeOnTheScreen();
     });
 
-    test('can delete while the looks are being composed, and leaving stops the polling', async () => {
+    test('offers no delete on the first load, before anything is known', async () => {
+      jest.mocked(getWearWith).mockReturnValue(new Promise(() => {}));
+      await render(<WearWith id="req-1" />);
+      expect(
+        screen.getByTestId('thread-waiting', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText('Delete styling')).not.toBeOnTheScreen();
+    });
+
+    test('offers no delete until the looks arrive', async () => {
+      jest.useFakeTimers();
+      jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'pending', outfits: [] });
+      await render(<WearWith id="req-1" />);
+      await act(() => jest.advanceTimersByTimeAsync(2000));
+      expect(screen.queryByText('Delete styling')).not.toBeOnTheScreen();
+
+      jest.mocked(getWearWith).mockResolvedValue(done);
+      await act(() => jest.advanceTimersByTimeAsync(2000));
+      expect(
+        screen.getByRole('button', { name: 'Delete the styling of Mauve satin skirt' }),
+      ).toBeOnTheScreen();
+    });
+
+    test('leaving while the looks are being composed stops the polling', async () => {
       jest.useFakeTimers();
       jest.mocked(getWearWith).mockResolvedValue({ ...done, status: 'pending', outfits: [] });
       const { unmount } = await render(<WearWith id="req-1" />);
-      await deleteStyling('Delete styling');
-      expect(deleteWearWith).toHaveBeenCalledWith('req-1');
-      expect(mockBack).toHaveBeenCalledTimes(1);
-
-      // Going back unmounts the screen; the router is mocked here, so the test does it.
       await unmount();
       const polls = jest.mocked(getWearWith).mock.calls.length;
+      expect(polls).toBeGreaterThan(0);
       await act(() => jest.advanceTimersByTimeAsync(10_000));
       expect(getWearWith).toHaveBeenCalledTimes(polls);
     });

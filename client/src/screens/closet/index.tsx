@@ -7,7 +7,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
   Extrapolation,
-  FadeIn,
   interpolate,
   useAnimatedScrollHandler,
   useAnimatedStyle,
@@ -15,19 +14,20 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HangerLoader } from '@/components/hanger-loader';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { StyleCard } from '@/components/style-card';
 import { useStyle } from '@/lib/style';
-import { durations, STAGGER_STEP } from '@/motion';
+import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { NewIn } from './new-in';
-import { Rail } from './rail';
+import { Rail, RailWaiting } from './rail';
 import { useCloset } from './use-closet';
 
 // From this many items the newest gets the bright block above the rails.
 const NEW_IN_FROM = 6;
+// Between the rails settling in; each rail's pieces follow one another by `STAGGER_STEP`.
+const RAIL_STEP = 2 * STAGGER_STEP;
 
 // The closet: one clothes rail per category the user has, in the canonical order.
 export function Closet() {
@@ -46,6 +46,7 @@ export function Closet() {
   useFocusEffect(useCallback(() => () => setEditing(false), []));
 
   // Once the rails have played their entrance, rails mounted later (a new category) skip it.
+  const loading = state.status === 'loading';
   const ready = state.status === 'ready';
   useEffect(() => {
     if (!ready) return;
@@ -73,14 +74,16 @@ export function Closet() {
   const open = (item: Item) => router.push({ pathname: '/item/[id]', params: { id: item.id } });
 
   const editButton = items.length > 0 && (
-    <Pressable
-      style={styles.editButton}
-      onPress={() => setEditing(!isEditing)}
-      hitSlop={8}
-      accessibilityRole="button"
-    >
-      <Text style={styles.editButtonText}>{t(isEditing ? 'closet.done' : 'closet.edit')}</Text>
-    </Pressable>
+    <Animated.View entering={arrive}>
+      <Pressable
+        style={styles.editButton}
+        onPress={() => setEditing(!isEditing)}
+        hitSlop={8}
+        accessibilityRole="button"
+      >
+        <Text style={styles.editButtonText}>{t(isEditing ? 'closet.done' : 'closet.edit')}</Text>
+      </Pressable>
+    </Animated.View>
   );
 
   // The big title scrolls away; a frosted bar with the small one comes in over the rails.
@@ -100,71 +103,82 @@ export function Closet() {
           <Text style={styles.title} accessibilityRole="header">
             {t('closet.title')}
           </Text>
+          {/* The count's line is kept while waiting, so the rail doesn't move when it comes. */}
+          {loading && (
+            <Text
+              style={styles.count}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {' '}
+            </Text>
+          )}
           {items.length > 0 && (
-            <Text style={styles.count}>{t('items.count', { count: items.length })}</Text>
+            <Animated.Text style={styles.count} entering={arrive}>
+              {t('items.count', { count: items.length })}
+            </Animated.Text>
           )}
         </View>
         {editButton}
       </View>
-      {!isEditing && <StyleCard {...styleCard} />}
+      {/* Not while waiting: coming in on its own, it would push the waiting rail down. */}
+      {ready && !isEditing && <StyleCard {...styleCard} />}
       {newest && !isEditing && (
-        <NewIn item={newest} headers={headers} onPress={() => open(newest)} />
+        <NewIn item={newest} headers={headers} settling={!entered} onPress={() => open(newest)} />
       )}
     </>
   );
 
   return (
     <View style={styles.screen}>
-      {state.status === 'loading' && (
-        <View style={[styles.center, { paddingTop: insets.top }]}>
-          <HangerLoader />
-        </View>
-      )}
+      {/* One layout for every state (docs/design.md, "Waiting"): the title stays where it is and
+          what the closet holds settles in under it; nothing here enters again. */}
+      <Animated.ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        scrollEnabled={items.length > 0}
+      >
+        {header}
+        {loading && <RailWaiting />}
 
-      {state.status === 'error' && (
-        <View style={styles.center}>
-          <Text style={styles.message}>{t('closet.loadError')}</Text>
-          <Pressable onPress={retry} accessibilityRole="button">
-            <Text style={styles.link}>{t('closet.retry')}</Text>
-          </Pressable>
-        </View>
-      )}
+        {state.status === 'error' && (
+          <Animated.View style={styles.center} entering={arrive}>
+            <Text style={styles.message}>
+              {t(state.offline ? 'common.offline' : 'closet.loadError')}
+            </Text>
+            <Pressable onPress={retry} accessibilityRole="button">
+              <Text style={styles.link}>{t('closet.retry')}</Text>
+            </Pressable>
+          </Animated.View>
+        )}
 
-      {state.status === 'ready' && items.length === 0 && (
-        <>
-          {header}
-          <Animated.View style={styles.center} entering={FadeIn.duration(durations.enter)}>
+        {ready && items.length === 0 && (
+          <Animated.View style={styles.center} entering={arrive}>
             <Text style={styles.message}>{t('closet.empty')}</Text>
           </Animated.View>
-        </>
-      )}
+        )}
 
-      {items.length > 0 && (
-        <Animated.ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-        >
-          {header}
-          {rails.map((rail, index) => (
-            <Rail
-              key={rail.category}
-              category={rail.category}
-              items={rail.items}
-              headers={headers}
-              editing={isEditing}
-              leaving={leaving}
-              enterDelay={entered ? undefined : index * STAGGER_STEP}
-              onOpen={open}
-              onLongPress={startEditing}
-              onDelete={confirmDelete}
-              onSeeAll={() =>
-                router.push({ pathname: '/closet/[category]', params: { category: rail.category } })
-              }
-            />
-          ))}
-        </Animated.ScrollView>
-      )}
+        {rails.map((rail, index) => (
+          <Rail
+            key={rail.category}
+            category={rail.category}
+            items={rail.items}
+            headers={headers}
+            editing={isEditing}
+            leaving={leaving}
+            enterDelay={entered ? undefined : index * RAIL_STEP}
+            // A block above the rails pushes the first one down from where the line waited.
+            lineStays={index === 0 && !newest}
+            onOpen={open}
+            onLongPress={startEditing}
+            onDelete={confirmDelete}
+            onSeeAll={() =>
+              router.push({ pathname: '/closet/[category]', params: { category: rail.category } })
+            }
+          />
+        ))}
+      </Animated.ScrollView>
 
       {/* Decoration only: the big title above is the heading screen readers get. */}
       <Animated.View
@@ -247,7 +261,10 @@ const styles = StyleSheet.create({
     color: colors.accent,
     textDecorationLine: 'underline',
   },
-  content: {},
+  // Fills the screen, so an empty closet's or a failed load's message can sit in its middle.
+  content: {
+    flexGrow: 1,
+  },
   // The frosted bar over the rails once the big title has scrolled away.
   bar: {
     position: 'absolute',

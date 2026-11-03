@@ -5,16 +5,26 @@ import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo } from 'react-native';
 
 import { getWearWith, reactToOutfit } from '@/lib/api';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, isOffline } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 
 // The model takes about 10 s; after a minute and a half the screen gives up.
 const POLL_MS = 2000;
 const MAX_POLLS = 45;
+// A blip is no reason to stop, but no connection for this many polls in a row (about 10 s) is: the
+// screen says so and offers to try again, rather than waiting out the minute and a half.
+const MAX_OFFLINE_POLLS = 5;
 
 export type WearWithState =
-  | { status: 'pending' }
-  | { status: 'failed' }
+  | {
+      status: 'pending';
+      // The server has answered that it's being composed. Until then (the first load) nothing is
+      // known, and a request done long ago may yet come back at once.
+      composing: boolean;
+      // For an item from a photo, known while it's composed: its name and that it isn't hers yet.
+      addable: WearWithRequest['addable'];
+    }
+  | { status: 'failed'; offline: boolean }
   | {
       status: 'done';
       outfits: Outfit[];
@@ -22,6 +32,8 @@ export type WearWithState =
       verdict: WearWithRequest['verdict'];
       wishId: string | null;
     };
+
+const FIRST_LOAD: WearWithState = { status: 'pending', composing: false, addable: null };
 
 // A "what do I wear this with?" request: polled until its outfits are composed, with reactions to
 // them shown at once. Shared by the outfits screen and Style it. `id` null: nothing asked yet.
@@ -32,9 +44,9 @@ export function useWearWith(id: string | null) {
   // without resetting state in an effect.
   const [result, setResult] = useState<{ id: string | null; state: WearWithState }>({
     id,
-    state: { status: 'pending' },
+    state: FIRST_LOAD,
   });
-  const state: WearWithState = result.id === id ? result.state : { status: 'pending' };
+  const state: WearWithState = result.id === id ? result.state : FIRST_LOAD;
   // Changes the outfits of request `of` only: an answer for a piece the user has since left
   // (a reaction failing late) must not touch the piece now on screen.
   const update = (of: string | null, change: (current: WearWithState) => WearWithState) =>
@@ -44,7 +56,7 @@ export function useWearWith(id: string | null) {
   // Asking again with the same request (a history entry that timed out) polls it afresh.
   const [attempt, setAttempt] = useState(0);
   const retry = () => {
-    setResult({ id, state: { status: 'pending' } });
+    setResult({ id, state: FIRST_LOAD });
     setAttempt((n) => n + 1);
   };
 
@@ -53,10 +65,13 @@ export function useWearWith(id: string | null) {
     if (!id) return;
     let cancelled = false;
     const poll = async () => {
+      let composing = false;
+      let offline = 0;
       for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
         try {
           const request: WearWithRequest = await getWearWith(id, lang);
           if (cancelled) return;
+          offline = 0;
           if (request.status === 'done') {
             setResult({
               id,
@@ -78,17 +93,27 @@ export function useWearWith(id: string | null) {
             return;
           }
           if (request.status === 'failed') break;
+          if (!composing) {
+            composing = true;
+            const { addable } = request;
+            setResult({ id, state: { status: 'pending', composing, addable } });
+          }
         } catch (cause) {
           // Deleted, say on another phone: asking again won't bring it back.
           if (cause instanceof ApiError && cause.status === 404) break;
           // A dropped request is no reason to stop; the next poll tries again.
+          offline = isOffline(cause) ? offline + 1 : 0;
+          if (offline === MAX_OFFLINE_POLLS) break;
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
         if (cancelled) return;
       }
       if (cancelled) return;
-      setResult({ id, state: { status: 'failed' } });
-      AccessibilityInfo.announceForAccessibility(i18n.t('wearWith.failed'));
+      const gaveUp = offline === MAX_OFFLINE_POLLS;
+      setResult({ id, state: { status: 'failed', offline: gaveUp } });
+      AccessibilityInfo.announceForAccessibility(
+        i18n.t(gaveUp ? 'common.offline' : 'wearWith.failed'),
+      );
     };
     void poll();
     return () => {

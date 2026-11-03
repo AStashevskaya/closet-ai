@@ -18,7 +18,7 @@ export const THREAD_INDENT = 36;
 // Where a branch reaches the content: level with an outfit's "01 / 03".
 const BRANCH_Y = 22;
 // The knot on top, where the thread leaves the chosen piece.
-const KNOT_Y = 26;
+export const KNOT_Y = 26;
 const DRAW = 900;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);

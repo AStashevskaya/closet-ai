@@ -13,6 +13,8 @@ export const durations = {
   state: 240,
   leave: 360,
   enter: 900,
+  // What was waited for, settling into a screen that's already there.
+  arrive: 700,
   // Screens and big pictures settling in.
   settle: 1400,
 } as const;
@@ -23,6 +25,13 @@ export const rise = new Keyframe({
   0: { opacity: 0, transform: [{ translateY: 24 }] },
   100: { opacity: 1, transform: [{ translateY: 0 }], easing: EASE_OUT },
 }).duration(durations.enter);
+
+// What a screen waited for, settling into its place when the bead goes: a short fade, a touch from
+// above. The screen itself is already there and doesn't enter again (docs/design.md, "Waiting").
+export const arrive = new Keyframe({
+  0: { opacity: 0, transform: [{ translateY: -6 }] },
+  100: { opacity: 1, transform: [{ translateY: 0 }], easing: EASE_OUT },
+}).duration(durations.arrive);
 
 // Time between the blocks of a screen, or the cards of a grid, coming in one after another.
 export const STAGGER_STEP = 110;
