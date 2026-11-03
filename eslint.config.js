@@ -4,7 +4,7 @@ import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  { ignores: ["client/**", "**/dist/**", "**/node_modules/**", "server/drizzle/**"] },
+  { ignores: ["client/**", ".claude/**", "**/dist/**", "**/node_modules/**", "server/drizzle/**"] },
   js.configs.recommended,
   // Type-aware rules catch async mistakes such as a promise nobody awaits.
   tseslint.configs.recommendedTypeChecked,
