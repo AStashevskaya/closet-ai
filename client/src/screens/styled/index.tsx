@@ -1,4 +1,5 @@
 import type { OutfitMood } from '@closet-ai/shared';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, ScrollView, StyleSheet } from 'react-native';
@@ -23,6 +24,7 @@ type Props = {
 export function Styled({ requestId, piece, mood }: Props) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { usage, refresh: refreshUsage } = useUsage();
   const [headers, setHeaders] = useState<Record<string, string>>();
   // "Try again" asks afresh: the new request replaces the one from the route.
@@ -68,6 +70,7 @@ export function Styled({ requestId, piece, mood }: Props) {
         headers={headers}
         onAskAgain={askAgain}
         asking={asking}
+        onDeleted={() => router.back()}
       />
     </ScrollView>
   );

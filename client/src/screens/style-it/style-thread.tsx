@@ -11,6 +11,7 @@ import { OutfitCard } from '@/screens/wear-with/outfit-card';
 import { useWearWith } from '@/screens/wear-with/use-wear-with';
 import { colors, fonts } from '@/theme';
 
+import { DeleteStyling, useDeleteStyling } from './delete-styling';
 import { ThreadRow } from './thread-row';
 
 // The piece being styled, and the request asking for its outfits.
@@ -31,6 +32,8 @@ type Props = {
   // In Style it's diary: the thread comes from the stop above, and runs on to the stop below.
   joined?: boolean;
   continues?: boolean;
+  // The styling was deleted: the stop goes.
+  onDeleted: () => void;
 };
 
 // A piece's outfits growing on a thread ("The Thread", 2026-10-26): the piece on top with a knot,
@@ -43,9 +46,11 @@ export function StyleThread({
   asking = false,
   joined = false,
   continues = false,
+  onDeleted,
 }: Props) {
   const { t } = useTranslation();
   const { state: looks, react, retry } = useWearWith(chosen.requestId);
+  const deleting = useDeleteStyling(chosen.requestId, onDeleted);
   // A heart around the piece once one of its outfits is liked (owner's call, 2026-10-27).
   const loved = looks.status === 'done' && looks.outfits.some((o) => o.opinion === 'like');
 
@@ -67,6 +72,7 @@ export function StyleThread({
           <Text style={styles.chosenTitle} accessibilityRole="header">
             {t('styleIt.open', { name: chosen.name })}
           </Text>
+          <DeleteStyling control={deleting} name={chosen.name} />
         </View>
       </ThreadRow>
       {looks.status === 'pending' && (

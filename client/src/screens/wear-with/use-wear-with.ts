@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo } from 'react-native';
 
 import { getWearWith, reactToOutfit } from '@/lib/api';
+import { ApiError } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 
 // The model takes about 10 s; after a minute and a half the screen gives up.
@@ -77,7 +78,9 @@ export function useWearWith(id: string | null) {
             return;
           }
           if (request.status === 'failed') break;
-        } catch {
+        } catch (cause) {
+          // Deleted, say on another phone: asking again won't bring it back.
+          if (cause instanceof ApiError && cause.status === 404) break;
           // A dropped request is no reason to stop; the next poll tries again.
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));

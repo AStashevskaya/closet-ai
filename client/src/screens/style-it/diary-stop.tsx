@@ -12,6 +12,7 @@ import { absoluteUrl } from '@/lib/api';
 import { dayLabel } from '@/lib/day-label';
 import { colors, fonts } from '@/theme';
 
+import { DeleteStyling, useDeleteStyling } from './delete-styling';
 import { ThreadRow } from './thread-row';
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
   // When the list was read, to count a wish's week down from (not read during render).
   now: number;
   onOpen: () => void;
+  onDeleted: () => void;
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -30,10 +32,11 @@ const DAY = 24 * 60 * 60 * 1000;
 // looks folded small (a heart on the liked ones, the rejected ones left out). A tap opens it.
 // A piece from a photo that isn't hers hangs on a dashed stretch of the thread (dashed = not hers,
 // as on Wishes), with its wish's days to go under it.
-export function DiaryStop({ entry, headers, joined, last, now, onOpen }: Props) {
+export function DiaryStop({ entry, headers, joined, last, now, onOpen, onDeleted }: Props) {
   const { t, i18n } = useTranslation();
   const day = dayLabel(entry.createdAt, t, i18n.language);
   const wish = entry.wishAskAt && wishLine(entry.wishAskAt, now, t);
+  const deleting = useDeleteStyling(entry.id, onDeleted);
   return (
     <ThreadRow kind="root" joined={joined} last={last} hollow dashed={entry.loose}>
       <PressableScale
@@ -42,6 +45,10 @@ export function DiaryStop({ entry, headers, joined, last, now, onOpen }: Props) 
         accessibilityRole="button"
         accessibilityLabel={t('styleIt.open', { name: entry.name })}
         accessibilityHint={wish ? `${day}, ${wish}` : day}
+        accessibilityActions={[{ name: 'delete', label: t('styleIt.delete') }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'delete') deleting.confirm();
+        }}
       >
         <View style={styles.who}>
           <BarePiece item={entry} headers={headers} style={styles.piece} />
@@ -69,6 +76,8 @@ export function DiaryStop({ entry, headers, joined, last, now, onOpen }: Props) 
           </View>
         )}
       </PressableScale>
+      {/* Beside the stop's press, not inside it: a tap here must not open the stop. */}
+      <DeleteStyling control={deleting} name={entry.name} style={styles.delete} />
     </ThreadRow>
   );
 }
@@ -125,8 +134,10 @@ function MiniLook({
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
   stop: {
-    paddingBottom: 30,
     gap: 12,
+  },
+  delete: {
+    marginBottom: 14,
   },
   who: {
     flexDirection: 'row',
