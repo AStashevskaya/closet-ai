@@ -7,18 +7,19 @@ import { I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { Keyframe } from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
-import { HangerLoader } from '@/components/hanger-loader';
 import { Button, maison, ScreenTitle } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
+import { useAnnounce } from '@/lib/announce';
 import { answerWish, createItem, getWearWith, listWishes, sessionHeaders } from '@/lib/api';
+import { isOffline } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
-import { ThreadRow } from '@/screens/style-it/thread-row';
+import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
+import { ThreadRow, ThreadWaiting } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
 type State =
   | { status: 'loading' }
-  | { status: 'failed' }
+  | { status: 'failed'; offline: boolean }
   // `now`: when the list was read, to count each wish's week down from (not read during render).
   | { status: 'done'; wishes: Wish[]; headers: Record<string, string>; now: number };
 
@@ -69,21 +70,34 @@ export function Wishes() {
   // The answer on its way: it disables the others and picks how the wish leaves.
   const [pending, setPending] = useState<{ id: string; value: WishAnswer } | null>(null);
 
+  const load = useCallback(async () => {
+    try {
+      const [wishes, headers] = await Promise.all([listWishes(), sessionHeaders()]);
+      setState({ status: 'done', wishes, headers, now: Date.now() });
+    } catch (cause) {
+      if (__DEV__) console.warn('Loading the wishes failed', cause);
+      // A failed reload keeps the wishes already shown; only a first load says it failed.
+      setState((current) =>
+        current.status === 'done' ? current : { status: 'failed', offline: isOffline(cause) },
+      );
+    }
+  }, []);
+
   // Reloaded when the screen comes into view: a piece saved from its outfits meanwhile counts.
   useFocusEffect(
     useCallback(() => {
-      const load = async () => {
-        try {
-          const [wishes, headers] = await Promise.all([listWishes(), sessionHeaders()]);
-          setState({ status: 'done', wishes, headers, now: Date.now() });
-        } catch (cause) {
-          if (__DEV__) console.warn('Loading the wishes failed', cause);
-          setState((current) => (current.status === 'done' ? current : { status: 'failed' }));
-        }
-      };
       void load();
-    }, []),
+    }, [load]),
   );
+
+  const retry = () => {
+    setState({ status: 'loading' });
+    void load();
+  };
+
+  const failedText =
+    state.status === 'failed' ? t(state.offline ? 'common.offline' : 'wishes.failed') : null;
+  useAnnounce(state.status === 'loading' ? t('common.loading') : failedText);
 
   // The wish whose answer didn't go through, to say so under it.
   const [failed, setFailed] = useState<string | null>(null);
@@ -123,27 +137,30 @@ export function Wishes() {
     }
   }
 
-  if (state.status !== 'done') {
-    return (
-      <View style={styles.center}>
-        {state.status === 'loading' ? (
-          <HangerLoader />
-        ) : (
-          <Text style={[maison.body, styles.centered]}>{t('wishes.failed')}</Text>
-        )}
-      </View>
-    );
-  }
-
-  const { wishes, headers, now } = state;
+  const wishes = state.status === 'done' ? state.wishes : [];
+  const headers = state.status === 'done' ? state.headers : undefined;
+  const now = state.status === 'done' ? state.now : 0;
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Animated.View entering={rise} style={[maison.gutter, styles.header]}>
+      {/* One layout for every state (docs/design.md, "Waiting"): the title stays where it is and the
+          wishes settle in under it; nothing here enters again. */}
+      <View style={[maison.gutter, styles.header]}>
         <ScreenTitle title={t('wishes.title')} subtitle={t('wishes.subtitle')} />
-        {wishes.length === 0 && <Text style={maison.body}>{t('wishes.intro')}</Text>}
-      </Animated.View>
+        {state.status === 'done' && wishes.length === 0 && (
+          <Animated.Text style={maison.body} entering={arrive}>
+            {t('wishes.intro')}
+          </Animated.Text>
+        )}
+        {failedText && (
+          <Animated.View style={styles.failed} entering={arrive}>
+            <Text style={maison.body}>{failedText}</Text>
+            <Button kind="outline" label={t('closet.retry')} onPress={retry} />
+          </Animated.View>
+        )}
+      </View>
 
       <View style={styles.thread}>
+        {state.status === 'loading' && <ThreadWaiting />}
         {wishes.map((wish, index) => {
           const leaving = pending?.id === wish.id ? pending.value : null;
           const call = wish.call && t(`verdict.${wish.call}`);
@@ -154,18 +171,23 @@ export function Wishes() {
           return (
             <Animated.View
               key={wish.id}
-              entering={rise.delay((index + 1) * STAGGER_STEP)}
               exiting={leaving === 'bought' ? toCloset : leaving === 'no' ? letGo : undefined}
             >
+              {/* Solid while it waited, dashed now: these aren't hers yet. The first stop's thread
+                  is the one the bead ran down, so it's there at once. */}
               <ThreadRow
                 kind="root"
                 dashed
                 hollow={!wish.due}
                 joined={index > 0}
                 last={index === wishes.length - 1}
-                delay={(index + 1) * STAGGER_STEP}
+                delay={index * STAGGER_STEP}
+                inPlace={index === 0}
               >
-                <View style={[styles.stop, wish.due && styles.due]}>
+                <Animated.View
+                  style={[styles.stop, wish.due && styles.due]}
+                  entering={arrive.delay(index * STAGGER_STEP)}
+                >
                   <PressableScale
                     style={styles.who}
                     onPress={() =>
@@ -220,7 +242,7 @@ export function Wishes() {
                       )}
                     </View>
                   )}
-                </View>
+                </Animated.View>
               </ThreadRow>
             </Animated.View>
           );
@@ -256,15 +278,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    backgroundColor: colors.background,
-  },
-  centered: {
-    textAlign: 'center',
+  failed: {
+    gap: 12,
   },
   content: {
     paddingTop: 8,
