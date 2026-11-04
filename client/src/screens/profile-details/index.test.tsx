@@ -1,8 +1,10 @@
 import type { UserProfile } from '@closet-ai/shared';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 
 import i18n from '@/i18n';
 import { getProfile, updateProfile } from '@/lib/api';
+import { OfflineError } from '@/lib/api-error';
 import { authClient } from '@/lib/auth-client';
 
 import { ProfileDetails } from '.';
@@ -155,5 +157,49 @@ describe('<ProfileDetails />', () => {
     expect(authClient.signOut).toHaveBeenCalled();
     await fireEvent.press(screen.getByRole('button', { name: 'Delete account' }));
     expect(mockPush).toHaveBeenCalledWith('/delete-account');
+  });
+
+  describe('waiting in place', () => {
+    const sign = () => screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true });
+
+    test('shows the intro, her name and the sign, nothing dashed as unknown yet', async () => {
+      jest.mocked(getProfile).mockReturnValueOnce(new Promise(() => {}));
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<ProfileDetails />);
+
+      expect(screen.getByText(/All optional/)).toBeOnTheScreen();
+      expect(screen.getByText('Anna')).toBeOnTheScreen();
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(sign()).toHaveLength(1);
+      expect(announce).toHaveBeenCalledWith('Loading');
+      // "Add" would say the value isn't known, when it's only on its way.
+      expect(screen.queryByRole('button', { name: 'Height, add' })).not.toBeOnTheScreen();
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+    });
+
+    test('the sign goes when the values come', async () => {
+      await render(<ProfileDetails />);
+      expect(await screen.findByRole('button', { name: 'Tops, S' })).toBeOnTheScreen();
+      expect(sign()).toHaveLength(0);
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+    });
+
+    test('a failed load says so, not a failed save, and tries again', async () => {
+      jest.mocked(getProfile).mockRejectedValueOnce(new Error('boom'));
+      await render(<ProfileDetails />);
+
+      expect(await screen.findByText("Couldn't open your profile.")).toBeOnTheScreen();
+      expect(screen.queryByText(/Couldn't save/)).not.toBeOnTheScreen();
+      expect(sign()).toHaveLength(0);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(await screen.findByRole('button', { name: 'Tops, S' })).toBeOnTheScreen();
+    });
+
+    test('offline says so', async () => {
+      jest.mocked(getProfile).mockRejectedValueOnce(new OfflineError('unreachable'));
+      await render(<ProfileDetails />);
+      expect(await screen.findByText(/No connection to the server/)).toBeOnTheScreen();
+    });
   });
 });
