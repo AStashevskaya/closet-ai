@@ -208,15 +208,14 @@ describe('<Inspiration />', () => {
       expect(screen.queryByText("Couldn't load your looks.")).not.toBeOnTheScreen();
     });
 
-    test('a style that could not be read fails the same way, and it tries again', async () => {
+    test('a style that could not be read still leaves her looks and "Add looks"', async () => {
       jest.mocked(getStyle).mockRejectedValueOnce(new Error('boom'));
       await render(<Inspiration />);
 
-      expect(await screen.findByText("Couldn't load your looks.")).toBeOnTheScreen();
-      expect(screen.queryByRole('header', { name: /^New/ })).not.toBeOnTheScreen();
-
-      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
       expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Add looks' })).toBeOnTheScreen();
+      expect(screen.queryByText("Couldn't load your looks.")).not.toBeOnTheScreen();
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
     });
 
     test('offline says so', async () => {

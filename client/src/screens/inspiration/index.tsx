@@ -129,10 +129,12 @@ export function Inspiration() {
   // The looks and her style together: which looks she's taken to heart depends on when the brief
   // was written, so until both are in the looks would land on the wrong garland and then move.
   const waiting = (looks === null && !looksFailure) || (style === null && !styleFailure);
-  const failure = waiting ? null : looks === null ? looksFailure : style === null && styleFailure;
-  const failedText = failure
-    ? t(failure.offline ? 'common.offline' : 'inspiration.loadError')
-    : null;
+  // Only the looks can fail the screen. Without her style she can still add and open them: they all
+  // hang as new, as before any brief, and move when it's read on the next visit.
+  const failedText =
+    !waiting && looks === null && looksFailure
+      ? t(looksFailure.offline ? 'common.offline' : 'inspiration.loadError')
+      : null;
   useAnnounce(waiting ? t('common.loading') : failedText);
   function retry() {
     setLooksFailure(null);
@@ -230,7 +232,7 @@ export function Inspiration() {
   // that it stays and follows (a look deleted, taught or added doesn't draw it again).
   const placed =
     !waiting &&
-    !failure &&
+    !failedText &&
     (fresh.length === 0 || (freshAt !== null && freshTies.length === fresh.length)) &&
     (learned.length === 0 || (learnedAt !== null && learnedTies.length === learned.length));
   const [everPlaced, setEverPlaced] = useState(false);
@@ -334,7 +336,6 @@ export function Inspiration() {
             accessible
             accessibilityRole="progressbar"
             accessibilityLabel={t('common.loading')}
-            accessibilityLiveRegion="polite"
           />
         ) : failedText ? (
           <Animated.View style={[maison.gutter, styles.failed]} entering={arrive}>

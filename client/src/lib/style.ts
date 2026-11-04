@@ -36,7 +36,7 @@ export function useStyle(language: string) {
   const [writtenBefore, setWrittenBefore] = useState<string | null>(null);
   // Checks made since she asked; counted in state so a failed check still schedules the next.
   const [polls, setPolls] = useState(0);
-  // The last read didn't go through, for a screen that can't do without her style (Inspiration).
+  // The last read didn't go through, so a screen waiting for her style stops (Inspiration).
   const [failure, setFailure] = useState<{ offline: boolean } | null>(null);
 
   const load = useCallback(async () => {
