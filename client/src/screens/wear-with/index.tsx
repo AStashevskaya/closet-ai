@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeOut, useReducedMotion } from 'react-native-reanimated';
+import Animated, { FadeOut } from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
 import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, HANGERS } from '@/components/hanger';
@@ -30,7 +30,6 @@ export function WearWith({ id }: { id: string }) {
   // Leaving the screen stops its polling, so this works while the looks are being composed too.
   const deleting = useDeleteStyling(id, () => router.back());
   const [headers, setHeaders] = useState<Record<string, string>>();
-  const reduced = useReducedMotion();
   // How tall the piece's row is, for the waiting bead's run down its thread.
   const [rowHeight, setRowHeight] = useState(0);
 
@@ -160,7 +159,6 @@ export function WearWith({ id }: { id: string }) {
                 accessible
                 accessibilityRole="progressbar"
                 accessibilityLabel={waitingFor ?? undefined}
-                accessibilityLiveRegion="polite"
               >
                 {state.composing && <Text style={styles.empty}>{t('wearWith.composing')}</Text>}
               </Animated.View>
@@ -198,11 +196,11 @@ export function WearWith({ id }: { id: string }) {
           </View>
         </ThreadRow>
         {/* From the knot down the thread; mounted all along so the bead fades as it goes. No line of
-            its own: the row draws that. With Reduce Motion there's no bead, just the screen. */}
+            its own: the row draws that. With Reduce Motion it stays still at the start. */}
         <ThreadLine
           top={-(KNOT_Y - BEAD / 2)}
           length={Math.max(0, rowHeight - KNOT_Y)}
-          waiting={waiting && !reduced}
+          waiting={waiting}
           measured={false}
           x={THREAD_X}
         />

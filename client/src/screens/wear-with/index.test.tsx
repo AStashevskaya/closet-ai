@@ -196,14 +196,14 @@ describe('<WearWith /> waiting in place', () => {
     expect(getWearWith).toHaveBeenCalledTimes(5);
   }, 14000);
 
-  test('with Reduce Motion the piece and its thread are there without a bead', async () => {
+  test('with Reduce Motion the sign stays still on the thread, so she still sees it waits', async () => {
     const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
     jest.mocked(getWearWith).mockResolvedValue(composing);
     await render(<WearWith id="req-1" />);
 
     expect(await screen.findByText('Mauve satin skirt')).toBeOnTheScreen();
     expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
-    expect(bead()).toHaveLength(0);
+    expect(bead()).toHaveLength(1);
     reduced.mockReturnValue(false);
   });
 });

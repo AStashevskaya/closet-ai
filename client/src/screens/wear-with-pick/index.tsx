@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
@@ -50,6 +50,9 @@ export function WearWithPick() {
   const [attempt, setAttempt] = useState(0);
   const [limit, setLimit] = useState<LimitCode | null>(null);
   const [busy, setBusy] = useState(false);
+  // The photo as picked, to shrink again on a retry.
+  const picked = useRef<ImagePicker.ImagePickerAsset | null>(null);
+  const shrunk = useRef<string | null>(null);
   // The mood asked of the outfits; null for any.
   const [mood, setMood] = useState<OutfitMood | null>(null);
   const { usage } = useUsage();
@@ -68,10 +71,13 @@ export function WearWithPick() {
 
     setLimit(null);
     setPhotoKey(null);
+    picked.current = asset;
+    shrunk.current = null;
     const aspect = asset.width / asset.height;
     let uri = asset.uri;
     try {
       uri = await shrinkPhoto(asset);
+      shrunk.current = uri;
       setShot({ status: 'finding', uri, aspect });
       setPhotoKey(await uploadPhoto(uri, lang, 'wear'));
     } catch (cause) {
@@ -102,7 +108,9 @@ export function WearWithPick() {
       return;
     }
     try {
-      setPhotoKey(await uploadPhoto(uri, lang, 'wear'));
+      // From the picked photo: if shrinking is what failed, `uri` is the original, too big to send.
+      shrunk.current ??= picked.current ? await shrinkPhoto(picked.current) : uri;
+      setPhotoKey(await uploadPhoto(shrunk.current, lang, 'wear'));
     } catch (cause) {
       uploadFailed(cause, uri, aspect);
     }

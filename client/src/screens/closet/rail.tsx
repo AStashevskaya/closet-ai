@@ -1,10 +1,10 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { HANGER_PIVOT_Y } from '@/components/hanger';
-import { BeadAcross } from '@/components/thread-stops';
+import { RAIL_WEIGHT, RailLine } from '@/components/rail-line';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -16,7 +16,7 @@ const closeUp = LinearTransition.duration(durations.state).easing(EASE_OUT);
 
 // Room above the hooks, and where the rail line runs through them.
 const TRACK_TOP = 9;
-const LINE = 1.4;
+const LINE = RAIL_WEIGHT;
 
 type Props = {
   category: ItemCategory;
@@ -135,31 +135,6 @@ export function Rail({
   );
 }
 
-// The rail itself: an ink line across the screen with a bracket at each end. While something is
-// waited for a bead runs along it, the one sign of waiting (docs/design.md, "Waiting"). Decoration,
-// so screen readers skip it; `style` places it.
-export function RailLine({
-  waiting,
-  style,
-}: {
-  // Left out on a rail that never waits, which then needn't carry the bead's motion.
-  waiting?: boolean;
-  style?: StyleProp<ViewStyle>;
-}) {
-  return (
-    <View
-      style={[styles.line, style]}
-      pointerEvents="none"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <View style={[styles.bracket, styles.bracketStart]} />
-      <View style={[styles.bracket, styles.bracketEnd]} />
-      {waiting !== undefined && <BeadAcross waiting={waiting} />}
-    </View>
-  );
-}
-
 // The closet still loading: the first rail's place, its line where the line will hang. The
 // categories aren't known yet, so no name and no second rail. It goes with a short fade over the
 // real rail's line, which comes at this same place when nothing is featured above the rails.
@@ -173,7 +148,6 @@ export function RailWaiting() {
       accessible
       accessibilityRole="progressbar"
       accessibilityLabel={t('common.loading')}
-      accessibilityLiveRegion="polite"
     >
       <View style={styles.headWaiting} />
       <View style={styles.trackWaiting}>
@@ -242,23 +216,6 @@ const styles = StyleSheet.create({
     start: 0,
     end: 0,
     top: TRACK_TOP + HANGER_PIVOT_Y - LINE / 2,
-  },
-  line: {
-    height: LINE,
-    backgroundColor: colors.text,
-  },
-  bracket: {
-    position: 'absolute',
-    top: -6,
-    width: LINE,
-    height: 13,
-    backgroundColor: colors.text,
-  },
-  bracketStart: {
-    start: 6,
-  },
-  bracketEnd: {
-    end: 6,
   },
   floor: {
     position: 'absolute',

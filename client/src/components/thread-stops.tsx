@@ -28,6 +28,9 @@ export const DOT = 9;
 export const BEAD = SIGN_BOX;
 // The ink line's width, and the dots' outline.
 export const LINE_WEIGHT = 1.2;
+// A sign on a line across runs between these insets: clear of a rail's brackets, even standing
+// still at the start with Reduce Motion.
+const ACROSS_INSET = 12;
 const DRAW_MS = 2000;
 const RUN_MS = 2400;
 // Read once: switching to or from Hebrew reloads the app (src/lib/language.ts).
@@ -78,11 +81,11 @@ export function runAcross(run: number, width: number) {
 }
 
 // The waiting bead on a line that runs across (a rail): put it inside the line, which it measures
-// by itself. With Reduce Motion there's no bead at all. Decoration, so screen readers skip it.
+// by itself. With Reduce Motion it stays still at the start. Decoration, so screen readers skip it.
 export function BeadAcross({ waiting }: { waiting: boolean }) {
   const [width, setWidth] = useState(0);
-  const { run, reduced } = useThreadMotion(false, waiting);
-  const bead = useAnimatedStyle(() => runAcross(run.get(), width));
+  const { run } = useThreadMotion(false, waiting);
+  const bead = useAnimatedStyle(() => runAcross(run.get(), width - 2 * ACROSS_INSET));
   return (
     <View
       style={styles.across}
@@ -90,7 +93,7 @@ export function BeadAcross({ waiting }: { waiting: boolean }) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      {waiting && !reduced && (
+      {waiting && (
         <Animated.View
           testID="thread-waiting"
           style={[styles.acrossBead, bead]}
@@ -260,7 +263,7 @@ const styles = StyleSheet.create({
   acrossBead: {
     position: 'absolute',
     top: -BEAD / 2,
-    start: 0,
+    start: ACROSS_INSET,
     width: BEAD,
     height: BEAD,
   },
