@@ -1,8 +1,10 @@
 import type { Wish } from '@closet-ai/shared';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 
 import i18n from '@/i18n';
 import { answerWish, createItem, getWearWith, listWishes } from '@/lib/api';
+import { OfflineError } from '@/lib/api-error';
 
 import { daysPassed, Wishes } from '.';
 
@@ -125,5 +127,63 @@ describe('<Wishes />', () => {
     jest.mocked(listWishes).mockResolvedValue([]);
     await render(<Wishes />);
     expect(await screen.findByText(/In a week I'll ask/)).toBeOnTheScreen();
+  });
+
+  describe('waiting in place', () => {
+    function pendingLoad() {
+      let resolve!: (wishes: Wish[]) => void;
+      jest.mocked(listWishes).mockReturnValueOnce(new Promise((done) => (resolve = done)));
+      return { answer: (wishes: Wish[]) => act(async () => resolve(wishes)) };
+    }
+
+    test('shows the title and the thread with the bead, and nothing it can not know yet', async () => {
+      pendingLoad();
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<Wishes />);
+
+      expect(screen.getByRole('header', { name: 'Wishes' })).toBeOnTheScreen();
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.getByTestId('thread-row-waiting')).toBeOnTheScreen();
+      expect(announce).toHaveBeenCalledWith('Loading');
+      expect(screen.queryByText(/In a week I'll ask/)).not.toBeOnTheScreen();
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+    });
+
+    test('the bead goes and the wishes settle in under the same title', async () => {
+      const load = pendingLoad();
+      await render(<Wishes />);
+      const title = screen.getByRole('header', { name: 'Wishes' });
+
+      await load.answer([tank]);
+
+      expect(screen.getByText('White ribbed tank')).toBeOnTheScreen();
+      expect(screen.queryByTestId('thread-row-waiting')).not.toBeOnTheScreen();
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+      // The very same element: the screen wasn't laid out anew.
+      expect(screen.getByRole('header', { name: 'Wishes' })).toBe(title);
+    });
+
+    test('a failed load keeps the title, offers to retry, and waits in place again', async () => {
+      jest.mocked(listWishes).mockRejectedValueOnce(new Error('boom'));
+      await render(<Wishes />);
+      expect(await screen.findByText("Couldn't open your wishes. Try again.")).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Wishes' })).toBeOnTheScreen();
+      expect(screen.queryByText(/In a week I'll ask/)).not.toBeOnTheScreen();
+
+      const load = pendingLoad();
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.queryByText("Couldn't open your wishes. Try again.")).not.toBeOnTheScreen();
+
+      await load.answer([tank]);
+      expect(screen.getByText('White ribbed tank')).toBeOnTheScreen();
+    });
+
+    test('offline says so', async () => {
+      jest.mocked(listWishes).mockRejectedValueOnce(new OfflineError('unreachable'));
+      await render(<Wishes />);
+      expect(await screen.findByText(/No connection to the server/)).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
+    });
   });
 });

@@ -30,7 +30,7 @@ export function LookThread({ state, pieces }: Props) {
   const [width, setWidth] = useState(0);
   const waiting = state === 'waiting';
   // Drawn in from the start: it spans the screen, so there's nothing to measure first.
-  const { drawn, run } = useThreadMotion(true, waiting);
+  const { drawn, run, reduced } = useThreadMotion(true, waiting);
 
   const line = useAnimatedStyle(() => ({ transform: [{ scaleX: drawn.get() }] }));
   const bead = useAnimatedStyle(() => runAcross(run.get(), width));
@@ -58,7 +58,7 @@ export function LookThread({ state, pieces }: Props) {
       ) : (
         <Animated.View style={[styles.line, line]} />
       )}
-      {waiting && (
+      {waiting && !reduced && (
         <Animated.View
           style={[styles.runner, bead]}
           exiting={FadeOut.duration(durations.state)}

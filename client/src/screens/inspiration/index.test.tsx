@@ -1,11 +1,11 @@
 import type { Inspiration as SavedLook } from '@closet-ai/shared';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, type AlertButton } from 'react-native';
+import { AccessibilityInfo, Alert, type AlertButton } from 'react-native';
 
 import i18n from '@/i18n';
 import { deleteInspiration, getStyle, listInspiration, refreshStyle, uploadPhoto } from '@/lib/api';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, OfflineError } from '@/lib/api-error';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 
 import { Inspiration } from '.';
@@ -155,5 +155,73 @@ describe('<Inspiration />', () => {
       await buttons.find((b) => b.text === 'Delete')!.onPress?.();
     });
     expect(deleteInspiration).toHaveBeenCalledWith(look(1).key);
+  });
+
+  describe('waiting in place', () => {
+    function pending<T>() {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>((done) => (resolve = done));
+      return { promise, answer: (value: T) => act(async () => resolve(value)) };
+    }
+
+    test('shows the title and the bead, and nothing it can not know yet', async () => {
+      jest.mocked(listInspiration).mockReturnValueOnce(pending<SavedLook[]>().promise);
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<Inspiration />);
+
+      expect(screen.getByRole('header', { name: 'Inspiration' })).toBeOnTheScreen();
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.getByTestId('looks-waiting')).toBeOnTheScreen();
+      expect(announce).toHaveBeenCalledWith('Loading');
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+    });
+
+    test('the looks wait for her style, so they land on the right garland', async () => {
+      const style = pending<Awaited<ReturnType<typeof getStyle>>>();
+      jest.mocked(getStyle).mockReturnValueOnce(style.promise);
+      await render(<Inspiration />);
+      const title = screen.getByRole('header', { name: 'Inspiration' });
+
+      // The looks are in, but which garland they hang on isn't known yet.
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.queryByRole('header', { name: /^New/ })).not.toBeOnTheScreen();
+      expect(screen.queryByText(/Your stylist writes your style/)).not.toBeOnTheScreen();
+
+      await style.answer({ ...brief, summary: null, writtenAt: null });
+
+      expect(screen.getByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
+      expect(screen.getByText(/Your stylist writes your style/)).toBeOnTheScreen();
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+      // The very same element: the screen wasn't laid out anew.
+      expect(screen.getByRole('header', { name: 'Inspiration' })).toBe(title);
+    });
+
+    test('looks that could not be read are not "no looks", and it tries again', async () => {
+      jest.mocked(listInspiration).mockRejectedValueOnce(new Error('boom'));
+      await render(<Inspiration />);
+
+      expect(await screen.findByText("Couldn't load your looks.")).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Add looks' })).not.toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
+      expect(screen.queryByText("Couldn't load your looks.")).not.toBeOnTheScreen();
+    });
+
+    test('a style that could not be read still leaves her looks and "Add looks"', async () => {
+      jest.mocked(getStyle).mockRejectedValueOnce(new Error('boom'));
+      await render(<Inspiration />);
+
+      expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Add looks' })).toBeOnTheScreen();
+      expect(screen.queryByText("Couldn't load your looks.")).not.toBeOnTheScreen();
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+    });
+
+    test('offline says so', async () => {
+      jest.mocked(listInspiration).mockRejectedValueOnce(new OfflineError('unreachable'));
+      await render(<Inspiration />);
+      expect(await screen.findByText(/No connection to the server/)).toBeOnTheScreen();
+    });
   });
 });

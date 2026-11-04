@@ -1,10 +1,11 @@
 import type { LookItem, PhotoState } from '@closet-ai/shared';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { AccessibilityInfo } from 'react-native';
 
 import i18n from '@/i18n';
 import { askWearWith, getPhotoState, getUsage, uploadPhoto } from '@/lib/api';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, OfflineError } from '@/lib/api-error';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 
 import { WearWithPick } from '.';
@@ -104,5 +105,81 @@ describe('<WearWithPick />', () => {
     await fireEvent.press(screen.getByText('Choose from gallery'));
 
     expect(await screen.findByText("That's 5 for today. Ask again tomorrow.")).toBeOnTheScreen();
+  });
+
+  describe('waiting in place', () => {
+    const unread: PhotoState = {
+      status: 'failed',
+      tagStatus: 'failed',
+      tags: null,
+      lookItems: null,
+      matches: null,
+    };
+
+    test('the photo stays with the bead on its thread while the pieces are found', async () => {
+      jest.mocked(getPhotoState).mockReturnValue(new Promise(() => {}));
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+
+      const waiting = await screen.findByRole('progressbar', {
+        name: 'Finding the item on the photo…',
+      });
+      expect(waiting).toBeOnTheScreen();
+      expect(
+        screen.getByTestId('thread-waiting', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(announce).toHaveBeenCalledWith('Finding the item on the photo…');
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+    });
+
+    test('a photo the server gave up on goes dashed and only offers another', async () => {
+      jest.mocked(getPhotoState).mockResolvedValueOnce(unread);
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+
+      expect(await screen.findByText("Couldn't read this photo. Try again.")).toBeOnTheScreen();
+      expect(
+        screen.getByTestId('thread-unread', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+      // It would only fail the same way: the server doesn't read a failed photo again.
+      expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeOnTheScreen();
+      expect(screen.getByText('Choose from gallery')).toBeOnTheScreen();
+    });
+
+    test('a photo that never got there is sent again', async () => {
+      jest.mocked(uploadPhoto).mockRejectedValueOnce(new OfflineError('unreachable'));
+      jest
+        .mocked(getPhotoState)
+        .mockResolvedValue(found([lookItem('White shirt', 'top'), lookItem('Skirt', 'bottom')]));
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+
+      expect(await screen.findByText(/No connection to the server/)).toBeOnTheScreen();
+      expect(getPhotoState).not.toHaveBeenCalled();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByText('White shirt')).toBeOnTheScreen();
+      expect(uploadPhoto).toHaveBeenCalledTimes(2);
+    });
+
+    test('outfits that could not be asked for are asked for again from the same photo', async () => {
+      jest.mocked(getPhotoState).mockResolvedValue(found([lookItem('White shirt', 'top')]));
+      jest.mocked(askWearWith).mockRejectedValueOnce(new Error('boom'));
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
+
+      await waitFor(() =>
+        expect(mockReplace).toHaveBeenCalledWith({
+          pathname: '/wear-with/[id]',
+          params: { id: 'req-1' },
+        }),
+      );
+      expect(uploadPhoto).toHaveBeenCalledTimes(1);
+    });
   });
 });

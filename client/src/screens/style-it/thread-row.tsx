@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { I18nManager, StyleSheet, View } from 'react-native';
 import Animated, {
+  FadeOut,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -9,7 +11,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { EASE_OUT } from '@/motion';
+import { BEAD, ThreadLine } from '@/components/thread-stops';
+import { durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';
 
 // Where the thread runs (from the start edge of the row) and where the content starts.
@@ -37,6 +40,8 @@ type Props = {
   // The whole thread dashed: a row of things that aren't hers yet (Wishes, 2026-10-29).
   dashed?: boolean;
   delay?: number;
+  // The thread was already here while the screen waited: it doesn't draw itself in again.
+  inPlace?: boolean;
   children: ReactNode;
 };
 
@@ -52,11 +57,13 @@ export function ThreadRow({
   hollow = false,
   dashed = false,
   delay = 0,
+  inPlace = false,
   children,
 }: Props) {
   const reduceMotion = useReducedMotion();
+  const still = reduceMotion || inPlace;
   const [height, setHeight] = useState(0);
-  const progress = useSharedValue(reduceMotion ? 1 : 0);
+  const progress = useSharedValue(still ? 1 : 0);
 
   const { d, length } = threadPath(kind, last, height, joined);
   const branch = loose ? branchPath(height, last) : null;
@@ -64,13 +71,13 @@ export function ThreadRow({
   // Drawn once, when the row first has a height (a row growing later keeps its drawn line).
   const measured = height > 0;
   useEffect(() => {
-    if (reduceMotion) {
+    if (still) {
       progress.value = 1;
       return;
     }
     if (!measured) return;
     progress.value = withDelay(delay, withTiming(1, { duration: DRAW, easing: EASE_OUT }));
-  }, [measured, delay, reduceMotion, progress]);
+  }, [measured, delay, still, progress]);
 
   const line = useAnimatedProps(
     () => ({
@@ -132,6 +139,39 @@ export function ThreadRow({
   );
 }
 
+// A list on this thread still loading (the diary, Wishes): the first stop's knot and its thread with
+// the waiting bead, no stops yet. Always solid, whatever the stops turn out to be: waiting is never
+// drawn dashed (docs/design.md, "Waiting"). The real first stop comes in its place, its line
+// `inPlace`, and this fades over it. With Reduce Motion there's no bead, just the thread.
+export function ThreadWaiting() {
+  const { t } = useTranslation();
+  const reduced = useReducedMotion();
+  const [height, setHeight] = useState(0);
+  return (
+    <Animated.View
+      testID="thread-row-waiting"
+      exiting={FadeOut.duration(durations.state)}
+      onLayout={(event) => setHeight(Math.round(event.nativeEvent.layout.height))}
+    >
+      <ThreadRow kind="root" hollow>
+        <View
+          style={styles.waiting}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={t('common.loading')}
+        />
+      </ThreadRow>
+      <ThreadLine
+        top={-(KNOT_Y - BEAD / 2)}
+        length={Math.max(0, height - KNOT_Y)}
+        waiting={!reduced}
+        measured={false}
+        x={THREAD_X}
+      />
+    </Animated.View>
+  );
+}
+
 // The thread in a row of this height, and its length (for drawing it in by its dash).
 export function threadPath(kind: 'root' | 'branch', last: boolean, height: number, joined = false) {
   const x = THREAD_X;
@@ -185,5 +225,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  // Room for the thread the bead runs down, with nothing on it yet.
+  waiting: {
+    minHeight: 320,
   },
 });

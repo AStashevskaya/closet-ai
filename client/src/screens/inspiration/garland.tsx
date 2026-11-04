@@ -9,7 +9,7 @@ import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { dayLabel } from '@/lib/day-label';
-import { rise, STAGGER_STEP } from '@/motion';
+import { arrive, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export type Point = [number, number];
@@ -65,7 +65,7 @@ export function Garland({ looks, loose, headers, delay = 0, onTies, onLongPress 
       {looks.map((look, index) => (
         <Animated.View
           key={look.key}
-          entering={rise.delay(delay + Math.min(index, 6) * STAGGER_STEP)}
+          entering={arrive.delay(delay + Math.min(index, 6) * STAGGER_STEP)}
           style={[styles.look, index % 2 === 1 && styles.end]}
           onLayout={(event) => {
             const { x, y, width } = event.nativeEvent.layout;

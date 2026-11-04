@@ -6,24 +6,28 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeOut } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
+import { Button } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
-import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
+import { useAnnounce } from '@/lib/announce';
 import { askWearWith, getPhotoState, uploadPhoto } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
-import { durations } from '@/motion';
+import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { LookCrop } from '@/screens/add-look/look-crop';
+import { LookThread } from '@/screens/add-look/look-thread';
 import { colors, fonts } from '@/theme';
 
 // Finding the items takes a few seconds; after a minute the screen gives up.
 const POLL_MS = 1500;
 const MAX_POLLS = 40;
+// The thread here carries no beads: the pieces are the rows under it.
+const NO_BEADS: boolean[] = [];
 
 // The photo picked, uploaded and read: from nothing picked yet to the items found on it.
 type Shot =
@@ -31,7 +35,8 @@ type Shot =
   | { status: 'finding'; uri: string; aspect: number }
   | { status: 'found'; uri: string; aspect: number; photoKey: string; items: LookItem[] }
   // offline: the server couldn't be reached, which is no fault of the photo.
-  | { status: 'failed'; uri: string; aspect: number; offline: boolean };
+  // `final`: the server has given up on this photo and won't read it again, so only another will do.
+  | { status: 'failed'; uri: string; aspect: number; offline: boolean; final?: boolean };
 
 // "What do I wear this with?" for an item the user doesn't own (yet): a screenshot or photo,
 // the item on it picked when there are several, then the outfits.
@@ -41,6 +46,8 @@ export function WearWithPick() {
   const lang = appLanguage(i18n.language);
   const [shot, setShot] = useState<Shot>({ status: 'empty' });
   const [photoKey, setPhotoKey] = useState<string | null>(null);
+  // Reading the same photo again after a failure.
+  const [attempt, setAttempt] = useState(0);
   const [limit, setLimit] = useState<LimitCode | null>(null);
   const [busy, setBusy] = useState(false);
   // The mood asked of the outfits; null for any.
@@ -68,14 +75,36 @@ export function WearWithPick() {
       setShot({ status: 'finding', uri, aspect });
       setPhotoKey(await uploadPhoto(uri, lang, 'wear'));
     } catch (cause) {
-      const code = limitReached(cause);
-      if (code) {
-        setLimit(code);
-        setShot({ status: 'empty' });
-        return;
-      }
-      if (__DEV__) console.warn('Uploading the photo failed', cause);
-      setShot({ status: 'failed', uri, aspect, offline: isOffline(cause) });
+      uploadFailed(cause, uri, aspect);
+    }
+  }
+
+  function uploadFailed(cause: unknown, uri: string, aspect: number) {
+    const code = limitReached(cause);
+    if (code) {
+      setLimit(code);
+      setShot({ status: 'empty' });
+      return;
+    }
+    if (__DEV__) console.warn('Uploading the photo failed', cause);
+    setShot({ status: 'failed', uri, aspect, offline: isOffline(cause) });
+  }
+
+  // The same photo again, from where it stopped: uploaded already, it's read again (which also
+  // brings back the choice, or asks about its one piece again); if not, it's sent again.
+  async function retry() {
+    if (shot.status !== 'failed') return;
+    const { uri, aspect } = shot;
+    setLimit(null);
+    setShot({ status: 'finding', uri, aspect });
+    if (photoKey) {
+      setAttempt((n) => n + 1);
+      return;
+    }
+    try {
+      setPhotoKey(await uploadPhoto(uri, lang, 'wear'));
+    } catch (cause) {
+      uploadFailed(cause, uri, aspect);
     }
   }
 
@@ -111,7 +140,8 @@ export function WearWithPick() {
     const poll = async () => {
       // Whether the last poll found the server unreachable.
       let offline = false;
-      for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
+      let final = false;
+      for (let tries = 0; tries < MAX_POLLS; tries++) {
         try {
           const state = await getPhotoState(photoKey);
           if (cancelled) return;
@@ -126,7 +156,10 @@ export function WearWithPick() {
             else void Haptics.selectionAsync();
             return;
           }
-          if (state.status === 'failed' || state.tagStatus !== 'pending') break;
+          if (state.status === 'failed' || state.tagStatus !== 'pending') {
+            final = true;
+            break;
+          }
           offline = false;
         } catch (error) {
           // A dropped request is no reason to stop; the next poll tries again.
@@ -137,7 +170,7 @@ export function WearWithPick() {
       }
       if (!cancelled) {
         setShot((current) =>
-          current.status === 'finding' ? { ...current, status: 'failed', offline } : current,
+          current.status === 'finding' ? { ...current, status: 'failed', offline, final } : current,
         );
       }
     };
@@ -148,7 +181,24 @@ export function WearWithPick() {
     };
     // choose only reads its arguments and stable setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoKey]);
+  }, [photoKey, attempt]);
+
+  // While the pieces are found, and once one's chosen while its outfits are asked for.
+  const waiting = shot.status === 'finding' || busy;
+  const waitingFor = busy
+    ? t('wearWith.composing')
+    : shot.status === 'finding'
+      ? t('wearWith.finding')
+      : null;
+  const failedText =
+    shot.status === 'failed' ? t(shot.offline ? 'common.offline' : 'wearWith.notRead') : null;
+  // One piece goes straight on to its outfits, with nothing to pick here.
+  const foundText =
+    shot.status !== 'found' || shot.items.length === 1
+      ? null
+      : t(shot.items.length === 0 ? 'wearWith.none' : 'wearWith.pickOne');
+  const statusText = waitingFor ?? failedText ?? foundText;
+  useAnnounce(statusText);
 
   const outOfToday = left === 0 || limit !== null;
   const buttons = outOfToday ? (
@@ -193,33 +243,32 @@ export function WearWithPick() {
           )}
         </>
       ) : (
-        <Image
-          source={{ uri: shot.uri }}
-          style={styles.photo}
-          contentFit="cover"
-          transition={250}
-        />
+        <>
+          {/* One layout while it waits and after (docs/design.md, "Waiting"): the photo and its
+              thread stay, and the pieces settle in under them. */}
+          <Image
+            source={{ uri: shot.uri }}
+            style={styles.photo}
+            contentFit="cover"
+            transition={250}
+          />
+          {/* The thread from the photo to the pieces found on it, as on a selfie. Solid with the
+              bead while it waits; then dashed, as the pieces aren't hers, or the photo wasn't read. */}
+          <LookThread state={waiting ? 'waiting' : 'unread'} pieces={NO_BEADS} />
+        </>
       )}
 
-      {shot.status !== 'empty' && (
+      {statusText && (
         <Animated.View
           key={`${shot.status}-${busy}`}
           style={styles.status}
-          entering={FadeIn.duration(durations.state)}
+          entering={arrive}
           exiting={FadeOut.duration(durations.press)}
-          accessibilityLiveRegion="polite"
+          accessible={waiting}
+          accessibilityRole={waiting ? 'progressbar' : undefined}
+          accessibilityLabel={waitingFor ?? undefined}
         >
-          {(shot.status === 'finding' || busy) && <HangerLoader size="small" />}
-          <Text style={styles.statusText}>
-            {busy && t('wearWith.composing')}
-            {!busy && shot.status === 'finding' && t('wearWith.finding')}
-            {!busy &&
-              shot.status === 'failed' &&
-              (shot.offline ? t('common.offline') : t('wearWith.notRead'))}
-            {!busy &&
-              shot.status === 'found' &&
-              (shot.items.length === 0 ? t('wearWith.none') : t('wearWith.pickOne'))}
-          </Text>
+          <Text style={styles.statusText}>{statusText}</Text>
         </Animated.View>
       )}
 
@@ -234,7 +283,7 @@ export function WearWithPick() {
         shot.items.map((item, index) => (
           <Animated.View
             key={`${shot.photoKey}-${index}`}
-            entering={FadeIn.duration(durations.enter).delay(index * 45)}
+            entering={arrive.delay(index * STAGGER_STEP)}
           >
             <PressableScale
               style={styles.row}
@@ -256,7 +305,14 @@ export function WearWithPick() {
         ))}
 
       {(shot.status === 'failed' || (shot.status === 'found' && shot.items.length === 0)) &&
-        !busy && <View style={styles.again}>{buttons}</View>}
+        !busy && (
+          <Animated.View style={styles.again} entering={arrive}>
+            {shot.status === 'failed' && !shot.final && !outOfToday && (
+              <Button kind="outline" label={t('wearWith.retry')} onPress={() => void retry()} />
+            )}
+            {buttons}
+          </Animated.View>
+        )}
     </ScrollView>
   );
 }
@@ -372,5 +428,6 @@ const styles = StyleSheet.create({
   },
   again: {
     marginTop: 18,
+    gap: 10,
   },
 });
