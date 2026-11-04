@@ -8,6 +8,7 @@ import {
   OfflineError,
   POLL_TIMEOUT_MS,
   REQUEST_TIMEOUT_MS,
+  rotateItem,
   uploadPhoto,
 } from './api';
 
@@ -103,6 +104,16 @@ describe('deleteItem', () => {
     });
 
     await expect(deleteItem('item-1')).rejects.toEqual(new ApiError(404, 'item not found'));
+  });
+});
+
+describe('rotateItem', () => {
+  test('names the photo she is looking at, so a retry does not turn it twice', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, statusText: '', json: async () => null });
+
+    await rotateItem('item-1', '/api/items/item-1/photo?v=ab12cd34').catch(() => {});
+
+    expect(fetchMock.mock.lastCall?.[0]).toBe('http://api.test/api/items/item-1/rotate?v=ab12cd34');
   });
 });
 
