@@ -30,10 +30,10 @@ describe('BeadAcross', () => {
     expect(screen.queryByTestId('thread-waiting', hidden)).not.toBeOnTheScreen();
   });
 
-  test('with Reduce Motion there is no bead', async () => {
+  test('with Reduce Motion the sign is still there', async () => {
     jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
     await render(<BeadAcross waiting />);
-    expect(screen.queryByTestId('thread-waiting', hidden)).not.toBeOnTheScreen();
+    expect(screen.getByTestId('thread-waiting', hidden)).toBeOnTheScreen();
   });
 });
 

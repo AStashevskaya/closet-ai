@@ -78,10 +78,10 @@ export function runAcross(run: number, width: number) {
 }
 
 // The waiting bead on a line that runs across (a rail): put it inside the line, which it measures
-// by itself. With Reduce Motion there's no bead at all. Decoration, so screen readers skip it.
+// by itself. With Reduce Motion it stays still at the start. Decoration, so screen readers skip it.
 export function BeadAcross({ waiting }: { waiting: boolean }) {
   const [width, setWidth] = useState(0);
-  const { run, reduced } = useThreadMotion(false, waiting);
+  const { run } = useThreadMotion(false, waiting);
   const bead = useAnimatedStyle(() => runAcross(run.get(), width));
   return (
     <View
@@ -90,7 +90,7 @@ export function BeadAcross({ waiting }: { waiting: boolean }) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      {waiting && !reduced && (
+      {waiting && (
         <Animated.View
           testID="thread-waiting"
           style={[styles.acrossBead, bead]}
