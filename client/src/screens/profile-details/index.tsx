@@ -51,6 +51,8 @@ export function ProfileDetails() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [name, setName] = useState('');
   const [loadFailed, setLoadFailed] = useState<{ offline: boolean } | null>(null);
+  // Reading the profile again after a failure.
+  const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState<Key | null>(null);
   // The open field as typed: saved when she's done with it.
   const [draft, setDraft] = useState('');
@@ -61,26 +63,26 @@ export function ProfileDetails() {
   // The profile as saved so far, for the async handlers (state in their closures can be stale).
   const latest = useRef<UserProfile | null>(null);
 
-  async function load() {
-    try {
-      const loaded = await getProfile();
-      latest.current = loaded;
-      setProfile(loaded);
-      setName(session?.user.name ?? '');
-    } catch (cause) {
-      setLoadFailed({ offline: isOffline(cause) });
-    }
-  }
-
   const failedText =
     !profile && loadFailed ? t(loadFailed.offline ? 'common.offline' : 'details.loadError') : null;
   useAnnounce(profile ? null : (failedText ?? t('common.loading')));
 
   useEffect(() => {
+    // An effect can't be async itself, so the async work goes in an inner function.
+    const load = async () => {
+      try {
+        const loaded = await getProfile();
+        latest.current = loaded;
+        setProfile(loaded);
+        setName(session?.user.name ?? '');
+      } catch (cause) {
+        setLoadFailed({ offline: isOffline(cause) });
+      }
+    };
     void load();
-    // Loaded once; the name from the session is only the starting value.
+    // Loaded once, and again on a retry; the name from the session is only the starting value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   async function save(patch: UpdateProfileInput, rename?: string) {
     if (saving.current) return false;
@@ -193,7 +195,7 @@ export function ProfileDetails() {
                 label={t('closet.retry')}
                 onPress={() => {
                   setLoadFailed(null);
-                  void load();
+                  setAttempt((n) => n + 1);
                 }}
               />
             </Animated.View>
