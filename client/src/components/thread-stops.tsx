@@ -28,6 +28,9 @@ export const DOT = 9;
 export const BEAD = SIGN_BOX;
 // The ink line's width, and the dots' outline.
 export const LINE_WEIGHT = 1.2;
+// A sign on a line across runs between these insets: clear of a rail's brackets, even standing
+// still at the start with Reduce Motion.
+const ACROSS_INSET = 12;
 const DRAW_MS = 2000;
 const RUN_MS = 2400;
 // Read once: switching to or from Hebrew reloads the app (src/lib/language.ts).
@@ -82,7 +85,7 @@ export function runAcross(run: number, width: number) {
 export function BeadAcross({ waiting }: { waiting: boolean }) {
   const [width, setWidth] = useState(0);
   const { run } = useThreadMotion(false, waiting);
-  const bead = useAnimatedStyle(() => runAcross(run.get(), width));
+  const bead = useAnimatedStyle(() => runAcross(run.get(), width - 2 * ACROSS_INSET));
   return (
     <View
       style={styles.across}
@@ -260,7 +263,7 @@ const styles = StyleSheet.create({
   acrossBead: {
     position: 'absolute',
     top: -BEAD / 2,
-    start: 0,
+    start: ACROSS_INSET,
     width: BEAD,
     height: BEAD,
   },

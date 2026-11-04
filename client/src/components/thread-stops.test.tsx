@@ -38,6 +38,13 @@ describe('BeadAcross', () => {
 });
 
 describe('ThreadLine', () => {
+  test('with Reduce Motion the sign is still there', async () => {
+    const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
+    await render(<ThreadLine top={20} length={300} waiting />);
+    expect(screen.getByTestId('thread-waiting', hidden)).toBeOnTheScreen();
+    reduced.mockReturnValue(false);
+  });
+
   test('runs a bead only while something is waited for', async () => {
     await render(<ThreadLine top={20} length={300} waiting />);
     expect(screen.getByTestId('thread-waiting', hidden)).toBeOnTheScreen();

@@ -178,6 +178,8 @@ describe('<WearWithPick />', () => {
 
       expect(await screen.findByText('White shirt')).toBeOnTheScreen();
       expect(uploadPhoto).toHaveBeenCalledTimes(2);
+      // Shrunk already: it isn't done over.
+      expect(shrinkPhoto).toHaveBeenCalledTimes(1);
     });
 
     test('outfits that could not be asked for are asked for again from the same photo', async () => {
