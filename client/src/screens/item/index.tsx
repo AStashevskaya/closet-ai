@@ -31,7 +31,6 @@ import {
 import Animated, { FadeIn, Keyframe } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HangerLoader } from '@/components/hanger-loader';
 import { Chip } from '@/components/chip';
 import { BrandPriceFields } from '@/components/brand-price-fields';
 import { Button, maison } from '@/components/maison';
@@ -49,11 +48,14 @@ import {
   sessionHeaders,
   updateItem,
 } from '@/lib/api';
+import { useAnnounce } from '@/lib/announce';
+import { isOffline } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { askFailedText, useUsage } from '@/lib/limits';
 import { defaultCurrency, parsePrice, priceText } from '@/lib/price';
 import { styledParams } from '@/lib/styled';
-import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
+import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
+import { RailLine } from '@/screens/closet/rail';
 import { colors, fonts } from '@/theme';
 
 const MAX_COLORS = 5;
@@ -88,7 +90,10 @@ const settle = new Keyframe({
   100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
 }).duration(durations.settle);
 
-type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; item: ItemDetail };
+type State =
+  | { status: 'loading' }
+  | { status: 'error'; offline: boolean }
+  | { status: 'ready'; item: ItemDetail };
 
 export function ItemScreen({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
@@ -116,9 +121,11 @@ export function ItemScreen({ id }: { id: string }) {
       setDraft((current) =>
         current && previous && !sameDraft(current, draftOf(previous)) ? current : draftOf(item),
       );
-    } catch {
+    } catch (cause) {
       // A failed reload keeps the item already shown; only a first load shows the error.
-      setState((current) => (current.status === 'ready' ? current : { status: 'error' }));
+      setState((current) =>
+        current.status === 'ready' ? current : { status: 'error', offline: isOffline(cause) },
+      );
       return;
     }
     // A nice-to-have: if it fails, the row just stays hidden.
@@ -149,28 +156,41 @@ export function ItemScreen({ id }: { id: string }) {
     void loadHeaders();
   }, []);
 
-  if (state.status === 'loading' || (state.status === 'ready' && !draft)) {
-    return (
-      <View style={styles.center}>
-        <HangerLoader />
-      </View>
-    );
-  }
+  const failedText =
+    state.status === 'error' ? t(state.offline ? 'common.offline' : 'item.loadError') : null;
+  const waiting = state.status === 'loading' || (state.status === 'ready' && !draft);
+  useAnnounce(waiting ? t('common.loading') : failedText);
 
-  if (state.status === 'error' || !draft) {
+  // One layout for every state (docs/design.md, "Waiting"): the piece's place and the rail under it
+  // stay, in the same places as below, and the piece settles in on them.
+  if (state.status !== 'ready' || !draft) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.message}>{t('item.loadError')}</Text>
-        <Pressable
-          onPress={() => {
-            setState({ status: 'loading' });
-            void load();
-          }}
-          accessibilityRole="button"
-        >
-          <Text style={styles.link}>{t('closet.retry')}</Text>
-        </Pressable>
-      </View>
+      <KeyboardAvoidingView style={styles.screen}>
+        <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="never">
+          <View
+            style={[styles.hero, { height: Math.round(height * 0.6) }]}
+            accessible={waiting}
+            accessibilityRole={waiting ? 'progressbar' : undefined}
+            accessibilityLabel={waiting ? t('common.loading') : undefined}
+          />
+          <RailLine waiting={waiting} />
+          <View style={styles.body}>
+            {failedText && (
+              <Animated.View key="failed" style={styles.failed} entering={arrive}>
+                <Text style={maison.body}>{failedText}</Text>
+                <Button
+                  kind="outline"
+                  label={t('closet.retry')}
+                  onPress={() => {
+                    setState({ status: 'loading' });
+                    void load();
+                  }}
+                />
+              </Animated.View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -307,9 +327,10 @@ export function ItemScreen({ id }: { id: string }) {
           </Animated.View>
           {item.photoUrl && <RotateButton onPress={rotate} disabled={busy} style={styles.rotate} />}
         </View>
+        <RailLine waiting={false} />
 
         <View style={styles.body}>
-          <Animated.View entering={rise} style={styles.heading}>
+          <Animated.View entering={arrive} style={styles.heading}>
             <Text style={styles.name} accessibilityRole="header">
               {item.name}
             </Text>
@@ -321,7 +342,7 @@ export function ItemScreen({ id }: { id: string }) {
           </Animated.View>
 
           {item.photoUrl && (
-            <Animated.View entering={rise.delay(STAGGER_STEP)} style={styles.wearWith}>
+            <Animated.View entering={arrive.delay(STAGGER_STEP)} style={styles.wearWith}>
               <View style={styles.edgeToEdge}>
                 <MoodChips mood={mood} onChange={setMood} inset={20} />
               </View>
@@ -488,25 +509,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  failed: {
     gap: 12,
-    paddingHorizontal: 32,
-    backgroundColor: colors.background,
-  },
-  message: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 21,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  link: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 15,
-    color: colors.accent,
   },
   content: {
     paddingBottom: 48,

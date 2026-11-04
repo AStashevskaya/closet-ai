@@ -375,6 +375,7 @@
   "details": {
     "row": "My profile",
     "title": "My profile",
+    "loadError": "Couldn't open your profile.",
     "intro": "All optional. The stylist uses them to fit outfits to you, and partner pieces to show your size.",
     "add": "add",
     "born": "born {{year}}",

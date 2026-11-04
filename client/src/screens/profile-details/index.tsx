@@ -7,12 +7,14 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Chip } from '@/components/chip';
-import { HangerLoader } from '@/components/hanger-loader';
-import { maison } from '@/components/maison';
+import { Button, maison } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
+import { BeadAcross } from '@/components/thread-stops';
+import { useAnnounce } from '@/lib/announce';
 import { getProfile, updateProfile } from '@/lib/api';
+import { isOffline } from '@/lib/api-error';
 import { authClient } from '@/lib/auth-client';
-import { durations, rise, STAGGER_STEP } from '@/motion';
+import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { BodyShapes } from './body-shapes';
@@ -48,7 +50,9 @@ export function ProfileDetails() {
   const { data: session } = authClient.useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [name, setName] = useState('');
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<{ offline: boolean } | null>(null);
+  // Reading the profile again after a failure.
+  const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState<Key | null>(null);
   // The open field as typed: saved when she's done with it.
   const [draft, setDraft] = useState('');
@@ -59,6 +63,10 @@ export function ProfileDetails() {
   // The profile as saved so far, for the async handlers (state in their closures can be stale).
   const latest = useRef<UserProfile | null>(null);
 
+  const failedText =
+    !profile && loadFailed ? t(loadFailed.offline ? 'common.offline' : 'details.loadError') : null;
+  useAnnounce(profile ? null : (failedText ?? t('common.loading')));
+
   useEffect(() => {
     // An effect can't be async itself, so the async work goes in an inner function.
     const load = async () => {
@@ -67,14 +75,14 @@ export function ProfileDetails() {
         latest.current = loaded;
         setProfile(loaded);
         setName(session?.user.name ?? '');
-      } catch {
-        setLoadFailed(true);
+      } catch (cause) {
+        setLoadFailed({ offline: isOffline(cause) });
       }
     };
     void load();
-    // Loaded once; the name from the session is only the starting value.
+    // Loaded once, and again on a retry; the name from the session is only the starting value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   async function save(patch: UpdateProfileInput, rename?: string) {
     if (saving.current) return false;
@@ -155,11 +163,49 @@ export function ProfileDetails() {
     else if (key !== 'bodyShape') setDraft(profile[key]?.toString() ?? '');
   }
 
+  // One layout for every state (docs/design.md, "Waiting"): the intro, her name from the account and
+  // the measurements' thread stay, and what's read settles in on them. Nothing dashed yet: until
+  // it's read, a value isn't "not known", it's on its way.
   if (!profile) {
     return (
-      <View style={styles.center}>
-        {loadFailed ? <Text style={maison.body}>{t('details.failed')}</Text> : <HangerLoader />}
-      </View>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View>
+          <Text style={maison.body}>{t('details.intro')}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.caps}>{t('details.name')}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>{session?.user.name}</Text>
+          </View>
+          {/* Where the open name and place go below: the measurements' row stays the same element,
+              so the sign on it can fade as they come. */}
+          {null}
+          <View style={styles.whereRow} />
+          {null}
+          <View
+            style={[styles.stats, styles.statsWaiting]}
+            accessible={!failedText}
+            accessibilityRole={failedText ? undefined : 'progressbar'}
+            accessibilityLabel={failedText ? undefined : t('common.loading')}
+          >
+            <StatsSign waiting={!failedText} />
+          </View>
+          {failedText && (
+            <Animated.View style={styles.loadFailed} entering={arrive}>
+              <Text style={maison.body}>{failedText}</Text>
+              <Button
+                kind="outline"
+                label={t('closet.retry')}
+                onPress={() => {
+                  setLoadFailed(null);
+                  setAttempt((n) => n + 1);
+                }}
+              />
+            </Animated.View>
+          )}
+        </View>
+      </ScrollView>
     );
   }
 
@@ -183,11 +229,11 @@ export function ProfileDetails() {
       automaticallyAdjustKeyboardInsets
       keyboardDismissMode="interactive"
     >
-      <Animated.View entering={rise}>
+      <View>
         <Text style={maison.body}>{t('details.intro')}</Text>
-      </Animated.View>
+      </View>
 
-      <Animated.View entering={rise.delay(STAGGER_STEP)} style={styles.card}>
+      <View style={styles.card}>
         <Text style={styles.caps}>{t('details.name')}</Text>
         <Pressable
           style={styles.nameRow}
@@ -217,16 +263,19 @@ export function ProfileDetails() {
           accessibilityLabel={`${t('details.country')}, ${where || t('details.add')}`}
           accessibilityState={{ expanded: open === 'where' }}
         >
-          {where ? (
-            <Text style={styles.where}>
-              {where}
-              {profile.birthYear !== null && ` · ${t('details.born', { year: profile.birthYear })}`}
-            </Text>
-          ) : (
-            <Text style={[styles.where, styles.unknown]}>
-              {t('details.country')} · {t('details.add')}
-            </Text>
-          )}
+          <Animated.View entering={arrive}>
+            {where ? (
+              <Text style={styles.where}>
+                {where}
+                {profile.birthYear !== null &&
+                  ` · ${t('details.born', { year: profile.birthYear })}`}
+              </Text>
+            ) : (
+              <Text style={[styles.where, styles.unknown]}>
+                {t('details.country')} · {t('details.add')}
+              </Text>
+            )}
+          </Animated.View>
         </Pressable>
         {open === 'where' && (
           <Panel why={t('details.why.where')}>
@@ -256,6 +305,7 @@ export function ProfileDetails() {
 
         {/* Her measurements between two thread lines, as on a model's card. */}
         <View style={styles.stats}>
+          <StatsSign waiting={false} />
           {stats.map((stat, index) => (
             <PressableScale
               key={stat.key}
@@ -265,10 +315,12 @@ export function ProfileDetails() {
               accessibilityLabel={`${stat.label}, ${stat.value ?? t('details.add')}`}
               accessibilityState={{ expanded: open === stat.key }}
             >
-              <Text style={[styles.statValue, !stat.value && styles.statUnknown]}>
-                {stat.value ?? '+'}
-              </Text>
-              <Text style={styles.caps}>{stat.label}</Text>
+              <Animated.View style={styles.statText} entering={arrive}>
+                <Text style={[styles.statValue, !stat.value && styles.statUnknown]}>
+                  {stat.value ?? '+'}
+                </Text>
+                <Text style={styles.caps}>{stat.label}</Text>
+              </Animated.View>
             </PressableScale>
           ))}
         </View>
@@ -285,7 +337,7 @@ export function ProfileDetails() {
           />
         )}
 
-        <View style={styles.rows}>
+        <Animated.View style={styles.rows} entering={arrive.delay(STAGGER_STEP)}>
           <Row
             label={t('details.bodyShape')}
             value={profile.bodyShape && t(`details.shapes.${profile.bodyShape}`)}
@@ -318,7 +370,7 @@ export function ProfileDetails() {
               maxLength={4}
             />
           )}
-        </View>
+        </Animated.View>
 
         <View style={styles.status} accessibilityLiveRegion="polite">
           {status === 'saved' && (
@@ -336,9 +388,9 @@ export function ProfileDetails() {
             </Text>
           )}
         </View>
-      </Animated.View>
+      </View>
 
-      <Animated.View entering={rise.delay(2 * STAGGER_STEP)} style={styles.account}>
+      <Animated.View entering={arrive.delay(2 * STAGGER_STEP)} style={styles.account}>
         <Pressable
           style={styles.accountRow}
           onPress={() => authClient.signOut()}
@@ -355,6 +407,16 @@ export function ProfileDetails() {
         </Pressable>
       </Animated.View>
     </ScrollView>
+  );
+}
+
+// The sign of waiting, on the top line of the measurements: their thread. In both layouts, so it can
+// fade as they come.
+function StatsSign({ waiting }: { waiting: boolean }) {
+  return (
+    <View style={styles.statsSign}>
+      <BeadAcross waiting={waiting} />
+    </View>
   );
 }
 
@@ -429,13 +491,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    backgroundColor: colors.background,
-  },
   content: {
     padding: 20,
     paddingBottom: 48,
@@ -489,6 +544,26 @@ const styles = StyleSheet.create({
     borderTopWidth: 1.2,
     borderBottomWidth: 1.2,
     borderColor: colors.text,
+  },
+  // As tall as the measurements will be, so nothing moves when they come.
+  statsWaiting: {
+    minHeight: 70.4,
+  },
+  // On the top line: the stats' border, which it sits just above.
+  statsSign: {
+    position: 'absolute',
+    start: 0,
+    end: 0,
+    top: -1.2,
+    height: 1.2,
+  },
+  loadFailed: {
+    marginTop: 18,
+    gap: 12,
+  },
+  statText: {
+    alignItems: 'center',
+    gap: 4,
   },
   stat: {
     flex: 1,
