@@ -13,7 +13,7 @@ import {
   listStyled,
   reactToOutfit,
 } from '@/lib/api';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, OfflineError } from '@/lib/api-error';
 
 import { StyleIt } from '.';
 
@@ -475,5 +475,91 @@ describe('<StyleIt />', () => {
     await render(<StyleIt />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Add an item' }));
     expect(mockPush).toHaveBeenCalledWith('/add-item');
+  });
+
+  describe('waiting in place', () => {
+    function pending<T>() {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>((done) => (resolve = done));
+      return { promise, answer: (value: T) => act(async () => resolve(value)) };
+    }
+
+    test('shows the title and the thread with the bead, and nothing it can not know yet', async () => {
+      jest.mocked(listItems).mockReturnValueOnce(pending<Item[]>().promise);
+      jest.mocked(listStyled).mockReturnValueOnce(pending<StyledEntry[]>().promise);
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<StyleIt />);
+
+      expect(screen.getByRole('header', { name: 'Style it' })).toBeOnTheScreen();
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.getByTestId('thread-row-waiting')).toBeOnTheScreen();
+      expect(announce).toHaveBeenCalledWith('Loading');
+      expect(screen.queryByRole('button', { name: 'From my closet' })).not.toBeOnTheScreen();
+      expect(screen.queryByText('Outfits you ask for are kept here.')).not.toBeOnTheScreen();
+      expect(screen.queryByText(/Add a few pieces/)).not.toBeOnTheScreen();
+    });
+
+    test('the closet and the diary land together, under the same title', async () => {
+      const closet = pending<Item[]>();
+      const diary = pending<StyledEntry[]>();
+      jest.mocked(listItems).mockReturnValueOnce(closet.promise);
+      jest.mocked(listStyled).mockReturnValueOnce(diary.promise);
+      await render(<StyleIt />);
+      const title = screen.getByRole('header', { name: 'Style it' });
+
+      await closet.answer([skirt]);
+      // One of the two in: still one bead, and nothing has moved.
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'From my closet' })).not.toBeOnTheScreen();
+
+      await diary.answer([styled]);
+      expect(screen.getByRole('button', { name: 'From my closet' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: `Outfits with ${styled.name}` })).toBeOnTheScreen();
+      expect(screen.queryByTestId('thread-row-waiting')).not.toBeOnTheScreen();
+      // The very same element: the screen wasn't laid out anew.
+      expect(screen.getByRole('header', { name: 'Style it' })).toBe(title);
+    });
+
+    test('says "nothing here yet" only once the diary has been read', async () => {
+      jest.mocked(listStyled).mockResolvedValueOnce([]);
+      await render(<StyleIt />);
+      expect(await screen.findByText('Outfits you ask for are kept here.')).toBeOnTheScreen();
+    });
+
+    test('a diary that could not be read is not an empty one, and it tries again', async () => {
+      jest.mocked(listStyled).mockRejectedValueOnce(new Error('boom'));
+      await render(<StyleIt />);
+
+      expect(await screen.findByText("Couldn't load the outfits you asked for.")).toBeOnTheScreen();
+      expect(screen.queryByText('Outfits you ask for are kept here.')).not.toBeOnTheScreen();
+      // The closet came, so the ways in are there.
+      expect(screen.getByRole('button', { name: 'From my closet' })).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(
+        await screen.findByRole('button', { name: `Outfits with ${styled.name}` }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText("Couldn't load the outfits you asked for.")).not.toBeOnTheScreen();
+    });
+
+    test('both failing say one thing, with one retry that reads both again', async () => {
+      jest.mocked(listItems).mockRejectedValueOnce(new Error('boom'));
+      jest.mocked(listStyled).mockRejectedValueOnce(new Error('boom'));
+      await render(<StyleIt />);
+
+      expect(await screen.findByText("Couldn't load your closet.")).toBeOnTheScreen();
+      expect(screen.queryByText("Couldn't load the outfits you asked for.")).not.toBeOnTheScreen();
+      expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(await screen.findByRole('button', { name: 'From my closet' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: `Outfits with ${styled.name}` })).toBeOnTheScreen();
+    });
+
+    test('offline says so', async () => {
+      jest.mocked(listItems).mockRejectedValueOnce(new OfflineError('unreachable'));
+      await render(<StyleIt />);
+      expect(await screen.findByText(/No connection to the server/)).toBeOnTheScreen();
+    });
   });
 });

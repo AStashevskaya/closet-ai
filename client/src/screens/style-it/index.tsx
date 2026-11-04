@@ -3,33 +3,33 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  AccessibilityInfo,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  type ScrollViewInstance,
-} from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HangerLoader } from '@/components/hanger-loader';
 import { Button, maison, ScreenTitle } from '@/components/maison';
 import { useTabBarClearance } from '@/components/tab-bar';
+import { useAnnounce } from '@/lib/announce';
 import { askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
+import { isOffline } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { askFailedText, useUsage } from '@/lib/limits';
-import { rise, STAGGER_STEP } from '@/motion';
+import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors } from '@/theme';
 
 import { ClosetPicker } from './closet-picker';
 import { DiaryStop } from './diary-stop';
 import { StyleThread, type Chosen as StyledPiece } from './style-thread';
+import { ThreadWaiting } from './thread-row';
 
 // The piece being styled: from the closet (so it can be asked about again) or styled before.
 type Chosen = StyledPiece & { item?: Item };
+
+// A read that didn't go through, and whether it's the connection.
+type Failure = { offline: boolean };
+
+// The first screenful of stops settles in one after another.
+const SETTLING = 8;
 
 // "Style it": outfits put together around one piece, on a tab of its own. A diary on one thread
 // (decided 2026-10-28, prototype ~/Desktop/closet/wrinkle-lab/design-styleit, direction C): two
@@ -44,9 +44,11 @@ export function StyleIt() {
   const lang = appLanguage(i18n.language);
   const { usage, refresh: refreshUsage } = useUsage();
   const [items, setItems] = useState<Item[] | null>(null);
-  // The closet couldn't be read and there's none from before: say so rather than "it's empty".
-  const [itemsFailed, setItemsFailed] = useState(false);
-  const [styled, setStyled] = useState<StyledEntry[]>([]);
+  const [styled, setStyled] = useState<StyledEntry[] | null>(null);
+  // A read that failed, apart from an empty answer: "nothing here yet" only comes once a load has
+  // ended. It only counts with nothing from before to show.
+  const [itemsFailure, setItemsFailure] = useState<Failure | null>(null);
+  const [styledFailure, setStyledFailure] = useState<Failure | null>(null);
   // Deleted here: a list read just before must not bring them back.
   const [deleted, setDeleted] = useState<ReadonlySet<string>>(new Set());
   // When the list was read: the diary's wishes count their week down from it.
@@ -66,25 +68,25 @@ export function StyleIt() {
   const scrollWhenLaidOut = useRef(false);
   function choose(next: Chosen) {
     setChosen(next);
-    // The thread may be far below: say the looks are on their way (iOS has no live regions).
-    AccessibilityInfo.announceForAccessibility(t('wearWith.composing'));
     scrollWhenLaidOut.current = true;
   }
 
+  // Read together and landing together: one bead, then everything settles in at one go. What was
+  // read before stays when a reload fails.
   const load = useCallback(async () => {
-    setItemsFailed(false);
-    try {
-      const all = await listItems();
-      setItems(all.filter((item) => item.photoStatus === 'ready'));
-    } catch {
-      // A closet read before stays; with none, the error shows instead of the buttons.
-      setItemsFailed(true);
+    const [closet, diary] = await Promise.allSettled([listItems(), listStyled()]);
+    if (closet.status === 'fulfilled') {
+      setItems(closet.value.filter((item) => item.photoStatus === 'ready'));
+      setItemsFailure(null);
+    } else {
+      setItemsFailure({ offline: isOffline(closet.reason) });
     }
-    try {
-      setStyled(await listStyled());
+    if (diary.status === 'fulfilled') {
+      setStyled(diary.value);
       setReadAt(Date.now());
-    } catch {
-      // Nice to have: the section just stays as it was.
+      setStyledFailure(null);
+    } else {
+      setStyledFailure({ offline: isOffline(diary.reason) });
     }
   }, []);
   // Reloads when the tab comes into view: a piece added or styled elsewhere shows up.
@@ -93,6 +95,23 @@ export function StyleIt() {
       void load();
     }, [load]),
   );
+  // Back to waiting in place. With the closet to read again the diary waits with it, so the bead has
+  // its thread free.
+  function retry() {
+    setItemsFailure(null);
+    setStyledFailure(null);
+    if (items === null) setStyled(null);
+    void load();
+  }
+
+  // Once the stops have settled in, a stop mounted later (one folding) doesn't play it again.
+  const [settled, setSettled] = useState(false);
+  const diaryRead = styled !== null;
+  useEffect(() => {
+    if (!diaryRead) return;
+    const timer = setTimeout(() => setSettled(true), SETTLING * STAGGER_STEP + durations.arrive);
+    return () => clearTimeout(timer);
+  }, [diaryRead]);
 
   useEffect(() => {
     // An effect can't be async itself, so the async work goes in an inner function.
@@ -142,7 +161,7 @@ export function StyleIt() {
   const asked = chosen?.item;
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
   // The piece just asked about is on top before the list catches up with it.
-  const listed = styled.filter((entry) => !deleted.has(entry.id));
+  const listed = (styled ?? []).filter((entry) => !deleted.has(entry.id));
   const entries: StyledEntry[] =
     chosen && !listed.some((entry) => entry.id === chosen.requestId)
       ? [
@@ -162,6 +181,17 @@ export function StyleIt() {
         ]
       : listed;
 
+  // Only with nothing from before to show.
+  const closetFailed = items === null ? itemsFailure : null;
+  const diaryFailed = styled === null ? styledFailure : null;
+  const waiting =
+    (items === null && itemsFailure === null) || (styled === null && styledFailure === null);
+  const closetError =
+    closetFailed && t(closetFailed.offline ? 'common.offline' : 'closet.loadError');
+  const diaryError = diaryFailed && t(diaryFailed.offline ? 'common.offline' : 'styleIt.loadError');
+  // Both failing say one thing, with one retry: it reads both again.
+  useAnnounce(waiting ? t('common.loading') : (closetError ?? diaryError));
+
   return (
     <ScrollView
       ref={scroll}
@@ -171,37 +201,39 @@ export function StyleIt() {
         { paddingTop: insets.top + 20, paddingBottom: clearance },
       ]}
     >
-      <Animated.View entering={rise} style={maison.gutter}>
+      {/* One layout for every state (docs/design.md, "Waiting"): the title and the diary's thread
+          stay where they are, and what's read settles in around them; nothing here enters again. */}
+      <View style={maison.gutter}>
         <ScreenTitle title={t('styleIt.title')} subtitle={t('styleIt.subtitle')} />
-        {left !== null && (
-          <Text style={maison.note}>
-            {t('wearWith.left', { left, limit: usage!.wear_with.limit })}
-          </Text>
-        )}
-      </Animated.View>
+        {/* Its line is kept, so what's below doesn't move when it comes. */}
+        <View style={styles.leftLine}>
+          {left !== null && (
+            <Animated.Text style={maison.note} entering={arrive}>
+              {t('wearWith.left', { left, limit: usage!.wear_with.limit })}
+            </Animated.Text>
+          )}
+        </View>
+      </View>
 
-      {/* Two ways in: a piece of hers, or one from a photo she doesn't own yet (dashed: not hers). */}
-      <Animated.View entering={rise.delay(STAGGER_STEP)} style={[maison.gutter, styles.start]}>
-        {items === null && itemsFailed ? (
-          <View style={styles.empty}>
-            <Text style={maison.body}>{t('closet.loadError')}</Text>
-            <Button kind="outline" label={t('closet.retry')} onPress={() => void load()} />
-          </View>
-        ) : items === null ? (
-          <View style={styles.loading}>
-            <HangerLoader />
-          </View>
-        ) : items.length === 0 ? (
-          <View style={styles.empty}>
+      {/* Two ways in: a piece of hers, or one from a photo she doesn't own yet (dashed: not hers).
+          Whether they're on offer depends on the closet, so until it's read their place stays empty. */}
+      <View style={[maison.gutter, styles.start]}>
+        {closetError ? (
+          <Animated.View style={styles.empty} entering={arrive}>
+            <Text style={maison.body}>{closetError}</Text>
+            <Button kind="outline" label={t('closet.retry')} onPress={retry} />
+          </Animated.View>
+        ) : items === null ? null : items.length === 0 ? (
+          <Animated.View style={styles.empty} entering={arrive}>
             <Text style={maison.body}>{t('styleIt.emptyCloset')}</Text>
             <Button
               kind="outline"
               label={t('styleIt.addFirst')}
               onPress={() => router.push('/add-item')}
             />
-          </View>
+          </Animated.View>
         ) : (
-          <View style={styles.buttons}>
+          <Animated.View style={styles.buttons} entering={arrive}>
             <Button
               kind="bright"
               label={t('styleIt.fromCloset')}
@@ -215,14 +247,13 @@ export function StyleIt() {
               onPress={() => router.push('/wear-with-pick')}
               style={[styles.button, styles.dashed]}
             />
-          </View>
+          </Animated.View>
         )}
-      </Animated.View>
+      </View>
 
       {/* The diary: everything she styled, newest on top, on one thread; the open one grows its
           outfits full width, the others show theirs folded small. */}
-      <Animated.View
-        entering={rise.delay(STAGGER_STEP * 2)}
+      <View
         style={styles.diary}
         testID="diary"
         onLayout={(event) => {
@@ -230,7 +261,21 @@ export function StyleIt() {
         }}
       >
         {entries.length === 0 ? (
-          <Text style={[maison.note, maison.gutter]}>{t('styleIt.historyEmpty')}</Text>
+          styled === null && styledFailure === null ? (
+            <ThreadWaiting />
+          ) : diaryError ? (
+            // Said once above when the closet failed too.
+            !closetError && (
+              <Animated.View style={[maison.gutter, styles.empty]} entering={arrive}>
+                <Text style={maison.body}>{diaryError}</Text>
+                <Button kind="outline" label={t('closet.retry')} onPress={retry} />
+              </Animated.View>
+            )
+          ) : (
+            <Animated.Text style={[maison.note, maison.gutter]} entering={arrive}>
+              {t('styleIt.historyEmpty')}
+            </Animated.Text>
+          )
         ) : (
           entries.map((entry, index) =>
             entry.id === chosen?.requestId ? (
@@ -262,6 +307,7 @@ export function StyleIt() {
                 joined={index > 0}
                 last={index === entries.length - 1}
                 now={readAt}
+                settleDelay={settled ? undefined : Math.min(index, SETTLING) * STAGGER_STEP}
                 onDeleted={() => onDeleted(entry.id)}
                 onOpen={() => {
                   // Not hers yet: its own screen, with the verdict and "Add to wishes" / "Add to
@@ -283,7 +329,7 @@ export function StyleIt() {
             ),
           )
         )}
-      </Animated.View>
+      </View>
 
       <ClosetPicker
         visible={picking}
@@ -310,8 +356,14 @@ const styles = StyleSheet.create({
   content: {
     gap: 24,
   },
+  // One line of `maison.note`.
+  leftLine: {
+    minHeight: 17,
+  },
+  // As tall as the buttons (`Button`), so the diary doesn't move when they come.
   start: {
     gap: 10,
+    minHeight: 52,
   },
   buttons: {
     flexDirection: 'row',
@@ -324,10 +376,6 @@ const styles = StyleSheet.create({
   // From a photo: a piece that isn't hers yet, so dashed, as on Inspiration.
   dashed: {
     borderStyle: 'dashed',
-  },
-  loading: {
-    alignItems: 'center',
-    paddingVertical: 24,
   },
   empty: {
     gap: 12,

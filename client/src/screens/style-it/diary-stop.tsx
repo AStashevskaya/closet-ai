@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
 import { cutoutShadow } from '@/components/cutout-shadow';
@@ -10,6 +11,7 @@ import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { dayLabel } from '@/lib/day-label';
+import { arrive } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { DeleteStyling, useDeleteStyling } from './delete-styling';
@@ -22,6 +24,8 @@ type Props = {
   last: boolean;
   // When the list was read, to count a wish's week down from (not read during render).
   now: number;
+  // Only set when the diary has just loaded: the stop settles in. A stop folding later just stays.
+  settleDelay?: number;
   onOpen: () => void;
   onDeleted: () => void;
 };
@@ -32,52 +36,72 @@ const DAY = 24 * 60 * 60 * 1000;
 // looks folded small (a heart on the liked ones, the rejected ones left out). A tap opens it.
 // A piece from a photo that isn't hers hangs on a dashed stretch of the thread (dashed = not hers,
 // as on Wishes), with its wish's days to go under it.
-export function DiaryStop({ entry, headers, joined, last, now, onOpen, onDeleted }: Props) {
+export function DiaryStop({
+  entry,
+  headers,
+  joined,
+  last,
+  now,
+  settleDelay,
+  onOpen,
+  onDeleted,
+}: Props) {
   const { t, i18n } = useTranslation();
   const day = dayLabel(entry.createdAt, t, i18n.language);
   const wish = entry.wishAskAt && wishLine(entry.wishAskAt, now, t);
   const deleting = useDeleteStyling(entry.id, onDeleted);
   return (
-    <ThreadRow kind="root" joined={joined} last={last} hollow dashed={entry.loose}>
-      <PressableScale
-        style={styles.stop}
-        onPress={onOpen}
-        accessibilityRole="button"
-        accessibilityLabel={t('styleIt.open', { name: entry.name })}
-        accessibilityHint={wish ? `${day}, ${wish}` : day}
-        accessibilityActions={[{ name: 'delete', label: t('styleIt.delete') }]}
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === 'delete') deleting.confirm();
-        }}
-      >
-        <View style={styles.who}>
-          <BarePiece item={entry} headers={headers} style={styles.piece} />
-          <View style={styles.text}>
-            <Text style={styles.name} numberOfLines={2}>
-              {entry.name}
-            </Text>
-            <Text style={styles.when}>
-              {day}
-              {entry.mood && ` · ${t(`wearWith.moods.${entry.mood}`)}`}
-            </Text>
-            {wish && <Text style={styles.wish}>{wish}</Text>}
+    <ThreadRow
+      kind="root"
+      joined={joined}
+      last={last}
+      hollow
+      dashed={entry.loose}
+      delay={settleDelay}
+      // The first stop's thread is the one the bead ran down.
+      inPlace={!joined}
+    >
+      <Animated.View entering={settleDelay === undefined ? undefined : arrive.delay(settleDelay)}>
+        <PressableScale
+          style={styles.stop}
+          onPress={onOpen}
+          accessibilityRole="button"
+          accessibilityLabel={t('styleIt.open', { name: entry.name })}
+          accessibilityHint={wish ? `${day}, ${wish}` : day}
+          accessibilityActions={[{ name: 'delete', label: t('styleIt.delete') }]}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'delete') deleting.confirm();
+          }}
+        >
+          <View style={styles.who}>
+            <BarePiece item={entry} headers={headers} style={styles.piece} />
+            <View style={styles.text}>
+              <Text style={styles.name} numberOfLines={2}>
+                {entry.name}
+              </Text>
+              <Text style={styles.when}>
+                {day}
+                {entry.mood && ` · ${t(`wearWith.moods.${entry.mood}`)}`}
+              </Text>
+              {wish && <Text style={styles.wish}>{wish}</Text>}
+            </View>
           </View>
-        </View>
-        {/* Sent with the list (the rejected ones left out), read again with it on each visit. */}
-        {entry.previews.length > 0 && (
-          <View
-            style={styles.peek}
-            importantForAccessibility="no-hide-descendants"
-            accessibilityElementsHidden
-          >
-            {entry.previews.map((look) => (
-              <MiniLook key={look.id} look={look} headers={headers} />
-            ))}
-          </View>
-        )}
-      </PressableScale>
-      {/* Beside the stop's press, not inside it: a tap here must not open the stop. */}
-      <DeleteStyling control={deleting} name={entry.name} style={styles.delete} />
+          {/* Sent with the list (the rejected ones left out), read again with it on each visit. */}
+          {entry.previews.length > 0 && (
+            <View
+              style={styles.peek}
+              importantForAccessibility="no-hide-descendants"
+              accessibilityElementsHidden
+            >
+              {entry.previews.map((look) => (
+                <MiniLook key={look.id} look={look} headers={headers} />
+              ))}
+            </View>
+          )}
+        </PressableScale>
+        {/* Beside the stop's press, not inside it: a tap here must not open the stop. */}
+        <DeleteStyling control={deleting} name={entry.name} style={styles.delete} />
+      </Animated.View>
     </ThreadRow>
   );
 }
