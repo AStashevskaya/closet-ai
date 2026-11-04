@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   APP_LANGUAGES,
   outfitReactionInput,
@@ -29,6 +29,8 @@ import type { OutfitsRepository } from "./outfits.repository";
 
 // Styled items listed at most, newest first.
 const HISTORY_LIMIT = 30;
+// A request still pending after this long has been lost; the app has long stopped waiting for it.
+const COMPOSING_FOR_MS = 5 * 60 * 1000;
 
 // The photo of an item from a photo, served by the API like an item's: by request id.
 export const heroPath = (requestId: string, variant?: "cutout") =>
@@ -69,6 +71,16 @@ export const outfitsRoutes =
     enabled: boolean,
   ): FastifyPluginAsyncZod =>
   async (app) => {
+    // Looks made earlier still hold while neither the wardrobe nor her taste (the brief) has changed.
+    const stillHolds = async (
+      userId: string,
+      request: { wardrobeSize: number; createdAt: Date },
+      size: number,
+    ) => {
+      const writtenAt = (await outfits.brief(userId))?.writtenAt;
+      return request.wardrobeSize === size && (!writtenAt || request.createdAt > writtenAt);
+    };
+
     app.addHook("preHandler", requireUser(auth));
 
     // "What do I wear this with?" for a wardrobe item, or for one item found on an uploaded
@@ -89,14 +101,18 @@ export const outfitsRoutes =
         const size = await outfits.wardrobeSize(user.id);
         const mood = request.body.mood ?? null;
         let hero: Parameters<OutfitsRepository["createRequest"]>[1];
+        // Still at work, as when the phone gave up waiting for the answer and asks again: the same
+        // request, not a second one counted against her day.
+        const atWork = (asked: { status: string; createdAt: Date } | null) =>
+          asked?.status === "pending" && Date.now() - asked.createdAt.getTime() < COMPOSING_FOR_MS;
 
         if ("itemId" in request.body) {
           const { itemId } = request.body;
           if (!(await items.get(user.id, itemId))) throw httpError(404, "item not found");
-          // Reused while neither the wardrobe nor the user's taste (the brief) has changed since.
+          const asked = await outfits.latestAsked(user.id, { itemId }, mood);
+          if (asked && atWork(asked)) return reply.code(200).send({ id: asked.id });
           const last = await outfits.latestDone(user.id, itemId, mood);
-          const writtenAt = (await outfits.brief(user.id))?.writtenAt;
-          if (last && last.wardrobeSize === size && (!writtenAt || last.createdAt > writtenAt)) {
+          if (last && (await stillHolds(user.id, last, size))) {
             return reply.code(200).send({ id: last.id });
           }
           await limits.check(user.id, "wear_with");
@@ -111,11 +127,20 @@ export const outfitsRoutes =
           const found = photo.lookItems?.[index];
           if (!photo.lookItems) throw httpError(409, "the photo's items are not found yet");
           if (!found) throw httpError(400, "no such item on the photo");
+          // Named from the photo and the piece, so asking again finds the request made for it.
+          const piece = createHash("sha256").update(`${photo.key}#${index}`).digest("hex");
+          const key = `${photoPrefix(user.id)}${piece}.webp`;
+          const asked = await outfits.latestAsked(user.id, { heroPhotoKey: key }, mood);
+          if (
+            asked &&
+            (atWork(asked) || (asked.status === "done" && (await stillHolds(user.id, asked, size))))
+          ) {
+            return reply.code(200).send({ id: asked.id });
+          }
           const file = await storage.get(photo.key);
           if (!file) throw httpError(409, "the photo is not ready");
           await limits.check(user.id, "wear_with");
 
-          const key = `${photoPrefix(user.id)}${randomUUID()}.webp`;
           await storage.put(key, await cropToBox(file.body, found.box), "image/webp");
           const { box: _box, ...tags } = found;
           await photos.createReady({ key, ownerId: user.id, tags: { ...tags, recognized: true } });

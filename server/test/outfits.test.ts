@@ -783,6 +783,23 @@ describe("POST /api/wear-with", () => {
     expect((await view(s, anna.cookie, id)).status).toBe("done");
   });
 
+  it("asked again while still composing, it's the same request and counted once", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await addItem(s, anna, "top");
+
+    const first = await ask(s, anna.cookie, skirt.id);
+    expect(first.statusCode).toBe(202);
+    const again = await ask(s, anna.cookie, skirt.id);
+    expect(again.statusCode).toBe(200);
+    expect(again.json<{ id: string }>().id).toBe(first.json<{ id: string }>().id);
+    const usage = (
+      await s.server.inject({ method: "GET", url: "/api/usage", headers: { cookie: anna.cookie } })
+    ).json<Usage>();
+    expect(usage.wear_with.used).toBe(1);
+  });
+
   it("shows the same outfits again for free while the wardrobe is the same size", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
@@ -1297,6 +1314,38 @@ describe("an item from a photo", () => {
       payload: form,
     });
   }
+
+  it("asked about the same piece again, it's the same request and counted once", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
+    await s.runPhotoJobs();
+    const askFor = (index: number) =>
+      s.server.inject({
+        method: "POST",
+        url: "/api/wear-with",
+        headers: { cookie: anna.cookie },
+        payload: { photoKey, index },
+      });
+
+    const first = await askFor(1);
+    expect(first.statusCode).toBe(202);
+    const { id } = first.json<{ id: string }>();
+    // While it's composed, and once it's done.
+    for (const round of [0, 1]) {
+      const again = await askFor(1);
+      expect(again.statusCode).toBe(200);
+      expect(again.json<{ id: string }>().id).toBe(id);
+      if (round === 0) await s.runJobs();
+    }
+    // Another piece of the same photo is a request of its own.
+    expect((await askFor(0)).statusCode).toBe(202);
+    const usage = (
+      await s.server.inject({ method: "GET", url: "/api/usage", headers: { cookie: anna.cookie } })
+    ).json<Usage>();
+    expect(usage.wear_with.used).toBe(2);
+  });
 
   it("crops the picked item, cuts it out by name and styles it from the wardrobe", async () => {
     const s = await setup();
@@ -1976,17 +2025,22 @@ describe("an item from a photo", () => {
     const maya = await signUp(s, "maya@example.com");
     const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
     await s.runPhotoJobs();
-    const ask = (cookie: string, index: number) =>
+    const ask = (cookie: string, index: number, key = photoKey) =>
       s.server.inject({
         method: "POST",
         url: "/api/wear-with",
         headers: { cookie },
-        payload: { photoKey, index },
+        payload: { photoKey: key, index },
       });
     expect((await ask(maya.cookie, 0)).statusCode).toBe(404);
     expect((await ask(anna.cookie, 7)).statusCode).toBe(400);
 
-    for (let i = 0; i < 5; i++) expect((await ask(anna.cookie, 0)).statusCode).toBe(202);
+    // Each a photo of its own: the same piece asked about again wouldn't be counted.
+    for (let i = 0; i < 5; i++) {
+      const next = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>().photoKey;
+      await s.runPhotoJobs();
+      expect((await ask(anna.cookie, 0, next)).statusCode).toBe(202);
+    }
     expect((await uploadWear(s, anna.cookie)).statusCode).toBe(429);
   });
 });

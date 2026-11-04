@@ -22,6 +22,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
   notInArray,
   or,
 } from "drizzle-orm";
@@ -121,6 +122,13 @@ export interface OutfitsRepository {
   latestDone(
     userId: string,
     itemId: string,
+    mood: OutfitMood | null,
+  ): Promise<OutfitRequestRow | null>;
+  // Her latest request about this piece in this mood that hasn't failed, done or still at work:
+  // asking again gets this one if it still holds, rather than a second, counted one.
+  latestAsked(
+    userId: string,
+    hero: { itemId: string } | { heroPhotoKey: string },
     mood: OutfitMood | null,
   ): Promise<OutfitRequestRow | null>;
   // Stores the outfits (and, for an item from a photo, the verdict) and marks the request done.
@@ -288,6 +296,25 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
             eq(outfitRequests.itemId, itemId),
             mood ? eq(outfitRequests.mood, mood) : isNull(outfitRequests.mood),
             eq(outfitRequests.status, "done"),
+          ),
+        )
+        .orderBy(desc(outfitRequests.createdAt))
+        .limit(1);
+      return row ?? null;
+    },
+
+    async latestAsked(userId, hero, mood) {
+      const [row] = await db
+        .select(requestColumns)
+        .from(outfitRequests)
+        .where(
+          and(
+            eq(outfitRequests.userId, userId),
+            "itemId" in hero
+              ? eq(outfitRequests.itemId, hero.itemId)
+              : eq(outfitRequests.heroPhotoKey, hero.heroPhotoKey),
+            mood ? eq(outfitRequests.mood, mood) : isNull(outfitRequests.mood),
+            ne(outfitRequests.status, "failed"),
           ),
         )
         .orderBy(desc(outfitRequests.createdAt))

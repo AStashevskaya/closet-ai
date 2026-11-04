@@ -385,6 +385,16 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
             r.userId === userId && r.itemId === itemId && r.mood === mood && r.status === "done",
         )
         .at(-1) ?? null,
+    latestAsked: async (userId, hero, mood) =>
+      requests
+        .filter(
+          (r) =>
+            r.userId === userId &&
+            ("itemId" in hero ? r.itemId === hero.itemId : r.heroPhotoKey === hero.heroPhotoKey) &&
+            r.mood === mood &&
+            r.status !== "failed",
+        )
+        .at(-1) ?? null,
     saveOutfits: async (requestId, userId, looks, _cost, verdict = null) => {
       const request = requests.find((r) => r.id === requestId);
       if (!request) return false;
