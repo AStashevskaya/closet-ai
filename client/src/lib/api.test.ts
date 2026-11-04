@@ -4,9 +4,10 @@ import {
   ApiError,
   deleteItem,
   getPhotoState,
+  HEAVY_TIMEOUT_MS,
   OfflineError,
+  POLL_TIMEOUT_MS,
   REQUEST_TIMEOUT_MS,
-  UPLOAD_TIMEOUT_MS,
   uploadPhoto,
 } from './api';
 
@@ -125,7 +126,7 @@ describe('a request with no answer', () => {
   test('counts as no connection after the time limit, and not before', async () => {
     neverAnswers();
     const settled = jest.fn();
-    const call = getPhotoState('photos/u1/p1.webp');
+    const call = deleteItem('item-1');
     const failed = expect(call).rejects.toBeInstanceOf(OfflineError);
     void call.catch(settled);
 
@@ -134,6 +135,34 @@ describe('a request with no answer', () => {
     expect(settled).not.toHaveBeenCalled();
 
     await jest.advanceTimersByTimeAsync(1);
+    await failed;
+  });
+
+  test('a check in a polling loop gives up sooner, so the loop can count on it', async () => {
+    neverAnswers();
+    const failed = expect(getPhotoState('photos/u1/p1.webp')).rejects.toBeInstanceOf(OfflineError);
+
+    await reachFetch();
+    await jest.advanceTimersByTimeAsync(POLL_TIMEOUT_MS);
+    await failed;
+  });
+
+  test('a refusal stays a refusal, even when its body never comes', async () => {
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => ({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+      json: () =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+        }),
+    }));
+    const failed = expect(deleteItem('item-1')).rejects.toEqual(
+      new ApiError(429, 'Too Many Requests'),
+    );
+
+    await reachFetch();
+    await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
     await failed;
   });
 
@@ -148,7 +177,7 @@ describe('a request with no answer', () => {
     const failed = expect(getPhotoState('photos/u1/p1.webp')).rejects.toBeInstanceOf(OfflineError);
 
     await reachFetch();
-    await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(POLL_TIMEOUT_MS);
     await failed;
   });
 
@@ -163,7 +192,7 @@ describe('a request with no answer', () => {
     await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
     expect(settled).not.toHaveBeenCalled();
 
-    await jest.advanceTimersByTimeAsync(UPLOAD_TIMEOUT_MS - REQUEST_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(HEAVY_TIMEOUT_MS - REQUEST_TIMEOUT_MS);
     await failed;
   });
 

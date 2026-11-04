@@ -59,14 +59,17 @@ export async function sessionHeaders(): Promise<Record<string, string>> {
 export const absoluteUrl = (path: string) => `${apiUrl()}${path}`;
 
 // How long a request may go unanswered before it counts as no connection, so a screen waiting for
-// it can say so and offer a retry instead of waiting forever. A photo gets longer: on a slow
-// network the upload itself takes a while.
+// it can say so and offer a retry instead of waiting forever. A check in a polling loop is the
+// shortest: the loop asks again anyway, and counts on a check ending soon to give up in time. Heavy
+// work gets the longest: on a slow network an upload takes a while, and so does the server's work
+// with photos in storage.
+export const POLL_TIMEOUT_MS = 10_000;
 export const REQUEST_TIMEOUT_MS = 30_000;
-export const UPLOAD_TIMEOUT_MS = 120_000;
+export const HEAVY_TIMEOUT_MS = 120_000;
 
 // Sends the request with the session cookie, turns a non-2xx status into an ApiError and hands the
 // answer to `read`. The time limit covers reading the body too. An AbortController with a timer,
-// not AbortSignal.timeout, which React Native doesn't guarantee.
+// not AbortSignal.timeout, which React Native doesn't guarantee; its signal replaces any in `init`.
 async function exchange<T>(
   path: string,
   init: RequestInit,
@@ -90,8 +93,13 @@ async function exchange<T>(
     }
     return await read(res);
   } catch (cause) {
-    // Cut off while reading the body: the same as no answer.
-    if (controller.signal.aborted && !(cause instanceof OfflineError)) {
+    // Cut off while reading the body: the same as no answer. A refusal the server did send stays
+    // one, or a used-up limit would read as no connection.
+    if (
+      controller.signal.aborted &&
+      !(cause instanceof OfflineError) &&
+      !(cause instanceof ApiError)
+    ) {
       throw new OfflineError('timed out');
     }
     throw cause;
@@ -217,7 +225,7 @@ export async function answerWish(id: string, answer: WishAnswer): Promise<void> 
 
 // Partner pieces in the outfits come named in the language asked for.
 export function getWearWith(id: string, lang: AppLanguage): Promise<WearWithRequest> {
-  return request(`/api/wear-with/${id}?lang=${lang}`, wearWithRequest);
+  return request(`/api/wear-with/${id}?lang=${lang}`, wearWithRequest, {}, POLL_TIMEOUT_MS);
 }
 
 // The Edit: partner pieces closest to the user's closet first.
@@ -258,7 +266,7 @@ export async function deleteWearWith(id: string): Promise<void> {
 
 // Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.
 export function rotateItem(id: string): Promise<ItemDetail> {
-  return request(`/api/items/${id}/rotate`, itemDetail, { method: 'POST' });
+  return request(`/api/items/${id}/rotate`, itemDetail, { method: 'POST' }, HEAVY_TIMEOUT_MS);
 }
 
 // The server answers 204 with no body, so there is nothing to parse.
@@ -282,7 +290,7 @@ export async function uploadPhoto(
     `/api/photos?lang=${lang}&kind=${kind}`,
     uploadedPhoto,
     { method: 'POST', body: form },
-    UPLOAD_TIMEOUT_MS,
+    HEAVY_TIMEOUT_MS,
   );
   return photoKey;
 }
@@ -291,14 +299,20 @@ export async function uploadPhoto(
 // lang names a "want" look's partner pieces.
 export function getPhotoState(photoKey: string, lang?: AppLanguage): Promise<PhotoState> {
   const query = `key=${encodeURIComponent(photoKey)}${lang ? `&lang=${lang}` : ''}`;
-  return request(`/api/photos/status?${query}`, photoState);
+  return request(`/api/photos/status?${query}`, photoState, {}, POLL_TIMEOUT_MS);
 }
 
 // Adds the items picked from a look photo to the wardrobe; each gets the look cropped to it.
 export function addLookItems(input: AddLookItemsInput): Promise<Item[]> {
-  return request('/api/photos/look-items', itemList, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  });
+  return request(
+    '/api/photos/look-items',
+    itemList,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    // The server crops and stores each piece in turn.
+    HEAVY_TIMEOUT_MS,
+  );
 }
