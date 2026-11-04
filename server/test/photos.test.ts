@@ -561,6 +561,32 @@ describe("background removal", () => {
     return { ...item, photoKey };
   }
 
+  it("turns a photo once when two requests turn it at the same time", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const before = await addItem(server, cookie);
+    const seen = new URL(before.photoUrl!, "http://x").searchParams.get("v")!;
+    const turn = () =>
+      server.inject({
+        method: "POST",
+        url: `/api/items/${before.id}/rotate?v=${seen}`,
+        headers: { cookie },
+      });
+
+    const [one, two] = await Promise.all([turn(), turn()]);
+
+    expect([one.statusCode, two.statusCode]).toEqual([200, 200]);
+    expect(one.json<ItemDetail>().photoUrl).toBe(two.json<ItemDetail>().photoUrl);
+    const photo = await server.inject({
+      method: "GET",
+      url: one.json<ItemDetail>().photoUrl!,
+      headers: { cookie },
+    });
+    // 1975 × 1317 before: a quarter turn, not two.
+    const { width, height } = await sharp(photo.rawPayload).metadata();
+    expect([width, height]).toEqual([1317, 1975]);
+  });
+
   it("doesn't make a second piece from the same photo when the save comes again", async () => {
     const server = await setup({ remover: createStubRemover().remover });
     const cookie = await signUp(server, "anna@example.com");
@@ -899,6 +925,30 @@ describe("items from a look photo", () => {
       "Pink mesh top",
       "Blue wide-leg jeans",
     ]);
+  });
+
+  it("adds a look's piece again, as corrected, once she has deleted it", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const photoKey = await uploadLook(server, cookie);
+    await runWorker();
+
+    const [first] = (
+      await addFromLook(server, cookie, { photoKey, items: [picked(0, "Top")] })
+    ).json<Item[]>();
+    await server.inject({ method: "DELETE", url: `/api/items/${first!.id}`, headers: { cookie } });
+
+    const res = await addFromLook(server, cookie, { photoKey, items: [picked(0, "Better name")] });
+    expect(res.statusCode).toBe(201);
+    const [second] = res.json<Item[]>();
+    expect(second!.id).not.toBe(first!.id);
+    expect(second!.name).toBe("Better name");
+    const photo = await server.inject({
+      method: "GET",
+      url: second!.photoUrl!,
+      headers: { cookie },
+    });
+    expect(photo.statusCode).toBe(200);
   });
 
   it("doesn't add a look's pieces twice when the same request comes again", async () => {

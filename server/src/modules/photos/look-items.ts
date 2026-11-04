@@ -50,10 +50,8 @@ export async function addItemsFromLook(
       continue;
     }
     await storage.put(key, await cropToBox(file.body, found[picked.index]!.box), "image/webp");
-    // The user's corrections win over what the model read. A first try may have got this far.
-    if (!(await photos.get(key))) {
-      await photos.createReady({ key, ownerId, tags: { ...tags, ...fields, recognized: true } });
-    }
+    // The user's corrections win over what the model read.
+    await photos.createReady({ key, ownerId, tags: { ...tags, ...fields, recognized: true } });
     created.push(await items.create(ownerId, { ...fields, photoKey: key }));
     await queue.enqueueEmbedding(key);
   }

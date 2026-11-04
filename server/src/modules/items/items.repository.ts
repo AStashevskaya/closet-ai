@@ -29,9 +29,9 @@ export interface ItemsRepository {
   // Storage key of the item's photo, or of its cut-out. null when the item doesn't exist,
   // belongs to someone else, or has no such file.
   photoKey(ownerId: string, itemId: string, variant: PhotoVariant): Promise<string | null>;
-  // Points the item at another photo of the owner's. false when the item doesn't exist or
-  // belongs to someone else.
-  setPhotoKey(ownerId: string, itemId: string, photoKey: string): Promise<boolean>;
+  // Points the item at another photo of the owner's, if it's still on `from`. false when the item
+  // doesn't exist, belongs to someone else, or has moved on (two requests turning one photo).
+  setPhotoKey(ownerId: string, itemId: string, photoKey: string, from: string): Promise<boolean>;
   // null when there was nothing to delete (no such item, or someone else's).
   // Otherwise the deleted item's photo key, so the caller can remove the file too.
   delete(ownerId: string, itemId: string): Promise<{ photoKey: string | null } | null>;
@@ -203,11 +203,11 @@ export function createItemsRepository(db: Db): ItemsRepository {
       return (variant === "cutout" ? row?.cutoutKey : row?.photoKey) ?? null;
     },
 
-    async setPhotoKey(ownerId, itemId, photoKey) {
+    async setPhotoKey(ownerId, itemId, photoKey, from) {
       const updated = await db
         .update(items)
         .set({ photoKey })
-        .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)))
+        .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId), eq(items.photoKey, from)))
         .returning({ id: items.id });
       return updated.length > 0;
     },

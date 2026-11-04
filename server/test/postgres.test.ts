@@ -391,6 +391,22 @@ describe.skipIf(!url)("on Postgres", () => {
     });
   });
 
+  it("makes a ready photo anew over a row left behind", async () => {
+    await signUp("leftover@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "leftover@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const key = `photos/${user!.id}/piece.webp`;
+    await photos.createReady({ key, ownerId: user!.id, tags: shirtTags });
+
+    const corrected = { ...shirtTags, name: "Corrected" };
+    await photos.createReady({ key, ownerId: user!.id, tags: corrected });
+
+    expect(await photos.get(key)).toMatchObject({ status: "ready", tags: corrected });
+  });
+
   it("stores the cut-out key and gives the item a cut-out URL", async () => {
     const cookie = await signUp("cutout@example.com");
     const [user] = await db.db
@@ -464,8 +480,10 @@ describe.skipIf(!url)("on Postgres", () => {
       cutoutBox: turnedBox,
     });
     const items = createItemsRepository(db.db);
-    expect(await items.setPhotoKey(user!.id, id, turned)).toBe(true);
-    expect(await items.setPhotoKey("someone-else", id, key)).toBe(false);
+    expect(await items.setPhotoKey("someone-else", id, turned, key)).toBe(false);
+    expect(await items.setPhotoKey(user!.id, id, turned, key)).toBe(true);
+    // Moved on: a second request turning the same photo doesn't land.
+    expect(await items.setPhotoKey(user!.id, id, key, key)).toBe(false);
     await photos.delete(key);
 
     expect(await photos.get(turned)).toMatchObject({

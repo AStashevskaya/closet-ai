@@ -106,16 +106,28 @@ export const itemsRoutes =
         const key = await repo.photoKey(user.id, id, "photo");
         if (!key) throw httpError(404, "no photo");
         // That photo was turned already and the answer never reached the phone: turning it again
-        // would show it upside down, so she gets the photo as it is now.
+        // would show it upside down, so she gets the photo as it is now. So does a phone that hasn't
+        // seen a turn made on another one: it's shown the result, and another tap turns it further.
         const { v } = request.query;
         if (v !== undefined && v !== keyVersion(key)) {
           const current = await repo.get(user.id, id);
           if (!current) throw httpError(404, "item not found");
           return current;
         }
+        // Another try at this same photo got there first, and has deleted it from under this one.
+        const overtaken = async () => (await repo.photoKey(user.id, id, "photo")) !== key;
+        const asItIsNow = async () => {
+          const current = await repo.get(user.id, id);
+          if (!current) throw httpError(404, "item not found");
+          return current;
+        };
+
         const photo = await photos.get(key);
         const file = photo?.status === "ready" ? await storage.get(key) : null;
-        if (!photo || !file) throw httpError(409, "photo not ready");
+        if (!photo || !file) {
+          if (await overtaken()) return asItIsNow();
+          throw httpError(409, "photo not ready");
+        }
 
         const turnedKey = `${photoPrefix(user.id)}${randomUUID()}.webp`;
         await storage.put(turnedKey, await rotateQuarter(file.body), "image/webp");
@@ -125,13 +137,31 @@ export const itemsRoutes =
           await storage.put(turnedCutoutKey, await rotateQuarter(cutout.body), "image/webp");
         }
         // The box turns with the cut-out, so the turned photo still dissolves into it in place.
-        await photos.copyAs(key, {
-          key: turnedKey,
-          cutoutKey: turnedCutoutKey,
-          cutoutBox: turnedCutoutKey && photo.cutoutBox ? rotateBoxQuarter(photo.cutoutBox) : null,
-        });
-        if (!(await repo.setPhotoKey(user.id, id, turnedKey)))
-          throw httpError(404, "item not found");
+        try {
+          await photos.copyAs(key, {
+            key: turnedKey,
+            cutoutKey: turnedCutoutKey,
+            cutoutBox:
+              turnedCutoutKey && photo.cutoutBox ? rotateBoxQuarter(photo.cutoutBox) : null,
+          });
+        } catch (error) {
+          // No row for these files, so no cleanup would ever find them.
+          await storage.delete(turnedKey).catch(() => {});
+          if (turnedCutoutKey) await storage.delete(turnedCutoutKey).catch(() => {});
+          if (await overtaken()) return asItIsNow();
+          throw error;
+        }
+        // Only if it's still on the photo she saw: a retry can come while the first try is still at
+        // work, and only one of them may land. The other drops its copy and answers with the winner.
+        if (!(await repo.setPhotoKey(user.id, id, turnedKey, key))) {
+          try {
+            await deletePhoto({ photos, storage }, turnedKey);
+          } catch (error) {
+            // Unattached, so the hourly cleanup tries again.
+            request.log.warn({ err: error, key: turnedKey }, "failed to delete the extra turn");
+          }
+          return asItIsNow();
+        }
 
         try {
           await deletePhoto({ photos, storage }, key);
