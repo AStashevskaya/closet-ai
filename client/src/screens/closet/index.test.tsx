@@ -160,7 +160,7 @@ describe('<Closet />', () => {
       expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
     });
 
-    test('with Reduce Motion the rail is there without a bead, and still announced', async () => {
+    test('with Reduce Motion the sign stays still on the rail, so she still sees it waits', async () => {
       const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
       pendingLoad();
       await render(<Closet />);
@@ -168,7 +168,7 @@ describe('<Closet />', () => {
       expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
       expect(
         screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true }),
-      ).toHaveLength(0);
+      ).toHaveLength(1);
       reduced.mockReturnValue(false);
     });
 

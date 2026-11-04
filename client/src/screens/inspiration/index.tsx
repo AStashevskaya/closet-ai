@@ -303,12 +303,7 @@ export function Inspiration() {
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           >
-            <ThreadLine
-              top={-(brief.y + DOT.top)}
-              length={WAITING_RUN}
-              waiting={!reduceMotion}
-              x={DOT.start}
-            />
+            <ThreadLine top={-(brief.y + DOT.top)} length={WAITING_RUN} waiting x={DOT.start} />
             <View style={[styles.waitingDot, { top: brief.y + DOT.top - DOT.r }]} />
           </Animated.View>
         )}

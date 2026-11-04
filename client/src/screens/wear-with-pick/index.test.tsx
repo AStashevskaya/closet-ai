@@ -160,6 +160,21 @@ describe('<WearWithPick />', () => {
       expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
     }, 15_000);
 
+    test('a photo that could not be shrunk is shrunk again, not sent as it is', async () => {
+      jest.mocked(shrinkPhoto).mockRejectedValueOnce(new Error('boom'));
+      jest
+        .mocked(getPhotoState)
+        .mockResolvedValue(found([lookItem('White shirt', 'top'), lookItem('Skirt', 'bottom')]));
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      expect(uploadPhoto).not.toHaveBeenCalled();
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByText('White shirt')).toBeOnTheScreen();
+      expect(uploadPhoto).toHaveBeenCalledWith('file:///small.jpg', 'en', 'wear');
+    });
+
     test('a photo that never got there is sent again', async () => {
       jest.mocked(uploadPhoto).mockRejectedValueOnce(new OfflineError('unreachable'));
       jest
@@ -175,6 +190,8 @@ describe('<WearWithPick />', () => {
 
       expect(await screen.findByText('White shirt')).toBeOnTheScreen();
       expect(uploadPhoto).toHaveBeenCalledTimes(2);
+      // Shrunk already: it isn't done over.
+      expect(shrinkPhoto).toHaveBeenCalledTimes(1);
     });
 
     test('outfits that could not be asked for are asked for again from the same photo', async () => {

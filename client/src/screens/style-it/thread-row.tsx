@@ -142,10 +142,9 @@ export function ThreadRow({
 // A list on this thread still loading (the diary, Wishes): the first stop's knot and its thread with
 // the waiting bead, no stops yet. Always solid, whatever the stops turn out to be: waiting is never
 // drawn dashed (docs/design.md, "Waiting"). The real first stop comes in its place, its line
-// `inPlace`, and this fades over it. With Reduce Motion there's no bead, just the thread.
+// `inPlace`, and this fades over it. With Reduce Motion the sign stays still at its start.
 export function ThreadWaiting() {
   const { t } = useTranslation();
-  const reduced = useReducedMotion();
   const [height, setHeight] = useState(0);
   return (
     <Animated.View
@@ -164,7 +163,7 @@ export function ThreadWaiting() {
       <ThreadLine
         top={-(KNOT_Y - BEAD / 2)}
         length={Math.max(0, height - KNOT_Y)}
-        waiting={!reduced}
+        waiting
         measured={false}
         x={THREAD_X}
       />

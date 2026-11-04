@@ -37,6 +37,7 @@ import { Button, maison } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
 import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
+import { RailLine } from '@/components/rail-line';
 import { RotateButton } from '@/components/rotate-button';
 import {
   absoluteUrl,
@@ -55,7 +56,6 @@ import { askFailedText, useUsage } from '@/lib/limits';
 import { defaultCurrency, parsePrice, priceText } from '@/lib/price';
 import { styledParams } from '@/lib/styled';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
-import { RailLine } from '@/screens/closet/rail';
 import { colors, fonts } from '@/theme';
 
 const MAX_COLORS = 5;
@@ -256,7 +256,7 @@ export function ItemScreen({ id }: { id: string }) {
   async function rotate() {
     setBusy(true);
     try {
-      const turned = await rotateItem(id);
+      const turned = await rotateItem(id, item.photoUrl);
       setState({ status: 'ready', item: turned });
       void Haptics.selectionAsync();
     } catch (cause) {

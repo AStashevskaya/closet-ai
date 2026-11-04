@@ -265,8 +265,17 @@ export async function deleteWearWith(id: string): Promise<void> {
 }
 
 // Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.
-export function rotateItem(id: string): Promise<ItemDetail> {
-  return request(`/api/items/${id}/rotate`, itemDetail, { method: 'POST' }, HEAVY_TIMEOUT_MS);
+// `photoUrl` is the photo she's looking at: the server turns only that one, so a retry after an
+// answer that never came doesn't turn it twice.
+export function rotateItem(id: string, photoUrl?: string): Promise<ItemDetail> {
+  const version = photoUrl?.match(/[?&]v=([^&]+)/)?.[1];
+  const query = version ? `?v=${version}` : '';
+  return request(
+    `/api/items/${id}/rotate${query}`,
+    itemDetail,
+    { method: 'POST' },
+    HEAVY_TIMEOUT_MS,
+  );
 }
 
 // The server answers 204 with no body, so there is nothing to parse.

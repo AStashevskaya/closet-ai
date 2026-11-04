@@ -103,7 +103,15 @@ export function createPhotosRepository(db: Db): PhotosRepository {
     },
 
     async createReady(photo) {
-      await db.insert(photos).values({ ...photo, status: "ready", tagStatus: "done" });
+      // Over a row left behind (a first try stopped halfway, or a delete that failed): anew, with the
+      // tags sent now and a fresh date, so the cleanup of old unattached photos leaves it alone.
+      await db
+        .insert(photos)
+        .values({ ...photo, status: "ready", tagStatus: "done" })
+        .onConflictDoUpdate({
+          target: photos.key,
+          set: { tags: photo.tags, status: "ready", tagStatus: "done", createdAt: new Date() },
+        });
     },
 
     async get(key) {

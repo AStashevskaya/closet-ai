@@ -192,7 +192,7 @@ describe('<ItemScreen />', () => {
     await fireEvent.changeText(await screen.findByLabelText('Name'), 'Linen shirt');
     await fireEvent.press(screen.getByLabelText('Rotate photo'));
 
-    expect(rotateItem).toHaveBeenCalledWith(shirt.id);
+    expect(rotateItem).toHaveBeenCalledWith(shirt.id, shirt.photoUrl);
     expect(await screen.findByDisplayValue('Linen shirt')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
     expect(screen.getByTestId('item-photo')).toHaveProp('source', [

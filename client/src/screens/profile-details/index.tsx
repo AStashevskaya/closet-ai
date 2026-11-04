@@ -31,6 +31,9 @@ type Key =
   | 'birthYear';
 // The ones typed as numbers.
 const NUMERIC: Key[] = ['heightCm', 'birthYear'];
+// A measurement's height and the thread lines around them: the waiting row is as tall.
+const STAT_HEIGHT = 68;
+const STATS_LINE = 1.2;
 
 type Status = 'idle' | 'saving' | 'saved' | 'failed';
 
@@ -49,7 +52,9 @@ export function ProfileDetails() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [name, setName] = useState('');
+  // The name she typed; until then the account's, which may come after the screen has opened.
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const name = typedName ?? session?.user.name ?? '';
   const [loadFailed, setLoadFailed] = useState<{ offline: boolean } | null>(null);
   // Reading the profile again after a failure.
   const [attempt, setAttempt] = useState(0);
@@ -74,14 +79,11 @@ export function ProfileDetails() {
         const loaded = await getProfile();
         latest.current = loaded;
         setProfile(loaded);
-        setName(session?.user.name ?? '');
       } catch (cause) {
         setLoadFailed({ offline: isOffline(cause) });
       }
     };
     void load();
-    // Loaded once, and again on a retry; the name from the session is only the starting value.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt]);
 
   async function save(patch: UpdateProfileInput, rename?: string) {
@@ -126,7 +128,7 @@ export function ProfileDetails() {
       const next = value.trim();
       if (!next || next === name) return true;
       if (!(await save({}, next))) return false;
-      setName(next);
+      setTypedName(next);
       return true;
     }
     if (key === 'where') {
@@ -176,7 +178,7 @@ export function ProfileDetails() {
         <View style={styles.card}>
           <Text style={styles.caps}>{t('details.name')}</Text>
           <View style={styles.nameRow}>
-            <Text style={styles.name}>{session?.user.name}</Text>
+            <Text style={styles.name}>{name}</Text>
           </View>
           {/* Where the open name and place go below: the measurements' row stays the same element,
               so the sign on it can fade as they come. */}
@@ -541,21 +543,21 @@ const styles = StyleSheet.create({
   stats: {
     flexDirection: 'row',
     marginTop: 14,
-    borderTopWidth: 1.2,
-    borderBottomWidth: 1.2,
+    borderTopWidth: STATS_LINE,
+    borderBottomWidth: STATS_LINE,
     borderColor: colors.text,
   },
   // As tall as the measurements will be, so nothing moves when they come.
   statsWaiting: {
-    minHeight: 70.4,
+    minHeight: STAT_HEIGHT + 2 * STATS_LINE,
   },
   // On the top line: the stats' border, which it sits just above.
   statsSign: {
     position: 'absolute',
     start: 0,
     end: 0,
-    top: -1.2,
-    height: 1.2,
+    top: -STATS_LINE,
+    height: STATS_LINE,
   },
   loadFailed: {
     marginTop: 18,
@@ -567,7 +569,7 @@ const styles = StyleSheet.create({
   },
   stat: {
     flex: 1,
-    minHeight: 68,
+    minHeight: STAT_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
