@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, I18nManager, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  FadeOut,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -16,17 +17,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { lineLength, smoothPath } from '@/components/hand-drawn';
-import { HangerLoader } from '@/components/hanger-loader';
 import { Icon } from '@/components/icon';
 import { Button, maison, ScreenTitle } from '@/components/maison';
 import { useTabBarClearance } from '@/components/tab-bar';
+import { ThreadLine } from '@/components/thread-stops';
+import { useAnnounce } from '@/lib/announce';
 import { deleteInspiration, listInspiration, sessionHeaders, uploadPhoto } from '@/lib/api';
-import { ApiError, limitReached, OfflineError } from '@/lib/api-error';
+import { ApiError, isOffline, limitReached, OfflineError } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { useStyle } from '@/lib/style';
-import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
+import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { Garland, type GarlandLook, type Point } from './garland';
@@ -42,6 +44,8 @@ const PARALLEL_UPLOADS = 3;
 // The thread: its bead at the brief, then down the margin (this far from the edge), clear of text.
 const DOT = { start: 25.5, top: 10, r: 5.5 };
 const EDGE = 8;
+// How far the thread runs down under the brief while the looks are on their way.
+const WAITING_RUN = 340;
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 type Frame = { y: number; height: number };
@@ -57,8 +61,10 @@ export function Inspiration() {
   const clearance = useTabBarClearance();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
-  const { style, update, load: loadStyle, asked } = useStyle(i18n.language);
+  const { style, update, load: loadStyle, asked, failure: styleFailure } = useStyle(i18n.language);
   const [looks, setLooks] = useState<SavedLook[] | null>(null);
+  // The looks couldn't be read: apart from having none.
+  const [looksFailure, setLooksFailure] = useState<{ offline: boolean } | null>(null);
   // Local photos on their way up, shown greyed out on the new garland until the list catches up.
   const [saving, setSaving] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -77,8 +83,10 @@ export function Inspiration() {
   const load = useCallback(async () => {
     try {
       setLooks(await listInspiration());
-    } catch {
-      setLooks((current) => current ?? []);
+      setLooksFailure(null);
+    } catch (cause) {
+      // Looks read before stay on screen, and this only counts without any.
+      setLooksFailure({ offline: isOffline(cause) });
     }
   }, []);
 
@@ -117,6 +125,20 @@ export function Inspiration() {
     : [];
   const learned = showAll ? allLearned : allLearned.slice(0, LEARNED_SHOWN);
   const updating = teaching || (style?.updating ?? false);
+
+  // The looks and her style together: which looks she's taken to heart depends on when the brief
+  // was written, so until both are in the looks would land on the wrong garland and then move.
+  const waiting = (looks === null && !looksFailure) || (style === null && !styleFailure);
+  const failure = waiting ? null : looks === null ? looksFailure : style === null && styleFailure;
+  const failedText = failure
+    ? t(failure.offline ? 'common.offline' : 'inspiration.loadError')
+    : null;
+  useAnnounce(waiting ? t('common.loading') : failedText);
+  function retry() {
+    setLooksFailure(null);
+    void load();
+    void loadStyle();
+  }
 
   async function add() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -207,6 +229,8 @@ export function Inspiration() {
   // Drawn once everything it runs through first has its place, so it draws in once, whole; after
   // that it stays and follows (a look deleted, taught or added doesn't draw it again).
   const placed =
+    !waiting &&
+    !failure &&
     (fresh.length === 0 || (freshAt !== null && freshTies.length === fresh.length)) &&
     (learned.length === 0 || (learnedAt !== null && learnedTies.length === learned.length));
   const [everPlaced, setEverPlaced] = useState(false);
@@ -238,13 +262,15 @@ export function Inspiration() {
         { paddingTop: insets.top + 20, paddingBottom: clearance },
       ]}
     >
-      <Animated.View entering={rise} style={[maison.gutter, styles.intro]}>
+      {/* One layout for every state (docs/design.md, "Waiting"): the title, the row below it and the
+          thread from her style stay where they are, and the looks settle in on it. */}
+      <View style={[maison.gutter, styles.intro]}>
         <ScreenTitle title={t('inspiration.title')} />
         <Text style={maison.body}>{t('inspiration.intro')}</Text>
-      </Animated.View>
+      </View>
 
       {/* Recreate the look: what of a look she already owns (docs/product.md, feature boundaries). */}
-      <Animated.View entering={rise.delay(STAGGER_STEP)} style={maison.gutter}>
+      <View style={maison.gutter}>
         <Pressable
           style={styles.want}
           onPress={() => router.push('/want-can')}
@@ -258,13 +284,34 @@ export function Inspiration() {
             <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
           </View>
         </Pressable>
-      </Animated.View>
+      </View>
 
       <View style={styles.story} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
         {thread && everPlaced && <Thread {...thread} reduceMotion={reduceMotion} />}
 
-        <Animated.View
-          entering={rise.delay(STAGGER_STEP * 2)}
+        {/* Her style's thread while the looks are on their way: its bead at the brief and the line
+            down from it, with the waiting bead. The real thread, through the looks, draws itself
+            over this as it fades, so the line is never gone. */}
+        {waiting && brief && (
+          <Animated.View
+            testID="thread-from-style"
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+            exiting={FadeOut.duration(durations.arrive)}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <ThreadLine
+              top={-(brief.y + DOT.top)}
+              length={WAITING_RUN}
+              waiting={!reduceMotion}
+              x={DOT.start}
+            />
+            <View style={[styles.waitingDot, { top: brief.y + DOT.top - DOT.r }]} />
+          </Animated.View>
+        )}
+
+        <View
           style={styles.brief}
           onLayout={(event) => {
             const { y, height } = event.nativeEvent.layout;
@@ -272,13 +319,28 @@ export function Inspiration() {
           }}
         >
           <Text style={maison.note}>{briefNote}</Text>
-          <Text style={styles.briefText}>{style?.summary ?? t('inspiration.briefNone')}</Text>
-        </Animated.View>
+          {/* "Your stylist writes your style once…" is only for a load that has ended. */}
+          {style && (
+            <Animated.Text style={styles.briefText} entering={arrive}>
+              {style.summary ?? t('inspiration.briefNone')}
+            </Animated.Text>
+          )}
+        </View>
 
-        {looks === null ? (
-          <View style={styles.loading}>
-            <HangerLoader />
-          </View>
+        {waiting ? (
+          <View
+            testID="looks-waiting"
+            style={styles.waiting}
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel={t('common.loading')}
+            accessibilityLiveRegion="polite"
+          />
+        ) : failedText ? (
+          <Animated.View style={[maison.gutter, styles.failed]} entering={arrive}>
+            <Text style={maison.body}>{failedText}</Text>
+            <Button kind="outline" label={t('closet.retry')} onPress={retry} />
+          </Animated.View>
         ) : (
           <>
             {fresh.length > 0 && (
@@ -286,14 +348,14 @@ export function Inspiration() {
                 <Section
                   title={t('inspiration.fresh', { count: fresh.length })}
                   note={writtenAt ? t('inspiration.freshNote') : undefined}
-                  delay={STAGGER_STEP * 3}
+                  delay={0}
                 />
                 <View onLayout={(event) => setFreshAt(event.nativeEvent.layout.y)}>
                   <Garland
                     looks={fresh}
                     loose
                     headers={headers}
-                    delay={STAGGER_STEP * 4}
+                    delay={STAGGER_STEP}
                     onTies={onFreshTies}
                     onLongPress={confirmDelete}
                   />
@@ -302,7 +364,7 @@ export function Inspiration() {
             )}
 
             <Animated.View
-              entering={rise.delay(STAGGER_STEP * 4)}
+              entering={arrive.delay(STAGGER_STEP)}
               style={[maison.gutter, styles.actions]}
             >
               <View style={styles.buttons}>
@@ -334,14 +396,14 @@ export function Inspiration() {
                 <Section
                   title={t('inspiration.learned')}
                   note={t('style.looks', { count: allLearned.length })}
-                  delay={STAGGER_STEP * 5}
+                  delay={STAGGER_STEP * 2}
                 />
                 <View onLayout={(event) => setLearnedAt(event.nativeEvent.layout.y)}>
                   <Garland
                     looks={learned}
                     loose={false}
                     headers={headers}
-                    delay={STAGGER_STEP * 6}
+                    delay={STAGGER_STEP * 3}
                     onTies={onLearnedTies}
                     onLongPress={confirmDelete}
                   />
@@ -366,7 +428,7 @@ export function Inspiration() {
 
 function Section({ title, note, delay }: { title: string; note?: string; delay: number }) {
   return (
-    <Animated.View entering={rise.delay(delay)} style={[maison.gutter, styles.section]}>
+    <Animated.View entering={arrive.delay(delay)} style={[maison.gutter, styles.section]}>
       <Text style={styles.sectionTitle} accessibilityRole="header">
         {title}
       </Text>
@@ -443,12 +505,10 @@ function Thread({
       return;
     }
     if (!measured) return;
-    progress.value = withDelay(
-      STAGGER_STEP * 3,
-      withTiming(1, { duration: 2000, easing: EASE_OUT }),
-    );
+    // At once: it takes over from the waiting line as that fades.
+    progress.value = withTiming(1, { duration: 2000, easing: EASE_OUT });
     shown.value = withDelay(
-      STAGGER_STEP * 5,
+      STAGGER_STEP * 2,
       withTiming(1, { duration: durations.settle, easing: EASE_OUT }),
     );
   }, [measured, reduceMotion, progress, shown]);
@@ -555,9 +615,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'left',
   },
-  loading: {
-    alignItems: 'center',
-    paddingVertical: 24,
+  // Room for the thread the bead runs down, with nothing on it yet.
+  waiting: {
+    height: WAITING_RUN - 40,
+  },
+  waitingDot: {
+    position: 'absolute',
+    start: DOT.start - DOT.r,
+    width: DOT.r * 2,
+    height: DOT.r * 2,
+    borderRadius: DOT.r,
+    borderWidth: 1.2,
+    borderColor: colors.text,
+    backgroundColor: colors.bead,
+  },
+  failed: {
+    marginTop: 26,
+    gap: 12,
   },
   section: {
     marginTop: 34,
