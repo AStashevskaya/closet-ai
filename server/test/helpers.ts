@@ -120,6 +120,12 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       itemRows.push(row);
       return toApiItem(row);
     },
+    findByPhoto: async (ownerId, photoKey) => {
+      const row = itemRows.find(
+        (row) => row.ownerId === ownerId && row.input.photoKey === photoKey,
+      );
+      return row ? toApiItem(row) : null;
+    },
     get: async (ownerId, itemId) => {
       const row = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
       return row ? toDetail(row) : null;
@@ -156,9 +162,9 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       if (!photoKey) return null;
       return variant === "cutout" ? (photoRows.get(photoKey)?.cutoutKey ?? null) : photoKey;
     },
-    setPhotoKey: async (ownerId, itemId, photoKey) => {
+    setPhotoKey: async (ownerId, itemId, photoKey, from) => {
       const row = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
-      if (!row) return false;
+      if (!row || row.input.photoKey !== from) return false;
       row.input = { ...row.input, photoKey };
       return true;
     },

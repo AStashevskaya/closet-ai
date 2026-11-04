@@ -218,10 +218,19 @@ describe.skipIf(!url)("on Postgres", () => {
       headers: { cookie },
       payload: { ...shirt, photoKey },
     });
-    const { photoUrl } = created.json<Item>();
+    const { id, photoUrl } = created.json<Item>();
     const photo = await app.inject({ method: "GET", url: photoUrl!, headers: { cookie } });
     expect(photo.statusCode).toBe(200);
     expect([...photo.rawPayload]).toEqual([1, 2, 3]);
+
+    // The same photo again, as after an answer that never came: the same piece, not a second one.
+    const again = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { ...shirt, photoKey },
+    });
+    expect(again.json<Item>().id).toBe(id);
   });
 
   it("updates only the caller's own item, and only the fields sent", async () => {
@@ -382,6 +391,22 @@ describe.skipIf(!url)("on Postgres", () => {
     });
   });
 
+  it("makes a ready photo anew over a row left behind", async () => {
+    await signUp("leftover@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "leftover@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const key = `photos/${user!.id}/piece.webp`;
+    await photos.createReady({ key, ownerId: user!.id, tags: shirtTags });
+
+    const corrected = { ...shirtTags, name: "Corrected" };
+    await photos.createReady({ key, ownerId: user!.id, tags: corrected });
+
+    expect(await photos.get(key)).toMatchObject({ status: "ready", tags: corrected });
+  });
+
   it("stores the cut-out key and gives the item a cut-out URL", async () => {
     const cookie = await signUp("cutout@example.com");
     const [user] = await db.db
@@ -455,8 +480,10 @@ describe.skipIf(!url)("on Postgres", () => {
       cutoutBox: turnedBox,
     });
     const items = createItemsRepository(db.db);
-    expect(await items.setPhotoKey(user!.id, id, turned)).toBe(true);
-    expect(await items.setPhotoKey("someone-else", id, key)).toBe(false);
+    expect(await items.setPhotoKey("someone-else", id, turned, key)).toBe(false);
+    expect(await items.setPhotoKey(user!.id, id, turned, key)).toBe(true);
+    // Moved on: a second request turning the same photo doesn't land.
+    expect(await items.setPhotoKey(user!.id, id, key, key)).toBe(false);
     await photos.delete(key);
 
     expect(await photos.get(turned)).toMatchObject({

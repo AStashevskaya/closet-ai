@@ -256,7 +256,7 @@ export function ItemScreen({ id }: { id: string }) {
   async function rotate() {
     setBusy(true);
     try {
-      const turned = await rotateItem(id);
+      const turned = await rotateItem(id, item.photoUrl);
       setState({ status: 'ready', item: turned });
       void Haptics.selectionAsync();
     } catch (cause) {
