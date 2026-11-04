@@ -283,6 +283,10 @@ export async function deleteItem(id: string): Promise<void> {
   await send(`/api/items/${id}`, { method: 'DELETE' });
 }
 
+const uploadAttempts = new Map<string, string>();
+const newUploadAttempt = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
 // Uploads a local JPEG (see shrinkPhoto) and returns the key to pass to createItem.
 // lang is the language the server's suggested item name comes back in; a "look" photo is an
 // outfit to pick items from (see addLookItems).
@@ -291,16 +295,21 @@ export async function uploadPhoto(
   lang: AppLanguage,
   kind: PhotoKind = 'item',
 ): Promise<string> {
+  // The same name for the same file until it has gone through: if the answer never came, the server
+  // recognises the retry, and doesn't count or store the photo twice.
+  const attempt = uploadAttempts.get(uri) ?? newUploadAttempt();
+  uploadAttempts.set(uri, attempt);
   const form = new FormData();
   // The global fetch is expo/fetch, which rejects React Native's { uri, name, type } parts
   // ("Unsupported FormDataPart implementation"). An expo-file-system File is a Blob it can read.
   form.append('photo', new File(uri));
   const { photoKey } = await request(
-    `/api/photos?lang=${lang}&kind=${kind}`,
+    `/api/photos?lang=${lang}&kind=${kind}&attempt=${attempt}`,
     uploadedPhoto,
     { method: 'POST', body: form },
     HEAVY_TIMEOUT_MS,
   );
+  uploadAttempts.delete(uri);
   return photoKey;
 }
 
