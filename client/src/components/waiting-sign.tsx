@@ -21,6 +21,9 @@ const TAG_HEIGHT = 19;
 // everything else on the app's rails, instead of lying along the thread or sticking out sideways.
 const LOOP_OUT = 8;
 const LOOP_DOWN = 1;
+// How far below the top of its box a tag on a thread running down reaches: a thread stops its run
+// this far from its end, so the tag stays on the thread instead of over what's below it.
+export const SIGN_REACH = CENTRE + LOOP_DOWN + TAG_HEIGHT;
 // How far it swings at the start of a run, and how many half swings a run has. It runs on the run's
 // own value, so it needs no animation of its own and settles as the tag slows down, like the pieces
 // on a rail. A thread running down moves it along its length, so it sways less.

@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     gap: 10,
     minHeight: DOT + 8,
     // The sign of waiting hangs below the line: room for it, kept so nothing moves when it goes.
-    marginBottom: 6,
+    marginBottom: 10,
   },
   line: {
     position: 'absolute',

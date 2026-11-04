@@ -14,7 +14,7 @@ import Animated, {
 import { durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';
 
-import { SIGN_BOX, WaitingSign } from './waiting-sign';
+import { SIGN_BOX, SIGN_REACH, WaitingSign } from './waiting-sign';
 
 // A thread drawn down a column with its stops on it: the add-item fields and the auth screens
 // (docs/design.md, "The thread" and "Waiting"). Threads that run across (the look's, the closet's
@@ -54,8 +54,9 @@ export function useThreadMotion(measured: boolean, waiting: boolean) {
       run.set(withRepeat(withTiming(1, { duration: RUN_MS, easing: EASE_OUT }), -1));
       return () => cancelAnimation(run);
     }
+    // Stays where it is while it fades out; the next wait starts it from the beginning.
     cancelAnimation(run);
-    run.set(0);
+    if (reduced) run.set(0);
   }, [waiting, reduced, run]);
 
   return { drawn, run, reduced };
@@ -152,7 +153,9 @@ export function ThreadLine({
   const line = useAnimatedStyle(() => ({ transform: [{ scaleY: drawn.get() }] }));
   const bead = useAnimatedStyle(() => ({
     opacity: runOpacity(run.get()),
-    transform: [{ translateY: run.get() * Math.max(0, (follow ? height.get() : length) - BEAD) }],
+    transform: [
+      { translateY: run.get() * Math.max(0, (follow ? height.get() : length) - SIGN_REACH) },
+    ],
   }));
   const size = useAnimatedStyle(() => ({ top: -track.get(), height: height.get() }));
 
