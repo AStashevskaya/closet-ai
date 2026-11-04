@@ -58,31 +58,61 @@ export async function sessionHeaders(): Promise<Record<string, string>> {
 // Paths from the API (such as an item's photoUrl) are relative to the server.
 export const absoluteUrl = (path: string) => `${apiUrl()}${path}`;
 
-// Sends the request with the session cookie and turns a non-2xx status into an ApiError.
-async function send(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = { ...(await sessionHeaders()), ...init.headers };
-  let res: Response;
+// How long a request may go unanswered before it counts as no connection, so a screen waiting for
+// it can say so and offer a retry instead of waiting forever. A photo gets longer: on a slow
+// network the upload itself takes a while.
+export const REQUEST_TIMEOUT_MS = 30_000;
+export const UPLOAD_TIMEOUT_MS = 120_000;
+
+// Sends the request with the session cookie, turns a non-2xx status into an ApiError and hands the
+// answer to `read`. The time limit covers reading the body too. An AbortController with a timer,
+// not AbortSignal.timeout, which React Native doesn't guarantee.
+async function exchange<T>(
+  path: string,
+  init: RequestInit,
+  timeoutMs: number,
+  read: (res: Response) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    res = await fetch(absoluteUrl(path), { ...init, headers });
+    const headers = { ...(await sessionHeaders()), ...init.headers };
+    let res: Response;
+    try {
+      res = await fetch(absoluteUrl(path), { ...init, headers, signal: controller.signal });
+    } catch (cause) {
+      // fetch only rejects when no answer came back at all.
+      throw new OfflineError(cause instanceof Error ? cause.message : 'unreachable');
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      throw new ApiError(res.status, body?.message ?? res.statusText);
+    }
+    return await read(res);
   } catch (cause) {
-    // fetch only rejects when no answer came back at all.
-    throw new OfflineError(cause instanceof Error ? cause.message : 'unreachable');
+    // Cut off while reading the body: the same as no answer.
+    if (controller.signal.aborted && !(cause instanceof OfflineError)) {
+      throw new OfflineError('timed out');
+    }
+    throw cause;
+  } finally {
+    clearTimeout(timer);
   }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(res.status, body?.message ?? res.statusText);
-  }
-  return res;
+}
+
+// For a call whose answer has nothing to read.
+async function send(path: string, init: RequestInit = {}): Promise<void> {
+  await exchange(path, init, REQUEST_TIMEOUT_MS, async () => undefined);
 }
 
 // Responses are parsed with the shared Zod schemas, so a server/app mismatch fails loudly here.
-async function request<T>(
+function request<T>(
   path: string,
   schema: { parse(data: unknown): T },
   init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
-  const res = await send(path, init);
-  return schema.parse(await res.json());
+  return exchange(path, init, timeoutMs, async (res) => schema.parse(await res.json()));
 }
 
 export function listItems(): Promise<Item[]> {
@@ -248,10 +278,12 @@ export async function uploadPhoto(
   // The global fetch is expo/fetch, which rejects React Native's { uri, name, type } parts
   // ("Unsupported FormDataPart implementation"). An expo-file-system File is a Blob it can read.
   form.append('photo', new File(uri));
-  const { photoKey } = await request(`/api/photos?lang=${lang}&kind=${kind}`, uploadedPhoto, {
-    method: 'POST',
-    body: form,
-  });
+  const { photoKey } = await request(
+    `/api/photos?lang=${lang}&kind=${kind}`,
+    uploadedPhoto,
+    { method: 'POST', body: form },
+    UPLOAD_TIMEOUT_MS,
+  );
   return photoKey;
 }
 
