@@ -178,7 +178,11 @@ export function ProfileDetails() {
           <View style={styles.nameRow}>
             <Text style={styles.name}>{session?.user.name}</Text>
           </View>
+          {/* Where the open name and place go below: the measurements' row stays the same element,
+              so the sign on it can fade as they come. */}
+          {null}
           <View style={styles.whereRow} />
+          {null}
           <View
             style={[styles.stats, styles.statsWaiting]}
             accessible={!failedText}
@@ -559,6 +563,7 @@ const styles = StyleSheet.create({
   },
   statText: {
     alignItems: 'center',
+    gap: 4,
   },
   stat: {
     flex: 1,

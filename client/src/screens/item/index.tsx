@@ -176,7 +176,7 @@ export function ItemScreen({ id }: { id: string }) {
           <RailLine waiting={waiting} />
           <View style={styles.body}>
             {failedText && (
-              <Animated.View style={styles.failed} entering={arrive}>
+              <Animated.View key="failed" style={styles.failed} entering={arrive}>
                 <Text style={maison.body}>{failedText}</Text>
                 <Button
                   kind="outline"
