@@ -164,7 +164,8 @@ export const itemsRoutes =
         }
 
         try {
-          await deletePhoto({ photos, storage }, key);
+          // A piece added from a photo's outfits shares this crop with those stylings: they keep it.
+          if (!(await photos.isHeroOfRequest(key))) await deletePhoto({ photos, storage }, key);
         } catch (error) {
           // Unattached now, so the hourly cleanup tries again.
           request.log.warn({ err: error, key }, "failed to delete the unturned photo");

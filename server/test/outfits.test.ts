@@ -1356,6 +1356,55 @@ describe("an item from a photo", () => {
     expect((await photoOf(second)).statusCode).toBe(404);
   });
 
+  it("keeps a styling's picture when the piece added from it is turned or deleted", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
+    await s.runPhotoJobs();
+    const { id } = (
+      await s.server.inject({
+        method: "POST",
+        url: "/api/wear-with",
+        headers: { cookie: anna.cookie },
+        payload: { photoKey, index: 1 },
+      })
+    ).json<{ id: string }>();
+    await s.runJobs();
+    const { addable } = await view(s, anna.cookie, id);
+    const piece = (
+      await s.server.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie: anna.cookie },
+        payload: addable!,
+      })
+    ).json<Item>();
+    const picture = async () =>
+      (
+        await s.server.inject({
+          method: "GET",
+          url: `/api/wear-with/${id}/photo`,
+          headers: { cookie: anna.cookie },
+        })
+      ).statusCode;
+
+    const turned = await s.server.inject({
+      method: "POST",
+      url: `/api/items/${piece.id}/rotate`,
+      headers: { cookie: anna.cookie },
+    });
+    expect(turned.statusCode).toBe(200);
+    expect(await picture()).toBe(200);
+
+    await s.server.inject({
+      method: "DELETE",
+      url: `/api/items/${piece.id}`,
+      headers: { cookie: anna.cookie },
+    });
+    expect(await picture()).toBe(200);
+  });
+
   it("asked about the same piece again, it's the same request and counted once", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
