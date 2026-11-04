@@ -30,12 +30,15 @@ export function useCloset() {
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(new Set());
   // With "See all" open over the closet both screens use this hook; only the one in view polls.
   const [focused, setFocused] = useState(false);
+  // Reloads that failed: the closet stays as it was, so this is what schedules the next check.
+  const [failedLoads, setFailedLoads] = useState(0);
 
   const load = useCallback(async () => {
     try {
       const items = await listItems();
       setState({ status: 'ready', items });
     } catch (cause) {
+      setFailedLoads((n) => n + 1);
       // A failed reload keeps the closet already shown; only a first load shows the error.
       setState((current) =>
         current.status === 'ready' ? current : { status: 'error', offline: isOffline(cause) },
@@ -83,7 +86,7 @@ export function useCloset() {
     if (!waiting) return;
     const timer = setTimeout(() => void load(), PHOTO_POLL_MS);
     return () => clearTimeout(timer);
-  }, [state, load, focused]);
+  }, [state, load, focused, failedLoads]);
 
   // The bead on the rail is hidden from screen readers, and a live region only speaks on Android.
   const spoken =

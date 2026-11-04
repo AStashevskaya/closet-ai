@@ -463,6 +463,15 @@ describe('<StyleIt />', () => {
     expect(askWearWith).not.toHaveBeenCalled();
   });
 
+  test('says there is no connection when asking for the outfits got no answer', async () => {
+    jest.mocked(askWearWith).mockRejectedValue(new OfflineError('timed out'));
+    await render(<StyleIt />);
+    await pickSkirt();
+    await waitFor(() =>
+      expect(alert).toHaveBeenCalledWith(expect.stringMatching(/No connection to the server/)),
+    );
+  });
+
   test('says when the outfits are off', async () => {
     jest.mocked(askWearWith).mockRejectedValue(new ApiError(503, 'outfits are off'));
     await render(<StyleIt />);

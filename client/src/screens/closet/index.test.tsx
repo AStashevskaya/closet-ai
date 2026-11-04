@@ -256,6 +256,17 @@ describe('<Closet />', () => {
     });
   });
 
+  test('keeps checking on a new photo after a check that failed', async () => {
+    const processing = { ...shirt, photoUrl: undefined, photoStatus: 'processing' as const };
+    list
+      .mockResolvedValueOnce([processing])
+      .mockRejectedValueOnce(new OfflineError('unreachable'))
+      .mockResolvedValue([{ ...shirt, photoStatus: 'ready' }]);
+    await render(<Closet />);
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(3), { timeout: 5000 });
+  });
+
   test('checks again until a new photo has been processed', async () => {
     list
       .mockResolvedValueOnce([{ ...shirt, photoUrl: undefined, photoStatus: 'processing' }])

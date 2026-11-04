@@ -26,6 +26,9 @@ import { colors, fonts } from '@/theme';
 // Finding the items takes a few seconds; after a minute the screen gives up.
 const POLL_MS = 1500;
 const MAX_POLLS = 40;
+// A blip is no reason to stop, but no connection for this many checks in a row (a few seconds) is: the
+// screen says so and offers to try again, rather than waiting out the minute.
+const MAX_OFFLINE_POLLS = 5;
 // The thread here carries no beads: the pieces are the rows under it.
 const NO_BEADS: boolean[] = [];
 
@@ -146,8 +149,8 @@ export function WearWithPick() {
     let cancelled = false;
 
     const poll = async () => {
-      // Whether the last poll found the server unreachable.
-      let offline = false;
+      // How many polls in a row found the server unreachable.
+      let offline = 0;
       let final = false;
       for (let tries = 0; tries < MAX_POLLS; tries++) {
         try {
@@ -168,17 +171,20 @@ export function WearWithPick() {
             final = true;
             break;
           }
-          offline = false;
+          offline = 0;
         } catch (error) {
           // A dropped request is no reason to stop; the next poll tries again.
-          offline = isOffline(error);
+          offline = isOffline(error) ? offline + 1 : 0;
+          if (offline === MAX_OFFLINE_POLLS) break;
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
         if (cancelled) return;
       }
       if (!cancelled) {
         setShot((current) =>
-          current.status === 'finding' ? { ...current, status: 'failed', offline, final } : current,
+          current.status === 'finding'
+            ? { ...current, status: 'failed', offline: offline > 0, final }
+            : current,
         );
       }
     };

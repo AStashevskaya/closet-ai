@@ -148,6 +148,18 @@ describe('<WearWithPick />', () => {
       expect(screen.getByText('Choose from gallery')).toBeOnTheScreen();
     });
 
+    test('no connection for several checks in a row says so, well before the minute', async () => {
+      jest.mocked(getPhotoState).mockRejectedValue(new OfflineError('unreachable'));
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+
+      expect(
+        await screen.findByText(/No connection to the server/, {}, { timeout: 10_000 }),
+      ).toBeOnTheScreen();
+      expect(getPhotoState).toHaveBeenCalledTimes(5);
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
+    }, 15_000);
+
     test('a photo that could not be shrunk is shrunk again, not sent as it is', async () => {
       jest.mocked(shrinkPhoto).mockRejectedValueOnce(new Error('boom'));
       jest
