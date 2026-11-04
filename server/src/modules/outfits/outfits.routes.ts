@@ -282,14 +282,16 @@ export const outfitsRoutes =
       { schema: { params: z.object({ id: z.string().uuid() }) } },
       async (request, reply) => {
         const user = request.user as SessionUser;
-        // Read first: the delete clears it. Each styling crops a photo of its own, so no other uses it.
+        // Read first: the delete clears it.
         const key = (await outfits.getRequest(request.params.id))?.heroPhotoKey;
         if (!(await outfits.deleteRequest(request.params.id, user.id))) {
           throw httpError(404, "request not found");
         }
         if (key) {
           try {
-            if (!(await outfits.isAttached(key))) await deletePhoto({ photos, storage }, key);
+            // Other requests about the same piece share this crop, and it may be in her closet.
+            const inUse = (await outfits.isAttached(key)) || (await photos.isHeroOfRequest(key));
+            if (!inUse) await deletePhoto({ photos, storage }, key);
           } catch (error) {
             // The styling is already gone, so she still gets 204. No request points to the photo
             // now, so the hourly cleanup job tries again.

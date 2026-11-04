@@ -246,7 +246,11 @@ export const itemsRoutes =
 
         if (deleted.photoKey) {
           try {
-            await deletePhoto({ photos, storage }, deleted.photoKey);
+            // A piece added from a photo's outfits shares its crop with those stylings: they keep it,
+            // and it goes with the last of them.
+            if (!(await photos.isHeroOfRequest(deleted.photoKey))) {
+              await deletePhoto({ photos, storage }, deleted.photoKey);
+            }
           } catch (error) {
             // The item is already gone, so the client still gets 204. The photo is now
             // unattached, so the hourly cleanup job tries again.

@@ -108,14 +108,22 @@ export const photosRoutes =
         }
 
         await storage.put(uploadKey, input, contentType);
-        await photos.create({
-          key: photoKey,
-          ownerId: user.id,
-          uploadKey,
-          kind,
-          // A saved look isn't read on its own: the style brief reads the latest ones together.
-          tagStatus: taggingEnabled && kind !== "inspiration" ? "pending" : null,
-        });
+        try {
+          await photos.create({
+            key: photoKey,
+            ownerId: user.id,
+            uploadKey,
+            kind,
+            // A saved look isn't read on its own: the style brief reads the latest ones together.
+            tagStatus: taggingEnabled && kind !== "inspiration" ? "pending" : null,
+          });
+        } catch (error) {
+          // A retry that overtook the first try, which has the photo: that one goes on with it.
+          if (attempt && (await photos.get(photoKey))) {
+            return reply.code(201).send({ photoKey, status: "processing" as const });
+          }
+          throw error;
+        }
         // If queueing fails the request fails too; the row is never attached and the cleanup job removes it.
         await queue.enqueueProcessing(photoKey, request.query.lang);
         await limits.record(user.id, action);

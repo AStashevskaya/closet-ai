@@ -78,6 +78,9 @@ export interface PhotosRepository {
   // Photos created before `before` that no item points to.
   listUnattached(before: Date): Promise<Photo[]>;
   delete(key: string): Promise<void>;
+  // Whether a styling has this photo as its piece. A crop from a photo is shared by every request
+  // about that piece (another mood, or asked again after the wardrobe changed).
+  isHeroOfRequest(key: string): Promise<boolean>;
   // The user's saved looks that are ready, newest first.
   listInspiration(ownerId: string): Promise<{ key: string; createdAt: Date }[]>;
 }
@@ -199,6 +202,15 @@ export function createPhotosRepository(db: Db): PhotosRepository {
 
     async markTagsFailed(key) {
       await db.update(photos).set({ tagStatus: "failed" }).where(eq(photos.key, key));
+    },
+
+    async isHeroOfRequest(key) {
+      const [row] = await db
+        .select({ id: outfitRequests.id })
+        .from(outfitRequests)
+        .where(eq(outfitRequests.heroPhotoKey, key))
+        .limit(1);
+      return row !== undefined;
     },
 
     listUnattached(before) {

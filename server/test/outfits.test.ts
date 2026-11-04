@@ -1315,6 +1315,47 @@ describe("an item from a photo", () => {
     });
   }
 
+  it("keeps a piece's crop for the other stylings when one of them is deleted", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    await addItem(s, anna, "top");
+    const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
+    await s.runPhotoJobs();
+    const askIn = async (mood: string) =>
+      (
+        await s.server.inject({
+          method: "POST",
+          url: "/api/wear-with",
+          headers: { cookie: anna.cookie },
+          payload: { photoKey, index: 1, mood },
+        })
+      ).json<{ id: string }>().id;
+    const first = await askIn("evening");
+    const second = await askIn("office");
+    expect(second).not.toBe(first);
+    await s.runJobs();
+    const remove = (id: string) =>
+      s.server.inject({
+        method: "DELETE",
+        url: `/api/wear-with/${id}`,
+        headers: { cookie: anna.cookie },
+      });
+    const photoOf = (id: string) =>
+      s.server.inject({
+        method: "GET",
+        url: `/api/wear-with/${id}/photo`,
+        headers: { cookie: anna.cookie },
+      });
+
+    await remove(first);
+    expect((await photoOf(second)).statusCode).toBe(200);
+    expect((await view(s, anna.cookie, second)).outfits.length).toBeGreaterThan(0);
+
+    // With the last of them it goes.
+    await remove(second);
+    expect((await photoOf(second)).statusCode).toBe(404);
+  });
+
   it("asked about the same piece again, it's the same request and counted once", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");

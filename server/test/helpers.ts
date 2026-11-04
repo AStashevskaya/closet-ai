@@ -190,6 +190,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         createdAt: stamp(),
       });
     },
+    isHeroOfRequest: async (key) => requests.some((r) => r.heroPhotoKey === key),
     createReady: async (photo) => {
       photoRows.set(photo.key, {
         ...photo,

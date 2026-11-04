@@ -303,14 +303,20 @@ export async function uploadPhoto(
   // The global fetch is expo/fetch, which rejects React Native's { uri, name, type } parts
   // ("Unsupported FormDataPart implementation"). An expo-file-system File is a Blob it can read.
   form.append('photo', new File(uri));
-  const { photoKey } = await request(
-    `/api/photos?lang=${lang}&kind=${kind}&attempt=${attempt}`,
-    uploadedPhoto,
-    { method: 'POST', body: form },
-    HEAVY_TIMEOUT_MS,
-  );
-  uploadAttempts.delete(uri);
-  return photoKey;
+  try {
+    const { photoKey } = await request(
+      `/api/photos?lang=${lang}&kind=${kind}&attempt=${attempt}`,
+      uploadedPhoto,
+      { method: 'POST', body: form },
+      HEAVY_TIMEOUT_MS,
+    );
+    uploadAttempts.delete(uri);
+    return photoKey;
+  } catch (cause) {
+    // Refused: the server has no such photo, so nothing is left to recognise.
+    if (cause instanceof ApiError) uploadAttempts.delete(uri);
+    throw cause;
+  }
 }
 
 // Whether an uploaded photo is processed yet, and what the vision model read off it.
