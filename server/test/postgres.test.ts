@@ -218,10 +218,19 @@ describe.skipIf(!url)("on Postgres", () => {
       headers: { cookie },
       payload: { ...shirt, photoKey },
     });
-    const { photoUrl } = created.json<Item>();
+    const { id, photoUrl } = created.json<Item>();
     const photo = await app.inject({ method: "GET", url: photoUrl!, headers: { cookie } });
     expect(photo.statusCode).toBe(200);
     expect([...photo.rawPayload]).toEqual([1, 2, 3]);
+
+    // The same photo again, as after an answer that never came: the same piece, not a second one.
+    const again = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { ...shirt, photoKey },
+    });
+    expect(again.json<Item>().id).toBe(id);
   });
 
   it("updates only the caller's own item, and only the fields sent", async () => {

@@ -120,6 +120,12 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       itemRows.push(row);
       return toApiItem(row);
     },
+    findByPhoto: async (ownerId, photoKey) => {
+      const row = itemRows.find(
+        (row) => row.ownerId === ownerId && row.input.photoKey === photoKey,
+      );
+      return row ? toApiItem(row) : null;
+    },
     get: async (ownerId, itemId) => {
       const row = itemRows.find((row) => row.ownerId === ownerId && row.id === itemId);
       return row ? toDetail(row) : null;

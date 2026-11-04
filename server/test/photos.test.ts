@@ -561,6 +561,24 @@ describe("background removal", () => {
     return { ...item, photoKey };
   }
 
+  it("doesn't make a second piece from the same photo when the save comes again", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const { id, photoKey } = await addItem(server, cookie);
+
+    const again = await server.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { name: "Shirt", category: "top", colors: ["white"], photoKey },
+    });
+
+    expect(again.statusCode).toBe(201);
+    expect(again.json<Item>().id).toBe(id);
+    const closet = await server.inject({ method: "GET", url: "/api/items", headers: { cookie } });
+    expect(closet.json<Item[]>()).toHaveLength(1);
+  });
+
   it("cuts the item out after processing and serves the cut-out to the owner", async () => {
     const cut = createStubRemover();
     const server = await setup({ remover: cut.remover });
@@ -716,6 +734,16 @@ describe("background removal", () => {
     expect(res.statusCode).toBe(200);
     const after = res.json<ItemDetail>();
     expect(after.name).toBe("Shirt");
+
+    // Asked again about the photo she saw, as after an answer that never came: not turned twice.
+    const seen = new URL(before.photoUrl!, "http://x").searchParams.get("v")!;
+    const again = await server.inject({
+      method: "POST",
+      url: `/api/items/${before.id}/rotate?v=${seen}`,
+      headers: { cookie: anna },
+    });
+    expect(again.statusCode).toBe(200);
+    expect(again.json<ItemDetail>().photoUrl).toBe(after.photoUrl);
     expect(after.photoUrl).not.toBe(before.photoUrl);
     expect(after.cutoutUrl).not.toBe(before.cutoutUrl);
     // The box turns with the photo: (x, y) goes to (1 − y, x).
@@ -871,6 +899,32 @@ describe("items from a look photo", () => {
       "Pink mesh top",
       "Blue wide-leg jeans",
     ]);
+  });
+
+  it("doesn't add a look's pieces twice when the same request comes again", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const cookie = await signUp(server, "anna@example.com");
+    const photoKey = await uploadLook(server, cookie);
+    await runWorker();
+    const closet = async () =>
+      (await server.inject({ method: "GET", url: "/api/items", headers: { cookie } })).json<
+        Item[]
+      >();
+
+    const payload = { photoKey, items: [picked(0, "Top")] };
+    const first = (await addFromLook(server, cookie, payload)).json<Item[]>();
+    expect(await closet()).toHaveLength(1);
+
+    // Again, with one more piece: the first stays as it was and only the new one is made.
+    const again = await addFromLook(server, cookie, {
+      photoKey,
+      items: [picked(0, "Top"), picked(1, "Jeans", "bottom")],
+    });
+    expect(again.statusCode).toBe(201);
+    const second = again.json<Item[]>();
+    expect(second.map((item) => item.name)).toEqual(["Top", "Jeans"]);
+    expect(second[0]!.id).toBe(first[0]!.id);
+    expect(await closet()).toHaveLength(2);
   });
 
   it("adds the picked items, each with the look cropped to its box", async () => {

@@ -21,6 +21,7 @@ import { rotateBoxQuarter, rotateQuarter } from "../photos/process-photo";
 import type { PhotosRepository } from "../photos/photos.repository";
 import type { WishesRepository } from "../wishes/wishes.repository";
 import type { ItemsRepository } from "./items.repository";
+import { keyVersion } from "./items.repository";
 
 // One row on the item screen.
 const SIMILAR_LIMIT = 6;
@@ -91,12 +92,27 @@ export const itemsRoutes =
     // under new keys (so the new URLs miss the phone's cache) in place of the old ones.
     app.post(
       "/items/:id/rotate",
-      { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: itemDetail } } },
+      {
+        schema: {
+          params: z.object({ id: z.string().uuid() }),
+          // The version of the photo she saw turned (`v` in its URL). Left out by older builds.
+          querystring: z.object({ v: z.string().max(40).optional() }),
+          response: { 200: itemDetail },
+        },
+      },
       async (request) => {
         const user = userOf(request);
         const { id } = request.params;
         const key = await repo.photoKey(user.id, id, "photo");
         if (!key) throw httpError(404, "no photo");
+        // That photo was turned already and the answer never reached the phone: turning it again
+        // would show it upside down, so she gets the photo as it is now.
+        const { v } = request.query;
+        if (v !== undefined && v !== keyVersion(key)) {
+          const current = await repo.get(user.id, id);
+          if (!current) throw httpError(404, "item not found");
+          return current;
+        }
         const photo = await photos.get(key);
         const file = photo?.status === "ready" ? await storage.get(key) : null;
         if (!photo || !file) throw httpError(409, "photo not ready");
@@ -150,7 +166,9 @@ export const itemsRoutes =
             throw httpError(400, "unknown photoKey");
           }
         }
-        const created = await repo.create(user.id, request.body);
+        // A second try after an answer that never reached the phone: the piece is already there.
+        const earlier = photoKey === undefined ? null : await repo.findByPhoto(user.id, photoKey);
+        const created = earlier ?? (await repo.create(user.id, request.body));
         // A piece from a photo she wished for, now in her closet: bought, so the wish goes.
         if (photoKey !== undefined) await wishes.removeForPhoto(user.id, photoKey);
         return reply.code(201).send(created);

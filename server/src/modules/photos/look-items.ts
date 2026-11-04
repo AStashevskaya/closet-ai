@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { AddLookItemsInput, Item } from "@closet-ai/shared";
 import type { Storage } from "../../storage/storage";
 import type { ItemsRepository } from "../items/items.repository";
@@ -21,7 +21,9 @@ export type LookItemsError = "not-found" | "not-ready" | "bad-index";
 // the look cropped to the item's box, tagged with what the model read off the look, and is
 // queued for its embedding. No cut-out: the crop shows the person wearing the item, and
 // removing the background around a body leaves an odd shape. The look photo itself stays
-// unattached, so the cleanup job removes it after a day.
+// unattached, so the cleanup job removes it after a day. Each piece's photo key comes from the look
+// and the piece, so a second try after an answer that never reached the phone finds what the first
+// made, and makes only the rest, instead of adding the pieces twice.
 export async function addItemsFromLook(
   { photos, items, storage, queue }: LookItemsDeps,
   ownerId: string,
@@ -40,10 +42,18 @@ export async function addItemsFromLook(
   for (const picked of input.items) {
     const { box: _box, ...tags } = found[picked.index]!;
     const { index: _index, ...fields } = picked;
-    const key = `${photoPrefix(ownerId)}${randomUUID()}.webp`;
+    const piece = createHash("sha256").update(`${look.key}#${picked.index}`).digest("hex");
+    const key = `${photoPrefix(ownerId)}${piece}.webp`;
+    const earlier = await items.findByPhoto(ownerId, key);
+    if (earlier) {
+      if (!created.some((item) => item.id === earlier.id)) created.push(earlier);
+      continue;
+    }
     await storage.put(key, await cropToBox(file.body, found[picked.index]!.box), "image/webp");
-    // The user's corrections win over what the model read.
-    await photos.createReady({ key, ownerId, tags: { ...tags, ...fields, recognized: true } });
+    // The user's corrections win over what the model read. A first try may have got this far.
+    if (!(await photos.get(key))) {
+      await photos.createReady({ key, ownerId, tags: { ...tags, ...fields, recognized: true } });
+    }
     created.push(await items.create(ownerId, { ...fields, photoKey: key }));
     await queue.enqueueEmbedding(key);
   }

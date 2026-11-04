@@ -8,7 +8,7 @@ import type {
   SimilarItem,
   UpdateItemInput,
 } from "@closet-ai/shared";
-import { and, cosineDistance, desc, eq, isNotNull, ne } from "drizzle-orm";
+import { and, asc, cosineDistance, desc, eq, isNotNull, ne } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { items, photos } from "../../db/schema";
 
@@ -20,6 +20,8 @@ export interface ItemsRepository {
   // Changes only the fields given. null when the item doesn't exist or belongs to someone else.
   update(ownerId: string, itemId: string, patch: UpdateItemInput): Promise<ItemDetail | null>;
   create(ownerId: string, input: CreateItemInput): Promise<Item>;
+  // The owner's item on this photo, if there is one: a piece made from a photo twice is a retry.
+  findByPhoto(ownerId: string, photoKey: string): Promise<Item | null>;
   // The owner's items of the same category whose photos look most like this one's, closest
   // first. null when the item doesn't exist or belongs to someone else; empty when its photo
   // has no embedding yet.
@@ -129,6 +131,17 @@ export function createItemsRepository(db: Db): ItemsRepository {
         if (updated.length === 0) return null;
       }
       return get(ownerId, itemId);
+    },
+
+    async findByPhoto(ownerId, photoKey) {
+      const [row] = await db
+        .select({ item: items, ...photoFields })
+        .from(items)
+        .leftJoin(photos, eq(photos.key, items.photoKey))
+        .where(and(eq(items.ownerId, ownerId), eq(items.photoKey, photoKey)))
+        .orderBy(asc(items.createdAt))
+        .limit(1);
+      return row ? toItem(row.item, row) : null;
     },
 
     async create(ownerId, input) {
