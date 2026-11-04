@@ -1,6 +1,6 @@
 import type { ItemDetail } from '@closet-ai/shared';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Alert, type AlertButton } from 'react-native';
+import { AccessibilityInfo, Alert, type AlertButton } from 'react-native';
 
 import i18n from '@/i18n';
 import {
@@ -12,7 +12,7 @@ import {
   rotateItem,
   updateItem,
 } from '@/lib/api';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, OfflineError } from '@/lib/api-error';
 
 import { ItemScreen } from '.';
 
@@ -231,5 +231,40 @@ describe('<ItemScreen />', () => {
 
     expect(alert).toHaveBeenCalledWith("That's 5 for today. Ask again tomorrow.");
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  describe('waiting in place', () => {
+    const sign = () => screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true });
+
+    test('shows the piece’s place and the rail with the sign, and no error', async () => {
+      jest.mocked(getItem).mockReturnValueOnce(new Promise(() => {}));
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<ItemScreen id={shirt.id} />);
+
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(sign()).toHaveLength(1);
+      expect(announce).toHaveBeenCalledWith('Loading');
+      expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
+    });
+
+    test('the sign goes when the piece comes', async () => {
+      await render(<ItemScreen id={shirt.id} />);
+      expect(await screen.findByDisplayValue('White linen shirt')).toBeOnTheScreen();
+      expect(sign()).toHaveLength(0);
+      expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+    });
+
+    test('offline says so, stops the sign, and waits in place again on retry', async () => {
+      jest.mocked(getItem).mockRejectedValueOnce(new OfflineError('unreachable'));
+      await render(<ItemScreen id={shirt.id} />);
+
+      expect(await screen.findByText(/No connection to the server/)).toBeOnTheScreen();
+      expect(sign()).toHaveLength(0);
+
+      jest.mocked(getItem).mockReturnValueOnce(new Promise(() => {}));
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
+      expect(screen.queryByText(/No connection to the server/)).not.toBeOnTheScreen();
+    });
   });
 });
