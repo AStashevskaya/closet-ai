@@ -7,11 +7,11 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { ScreenTitle } from '@/components/maison';
+import { RailLine } from '@/components/rail-line';
 import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { ClosetCard } from './card';
-import { RailLine } from './rail';
 import { useCloset } from './use-closet';
 
 // The first screenful staggers in, one card after another.
