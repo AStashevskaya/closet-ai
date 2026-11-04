@@ -14,6 +14,8 @@ import Animated, {
 import { durations, EASE_OUT } from '@/motion';
 import { colors } from '@/theme';
 
+import { SIGN_BOX, SIGN_REACH, WaitingSign } from './waiting-sign';
+
 // A thread drawn down a column with its stops on it: the add-item fields and the auth screens
 // (docs/design.md, "The thread" and "Waiting"). Threads that run across (the look's, the closet's
 // rail) share the motion and the bead's way along them (`runAcross`).
@@ -22,7 +24,8 @@ import { colors } from '@/theme';
 export const THREAD_X = 9;
 export const INDENT = 34;
 export const DOT = 9;
-export const BEAD = 10;
+// The box the sign of waiting runs in (`WaitingSign`); its centre is on the thread.
+export const BEAD = SIGN_BOX;
 // The ink line's width, and the dots' outline.
 export const LINE_WEIGHT = 1.2;
 const DRAW_MS = 2000;
@@ -51,8 +54,9 @@ export function useThreadMotion(measured: boolean, waiting: boolean) {
       run.set(withRepeat(withTiming(1, { duration: RUN_MS, easing: EASE_OUT }), -1));
       return () => cancelAnimation(run);
     }
+    // Stays where it is while it fades out; the next wait starts it from the beginning.
     cancelAnimation(run);
-    run.set(0);
+    if (reduced) run.set(0);
   }, [waiting, reduced, run]);
 
   return { drawn, run, reduced };
@@ -91,7 +95,9 @@ export function BeadAcross({ waiting }: { waiting: boolean }) {
           testID="thread-waiting"
           style={[styles.acrossBead, bead]}
           exiting={FadeOut.duration(durations.state)}
-        />
+        >
+          <WaitingSign run={run} way="across" />
+        </Animated.View>
       )}
     </View>
   );
@@ -147,7 +153,9 @@ export function ThreadLine({
   const line = useAnimatedStyle(() => ({ transform: [{ scaleY: drawn.get() }] }));
   const bead = useAnimatedStyle(() => ({
     opacity: runOpacity(run.get()),
-    transform: [{ translateY: run.get() * Math.max(0, (follow ? height.get() : length) - BEAD) }],
+    transform: [
+      { translateY: run.get() * Math.max(0, (follow ? height.get() : length) - SIGN_REACH) },
+    ],
   }));
   const size = useAnimatedStyle(() => ({ top: -track.get(), height: height.get() }));
 
@@ -169,7 +177,9 @@ export function ThreadLine({
           testID="thread-waiting"
           style={[styles.bead, bead]}
           exiting={FadeOut.duration(durations.state)}
-        />
+        >
+          <WaitingSign run={run} way="down" />
+        </Animated.View>
       )}
     </Animated.View>
   );
@@ -238,8 +248,6 @@ const styles = StyleSheet.create({
     start: 0,
     width: BEAD,
     height: BEAD,
-    borderRadius: BEAD / 2,
-    backgroundColor: colors.bead,
   },
   across: {
     position: 'absolute',
@@ -255,8 +263,6 @@ const styles = StyleSheet.create({
     start: 0,
     width: BEAD,
     height: BEAD,
-    borderRadius: BEAD / 2,
-    backgroundColor: colors.bead,
   },
   stop: {
     paddingTop: 10,

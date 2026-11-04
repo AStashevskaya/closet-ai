@@ -4,6 +4,7 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle } from 'react-native-reanim
 import Svg, { Line } from 'react-native-svg';
 
 import { BEAD, runAcross, useThreadMotion } from '@/components/thread-stops';
+import { WaitingSign } from '@/components/waiting-sign';
 import { durations } from '@/motion';
 import { colors } from '@/theme';
 
@@ -63,7 +64,9 @@ export function LookThread({ state, pieces }: Props) {
           style={[styles.runner, bead]}
           exiting={FadeOut.duration(durations.state)}
           testID="thread-waiting"
-        />
+        >
+          <WaitingSign run={run} way="across" />
+        </Animated.View>
       )}
       {state === 'strung' &&
         pieces.map((on, index) => (
@@ -84,6 +87,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     minHeight: DOT + 8,
+    // The sign of waiting hangs below the line: room for it, kept so nothing moves when it goes.
+    marginBottom: 10,
   },
   line: {
     position: 'absolute',
@@ -108,8 +113,6 @@ const styles = StyleSheet.create({
     marginTop: -BEAD / 2,
     width: BEAD,
     height: BEAD,
-    borderRadius: BEAD / 2,
-    backgroundColor: colors.bead,
   },
   dot: {
     // Set, not left out: iOS keeps a dashed border once it's been dashed.

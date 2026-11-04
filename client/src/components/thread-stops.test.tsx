@@ -11,6 +11,16 @@ const hidden = { includeHiddenElements: true };
 
 afterEach(() => jest.restoreAllMocks());
 
+describe('the sign of waiting', () => {
+  test('is the tag, on threads across and down', async () => {
+    await render(<BeadAcross waiting />);
+    expect(screen.getByTestId('waiting-tag', hidden)).toBeOnTheScreen();
+
+    await render(<ThreadLine top={0} length={100} waiting />);
+    expect(screen.getByTestId('waiting-tag', hidden)).toBeOnTheScreen();
+  });
+});
+
 describe('BeadAcross', () => {
   test('runs only while something is waited for', async () => {
     await render(<BeadAcross waiting />);
