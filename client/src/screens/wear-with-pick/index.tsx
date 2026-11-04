@@ -26,7 +26,7 @@ import { colors, fonts } from '@/theme';
 // Finding the items takes a few seconds; after a minute the screen gives up.
 const POLL_MS = 1500;
 const MAX_POLLS = 40;
-// A blip is no reason to stop, but no connection for this many checks in a row (about 8 s) is: the
+// A blip is no reason to stop, but no connection for this many checks in a row (a few seconds) is: the
 // screen says so and offers to try again, rather than waiting out the minute.
 const MAX_OFFLINE_POLLS = 5;
 // The thread here carries no beads: the pieces are the rows under it.
