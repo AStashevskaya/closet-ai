@@ -133,7 +133,7 @@ describe('<WearWithPick />', () => {
       expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
     });
 
-    test('a photo not read goes dashed and reads it again, without sending it again', async () => {
+    test('a photo the server gave up on goes dashed and only offers another', async () => {
       jest.mocked(getPhotoState).mockResolvedValueOnce(unread);
       await render(<WearWithPick />);
       await fireEvent.press(screen.getByText('Choose from gallery'));
@@ -143,15 +143,9 @@ describe('<WearWithPick />', () => {
         screen.getByTestId('thread-unread', { includeHiddenElements: true }),
       ).toBeOnTheScreen();
       expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
-
-      jest
-        .mocked(getPhotoState)
-        .mockResolvedValue(found([lookItem('White shirt', 'top'), lookItem('Skirt', 'bottom')]));
-      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
-
-      expect(await screen.findByText('White shirt')).toBeOnTheScreen();
-      expect(uploadPhoto).toHaveBeenCalledTimes(1);
-      expect(getPhotoState).toHaveBeenCalledTimes(2);
+      // It would only fail the same way: the server doesn't read a failed photo again.
+      expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeOnTheScreen();
+      expect(screen.getByText('Choose from gallery')).toBeOnTheScreen();
     });
 
     test('a photo that never got there is sent again', async () => {

@@ -35,7 +35,8 @@ type Shot =
   | { status: 'finding'; uri: string; aspect: number }
   | { status: 'found'; uri: string; aspect: number; photoKey: string; items: LookItem[] }
   // offline: the server couldn't be reached, which is no fault of the photo.
-  | { status: 'failed'; uri: string; aspect: number; offline: boolean };
+  // `final`: the server has given up on this photo and won't read it again, so only another will do.
+  | { status: 'failed'; uri: string; aspect: number; offline: boolean; final?: boolean };
 
 // "What do I wear this with?" for an item the user doesn't own (yet): a screenshot or photo,
 // the item on it picked when there are several, then the outfits.
@@ -139,7 +140,8 @@ export function WearWithPick() {
     const poll = async () => {
       // Whether the last poll found the server unreachable.
       let offline = false;
-      for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
+      let final = false;
+      for (let tries = 0; tries < MAX_POLLS; tries++) {
         try {
           const state = await getPhotoState(photoKey);
           if (cancelled) return;
@@ -154,7 +156,10 @@ export function WearWithPick() {
             else void Haptics.selectionAsync();
             return;
           }
-          if (state.status === 'failed' || state.tagStatus !== 'pending') break;
+          if (state.status === 'failed' || state.tagStatus !== 'pending') {
+            final = true;
+            break;
+          }
           offline = false;
         } catch (error) {
           // A dropped request is no reason to stop; the next poll tries again.
@@ -165,7 +170,7 @@ export function WearWithPick() {
       }
       if (!cancelled) {
         setShot((current) =>
-          current.status === 'finding' ? { ...current, status: 'failed', offline } : current,
+          current.status === 'finding' ? { ...current, status: 'failed', offline, final } : current,
         );
       }
     };
@@ -187,7 +192,13 @@ export function WearWithPick() {
       : null;
   const failedText =
     shot.status === 'failed' ? t(shot.offline ? 'common.offline' : 'wearWith.notRead') : null;
-  useAnnounce(waitingFor ?? failedText);
+  // One piece goes straight on to its outfits, with nothing to pick here.
+  const foundText =
+    shot.status !== 'found' || shot.items.length === 1
+      ? null
+      : t(shot.items.length === 0 ? 'wearWith.none' : 'wearWith.pickOne');
+  const statusText = waitingFor ?? failedText ?? foundText;
+  useAnnounce(statusText);
 
   const outOfToday = left === 0 || limit !== null;
   const buttons = outOfToday ? (
@@ -247,7 +258,7 @@ export function WearWithPick() {
         </>
       )}
 
-      {shot.status !== 'empty' && (
+      {statusText && (
         <Animated.View
           key={`${shot.status}-${busy}`}
           style={styles.status}
@@ -256,17 +267,8 @@ export function WearWithPick() {
           accessible={waiting}
           accessibilityRole={waiting ? 'progressbar' : undefined}
           accessibilityLabel={waitingFor ?? undefined}
-          accessibilityLiveRegion="polite"
         >
-          <Text style={styles.statusText}>
-            {waitingFor ?? failedText}
-            {!waiting &&
-              shot.status === 'found' &&
-              (shot.items.length === 0
-                ? t('wearWith.none')
-                : // One piece goes straight on to its outfits, with nothing to pick here.
-                  shot.items.length > 1 && t('wearWith.pickOne'))}
-          </Text>
+          <Text style={styles.statusText}>{statusText}</Text>
         </Animated.View>
       )}
 
@@ -305,7 +307,7 @@ export function WearWithPick() {
       {(shot.status === 'failed' || (shot.status === 'found' && shot.items.length === 0)) &&
         !busy && (
           <Animated.View style={styles.again} entering={arrive}>
-            {shot.status === 'failed' && !outOfToday && (
+            {shot.status === 'failed' && !shot.final && !outOfToday && (
               <Button kind="outline" label={t('wearWith.retry')} onPress={() => void retry()} />
             )}
             {buttons}
