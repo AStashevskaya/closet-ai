@@ -58,31 +58,69 @@ export async function sessionHeaders(): Promise<Record<string, string>> {
 // Paths from the API (such as an item's photoUrl) are relative to the server.
 export const absoluteUrl = (path: string) => `${apiUrl()}${path}`;
 
-// Sends the request with the session cookie and turns a non-2xx status into an ApiError.
-async function send(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = { ...(await sessionHeaders()), ...init.headers };
-  let res: Response;
+// How long a request may go unanswered before it counts as no connection, so a screen waiting for
+// it can say so and offer a retry instead of waiting forever. A check in a polling loop is the
+// shortest: the loop asks again anyway, and counts on a check ending soon to give up in time. Heavy
+// work gets the longest: on a slow network an upload takes a while, and so does the server's work
+// with photos in storage.
+export const POLL_TIMEOUT_MS = 10_000;
+export const REQUEST_TIMEOUT_MS = 30_000;
+export const HEAVY_TIMEOUT_MS = 120_000;
+
+// Sends the request with the session cookie, turns a non-2xx status into an ApiError and hands the
+// answer to `read`. The time limit covers reading the body too. An AbortController with a timer,
+// not AbortSignal.timeout, which React Native doesn't guarantee; its signal replaces any in `init`.
+async function exchange<T>(
+  path: string,
+  init: RequestInit,
+  timeoutMs: number,
+  read: (res: Response) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    res = await fetch(absoluteUrl(path), { ...init, headers });
+    const headers = { ...(await sessionHeaders()), ...init.headers };
+    let res: Response;
+    try {
+      res = await fetch(absoluteUrl(path), { ...init, headers, signal: controller.signal });
+    } catch (cause) {
+      // fetch only rejects when no answer came back at all.
+      throw new OfflineError(cause instanceof Error ? cause.message : 'unreachable');
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      throw new ApiError(res.status, body?.message ?? res.statusText);
+    }
+    return await read(res);
   } catch (cause) {
-    // fetch only rejects when no answer came back at all.
-    throw new OfflineError(cause instanceof Error ? cause.message : 'unreachable');
+    // Cut off while reading the body: the same as no answer. A refusal the server did send stays
+    // one, or a used-up limit would read as no connection.
+    if (
+      controller.signal.aborted &&
+      !(cause instanceof OfflineError) &&
+      !(cause instanceof ApiError)
+    ) {
+      throw new OfflineError('timed out');
+    }
+    throw cause;
+  } finally {
+    clearTimeout(timer);
   }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(res.status, body?.message ?? res.statusText);
-  }
-  return res;
+}
+
+// For a call whose answer has nothing to read.
+async function send(path: string, init: RequestInit = {}): Promise<void> {
+  await exchange(path, init, REQUEST_TIMEOUT_MS, async () => undefined);
 }
 
 // Responses are parsed with the shared Zod schemas, so a server/app mismatch fails loudly here.
-async function request<T>(
+function request<T>(
   path: string,
   schema: { parse(data: unknown): T },
   init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
-  const res = await send(path, init);
-  return schema.parse(await res.json());
+  return exchange(path, init, timeoutMs, async (res) => schema.parse(await res.json()));
 }
 
 export function listItems(): Promise<Item[]> {
@@ -187,7 +225,7 @@ export async function answerWish(id: string, answer: WishAnswer): Promise<void> 
 
 // Partner pieces in the outfits come named in the language asked for.
 export function getWearWith(id: string, lang: AppLanguage): Promise<WearWithRequest> {
-  return request(`/api/wear-with/${id}?lang=${lang}`, wearWithRequest);
+  return request(`/api/wear-with/${id}?lang=${lang}`, wearWithRequest, {}, POLL_TIMEOUT_MS);
 }
 
 // The Edit: partner pieces closest to the user's closet first.
@@ -228,7 +266,7 @@ export async function deleteWearWith(id: string): Promise<void> {
 
 // Turns the item's photo (and its cut-out) a quarter clockwise; the photo URLs change.
 export function rotateItem(id: string): Promise<ItemDetail> {
-  return request(`/api/items/${id}/rotate`, itemDetail, { method: 'POST' });
+  return request(`/api/items/${id}/rotate`, itemDetail, { method: 'POST' }, HEAVY_TIMEOUT_MS);
 }
 
 // The server answers 204 with no body, so there is nothing to parse.
@@ -248,10 +286,12 @@ export async function uploadPhoto(
   // The global fetch is expo/fetch, which rejects React Native's { uri, name, type } parts
   // ("Unsupported FormDataPart implementation"). An expo-file-system File is a Blob it can read.
   form.append('photo', new File(uri));
-  const { photoKey } = await request(`/api/photos?lang=${lang}&kind=${kind}`, uploadedPhoto, {
-    method: 'POST',
-    body: form,
-  });
+  const { photoKey } = await request(
+    `/api/photos?lang=${lang}&kind=${kind}`,
+    uploadedPhoto,
+    { method: 'POST', body: form },
+    HEAVY_TIMEOUT_MS,
+  );
   return photoKey;
 }
 
@@ -259,14 +299,20 @@ export async function uploadPhoto(
 // lang names a "want" look's partner pieces.
 export function getPhotoState(photoKey: string, lang?: AppLanguage): Promise<PhotoState> {
   const query = `key=${encodeURIComponent(photoKey)}${lang ? `&lang=${lang}` : ''}`;
-  return request(`/api/photos/status?${query}`, photoState);
+  return request(`/api/photos/status?${query}`, photoState, {}, POLL_TIMEOUT_MS);
 }
 
 // Adds the items picked from a look photo to the wardrobe; each gets the look cropped to it.
 export function addLookItems(input: AddLookItemsInput): Promise<Item[]> {
-  return request('/api/photos/look-items', itemList, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  });
+  return request(
+    '/api/photos/look-items',
+    itemList,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    // The server crops and stores each piece in turn.
+    HEAVY_TIMEOUT_MS,
+  );
 }

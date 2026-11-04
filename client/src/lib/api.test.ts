@@ -1,6 +1,15 @@
 import { File } from 'expo-file-system';
 
-import { ApiError, deleteItem, getPhotoState, uploadPhoto } from './api';
+import {
+  ApiError,
+  deleteItem,
+  getPhotoState,
+  HEAVY_TIMEOUT_MS,
+  OfflineError,
+  POLL_TIMEOUT_MS,
+  REQUEST_TIMEOUT_MS,
+  uploadPhoto,
+} from './api';
 
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -94,5 +103,101 @@ describe('deleteItem', () => {
     });
 
     await expect(deleteItem('item-1')).rejects.toEqual(new ApiError(404, 'item not found'));
+  });
+});
+
+describe('a request with no answer', () => {
+  // A server that never answers: fetch only ends when it's aborted.
+  function neverAnswers() {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+        }),
+    );
+  }
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  // Lets the call reach fetch: it reads the session cookie first.
+  const reachFetch = () => jest.advanceTimersByTimeAsync(0);
+
+  test('counts as no connection after the time limit, and not before', async () => {
+    neverAnswers();
+    const settled = jest.fn();
+    const call = deleteItem('item-1');
+    const failed = expect(call).rejects.toBeInstanceOf(OfflineError);
+    void call.catch(settled);
+
+    await reachFetch();
+    await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
+    expect(settled).not.toHaveBeenCalled();
+
+    await jest.advanceTimersByTimeAsync(1);
+    await failed;
+  });
+
+  test('a check in a polling loop gives up sooner, so the loop can count on it', async () => {
+    neverAnswers();
+    const failed = expect(getPhotoState('photos/u1/p1.webp')).rejects.toBeInstanceOf(OfflineError);
+
+    await reachFetch();
+    await jest.advanceTimersByTimeAsync(POLL_TIMEOUT_MS);
+    await failed;
+  });
+
+  test('a refusal stays a refusal, even when its body never comes', async () => {
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => ({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+      json: () =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+        }),
+    }));
+    const failed = expect(deleteItem('item-1')).rejects.toEqual(
+      new ApiError(429, 'Too Many Requests'),
+    );
+
+    await reachFetch();
+    await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+    await failed;
+  });
+
+  test('a body that never comes counts too', async () => {
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => ({
+      ok: true,
+      json: () =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+        }),
+    }));
+    const failed = expect(getPhotoState('photos/u1/p1.webp')).rejects.toBeInstanceOf(OfflineError);
+
+    await reachFetch();
+    await jest.advanceTimersByTimeAsync(POLL_TIMEOUT_MS);
+    await failed;
+  });
+
+  test('a photo on a slow network gets longer', async () => {
+    neverAnswers();
+    const settled = jest.fn();
+    const call = uploadPhoto('file:///small.jpg', 'ru');
+    const failed = expect(call).rejects.toBeInstanceOf(OfflineError);
+    void call.catch(settled);
+
+    await reachFetch();
+    await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+    expect(settled).not.toHaveBeenCalled();
+
+    await jest.advanceTimersByTimeAsync(HEAVY_TIMEOUT_MS - REQUEST_TIMEOUT_MS);
+    await failed;
+  });
+
+  test('an answer in time leaves no timer behind', async () => {
+    await getPhotoState('photos/u1/p1.webp').catch(() => {});
+    expect(jest.getTimerCount()).toBe(0);
   });
 });
