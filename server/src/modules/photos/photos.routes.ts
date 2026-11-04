@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   addLookItemsInput,
   APP_LANGUAGES,
@@ -16,6 +16,7 @@ import type { PhotoQueue } from "../../queue/photo-queue";
 import { toCatalogItem, type CatalogRepository } from "../catalog/catalog.repository";
 import { keyVersion, type ItemsRepository } from "../items/items.repository";
 import { addItemsFromLook } from "./look-items";
+import { deletePhoto } from "./photo-jobs";
 import type { Storage } from "../../storage/storage";
 import { BRIEF_AFTER_SAVE_MS } from "../inspiration/inspiration.routes";
 import type { OutfitQueue } from "../outfits/outfit-jobs";
@@ -60,13 +61,33 @@ export const photosRoutes =
           querystring: z.object({
             lang: z.enum(APP_LANGUAGES).default("en"),
             kind: z.enum(PHOTO_KINDS).default("item"),
+            // The phone's name for this upload, the same on a retry. Left out by older builds.
+            attempt: z
+              .string()
+              .regex(/^[\w-]{8,64}$/)
+              .optional(),
           }),
           response: { 201: uploadedPhoto },
         },
       },
       async (request, reply) => {
         const user = request.user as SessionUser;
-        const { kind } = request.query;
+        const { kind, attempt } = request.query;
+        // From the phone's name for the upload, so a retry after an answer that never came finds
+        // the photo the first try stored: not counted again, and no second copy.
+        const id = attempt
+          ? createHash("sha256").update(`${user.id}:${kind}:${attempt}`).digest("hex")
+          : randomUUID();
+        const photoKey = `${photoPrefix(user.id)}${id}.webp`;
+        const uploadKey = `${uploadPrefix(user.id)}${id}`;
+        if (attempt) {
+          const earlier = await photos.get(photoKey);
+          if (earlier && earlier.status !== "failed") {
+            return reply.code(201).send({ photoKey, status: "processing" as const });
+          }
+          // One that failed gets its try again, from a clean start.
+          if (earlier) await deletePhoto({ photos, storage }, photoKey);
+        }
         // Every kind is an AI action counted against the free tier. A photo of an item to style
         // counts as a photo (finding its items is cheap); the outfits count when asked for, and
         // the day's limit is checked now so nobody uploads for nothing.
@@ -86,18 +107,23 @@ export const photosRoutes =
           throw error;
         }
 
-        const id = randomUUID();
-        const photoKey = `${photoPrefix(user.id)}${id}.webp`;
-        const uploadKey = `${uploadPrefix(user.id)}${id}`;
         await storage.put(uploadKey, input, contentType);
-        await photos.create({
-          key: photoKey,
-          ownerId: user.id,
-          uploadKey,
-          kind,
-          // A saved look isn't read on its own: the style brief reads the latest ones together.
-          tagStatus: taggingEnabled && kind !== "inspiration" ? "pending" : null,
-        });
+        try {
+          await photos.create({
+            key: photoKey,
+            ownerId: user.id,
+            uploadKey,
+            kind,
+            // A saved look isn't read on its own: the style brief reads the latest ones together.
+            tagStatus: taggingEnabled && kind !== "inspiration" ? "pending" : null,
+          });
+        } catch (error) {
+          // A retry that overtook the first try, which has the photo: that one goes on with it.
+          if (attempt && (await photos.get(photoKey))) {
+            return reply.code(201).send({ photoKey, status: "processing" as const });
+          }
+          throw error;
+        }
         // If queueing fails the request fails too; the row is never attached and the cleanup job removes it.
         await queue.enqueueProcessing(photoKey, request.query.lang);
         await limits.record(user.id, action);

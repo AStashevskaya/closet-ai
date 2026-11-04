@@ -125,6 +125,27 @@ function upload(server: App, cookie: string, bytes: Uint8Array, type = "image/jp
 }
 
 describe("POST /api/photos", () => {
+  it("recognises a retry by its attempt: counted once, stored once", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const photo = await cameraPhoto();
+    queue.queued.length = 0;
+
+    const first = await upload(server, cookie, photo, "image/jpeg", "?attempt=abcd-1234");
+    const again = await upload(server, cookie, photo, "image/jpeg", "?attempt=abcd-1234");
+    expect(again.statusCode).toBe(201);
+    expect(again.json<UploadedPhoto>().photoKey).toBe(first.json<UploadedPhoto>().photoKey);
+    // Answered before it's processed, stored or counted again.
+    expect(queue.queued).toHaveLength(1);
+
+    // Another attempt, and another person with the same one, are uploads of their own.
+    const other = await upload(server, cookie, photo, "image/jpeg", "?attempt=abcd-5678");
+    expect(other.json<UploadedPhoto>().photoKey).not.toBe(first.json<UploadedPhoto>().photoKey);
+    const maya = await signUp(server, "maya@example.com");
+    const hers = await upload(server, maya, photo, "image/jpeg", "?attempt=abcd-1234");
+    expect(hers.json<UploadedPhoto>().photoKey).not.toBe(first.json<UploadedPhoto>().photoKey);
+  });
+
   it("requires a session", async () => {
     const server = await setup();
     const res = await upload(server, "", await cameraPhoto());

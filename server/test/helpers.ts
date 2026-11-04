@@ -190,6 +190,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         createdAt: stamp(),
       });
     },
+    isHeroOfRequest: async (key) => requests.some((r) => r.heroPhotoKey === key),
     createReady: async (photo) => {
       photoRows.set(photo.key, {
         ...photo,
@@ -383,6 +384,16 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         .filter(
           (r) =>
             r.userId === userId && r.itemId === itemId && r.mood === mood && r.status === "done",
+        )
+        .at(-1) ?? null,
+    latestAsked: async (userId, hero, mood) =>
+      requests
+        .filter(
+          (r) =>
+            r.userId === userId &&
+            ("itemId" in hero ? r.itemId === hero.itemId : r.heroPhotoKey === hero.heroPhotoKey) &&
+            r.mood === mood &&
+            r.status !== "failed",
         )
         .at(-1) ?? null,
     saveOutfits: async (requestId, userId, looks, _cost, verdict = null) => {
