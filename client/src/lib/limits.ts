@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useState } from 'react';
 
 import { getUsage } from './api';
-import { ApiError, limitReached } from './api-error';
+import { ApiError, isOffline, limitReached } from './api-error';
 
 // What the user sees when a limit stops them: which limit, how many, and when it resets.
 export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: Usage | null) {
@@ -31,6 +31,7 @@ export function askFailedText(t: TFunction, lang: string, cause: unknown, usage?
   const code = limitReached(cause);
   if (code) return limitText(t, lang, code, usage);
   if (cause instanceof ApiError && cause.status === 503) return t('wearWith.off');
+  if (isOffline(cause)) return t('common.offline');
   return t('wearWith.failed');
 }
 
