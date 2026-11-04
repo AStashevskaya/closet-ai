@@ -21,7 +21,14 @@ type State =
   | { status: 'loading' }
   | { status: 'failed'; offline: boolean }
   // `now`: when the list was read, to count each wish's week down from (not read during render).
-  | { status: 'done'; wishes: Wish[]; headers: Record<string, string>; now: number };
+  // `threadFrom`: the wish that took over the thread the bead ran down, which is there at once.
+  | {
+      status: 'done';
+      wishes: Wish[];
+      headers: Record<string, string>;
+      now: number;
+      threadFrom: string | null;
+    };
 
 const DAY = 24 * 60 * 60 * 1000;
 const WEEK = 7;
@@ -73,7 +80,14 @@ export function Wishes() {
   const load = useCallback(async () => {
     try {
       const [wishes, headers] = await Promise.all([listWishes(), sessionHeaders()]);
-      setState({ status: 'done', wishes, headers, now: Date.now() });
+      const now = Date.now();
+      setState((current) => ({
+        status: 'done',
+        wishes,
+        headers,
+        now,
+        threadFrom: current.status === 'done' ? current.threadFrom : (wishes[0]?.id ?? null),
+      }));
     } catch (cause) {
       if (__DEV__) console.warn('Loading the wishes failed', cause);
       // A failed reload keeps the wishes already shown; only a first load says it failed.
@@ -140,6 +154,7 @@ export function Wishes() {
   const wishes = state.status === 'done' ? state.wishes : [];
   const headers = state.status === 'done' ? state.headers : undefined;
   const now = state.status === 'done' ? state.now : 0;
+  const threadFrom = state.status === 'done' ? state.threadFrom : null;
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {/* One layout for every state (docs/design.md, "Waiting"): the title stays where it is and the
@@ -182,7 +197,7 @@ export function Wishes() {
                 joined={index > 0}
                 last={index === wishes.length - 1}
                 delay={index * STAGGER_STEP}
-                inPlace={index === 0}
+                inPlace={wish.id === threadFrom}
               >
                 <Animated.View
                   style={[styles.stop, wish.due && styles.due]}

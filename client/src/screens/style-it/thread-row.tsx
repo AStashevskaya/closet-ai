@@ -159,7 +159,6 @@ export function ThreadWaiting() {
           accessible
           accessibilityRole="progressbar"
           accessibilityLabel={t('common.loading')}
-          accessibilityLiveRegion="polite"
         />
       </ThreadRow>
       <ThreadLine

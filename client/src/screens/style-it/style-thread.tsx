@@ -95,7 +95,6 @@ export function StyleThread({
                 accessible
                 accessibilityRole="progressbar"
                 accessibilityLabel={waitingFor ?? undefined}
-                accessibilityLiveRegion="polite"
               >
                 {looks.composing && <Text style={maison.body}>{t('wearWith.composing')}</Text>}
               </Animated.View>

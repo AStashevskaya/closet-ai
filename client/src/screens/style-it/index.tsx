@@ -189,8 +189,11 @@ export function StyleIt() {
   const closetError =
     closetFailed && t(closetFailed.offline ? 'common.offline' : 'closet.loadError');
   const diaryError = diaryFailed && t(diaryFailed.offline ? 'common.offline' : 'styleIt.loadError');
-  // Both failing say one thing, with one retry: it reads both again.
-  useAnnounce(waiting ? t('common.loading') : (closetError ?? diaryError));
+  // Both failing say one thing, with one retry: it reads both again. The diary's error shows only
+  // with no stops at all (the piece just asked about may be one).
+  useAnnounce(
+    waiting ? t('common.loading') : (closetError ?? (entries.length === 0 ? diaryError : null)),
+  );
 
   return (
     <ScrollView

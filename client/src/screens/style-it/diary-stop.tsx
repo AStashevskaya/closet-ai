@@ -1,6 +1,7 @@
 import type { StyledEntry, StyledPreview } from '@closet-ai/shared';
 import { Image } from 'expo-image';
 import type { TFunction } from 'i18next';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -50,6 +51,9 @@ export function DiaryStop({
   const day = dayLabel(entry.createdAt, t, i18n.language);
   const wish = entry.wishAskAt && wishLine(entry.wishAskAt, now, t);
   const deleting = useDeleteStyling(entry.id, onDeleted);
+  // As it was when the stop came: a line still drawing itself must not start over when the diary
+  // counts as settled.
+  const [delay] = useState(settleDelay);
   return (
     <ThreadRow
       kind="root"
@@ -57,11 +61,11 @@ export function DiaryStop({
       last={last}
       hollow
       dashed={entry.loose}
-      delay={settleDelay}
-      // The first stop's thread is the one the bead ran down.
-      inPlace={!joined}
+      delay={delay}
+      // The first stop of a diary just loaded: its thread is the one the bead ran down.
+      inPlace={!joined && delay !== undefined}
     >
-      <Animated.View entering={settleDelay === undefined ? undefined : arrive.delay(settleDelay)}>
+      <Animated.View entering={delay === undefined ? undefined : arrive.delay(delay)}>
         <PressableScale
           style={styles.stop}
           onPress={onOpen}
