@@ -331,7 +331,11 @@
       "weather": "Wrong for the weather",
       "occasion": "Not for my plans"
     },
-    "addFailed": "Couldn't add it to your closet. Try again."
+    "addFailed": "Couldn't add it to your closet. Try again.",
+    "steps": {
+      "closet": "Looking through your closet…",
+      "pairing": "Trying pieces together…"
+    }
   },
   "limits": {
     "left": "{{left}} of {{limit}} left this month",
