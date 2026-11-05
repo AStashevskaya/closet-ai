@@ -14,6 +14,7 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  privacyConsent: text("privacy_consent"),
 });
 
 export const session = pgTable(

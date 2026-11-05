@@ -161,7 +161,8 @@
       "invalidCredentials": "Wrong email or password",
       "userExists": "An account with this email already exists",
       "network": "Can't reach the server. Check your connection and try again.",
-      "generic": "Something went wrong. Try again."
+      "generic": "Something went wrong. Try again.",
+      "consent": "Accept the privacy policy to continue"
     },
     "welcomeTitle": "Welcome back",
     "signUpTitle": "Start your closet",
@@ -170,7 +171,9 @@
     "noAccount": "No account?",
     "railEmpty": "Your closet goes here",
     "railWaiting": "Your closet is waiting",
-    "passwordHint": "8 characters or more"
+    "passwordHint": "8 characters or more",
+    "consent": "I accept the <link>privacy policy</link>. My photos and closet are stored and processed abroad, including in the EU and the US, and I understand those countries may protect data differently.",
+    "readPolicy": "Read the privacy policy"
   },
   "seasons": {
     "spring": "Spring",

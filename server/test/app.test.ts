@@ -42,7 +42,12 @@ async function signUp(server: App, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { name: "Test User", email, password: "correct-horse-battery" },
+    payload: {
+      privacyConsent: "2026-11-05",
+      name: "Test User",
+      email,
+      password: "correct-horse-battery",
+    },
   });
   expect(res.statusCode).toBe(200);
   const cookies = res.cookies.map(({ name, value }) => `${name}=${value}`);
@@ -92,7 +97,12 @@ describe("auth", () => {
     ).inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
-      payload: { name: "Test User", email: "short@example.com", password: "123" },
+      payload: {
+        privacyConsent: "2026-11-05",
+        name: "Test User",
+        email: "short@example.com",
+        password: "123",
+      },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -118,7 +128,12 @@ describe("auth", () => {
       url: "/api/auth/sign-up/email",
       // A cookie makes Better Auth validate the origin; without one the check is skipped.
       headers: { origin: "closetai://", cookie: "x=1" },
-      payload: { name: "Test User", email: "app@example.com", password: "correct-horse-battery" },
+      payload: {
+        privacyConsent: "2026-11-05",
+        name: "Test User",
+        email: "app@example.com",
+        password: "correct-horse-battery",
+      },
     });
     expect(res.statusCode).toBe(200);
   });
@@ -130,7 +145,12 @@ describe("auth", () => {
       method: "POST",
       url: "/api/auth/sign-up/email",
       headers: { origin: "https://evil.example.com", cookie: "x=1" },
-      payload: { name: "Test User", email: "evil@example.com", password: "correct-horse-battery" },
+      payload: {
+        privacyConsent: "2026-11-05",
+        name: "Test User",
+        email: "evil@example.com",
+        password: "correct-horse-battery",
+      },
     });
     expect(res.statusCode).toBe(403);
   });

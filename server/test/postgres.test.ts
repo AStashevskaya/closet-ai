@@ -107,7 +107,7 @@ describe.skipIf(!url)("on Postgres", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
-      payload: { name: "Test User", email, password: "correct-horse-battery" },
+      payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
     });
     expect(res.statusCode).toBe(200);
     return res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");

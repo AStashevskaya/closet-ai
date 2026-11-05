@@ -47,6 +47,7 @@ eas login
 eas init                  # создаст проект EAS и допишет projectId в app.json: закоммить это
 eas env:create --environment preview --name EXPO_PUBLIC_API_URL --value https://api.<домен> --visibility plaintext
 eas env:create --environment preview --name EXPO_PUBLIC_SUPPORT_EMAIL --value <почта> --visibility plaintext
+eas env:create --environment preview --name EXPO_PUBLIC_PRIVACY_URL --value <ссылка на политику> --visibility plaintext
 eas build --platform ios --profile testflight   # спросит вход в Apple и сам создаст сертификаты
 eas submit --platform ios --profile testflight --latest
 ```
