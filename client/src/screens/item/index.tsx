@@ -13,8 +13,8 @@ import {
 } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -35,6 +35,7 @@ import { Chip } from '@/components/chip';
 import { BrandPriceFields } from '@/components/brand-price-fields';
 import { Button, maison } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
+import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { PressableScale } from '@/components/pressable-scale';
 import { RailLine } from '@/components/rail-line';
@@ -110,6 +111,10 @@ export function ItemScreen({ id }: { id: string }) {
   const [similar, setSimilar] = useState<SimilarItem[]>([]);
   // The item as last loaded, to tell unsaved corrections from what the server has.
   const loaded = useRef<ItemDetail | null>(null);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const nameInput = useRef<ComponentRef<typeof TextInput>>(null);
+  // Where the fields start in the scroll view, for "Edit" in the menu.
+  const fieldsY = useRef(0);
 
   const load = useCallback(async () => {
     try {
@@ -174,7 +179,12 @@ export function ItemScreen({ id }: { id: string }) {
             accessibilityLabel={waiting ? t('common.loading') : undefined}
           />
           <RailLine waiting={waiting} />
-          <View style={styles.body}>
+          <View
+            style={styles.body}
+            onLayout={(event) => {
+              fieldsY.current = event.nativeEvent.layout.y;
+            }}
+          >
             {failedText && (
               <Animated.View key="failed" style={styles.failed} entering={arrive}>
                 <Text style={maison.body}>{failedText}</Text>
@@ -267,6 +277,20 @@ export function ItemScreen({ id }: { id: string }) {
     }
   }
 
+  // The fields are always editable, under the tall photo: "Edit" brings them up.
+  function startEditing() {
+    scroll.current?.scrollTo({ y: fieldsY.current, animated: true });
+    nameInput.current?.focus();
+  }
+
+  function openMenu() {
+    Alert.alert(item.name, undefined, [
+      { text: t('item.edit'), onPress: startEditing },
+      { text: t('closet.delete'), style: 'destructive', onPress: confirmDelete },
+      { text: t('closet.cancel'), style: 'cancel' },
+    ]);
+  }
+
   function confirmDelete() {
     Alert.alert(t('closet.deleteTitle', { name: item.name }), t('closet.deleteMessage'), [
       { text: t('closet.cancel'), style: 'cancel' },
@@ -294,7 +318,24 @@ export function ItemScreen({ id }: { id: string }) {
       // iOS is handled by the ScrollView below; Android still needs the view to shrink.
       behavior={Platform.OS === 'android' ? 'height' : undefined}
     >
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              style={styles.more}
+              onPress={openMenu}
+              disabled={busy}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('item.more')}
+            >
+              <Icon name="more" color={colors.text} size={24} strokeWidth={2.6} />
+            </Pressable>
+          ),
+        }}
+      />
       <ScrollView
+        ref={scroll}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="never"
         keyboardShouldPersistTaps="handled"
@@ -360,6 +401,7 @@ export function ItemScreen({ id }: { id: string }) {
 
           <Text style={styles.label}>{t('addItem.name')}</Text>
           <TextInput
+            ref={nameInput}
             style={styles.input}
             value={draft.name}
             onChangeText={(name) => update({ name })}
@@ -648,6 +690,12 @@ const styles = StyleSheet.create({
   },
   save: {
     marginTop: 28,
+  },
+  more: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deleteButton: {
     minHeight: 44,
