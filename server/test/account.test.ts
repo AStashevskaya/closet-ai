@@ -107,6 +107,28 @@ describe("deleting the account", () => {
     expect(answer.json()).toMatchObject({ code: "CONSENT_REQUIRED" });
   });
 
+  it("the consent given at sign-up can't be changed afterwards", async () => {
+    const { server } = await setup();
+    const { cookie } = await signUp(server, "anna@example.com");
+    const answer = await server.inject({
+      method: "POST",
+      url: "/api/auth/update-user",
+      headers: { cookie, origin: "closetai://" },
+      payload: { privacyConsent: "2099-01-01" },
+    });
+    expect(answer.statusCode).toBe(400);
+    expect(answer.json()).toMatchObject({ code: "CONSENT_READ_ONLY" });
+
+    const session = await server.inject({
+      method: "GET",
+      url: "/api/auth/get-session",
+      headers: { cookie },
+    });
+    expect(session.json<{ user: { privacyConsent: string } }>().user.privacyConsent).toBe(
+      "2026-11-05",
+    );
+  });
+
   it("asks for the right password first", async () => {
     const { server, storage } = await setup();
     const anna = await signUp(server, "anna@example.com");

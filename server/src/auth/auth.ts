@@ -38,9 +38,16 @@ export function createAuth(env: Env, database: DBAdapterInstance, options: Optio
     // No account without consent: photos go to services abroad (docs/legal/privacy-policy.md).
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (ctx.path !== "/sign-up/email") return;
         const consent: unknown = (ctx.body as { privacyConsent?: unknown } | undefined)
           ?.privacyConsent;
+        // A record of what was accepted at sign-up: input is on for sign-up only.
+        if (ctx.path === "/update-user" && consent !== undefined) {
+          throw new APIError("BAD_REQUEST", {
+            code: "CONSENT_READ_ONLY",
+            message: "The accepted privacy policy can't be changed",
+          });
+        }
+        if (ctx.path !== "/sign-up/email") return;
         if (typeof consent !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(consent)) {
           throw new APIError("BAD_REQUEST", {
             code: "CONSENT_REQUIRED",

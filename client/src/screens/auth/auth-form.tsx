@@ -75,6 +75,11 @@ const shift = LinearTransition.duration(durations.state).easing(EASE_OUT);
 // then one thread from the title's bead down through the fields to the button, the bead at its
 // end. Both routes render this screen, and switching between them happens here rather than by
 // navigating, so only the hangers fill or empty and the words change; nothing enters again.
+// A bad address only means the page doesn't open.
+function openPolicy(url: string) {
+  Linking.openURL(url).catch(() => undefined);
+}
+
 export function AuthForm({ mode: initialMode }: { mode: Mode }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -142,6 +147,8 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
   }
 
   function toggle() {
+    // Each sign-up ticks it on purpose, not because of an earlier visit to this form.
+    setConsent(false);
     setMode(isSignUp ? 'sign-in' : 'sign-up');
     setSwitched(true);
     setError(null);
@@ -324,7 +331,7 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
                       link: (
                         <Text
                           style={policy ? styles.consentLink : undefined}
-                          onPress={policy ? () => void Linking.openURL(policy) : undefined}
+                          onPress={policy ? () => openPolicy(policy) : undefined}
                         />
                       ),
                     }}
@@ -333,7 +340,7 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
                 {policy && (
                   <Text
                     style={styles.consentRead}
-                    onPress={() => void Linking.openURL(policy)}
+                    onPress={() => openPolicy(policy)}
                     accessibilityRole="link"
                   >
                     {t('auth.readPolicy')}
