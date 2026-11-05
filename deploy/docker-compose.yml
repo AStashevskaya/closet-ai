@@ -1,0 +1,93 @@
+# The whole server on one machine. Run from deploy/: docker compose up -d --build
+# Only Caddy publishes ports; the database and Redis are reachable from these containers alone.
+x-server: &server
+  build:
+    context: ..
+    dockerfile: server/Dockerfile
+  image: closet-server
+  restart: unless-stopped
+  env_file: .env
+  environment: &server-env
+    NODE_ENV: production
+    DATABASE_URL: postgres://closet:${POSTGRES_PASSWORD}@postgres:5432/closet
+    REDIS_URL: redis://redis:6379
+    BETTER_AUTH_URL: https://${API_DOMAIN}
+    WORKERS_IN_API: "false"
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  # Runs once on every deploy, before the new code starts.
+  migrate:
+    <<: *server
+    restart: "no"
+    command: ["node_modules/.bin/drizzle-kit", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *server
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *server
+    command: ["node", "dist/worker.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: closet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: closet
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U closet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # appendonly: queued jobs survive a restart. BullMQ needs Redis not to evict keys, the default.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
