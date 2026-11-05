@@ -1,3 +1,7 @@
+// Hermes may have no Intl.PluralRules, and i18next then can't pick a plural form («7 вещи»). It
+// installs itself only where the engine lacks it or its languages.
+import 'intl-pluralrules';
+
 import { getLocales } from 'expo-localization';
 import * as SecureStore from 'expo-secure-store';
 import i18n from 'i18next';
