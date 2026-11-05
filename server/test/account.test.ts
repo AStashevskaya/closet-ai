@@ -119,6 +119,15 @@ describe("deleting the account", () => {
     expect(answer.statusCode).toBe(400);
     expect(answer.json()).toMatchObject({ code: "CONSENT_READ_ONLY" });
 
+    // Not by another spelling of the path either.
+    const slashed = await server.inject({
+      method: "POST",
+      url: "/api/auth/update-user/",
+      headers: { cookie, origin: "closetai://" },
+      payload: { privacyConsent: "2099-01-01" },
+    });
+    expect(slashed.statusCode).toBeGreaterThanOrEqual(400);
+
     const session = await server.inject({
       method: "GET",
       url: "/api/auth/get-session",
