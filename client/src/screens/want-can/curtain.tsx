@@ -40,7 +40,10 @@ const MAX_HEIGHT = 520;
 // Room around the pieces found, so the look isn't cut at its edges.
 const PAD = 0.05;
 // The curtain stops short of the edges, so its bead can always be caught again.
-const EDGE = 0.06;
+export const CURTAIN_EDGE = 0.06;
+const EDGE = CURTAIN_EDGE;
+// The stage before there's a result (`UploadStage`), which the result grows or shrinks from.
+export const STAGE_HEIGHT = 418;
 const BEAD = 44;
 // Read once: switching to or from Hebrew reloads the app (src/lib/language.ts).
 const RTL = I18nManager.isRTL;
@@ -128,6 +131,8 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
   const cut = useSharedValue(0);
   const start = useSharedValue(0);
   const frame = width > 0 && found.length > 0 ? frameOf(found, aspect, width) : null;
+  // 1 while the photo stands as it did while waiting (whole), 0 once it's closed in on the pieces.
+  const whole = useSharedValue(reduceMotion ? 0 : 1);
 
   // Placed as the stage is measured, before its first frame shows (an effect would show the curtain
   // at 0 for a frame). The opening slide plays once; a later layout (the phone turned) keeps where
@@ -135,6 +140,9 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
   const played = useRef(false);
   function measure(next: number) {
     if (next === width) return;
+    if (!played.current) {
+      whole.set(withTiming(0, { duration: durations.settle, easing: EASE_OUT }));
+    }
     if (played.current) {
       if (width > 0) cut.set((cut.get() * next) / width);
     } else {
@@ -174,6 +182,26 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
   }));
   const knife = useAnimatedStyle(() => ({ transform: [{ translateX: cut.get() }] }));
 
+  const height = frame?.height ?? STAGE_HEIGHT;
+  const frameScale = frame?.scale ?? 1;
+  const frameLeft = frame?.left ?? 0;
+  const frameTop = frame?.top ?? 0;
+  // The waiting stage's photo: whole, contained and centred. Drawn at the frame's size and moved
+  // with a transform, so closing in runs on the UI thread and stays sharp.
+  const wholeScale = Math.min(STAGE_HEIGHT, width / aspect);
+  const zoom = useAnimatedStyle(() => {
+    const p = whole.get();
+    const k = wholeScale / frameScale;
+    const dx = width / 2 - (frameLeft + (aspect * frameScale) / 2);
+    const dy = STAGE_HEIGHT / 2 - (frameTop + frameScale / 2);
+    return {
+      transform: [{ translateX: dx * p }, { translateY: dy * p }, { scale: 1 + (k - 1) * p }],
+    };
+  });
+  const grow = useAnimatedStyle(() => ({
+    height: height + (STAGE_HEIGHT - height) * whole.get(),
+  }));
+
   const slots = frame ? slotsOf(found, frame, aspect) : [];
   const photo = frame && {
     position: 'absolute' as const,
@@ -186,8 +214,8 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
   return (
     // Not flex: 1 as by default: in a scroll view that would squeeze the stage to nothing.
     <GestureHandlerRootView style={styles.root}>
-      <View
-        style={[styles.stage, frame && { height: frame.height }]}
+      <Animated.View
+        style={[styles.stage, grow]}
         onLayout={(event) => measure(Math.round(event.nativeEvent.layout.width))}
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden
@@ -196,7 +224,13 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
         {frame && (
           <GestureDetector gesture={drag}>
             <View style={StyleSheet.absoluteFill}>
-              <Image source={{ uri }} style={photo} accessibilityIgnoresInvertColors />
+              <Animated.View style={[photo, zoom]}>
+                <Image
+                  source={{ uri }}
+                  style={StyleSheet.absoluteFill}
+                  accessibilityIgnoresInvertColors
+                />
+              </Animated.View>
               <Animated.View style={[styles.window, { width }, window]}>
                 <Animated.View style={[styles.yours, { width }, still]}>
                   {slots.map(({ index, at }) => {
@@ -259,7 +293,7 @@ export function Curtain({ uri, aspect, found, headers }: Props) {
             </View>
           </GestureDetector>
         )}
-      </View>
+      </Animated.View>
     </GestureHandlerRootView>
   );
 }
@@ -295,9 +329,8 @@ const styles = StyleSheet.create({
   },
   stage: {
     marginHorizontal: -22,
-    height: 360,
     overflow: 'hidden',
-    backgroundColor: colors.hero,
+    backgroundColor: colors.ground,
   },
   window: {
     position: 'absolute',
