@@ -271,7 +271,7 @@
   },
   "want": {
     "title": "Recreate the look",
-    "intro": "Add a screenshot of a look from Pinterest or Instagram: the app finds its items and shows which of them you already have.",
+    "intro": "Show me a look you like: I'll find its pieces and show what you already have.",
     "pick": "Choose a screenshot",
     "pickAnother": "Choose another screenshot",
     "finding": "Finding the items and checking your closet…",
@@ -287,7 +287,9 @@
     },
     "errors": {
       "find": "Couldn't read the screenshot. Try again."
-    }
+    },
+    "hand": "a screenshot from Pinterest or Instagram",
+    "retry": "Try again"
   },
   "wearWith": {
     "button": "What do I wear this with?",

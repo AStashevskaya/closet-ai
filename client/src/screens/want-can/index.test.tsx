@@ -212,6 +212,47 @@ describe('<WantCan />', () => {
       await screen.findByText('No connection to the server. Check the internet and try again.'),
     ).toBeOnTheScreen();
   });
+  test('sends the same screenshot again after a dropped connection, without picking it again', async () => {
+    jest.mocked(uploadPhoto).mockRejectedValueOnce(new OfflineError('Network request failed'));
+    jest.mocked(uploadPhoto).mockResolvedValue('photos/u/a.webp');
+    jest.mocked(getPhotoState).mockResolvedValue({ ...pending, tagStatus: 'failed' });
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockClear();
+    await render(<WantCan />);
+    await fireEvent.press(screen.getByText('Choose a screenshot'));
+    jest.mocked(uploadPhoto).mockClear();
+
+    await fireEvent.press(await screen.findByText('Try again'));
+
+    expect(uploadPhoto).toHaveBeenCalledTimes(1);
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1);
+  });
+  test('asks about the same upload again if it had already gone up', async () => {
+    jest.mocked(uploadPhoto).mockReset();
+    jest.mocked(uploadPhoto).mockResolvedValue('photos/u/a.webp');
+    jest.useFakeTimers();
+    try {
+      jest.mocked(getPhotoState).mockRejectedValue(new OfflineError('Network request failed'));
+      await render(<WantCan />);
+      await fireEvent.press(screen.getByText('Choose a screenshot'));
+      await jest.advanceTimersByTimeAsync(100_000);
+      jest.mocked(getPhotoState).mockClear();
+
+      await fireEvent.press(await screen.findByText('Try again'));
+      await jest.advanceTimersByTimeAsync(10);
+
+      expect(uploadPhoto).toHaveBeenCalledTimes(1);
+      expect(getPhotoState).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+  test('the empty stage shows what will happen, and tapping it picks a screenshot', async () => {
+    await render(<WantCan />);
+    expect(screen.getByTestId('upload-empty', { includeHiddenElements: true })).toBeOnTheScreen();
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockClear();
+    await fireEvent.press(screen.getByTestId('upload-stage', { includeHiddenElements: true }));
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1);
+  });
   describe('free-tier limit', () => {
     const usage = (used: number): Usage => ({
       want: { used, limit: 5, resetsAt: '2026-11-01T00:00:00.000Z' },
