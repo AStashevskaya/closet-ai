@@ -179,12 +179,7 @@ export function ItemScreen({ id }: { id: string }) {
             accessibilityLabel={waiting ? t('common.loading') : undefined}
           />
           <RailLine waiting={waiting} />
-          <View
-            style={styles.body}
-            onLayout={(event) => {
-              fieldsY.current = event.nativeEvent.layout.y;
-            }}
-          >
+          <View style={styles.body}>
             {failedText && (
               <Animated.View key="failed" style={styles.failed} entering={arrive}>
                 <Text style={maison.body}>{failedText}</Text>
@@ -370,7 +365,12 @@ export function ItemScreen({ id }: { id: string }) {
         </View>
         <RailLine waiting={false} />
 
-        <View style={styles.body}>
+        <View
+          style={styles.body}
+          onLayout={(event) => {
+            fieldsY.current = event.nativeEvent.layout.y;
+          }}
+        >
           <Animated.View entering={arrive} style={styles.heading}>
             <Text style={styles.name} accessibilityRole="header">
               {item.name}
