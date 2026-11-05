@@ -20,6 +20,7 @@ import { KNOT_Y, THREAD_X, ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
 import { OutfitCard } from './outfit-card';
+import { ComposingSteps } from './composing-steps';
 import { useWearWith } from './use-wear-with';
 
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
@@ -160,7 +161,7 @@ export function WearWith({ id }: { id: string }) {
                 accessibilityRole="progressbar"
                 accessibilityLabel={waitingFor ?? undefined}
               >
-                {state.composing && <Text style={styles.empty}>{t('wearWith.composing')}</Text>}
+                {state.composing && <ComposingSteps style={styles.empty} />}
               </Animated.View>
             )}
             {verdict?.twin && hero && (

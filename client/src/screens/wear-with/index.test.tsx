@@ -110,10 +110,25 @@ describe('<WearWith /> waiting in place', () => {
     expect(bead()).toHaveLength(1);
     expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
     expect(announce).toHaveBeenCalledWith('Loading');
-    expect(screen.queryByText('Putting looks together from your closet…')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Looking through your closet…')).not.toBeOnTheScreen();
     expect(screen.queryByText("Couldn't put looks together. Try again.")).not.toBeOnTheScreen();
   });
 
+  test('composing: the words move on, and stay on the last step', async () => {
+    jest.useFakeTimers();
+    try {
+      jest.mocked(getWearWith).mockResolvedValue(composing);
+      await render(<WearWith id="item-1" />);
+      await act(() => jest.advanceTimersByTimeAsync(10));
+      expect(screen.getByText('Looking through your closet…')).toBeOnTheScreen();
+      await act(() => jest.advanceTimersByTimeAsync(5000));
+      expect(screen.getByText('Trying pieces together…')).toBeOnTheScreen();
+      await act(() => jest.advanceTimersByTimeAsync(60000));
+      expect(screen.getByText('Putting looks together from your closet…')).toBeOnTheScreen();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
   test('composing: the piece on its thread with the bead, nothing hanging off it', async () => {
     jest.mocked(getWearWith).mockResolvedValue(composing);
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
@@ -123,7 +138,7 @@ describe('<WearWith /> waiting in place', () => {
     expect(screen.getByTestId('bare-piece').props.source).toEqual([
       expect.objectContaining({ uri: 'http://api/api/wear-with/req-1/photo' }),
     ]);
-    expect(screen.getByText('Putting looks together from your closet…')).toBeOnTheScreen();
+    expect(screen.getByText('Looking through your closet…')).toBeOnTheScreen();
     expect(announce).toHaveBeenCalledWith('Putting looks together from your closet…');
     expect(bead()).toHaveLength(1);
     // Waiting is never drawn dashed, though this piece isn't hers.
@@ -154,7 +169,7 @@ describe('<WearWith /> waiting in place', () => {
       .mockResolvedValueOnce(composing)
       .mockResolvedValue({ ...done, addable: composing.addable, outfits: [] });
     await render(<WearWith id="req-1" />);
-    await screen.findByText('Putting looks together from your closet…');
+    await screen.findByText('Looking through your closet…');
     expect(rootDashed()).toBe(false);
 
     await waitFor(() => expect(rootDashed()).toBe(true), { timeout: 4000 });
@@ -222,7 +237,7 @@ describe('<WearWith />', () => {
       })
       .mockResolvedValue(done);
     await render(<WearWith id="req-1" />);
-    expect(screen.getByText('Putting looks together from your closet…')).toBeOnTheScreen();
+    expect(screen.getByText('Looking through your closet…')).toBeOnTheScreen();
 
     expect(
       await screen.findByLabelText(
