@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Closet",
+    "NSCameraUsageDescription": "המצלמה משמשת לצילום הבגדים שלך.",
+    "NSPhotoLibraryUsageDescription": "הגישה לתמונות משמשת להוספת תמונות של הבגדים שלך מהגלריה."
+  }
+}

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "closet-ai",
+    "name": "Closet",
     "slug": "closet-ai",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,11 @@
     "scheme": "closetai",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.stashevskaya.closet",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +21,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.stashevskaya.closet"
     },
     "web": {
       "output": "server",
@@ -51,14 +56,20 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "closet-ai uses the camera to photograph your clothes.",
-          "photosPermission": "closet-ai adds photos of your clothes from your library."
+          "cameraPermission": "Closet uses the camera to photograph your clothes.",
+          "photosPermission": "Closet adds photos of your clothes from your library.",
+          "microphonePermission": false
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "locales": {
+      "en": "./locales/en.json",
+      "ru": "./locales/ru.json",
+      "he": "./locales/he.json"
     }
   }
 }

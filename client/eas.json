@@ -1,0 +1,31 @@
+{
+  "cli": {
+    "version": ">= 16.6.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "22.14.0",
+      "pnpm": "9.15.0",
+      "env": {
+        "ONNXRUNTIME_NODE_INSTALL": "skip"
+      }
+    },
+    "testflight": {
+      "extends": "base",
+      "environment": "preview",
+      "distribution": "store",
+      "autoIncrement": true
+    },
+    "production": {
+      "extends": "base",
+      "environment": "production",
+      "distribution": "store",
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "testflight": {},
+    "production": {}
+  }
+}
