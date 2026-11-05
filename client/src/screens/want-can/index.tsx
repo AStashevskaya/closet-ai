@@ -1,6 +1,5 @@
 import type { LimitCode } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -12,7 +11,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { PartnerOffers } from '@/components/partner-offers';
-import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { getPhotoState, sessionHeaders, uploadPhoto } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
@@ -24,6 +22,7 @@ import { LookCrop } from '@/screens/add-look/look-crop';
 import { colors, fonts } from '@/theme';
 
 import { Beads, Curtain, type Found } from './curtain';
+import { UploadStage } from './upload-stage';
 
 // Finding the items and comparing each with the wardrobe takes 10–20 s; after a minute and a
 // half the screen gives up.
@@ -48,6 +47,8 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
   const lang = appLanguage(i18n.language);
   const [look, setLook] = useState<Look>({ status: 'empty' });
   const [photoKey, setPhotoKey] = useState<string | null>(null);
+  // Bumped to ask about the same upload again, after the connection dropped while waiting.
+  const [askAgain, setAskAgain] = useState(0);
   // Photos are served by the API to their owner only, so the image requests carry the cookie.
   const [headers, setHeaders] = useState<Record<string, string>>();
   const { usage, refresh: refreshUsage } = useUsage();
@@ -78,7 +79,17 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
     let uri = asset.uri;
     try {
       uri = await shrinkPhoto(asset);
-      setLook({ status: 'finding', uri, aspect });
+    } catch (cause) {
+      if (__DEV__) console.warn('Shrinking the screenshot failed', cause);
+      setLook({ status: 'failed', uri, aspect, offline: false });
+      return;
+    }
+    await send(uri, aspect);
+  }
+
+  async function send(uri: string, aspect: number) {
+    setLook({ status: 'finding', uri, aspect });
+    try {
       setPhotoKey(await uploadPhoto(uri, lang, 'want'));
       void refreshUsage();
     } catch (cause) {
@@ -91,6 +102,19 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       }
       if (__DEV__) console.warn('Uploading the screenshot failed', cause);
       setLook({ status: 'failed', uri, aspect, offline: isOffline(cause) });
+    }
+  }
+
+  // The same screenshot again, so a dropped connection doesn't mean picking it again. If it had
+  // already gone up, only the waiting starts over; otherwise uploadPhoto gives the retry the same
+  // name, and the server doesn't count it twice.
+  function retry() {
+    if (look.status !== 'failed') return;
+    if (photoKey) {
+      setLook({ status: 'finding', uri: look.uri, aspect: look.aspect });
+      setAskAgain((times) => times + 1);
+    } else {
+      void send(look.uri, look.aspect);
     }
   }
 
@@ -140,7 +164,7 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [photoKey, lang]);
+  }, [photoKey, lang, askAgain]);
 
   // Wardrobe items that rebuild the look, each once (two pieces can match the same item).
   const mine =
@@ -149,10 +173,10 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       : [];
   const owned = mine.length;
 
-  const pickButton = (label: string, primary: boolean) => (
+  const pickButton = (label: string, primary: boolean, onPress: () => void = pick) => (
     <PressableScale
       style={primary ? styles.button : styles.secondaryButton}
-      onPress={pick}
+      onPress={onPress}
       accessibilityRole="button"
     >
       <Text style={primary ? styles.buttonText : styles.secondaryButtonText}>{label}</Text>
@@ -170,9 +194,7 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
 
       {look.status === 'empty' ? (
         <>
-          <View style={[styles.photo, styles.photoEmpty]}>
-            <Icon name="spark" color={colors.iconMuted} size={34} strokeWidth={1.2} />
-          </View>
+          <UploadStage onPick={left === 0 || limit ? undefined : pick} />
           <Text style={styles.intro}>{t('want.intro')}</Text>
           {left === 0 || limit ? (
             <Text style={styles.limit} accessibilityRole="alert">
@@ -188,12 +210,7 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       ) : look.status === 'found' && look.found.length > 0 && owned === 0 ? (
         // Nothing of hers to show behind a curtain: her look, and the rows say what to find.
         <Animated.View entering={FadeIn.duration(durations.enter)}>
-          <Image
-            source={{ uri: look.uri }}
-            style={[styles.photo, { aspectRatio: look.aspect }]}
-            contentFit="contain"
-            accessibilityIgnoresInvertColors
-          />
+          <UploadStage uri={look.uri} bare />
           <Text style={styles.noneOwned} accessibilityLiveRegion="polite">
             {t('want.noneOwned')}
           </Text>
@@ -209,12 +226,9 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
           </View>
         </Animated.View>
       ) : (
-        <Image
-          source={{ uri: look.uri }}
-          style={styles.photo}
-          contentFit="cover"
-          transition={250}
-        />
+        <>
+          <UploadStage uri={look.uri} waiting={look.status === 'finding'} />
+        </>
       )}
 
       {/* Keyed by the state, so each message fades in after the last one. */}
@@ -226,7 +240,6 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
           exiting={FadeOut.duration(durations.press)}
           accessibilityLiveRegion="polite"
         >
-          {look.status === 'finding' && <HangerLoader size="small" />}
           <Text style={styles.statusText}>
             {look.status === 'finding' && t('want.finding')}
             {look.status === 'failed' &&
@@ -283,10 +296,15 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
 
       {(look.status === 'found' || look.status === 'failed') && (
         <View style={styles.again}>
+          {look.status === 'failed' && look.offline && pickButton(t('want.retry'), true, retry)}
           {left === 0 ? (
             <Text style={styles.limit}>{limitText(t, i18n.language, 'want', usage)}</Text>
           ) : (
-            pickButton(t('want.pickAnother'), false)
+            pickButton(
+              t('want.pickAnother'),
+              // The one way on when nothing came of this screenshot; under a result, a quiet extra.
+              look.status === 'failed' ? !look.offline : look.found.length === 0,
+            )
           )}
           {left !== null && left > 0 && (
             <Text style={styles.left}>{t('limits.left', { left, limit: usage!.want.limit })}</Text>
@@ -315,16 +333,6 @@ const styles = StyleSheet.create({
     lineHeight: 48,
     color: colors.text,
     textAlign: 'left',
-  },
-  photo: {
-    alignSelf: 'center',
-    width: '55%',
-    aspectRatio: 3 / 4,
-  },
-  photoEmpty: {
-    backgroundColor: colors.hero,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   intro: {
     marginTop: 6,
