@@ -25,6 +25,7 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `docs/server.md`: the server module by module (auth, items, photo pipeline, tagging, embeddings, cut-outs, looks, Want / Can, limits, outfits, Inspiration, account deletion, brand and price, profile details, partner catalog, workers, migrations).
 - `docs/client.md`: the app (screens, the "Maison" look, motion, i18n, API and photo loading, tests).
 - `docs/product.md`: roadmap, Free / Premium, outfit taste, feature boundaries, partner items, Want / Can, the brand demo.
+- `docs/launch.md`: the owner's checklist for going to testers (server on one VPS from `deploy/`, EAS builds in `client/eas.json`, TestFlight).
 - `docs/design.md`: the design rules (what the thread, dashed, blue, the bead, the heart, prints and handwriting mean; motion; marks on photos) and the screens decided but not built yet. Read it before any UI work.
 - `.claude/skills/fashion-creative-director`: the creative-director skill for UI work (new screens, redesigns, motion): three directions and approval before building anything significant.
 - Manual skills (run on request, never automatically): `/closet-security-review` (before a tester build, on auth/storage PRs), `/closet-release-check` (before TestFlight / store), `/closet-outfit-eval` (a change that claims better looks or picks), `/closet-ai-cost` (before setting limits or prices).
