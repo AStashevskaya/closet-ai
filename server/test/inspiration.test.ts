@@ -86,7 +86,7 @@ async function signUp({ server }: Setup, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { name: "Test User", email, password: "correct-horse-battery" },
+    payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
   });
   const cookie = res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
   const session = await server.inject({

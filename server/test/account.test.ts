@@ -45,7 +45,7 @@ async function signUp(server: App, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { name: "Test User", email, password: PASSWORD },
+    payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: PASSWORD },
   });
   const cookie = res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
   const session = await server.inject({
@@ -94,6 +94,17 @@ describe("deleting the account", () => {
       payload: { email: "anna@example.com", password: PASSWORD },
     });
     expect(signIn.statusCode).toBe(401);
+  });
+
+  it("no account without accepting the privacy policy", async () => {
+    const { server } = await setup();
+    const answer = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      payload: { name: "No Consent", email: "noconsent@example.com", password: "password-123" },
+    });
+    expect(answer.statusCode).toBe(400);
+    expect(answer.json()).toMatchObject({ code: "CONSENT_REQUIRED" });
   });
 
   it("asks for the right password first", async () => {

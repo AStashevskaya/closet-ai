@@ -169,6 +169,13 @@
       "when": 1793546749957,
       "tag": "0023_photo_cutout_box",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793872895710,
+      "tag": "0024_tearful_satana",
+      "breakpoints": true
     }
   ]
 }

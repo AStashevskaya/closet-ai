@@ -1,11 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState, type ComponentRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   AccessibilityInfo,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,10 +18,12 @@ import {
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 import { Button, maison } from '@/components/maison';
+import { PRIVACY_POLICY_VERSION, privacyUrl } from '@/lib/privacy';
 import { PressableScale } from '@/components/pressable-scale';
-import { DOT, INDENT, ThreadLine, ThreadStop } from '@/components/thread-stops';
+import { DOT, INDENT, THREAD_X, ThreadLine, ThreadStop } from '@/components/thread-stops';
 import i18n from '@/i18n';
 import { authClient } from '@/lib/auth-client';
 import { durations, EASE_OUT, rise, STAGGER_STEP } from '@/motion';
@@ -33,6 +37,7 @@ const MIN_PASSWORD_LENGTH = 8;
 type Mode = 'sign-in' | 'sign-up';
 type Field = 'name' | 'email' | 'password';
 type ErrorKey =
+  | 'auth.errors.consent'
   | 'auth.errors.required'
   | 'auth.errors.passwordTooShort'
   | 'auth.errors.invalidEmail'
@@ -79,6 +84,7 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [consent, setConsent] = useState(false);
   const [focused, setFocused] = useState<Field | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -88,6 +94,7 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
   const emailRef = useRef<ComponentRef<typeof TextInput>>(null);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const isSignUp = mode === 'sign-up';
+  const policy = privacyUrl();
 
   function fail(key: ErrorKey) {
     setError(key);
@@ -106,11 +113,20 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
       return fail('auth.errors.passwordTooShort');
     }
 
+    if (isSignUp && !consent) {
+      return fail('auth.errors.consent');
+    }
+
     setError(null);
     setSubmitting(true);
     try {
       const result = isSignUp
-        ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password })
+        ? await authClient.signUp.email({
+            name: name.trim(),
+            email: email.trim(),
+            password,
+            privacyConsent: PRIVACY_POLICY_VERSION,
+          })
         : await authClient.signIn.email({ email: email.trim(), password });
 
       // On success the session updates and the protected routes in _layout switch screens.
@@ -269,6 +285,63 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
               )}
             </ThreadStop>
           </Animated.View>
+          {isSignUp && (
+            <Animated.View layout={shift} entering={switched ? swap : undefined} exiting={leave}>
+              <ThreadStop
+                marker={
+                  <Pressable
+                    style={[styles.box, consent && styles.boxOn]}
+                    onPress={() => setConsent(!consent)}
+                    hitSlop={12}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: consent }}
+                    accessibilityLabel={t('auth.consent').replace(/<\/?link>/g, '')}
+                  >
+                    {consent && (
+                      <Svg width={12} height={10} viewBox="0 0 12 10" aria-hidden>
+                        <Path
+                          d="M1 5l3.5 3.5L11 1"
+                          fill="none"
+                          stroke={colors.onBead}
+                          strokeWidth={1.6}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </Svg>
+                    )}
+                  </Pressable>
+                }
+              >
+                <Text
+                  style={styles.consent}
+                  onPress={() => setConsent(!consent)}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                >
+                  <Trans
+                    i18nKey="auth.consent"
+                    components={{
+                      link: (
+                        <Text
+                          style={policy ? styles.consentLink : undefined}
+                          onPress={policy ? () => void Linking.openURL(policy) : undefined}
+                        />
+                      ),
+                    }}
+                  />
+                </Text>
+                {policy && (
+                  <Text
+                    style={styles.consentRead}
+                    onPress={() => void Linking.openURL(policy)}
+                    accessibilityRole="link"
+                  >
+                    {t('auth.readPolicy')}
+                  </Text>
+                )}
+              </ThreadStop>
+            </Animated.View>
+          )}
           <Animated.View
             layout={shift}
             onLayout={(event) => setEnd(Math.round(event.nativeEvent.layout.y) + BUTTON_DOT_Y)}
@@ -310,6 +383,40 @@ export function AuthForm({ mode: initialMode }: { mode: Mode }) {
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
+  // On the thread, in place of its dot.
+  box: {
+    position: 'absolute',
+    top: 2,
+    start: THREAD_X - 11,
+    width: 22,
+    height: 22,
+    borderWidth: 1.2,
+    borderColor: colors.text,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxOn: {
+    backgroundColor: colors.bead,
+  },
+  consent: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+    textAlign: 'left',
+  },
+  consentLink: {
+    color: colors.text,
+    textDecorationLine: 'underline',
+  },
+  consentRead: {
+    marginTop: 6,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.text,
+    textAlign: 'left',
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.background,

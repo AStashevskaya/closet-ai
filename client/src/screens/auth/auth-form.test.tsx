@@ -4,6 +4,8 @@ import { AccessibilityInfo } from 'react-native';
 import i18n from '@/i18n';
 import { authClient } from '@/lib/auth-client';
 
+import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
+
 import { AuthForm } from './auth-form';
 
 jest.mock(
@@ -143,6 +145,22 @@ describe('<AuthForm mode="sign-up" />', () => {
     expect(signUp).not.toHaveBeenCalled();
   });
 
+  test('no account without the consent, and it goes with the sign-up', async () => {
+    await render(<AuthForm mode="sign-up" />);
+    await fill('Your name', 'Anna');
+    await fill('Email', 'anna@example.com');
+    await fill('Password', 'correct-horse-battery');
+    await fireEvent.press(screen.getByRole('button'));
+    expect(screen.getByText('Accept the privacy policy to continue')).toBeOnTheScreen();
+    expect(signUp).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('checkbox'));
+    await fireEvent.press(screen.getByRole('button'));
+    expect(signUp).toHaveBeenCalledWith(
+      expect.objectContaining({ privacyConsent: PRIVACY_POLICY_VERSION }),
+    );
+  });
+
   test('shows that the email is taken', async () => {
     signUp.mockResolvedValue({ data: null, error: { code: 'USER_ALREADY_EXISTS' } } as never);
     await render(<AuthForm mode="sign-up" />);
@@ -150,9 +168,11 @@ describe('<AuthForm mode="sign-up" />', () => {
     await fill('Your name', 'Anna');
     await fill('Email', 'anna@example.com');
     await fill('Password', 'correct-horse-battery');
+    await fireEvent.press(screen.getByRole('checkbox'));
     await fireEvent.press(screen.getByRole('button'));
 
     expect(signUp).toHaveBeenCalledWith({
+      privacyConsent: PRIVACY_POLICY_VERSION,
       name: 'Anna',
       email: 'anna@example.com',
       password: 'correct-horse-battery',
