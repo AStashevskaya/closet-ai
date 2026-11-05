@@ -12,7 +12,6 @@ import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { PartnerOffers } from '@/components/partner-offers';
 import { PressableScale } from '@/components/pressable-scale';
-import { BeadAcross } from '@/components/thread-stops';
 import { getPhotoState, sessionHeaders, uploadPhoto } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
@@ -229,12 +228,6 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
       ) : (
         <>
           <UploadStage uri={look.uri} waiting={look.status === 'finding'} />
-          {look.status === 'finding' && (
-            <View style={styles.waitThread}>
-              <View style={styles.waitLine} />
-              <BeadAcross waiting />
-            </View>
-          )}
         </>
       )}
 
@@ -340,14 +333,6 @@ const styles = StyleSheet.create({
     lineHeight: 48,
     color: colors.text,
     textAlign: 'left',
-  },
-  waitThread: {
-    height: 30,
-    justifyContent: 'center',
-  },
-  waitLine: {
-    height: 1.2,
-    backgroundColor: colors.text,
   },
   intro: {
     marginTop: 6,
