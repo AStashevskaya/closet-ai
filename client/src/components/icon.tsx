@@ -3,6 +3,8 @@ import Svg, { Path } from 'react-native-svg';
 
 // Thin stroke icons from the design canvas, drawn on a 24×24 grid.
 const PATHS = {
+  // Three dots, drawn as round caps: give it a heavier strokeWidth.
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
   hanger: 'M12 7a2 2 0 1 1 2-2M12 7v2L3 16h18l-9-7',
   look: 'M8 3l-4 3 2 3 2-1v13h8V8l2 1 2-3-4-3c-1 2-2.5 3-4 3S9 5 8 3z',
   spark: 'M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z',

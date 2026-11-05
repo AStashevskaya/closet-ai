@@ -24,7 +24,10 @@ const mockReplace = jest.fn();
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual('react');
   return {
-    Stack: { Screen: () => null },
+    Stack: {
+      Screen: ({ options }: { options?: { headerRight?: () => unknown } }) =>
+        options?.headerRight?.() ?? null,
+    },
     useRouter: () => ({ back: mockBack, push: mockPush, replace: mockReplace }),
     // Runs the callback once on mount, as if the screen just came into view.
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
@@ -166,6 +169,19 @@ describe('<ItemScreen />', () => {
     expect(
       await screen.findByText('Details appear once the photo has been recognised.'),
     ).toBeOnTheScreen();
+  });
+
+  test('the menu in the header offers to edit and to delete', async () => {
+    await render(<ItemScreen id={shirt.id} />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'More' }));
+    await pressAlertButton('Edit');
+    expect(deleteItem).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'More' }));
+    await pressAlertButton('Delete');
+    expect(deleteItem).not.toHaveBeenCalled();
+    await pressAlertButton('Delete');
+    expect(deleteItem).toHaveBeenCalledWith(shirt.id);
   });
 
   test('deletes the item after asking', async () => {
