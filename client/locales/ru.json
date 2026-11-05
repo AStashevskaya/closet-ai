@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Closet",
+    "NSCameraUsageDescription": "Камера нужна, чтобы фотографировать твою одежду.",
+    "NSPhotoLibraryUsageDescription": "Доступ к фото нужен, чтобы добавлять снимки твоей одежды из галереи."
+  }
+}

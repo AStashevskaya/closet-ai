@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Closet",
+    "NSCameraUsageDescription": "Closet uses the camera to photograph your clothes.",
+    "NSPhotoLibraryUsageDescription": "Closet adds photos of your clothes from your library."
+  }
+}
