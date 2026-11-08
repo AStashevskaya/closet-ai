@@ -14,7 +14,11 @@ jest.mock(
 );
 // So the real router isn't loaded; deleting the styling goes back.
 const mockBack = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ back: mockBack }),
+  useFocusEffect: (effect: () => void) =>
+    jest.requireActual<typeof import('react')>('react').useEffect(effect, [effect]),
+}));
 jest.mock('@/lib/api', () => ({
   ApiError: jest.requireActual('@/lib/api-error').ApiError,
   askWearWith: jest.fn(),

@@ -11,7 +11,11 @@ import { AddLook } from '.';
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockBack = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ back: mockBack }),
+  useFocusEffect: (effect: () => void) =>
+    jest.requireActual<typeof import('react')>('react').useEffect(effect, [effect]),
+}));
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(),
   launchCameraAsync: jest.fn(),
