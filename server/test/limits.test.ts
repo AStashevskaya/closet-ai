@@ -205,19 +205,19 @@ describe("monthly spend per user", () => {
 });
 
 describe("testers", () => {
-  it("get 30 outfit requests a day and no monthly cap; others keep the free limit", async () => {
+  it("get 8 outfit requests a day and no monthly cap; others keep the free limit", async () => {
     const { usageRepository } = createInMemoryRepositories();
     const limits = createLimits(
       usageRepository,
       { dailyUsd: 3, userMonthlyUsd: 5 },
       new Set(["tester"]),
     );
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 8; i++) {
       await limits.check("tester", "wear_with");
       await limits.record("tester", "wear_with");
     }
     await expect(limits.check("tester", "wear_with")).rejects.toThrow("limit:wear_with");
-    expect((await limits.summary("tester")).wear_with).toMatchObject({ used: 30, limit: 30 });
+    expect((await limits.summary("tester")).wear_with).toMatchObject({ used: 8, limit: 8 });
     expect((await limits.summary("someone")).wear_with.limit).toBe(3);
   });
 });
@@ -225,11 +225,11 @@ describe("testers", () => {
 describe("a tester's spend", () => {
   it("has a cap of its own, and leaving the list brings back the free one", async () => {
     const { usageRepository } = createInMemoryRepositories();
-    const budgets = { dailyUsd: 100, userMonthlyUsd: 2, testerMonthlyUsd: 20 };
+    const budgets = { dailyUsd: 100, userMonthlyUsd: 2, testerMonthlyUsd: 10 };
     await usageRepository.record("anna", "brief", 2_500_000);
     const tester = createLimits(usageRepository, budgets, new Set(["anna"]));
     await expect(tester.check("anna", "want")).resolves.toBeUndefined();
-    await usageRepository.record("anna", "brief", 17_500_000);
+    await usageRepository.record("anna", "brief", 7_500_000);
     await expect(tester.check("anna", "want")).rejects.toThrow("limit:monthly");
 
     const free = createLimits(usageRepository, budgets);

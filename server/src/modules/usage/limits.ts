@@ -58,7 +58,7 @@ export const BUDGET_WARN_SHARE = 0.5;
 // halfway; the server's daily budget and a spend cap of their own still apply to them. Taking
 // an id out of the variable puts that account on the free tier, with no change to the code.
 export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
-  wear_with: 30,
+  wear_with: 8,
   want: 30,
   look: 30,
 };

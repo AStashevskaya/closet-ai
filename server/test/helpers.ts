@@ -68,7 +68,7 @@ export const testEnv: Env = {
   REDIS_URL: "redis://localhost:6379",
   AI_DAILY_BUDGET_USD: 3,
   USER_MONTHLY_BUDGET_USD: 5,
-  TESTER_MONTHLY_BUDGET_USD: 20,
+  TESTER_MONTHLY_BUDGET_USD: 10,
   TESTER_USER_IDS: [],
   MODEL_CACHE_DIR: ".models",
   WORKERS_IN_API: true,
