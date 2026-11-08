@@ -40,6 +40,23 @@ describe('useUsage', () => {
     await waitFor(() => expect(screen.getByText('2 / 8')).toBeOnTheScreen());
   });
 
+  test("doesn't let an older answer arriving late replace a newer one", async () => {
+    let answerFirst: (value: Usage) => void = () => {};
+    jest.mocked(getUsage).mockReturnValueOnce(
+      new Promise((resolve) => {
+        answerFirst = resolve;
+      }),
+    );
+    await render(<Counter />);
+
+    jest.mocked(getUsage).mockResolvedValue(usage(2));
+    await act(async () => mockFocus());
+    expect(await screen.findByText('2 / 8')).toBeOnTheScreen();
+
+    await act(async () => answerFirst(usage(1)));
+    expect(screen.getByText('2 / 8')).toBeOnTheScreen();
+  });
+
   test('keeps the last count when reading it again fails', async () => {
     jest.mocked(getUsage).mockResolvedValue(usage(1));
     await render(<Counter />);

@@ -2,7 +2,7 @@ import type { LimitCode, Usage } from '@closet-ai/shared';
 import { FREE_LIMITS, WANT_MORE_CODES } from '@closet-ai/shared';
 import type { TFunction } from 'i18next';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { getUsage, wantMore } from './api';
@@ -66,9 +66,13 @@ export function alertAskFailed(t: TFunction, lang: string, cause: unknown, usage
 // loads (or if it fails: the server still enforces the limits, the app just doesn't show them).
 export function useUsage() {
   const [usage, setUsage] = useState<Usage | null>(null);
+  // Only the newest read counts: an older answer arriving late would show a count from before.
+  const latest = useRef(0);
   const refresh = useCallback(async () => {
+    const read = ++latest.current;
     try {
-      setUsage(await getUsage());
+      const next = await getUsage();
+      if (read === latest.current) setUsage(next);
     } catch {
       // Nice to show, not needed to work.
     }
