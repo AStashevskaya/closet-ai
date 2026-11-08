@@ -12,6 +12,7 @@ import { Icon } from '@/components/icon';
 import { ItemPhoto } from '@/components/item-photo';
 import { PartnerOffers } from '@/components/partner-offers';
 import { PressableScale } from '@/components/pressable-scale';
+import { WantMore } from '@/components/want-more';
 import { getPhotoState, sessionHeaders, uploadPhoto } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
@@ -197,9 +198,12 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
           <UploadStage onPick={left === 0 || limit ? undefined : pick} />
           <Text style={styles.intro}>{t('want.intro')}</Text>
           {left === 0 || limit ? (
-            <Text style={styles.limit} accessibilityRole="alert">
-              {limitText(t, i18n.language, limit ?? 'want', usage)}
-            </Text>
+            <>
+              <Text style={styles.limit} accessibilityRole="alert">
+                {limitText(t, i18n.language, limit ?? 'want', usage)}
+              </Text>
+              <WantMore code={limit ?? 'want'} />
+            </>
           ) : (
             pickButton(t('want.pick'), true)
           )}
@@ -298,7 +302,10 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
         <View style={styles.again}>
           {look.status === 'failed' && look.offline && pickButton(t('want.retry'), true, retry)}
           {left === 0 ? (
-            <Text style={styles.limit}>{limitText(t, i18n.language, 'want', usage)}</Text>
+            <>
+              <Text style={styles.limit}>{limitText(t, i18n.language, 'want', usage)}</Text>
+              <WantMore code="want" />
+            </>
           ) : (
             pickButton(
               t('want.pickAnother'),

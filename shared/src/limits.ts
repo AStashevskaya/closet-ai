@@ -63,6 +63,11 @@ export type Usage = z.infer<typeof usage>;
 // server's daily safety stop for everyone; "monthly" is the user's own AI spend for the month.
 export const LIMIT_CODES = [...USAGE_ACTIONS, "budget", "monthly"] as const;
 export type LimitCode = (typeof LIMIT_CODES)[number];
+// The limits a plan could lift, where "I want more" is offered (decided 2026-11-08). Not the
+// server's daily stop, nor the caps that only guard against abuse.
+export const WANT_MORE_CODES = ["want", "look", "wear_with", "monthly"] as const;
+export const wantMoreRequest = z.object({ code: z.enum(WANT_MORE_CODES) });
+export type WantMoreCode = (typeof WANT_MORE_CODES)[number];
 export const limitMessage = (code: LimitCode) => `limit:${code}`;
 export function limitCodeOf(message: string): LimitCode | null {
   const code = message.startsWith("limit:") ? message.slice("limit:".length) : null;

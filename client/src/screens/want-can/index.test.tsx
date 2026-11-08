@@ -271,6 +271,7 @@ describe('<WantCan />', () => {
       await render(<WantCan />);
       expect(await screen.findByText(/You've used this month's 5 screenshots/)).toBeOnTheScreen();
       expect(screen.queryByText('Choose a screenshot')).not.toBeOnTheScreen();
+      expect(screen.getByText('I want more')).toBeOnTheScreen();
     });
 
     test('explains a limit the server reports', async () => {

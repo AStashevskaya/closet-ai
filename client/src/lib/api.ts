@@ -6,6 +6,7 @@ import {
   type Item,
   itemDetail,
   type ItemDetail,
+  type LimitCode,
   itemList,
   type PhotoKind,
   photoState,
@@ -162,6 +163,15 @@ export function getUsage(): Promise<Usage> {
 // Her style summary, and whether the "great shopping" card should offer an update.
 export function getStyle(lang: AppLanguage): Promise<StyleState> {
   return request(`/api/style?lang=${lang}`, styleState);
+}
+
+// She tapped "I want more" on a reached limit.
+export function wantMore(code: LimitCode): Promise<void> {
+  return send('/api/usage/want-more', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
 }
 
 export function refreshStyle(lang: AppLanguage): Promise<StyleState> {

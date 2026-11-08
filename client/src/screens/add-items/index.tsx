@@ -14,6 +14,7 @@ import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { PhotoCropper } from '@/components/photo-cropper';
 import { CropButton, RotateButton } from '@/components/rotate-button';
+import { WantMore } from '@/components/want-more';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
@@ -430,9 +431,12 @@ export function AddItems() {
       })}
 
       {limit && (
-        <Text style={styles.error} accessibilityRole="alert">
-          {limitText(t, i18n.language, limit)}
-        </Text>
+        <>
+          <Text style={styles.error} accessibilityRole="alert">
+            {limitText(t, i18n.language, limit)}
+          </Text>
+          <WantMore code={limit} />
+        </>
       )}
 
       {error && (

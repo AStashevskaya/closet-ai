@@ -12,6 +12,7 @@ import { Icon } from '@/components/icon';
 import { Button } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
 import { PressableScale } from '@/components/pressable-scale';
+import { WantMore } from '@/components/want-more';
 import { useAnnounce } from '@/lib/announce';
 import { askWearWith, getPhotoState, uploadPhoto } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
@@ -216,9 +217,12 @@ export function WearWithPick() {
 
   const outOfToday = left === 0 || limit !== null;
   const buttons = outOfToday ? (
-    <Text style={styles.limit} accessibilityRole="alert">
-      {limitText(t, i18n.language, limit ?? 'wear_with', usage)}
-    </Text>
+    <>
+      <Text style={styles.limit} accessibilityRole="alert">
+        {limitText(t, i18n.language, limit ?? 'wear_with', usage)}
+      </Text>
+      <WantMore code={limit ?? 'wear_with'} />
+    </>
   ) : (
     <View style={styles.photoButtons}>
       <PressableScale
@@ -287,9 +291,12 @@ export function WearWithPick() {
       )}
 
       {limit && shot.status !== 'empty' && (
-        <Text style={styles.limit} accessibilityRole="alert">
-          {limitText(t, i18n.language, limit, usage)}
-        </Text>
+        <>
+          <Text style={styles.limit} accessibilityRole="alert">
+            {limitText(t, i18n.language, limit, usage)}
+          </Text>
+          <WantMore code={limit} />
+        </>
       )}
 
       {shot.status === 'found' &&
