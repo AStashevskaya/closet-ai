@@ -250,7 +250,7 @@ export async function reactToOutfit(
   });
 }
 
-// The looks saved on the Inspiration tab, newest first.
+// The looks saved on Inspiration, newest first.
 export function listInspiration(): Promise<Inspiration[]> {
   return request('/api/inspiration', inspirationList);
 }

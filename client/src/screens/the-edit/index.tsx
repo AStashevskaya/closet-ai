@@ -38,49 +38,81 @@ export function TheEdit() {
 
   // A tab stays mounted, so it reads again each time it's opened: the order follows her closet,
   // and a load that failed gets another try. What's on screen stays if the new read fails.
+  const load = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      try {
+        const [items, headers] = await Promise.all([listCatalog(lang), sessionHeaders()]);
+        if (!isCancelled()) setState({ status: 'done', items, headers });
+      } catch (cause) {
+        if (__DEV__) console.warn('Loading the Edit failed', cause);
+        if (!isCancelled()) {
+          setState((current) => (current.status === 'done' ? current : { status: 'failed' }));
+        }
+      }
+    },
+    [lang],
+  );
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      const load = async () => {
-        try {
-          const [items, headers] = await Promise.all([listCatalog(lang), sessionHeaders()]);
-          if (!cancelled) setState({ status: 'done', items, headers });
-        } catch (cause) {
-          if (__DEV__) console.warn('Loading the Edit failed', cause);
-          if (!cancelled) {
-            setState((current) => (current.status === 'done' ? current : { status: 'failed' }));
-          }
-        }
-      };
-      void load();
+      void load(() => cancelled);
       return () => {
         cancelled = true;
       };
-    }, [lang]),
+    }, [load]),
+  );
+
+  // The same on every state, so Recreate the look can be reached while the catalog can't.
+  const heading = (label: string | null) => (
+    <View style={maison.gutter}>
+      <ScreenTitle title={t('edit.title')} subtitle={t('edit.subtitle')} />
+      {label && <Text style={[styles.label, styles.headerLabel]}>{label}</Text>}
+      <Pressable
+        style={styles.recreate}
+        onPress={() => router.push('/want-can')}
+        accessibilityRole="button"
+      >
+        <View style={styles.recreateText}>
+          <Text style={styles.recreateTitle}>{t('want.title')}</Text>
+          <Text style={maison.note}>{t('edit.recreateNote')}</Text>
+        </View>
+        <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+      </Pressable>
+    </View>
   );
 
   if (state.status !== 'done') {
     return (
-      <View style={styles.center}>
-        {state.status === 'loading' ? (
-          <HangerLoader />
-        ) : (
-          <Text style={[maison.body, styles.centered]}>{t('edit.failed')}</Text>
-        )}
+      <View style={[styles.screen, { paddingTop: insets.top + 20 }]}>
+        {heading(null)}
+        <View style={styles.center}>
+          {state.status === 'loading' ? (
+            <HangerLoader />
+          ) : (
+            <>
+              <Text style={[maison.body, styles.centered]}>{t('edit.failed')}</Text>
+              <Pressable onPress={() => void load()} hitSlop={8} accessibilityRole="button">
+                <Text style={maison.link}>{t('edit.retry')}</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
       </View>
     );
   }
 
   const { items, headers } = state;
   const categories = ITEM_CATEGORIES.filter((c) => items.some((item) => item.category === c));
-  const visible = filter === 'all' ? items : items.filter((item) => item.category === filter);
+  // A category can be gone after a new read; its chip with it, so she couldn't get back.
+  const active = filter !== 'all' && categories.includes(filter) ? filter : 'all';
+  const visible = active === 'all' ? items : items.filter((item) => item.category === active);
   const label = t(items.some((item) => item.demo) ? 'partner.demoLabel' : 'partner.label');
 
   return (
     <FlatList
       style={styles.screen}
       data={visible}
-      key={filter}
+      key={active}
       keyExtractor={(item) => item.id}
       numColumns={2}
       columnWrapperStyle={styles.row}
@@ -90,23 +122,9 @@ export function TheEdit() {
       ]}
       ListHeaderComponent={
         <Animated.View entering={rise} style={styles.header}>
-          <View style={maison.gutter}>
-            <ScreenTitle title={t('edit.title')} subtitle={t('edit.subtitle')} />
-            <Text style={[styles.label, styles.headerLabel]}>{label}</Text>
-            <Pressable
-              style={styles.recreate}
-              onPress={() => router.push('/want-can')}
-              accessibilityRole="button"
-            >
-              <View style={styles.recreateText}>
-                <Text style={styles.recreateTitle}>{t('want.title')}</Text>
-                <Text style={maison.note}>{t('edit.recreateNote')}</Text>
-              </View>
-              <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
-            </Pressable>
-          </View>
+          {heading(label)}
           {categories.length > 1 && (
-            <CategoryFilter categories={categories} value={filter} onChange={setFilter} />
+            <CategoryFilter categories={categories} value={active} onChange={setFilter} />
           )}
         </Animated.View>
       }
@@ -151,8 +169,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
     paddingHorizontal: 32,
-    backgroundColor: colors.background,
   },
   centered: {
     textAlign: 'center',

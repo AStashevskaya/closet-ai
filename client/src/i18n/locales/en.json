@@ -446,7 +446,8 @@
     "recreateNote": "Similar from brands, and what you already own",
     "title": "Brands",
     "subtitle": "Picked for your closet",
-    "failed": "Couldn't open Brands. Try again.",
+    "failed": "Couldn't open Brands.",
+    "retry": "Try again",
     "empty": "Nothing here yet."
   },
   "verdict": {

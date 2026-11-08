@@ -13,14 +13,14 @@ jest.mock(
 );
 jest.mock('expo-router', () => ({ Tabs: () => null, useRouter: () => ({ push: mockPush }) }));
 
-const routes = ['index', 'style', 'inspiration', 'profile'].map((name) => ({
+const routes = ['index', 'style', 'the-edit', 'profile'].map((name) => ({
   key: `${name}-key`,
   name,
 }));
 const titles: Record<string, string> = {
   index: 'Closet',
   style: 'Style it',
-  inspiration: 'Inspiration',
+  'the-edit': 'Brands',
   profile: 'Profile',
 };
 
@@ -62,8 +62,8 @@ describe('<TabBar />', () => {
   test('goes to another tab, and opens the add-item form from the middle', async () => {
     const { props, navigateToTab } = setup(0);
     await render(<TabBar {...props} />);
-    await fireEvent.press(screen.getByRole('tab', { name: 'Inspiration' }));
-    expect(navigateToTab).toHaveBeenCalledWith('inspiration-key');
+    await fireEvent.press(screen.getByRole('tab', { name: 'Brands' }));
+    expect(navigateToTab).toHaveBeenCalledWith('the-edit-key');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Add item' }));
     expect(mockPush).toHaveBeenCalledWith('/add-item');
