@@ -1,7 +1,8 @@
 import type { LimitCode, Usage } from '@closet-ai/shared';
 import { FREE_LIMITS, WANT_MORE_CODES } from '@closet-ai/shared';
 import type { TFunction } from 'i18next';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { getUsage, wantMore } from './api';
@@ -60,8 +61,9 @@ export function alertAskFailed(t: TFunction, lang: string, cause: unknown, usage
   ]);
 }
 
-// The free-tier usage, loaded once and reloaded after a counted action. null until it loads
-// (or if it fails: the server still enforces the limits, the app just doesn't show them).
+// The free-tier usage, read each time the screen comes into view (a tab stays mounted, and a
+// screen comes back after one above it spent a try) and after a counted action. null until it
+// loads (or if it fails: the server still enforces the limits, the app just doesn't show them).
 export function useUsage() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const refresh = useCallback(async () => {
@@ -71,16 +73,10 @@ export function useUsage() {
       // Nice to show, not needed to work.
     }
   }, []);
-  useEffect(() => {
-    // An effect can't be async itself, so the async work goes in an inner function.
-    const load = async () => {
-      try {
-        setUsage(await getUsage());
-      } catch {
-        // As above.
-      }
-    };
-    void load();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
   return { usage, refresh };
 }

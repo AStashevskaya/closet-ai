@@ -2,6 +2,8 @@ import i18n from '@/i18n';
 
 import { limitText } from './limits';
 
+jest.mock('expo-router', () => ({ useFocusEffect: jest.fn() }));
+
 jest.mock('./api', () => ({ getUsage: jest.fn() }));
 
 afterEach(() => {

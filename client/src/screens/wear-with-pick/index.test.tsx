@@ -13,7 +13,11 @@ import { WearWithPick } from '.';
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockReplace = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useFocusEffect: (effect: () => void) =>
+    jest.requireActual<typeof import('react')>('react').useEffect(effect, [effect]),
+}));
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(),
   launchCameraAsync: jest.fn(),
