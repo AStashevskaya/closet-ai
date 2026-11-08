@@ -1089,7 +1089,8 @@ describe("what a styling costs", () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
     const skirt = await addItem(s, anna, "bottom");
-    const original = { ...s.stub.stylist };
+    const real = s.stub.stylist;
+    const answer = real.compose.bind(real);
     const pending = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>().id;
 
     s.stub.stylist.compose = () => Promise.reject(new PaidComposeFailure(40_000, "cut off"));
@@ -1105,7 +1106,7 @@ describe("what a styling costs", () => {
     expect(await spent(s, anna.userId)).toBe(40_000 + ESTIMATED_COST_MICROS.wear_with);
 
     // The retry that works counts as well.
-    s.stub.stylist.compose = original.compose;
+    s.stub.stylist.compose = answer;
     await composeOutfits(s.deps, pending, "en");
     expect(await spent(s, anna.userId)).toBe(
       40_000 + ESTIMATED_COST_MICROS.wear_with + STUB_COMPOSE_MICROS,
