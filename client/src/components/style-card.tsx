@@ -7,7 +7,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Button, maison } from '@/components/maison';
 import { ApiError, OfflineError } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
-import { limitText } from '@/lib/limits';
+import { limitText, nextMonthDate } from '@/lib/limits';
 import type { StyleCardState } from '@/lib/style';
 import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -39,6 +39,11 @@ export function StyleCard({
       const code = limitReached(cause);
       if (code) Alert.alert(limitText(t, i18n.language, code));
       else if (cause instanceof OfflineError) Alert.alert(t('common.offline'));
+      // This month's update has gone (a screen out of date): say until when, then show what is.
+      else if (cause instanceof ApiError && cause.message === 'style:month') {
+        Alert.alert(t('inspiration.teachMonth', { date: nextMonthDate(i18n.language) }));
+        void load();
+      }
       // Already being written (another tap, another phone), or not allowed now: show what is.
       else if (cause instanceof ApiError && cause.status === 409) void load();
       else Alert.alert(t('style.failed'));
