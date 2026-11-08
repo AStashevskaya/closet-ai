@@ -205,7 +205,7 @@ describe("monthly spend per user", () => {
 });
 
 describe("testers", () => {
-  it("get 8 outfit requests a day and no monthly cap; others keep the free limit", async () => {
+  it("get 8 outfit requests a day and no hidden monthly count; others keep the free limit", async () => {
     const { usageRepository } = createInMemoryRepositories();
     const limits = createLimits(
       usageRepository,

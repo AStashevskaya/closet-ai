@@ -127,7 +127,7 @@ export const photosRoutes =
         // If queueing fails the request fails too; the row is never attached and the cleanup job removes it.
         await queue.enqueueProcessing(photoKey, request.query.lang);
         await limits.record(user.id, action);
-        // A saved look feeds the style brief, which is rewritten after a few new ones.
+        // A saved look feeds the style brief: the first one may be due now; the job decides.
         if (kind === "inspiration") await outfitQueue.enqueueBrief(user.id, BRIEF_AFTER_SAVE_MS);
         return reply.code(201).send({ photoKey, status: "processing" as const });
       },

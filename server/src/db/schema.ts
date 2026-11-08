@@ -152,7 +152,7 @@ export const outfitMoodEnum = pgEnum("outfit_mood", OUTFIT_MOODS);
 
 // The user's taste in words, written by a strong model from their wardrobe, the looks they
 // saved and the outfits they liked; every outfit request reads it. One per user, rewritten when
-// it goes stale (see outfit-jobs.ts). Written through the Batch API, so it can be pending.
+// she asks (see outfit-jobs.ts). Written through the Batch API, so it can be pending.
 export const styleBriefs = pgTable("style_briefs", {
   userId: text("user_id")
     .primaryKey()

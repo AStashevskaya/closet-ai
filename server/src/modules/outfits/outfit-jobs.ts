@@ -30,8 +30,8 @@ import {
 
 export interface OutfitQueue {
   enqueueComposing(requestId: string, lang: AppLanguage): Promise<void>;
-  // Checks whether the user's brief is stale and, if so, starts writing a new one. A delay
-  // lets a few saved looks in a row go into one brief.
+  // Checks whether a brief is due (the first one, or one she asked for) and, if so, starts
+  // writing it. A delay lets a few saved looks in a row go into one brief.
   enqueueBrief(userId: string, delayMs?: number): Promise<void>;
   enqueueBriefCheck(userId: string, delayMs: number): Promise<void>;
 }
