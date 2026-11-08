@@ -47,10 +47,16 @@ export async function startWorkers(env: Env, db: Db, storage: Storage) {
     stylist,
     catalog,
     queue: outfitQueue.outfitQueue,
-    limits: createLimits(createUsageRepository(db), {
-      dailyUsd: env.AI_DAILY_BUDGET_USD,
-      userMonthlyUsd: env.USER_MONTHLY_BUDGET_USD,
-    }),
+    // The same testers as the API: a job must not refuse what the route has just allowed.
+    limits: createLimits(
+      createUsageRepository(db),
+      {
+        dailyUsd: env.AI_DAILY_BUDGET_USD,
+        userMonthlyUsd: env.USER_MONTHLY_BUDGET_USD,
+        testerMonthlyUsd: env.TESTER_MONTHLY_BUDGET_USD,
+      },
+      new Set(env.TESTER_USER_IDS),
+    ),
   });
 
   return {

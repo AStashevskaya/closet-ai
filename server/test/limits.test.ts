@@ -222,6 +222,22 @@ describe("testers", () => {
   });
 });
 
+describe("a tester's spend", () => {
+  it("has a cap of its own, and leaving the list brings back the free one", async () => {
+    const { usageRepository } = createInMemoryRepositories();
+    const budgets = { dailyUsd: 100, userMonthlyUsd: 2, testerMonthlyUsd: 20 };
+    await usageRepository.record("anna", "brief", 2_500_000);
+    const tester = createLimits(usageRepository, budgets, new Set(["anna"]));
+    await expect(tester.check("anna", "want")).resolves.toBeUndefined();
+    await usageRepository.record("anna", "brief", 17_500_000);
+    await expect(tester.check("anna", "want")).rejects.toThrow("limit:monthly");
+
+    const free = createLimits(usageRepository, budgets);
+    await expect(free.check("anna", "want")).rejects.toThrow("limit:monthly");
+    expect(await createLimits(usageRepository, budgets).allows("maya", 100_000)).toBe(true);
+  });
+});
+
 describe("styling", () => {
   const day = 24 * 60 * 60 * 1000;
   const now = new Date("2026-11-20T12:00:00Z");

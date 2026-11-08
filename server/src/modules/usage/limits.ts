@@ -55,7 +55,8 @@ export type Limits = ReturnType<typeof createLimits>;
 export const BUDGET_WARN_SHARE = 0.5;
 
 // People testing the app (TESTER_USER_IDS) get roomier limits, so a test session doesn't stop
-// halfway; the server's daily budget and the monthly spend per user still apply to them.
+// halfway; the server's daily budget and a spend cap of their own still apply to them. Taking
+// an id out of the variable puts that account on the free tier, with no change to the code.
 export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
   wear_with: 30,
   want: 30,
@@ -71,6 +72,8 @@ export function createLimits(
     dailyUsd: number;
     // What one user's AI may cost us in a calendar month, background briefs included.
     userMonthlyUsd: number;
+    // The same for a tester; the free tier's when it isn't given.
+    testerMonthlyUsd?: number;
     // Where the half-budget warning goes: the API's logger, or a JSON line on stdout.
     log?: (line: Record<string, unknown>) => void;
   },
@@ -79,11 +82,15 @@ export function createLimits(
 ) {
   const budgetMicros = Math.round(budgets.dailyUsd * 1_000_000);
   const userMonthlyMicros = Math.round(budgets.userMonthlyUsd * 1_000_000);
+  const testerMonthlyMicros = Math.round(
+    (budgets.testerMonthlyUsd ?? budgets.userMonthlyUsd) * 1_000_000,
+  );
 
   // The spend caps, checked before anything that costs `costMicros`: the user's month first,
   // since that's the one they can do something about (wait for the 1st).
   async function roomFor(userId: string, costMicros: number, now: Date) {
-    if ((await usage.spentBy(userId, periodStart("month", now))) + costMicros > userMonthlyMicros)
+    const monthlyMicros = testers.has(userId) ? testerMonthlyMicros : userMonthlyMicros;
+    if ((await usage.spentBy(userId, periodStart("month", now))) + costMicros > monthlyMicros)
       return "monthly";
     if ((await usage.spentSince(periodStart("day", now))) + costMicros > budgetMicros)
       return "budget";

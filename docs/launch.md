@@ -65,7 +65,7 @@ eas submit --platform ios --profile testflight --latest
 - [ ] Запустить `senior-qa`, `/closet-security-review`, `/closet-release-check` и `/closet-ai-cost`.
 - [ ] Заполнить `docs/legal/privacy-policy.md`: имя, страна, почта, дата и хостинг (Hetzner, регион). Опубликовать на открытой странице, например в Notion.
 - [ ] **Согласие в приложении: нужно решение.** Сейчас в приложении нет ни ссылки на политику, ни согласия на передачу данных за границу. Без них реальных людей не приглашаем.
-- [ ] Вписать id тестеров в `TESTER_USER_IDS`, если им нужны лимиты шире.
+- [ ] Вписать через запятую свой id и id двух тестеров в `TESTER_USER_IDS` в `deploy/.env` (лимиты шире, потолок `TESTER_MONTHLY_BUDGET_USD`), затем `docker compose up -d`. Узнать id: `docker compose exec postgres psql -U closet -d closet -c 'select id, email from "user"'` (имя пользователя и базы — как в `deploy/.env`). Перейти на обычные лимиты: убрать id из переменной и снова выполнить `docker compose up -d`.
 
 ## 5. Внешние тестеры
 

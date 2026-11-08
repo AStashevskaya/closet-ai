@@ -107,6 +107,7 @@ export async function buildApp({
     {
       dailyUsd: env.AI_DAILY_BUDGET_USD,
       userMonthlyUsd: env.USER_MONTHLY_BUDGET_USD,
+      testerMonthlyUsd: env.TESTER_MONTHLY_BUDGET_USD,
       log: (line) => app.log.warn(line),
     },
     new Set(env.TESTER_USER_IDS),
