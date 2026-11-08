@@ -292,6 +292,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
   const usageRows: { userId: string; action: SpendAction; costMicros: number; createdAt: Date }[] =
     [];
   const accountsCreatedAt = new Map<string, Date>();
+  const wantMoreTaps = new Map<string, number>();
   const setAccountCreatedAt = (userId: string, at: Date) => accountsCreatedAt.set(userId, at);
   const usageRepository: UsageRepository = {
     record: async (userId, action, costMicros) => {
@@ -308,6 +309,10 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         .reduce((sum, r) => sum + r.costMicros, 0),
     // As the `user` table would answer: new, like the usage rows, unless a test moves it.
     accountCreatedAt: async (userId) => accountsCreatedAt.get(userId) ?? new Date(),
+    wantMore: async (userId, code) => {
+      const key = `${userId}:${code}`;
+      wantMoreTaps.set(key, (wantMoreTaps.get(key) ?? 0) + 1);
+    },
   };
 
   // Outfits keep their own rows and read items and photos from the stores above.
@@ -697,6 +702,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     photosRepository,
     usageRepository,
     setAccountCreatedAt,
+    wantMoreTaps,
     outfitsRepository,
     profileRepository,
     catalogRepository,

@@ -2,12 +2,12 @@ import type { OutfitMood } from '@closet-ai/shared';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { askWearWith, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
-import { askFailedText, useUsage } from '@/lib/limits';
+import { alertAskFailed, useUsage } from '@/lib/limits';
 import type { StyledPiece } from '@/lib/styled';
 import { StyleThread } from '@/screens/style-it/style-thread';
 import { colors } from '@/theme';
@@ -54,7 +54,7 @@ export function Styled({ requestId, piece, mood }: Props) {
       setRequest(id);
     } catch (cause) {
       if (__DEV__) console.warn('Asking for outfits failed', cause);
-      Alert.alert(askFailedText(t, i18n.language, cause, usage));
+      alertAskFailed(t, i18n.language, cause, usage);
     } finally {
       setAsking(false);
     }

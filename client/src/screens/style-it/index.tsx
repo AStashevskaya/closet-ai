@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,7 +13,7 @@ import { useAnnounce } from '@/lib/announce';
 import { askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
 import { isOffline } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { askFailedText, useUsage } from '@/lib/limits';
+import { alertAskFailed, useUsage } from '@/lib/limits';
 import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors } from '@/theme';
 
@@ -145,7 +145,7 @@ export function StyleIt() {
       });
     } catch (cause) {
       if (__DEV__) console.warn('Asking for outfits failed', cause);
-      Alert.alert(askFailedText(t, i18n.language, cause, usage));
+      alertAskFailed(t, i18n.language, cause, usage);
     } finally {
       setAsking(null);
     }

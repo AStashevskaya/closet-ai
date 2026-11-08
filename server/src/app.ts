@@ -130,7 +130,7 @@ export async function buildApp({
     ),
     { prefix: "/api" },
   );
-  await app.register(usageRoutes(limits, auth), { prefix: "/api" });
+  await app.register(usageRoutes(limits, usageRepository, auth), { prefix: "/api" });
   await app.register(profileRoutes(profileRepository, auth), { prefix: "/api" });
   await app.register(catalogRoutes(catalogRepository, storage, auth), { prefix: "/api" });
   await app.register(inspirationRoutes(photosRepository, storage, outfitQueue, auth), {

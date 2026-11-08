@@ -112,6 +112,6 @@ describe('<Styled />', () => {
     jest.mocked(askWearWith).mockRejectedValue(cause);
     await render(<Styled requestId="req-1" piece={piece} mood={null} />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(alert).toHaveBeenCalledWith(expect.stringContaining(text)));
+    await waitFor(() => expect(alert.mock.calls[0]?.[0]).toEqual(expect.stringContaining(text)));
   });
 });

@@ -13,6 +13,7 @@ import { Icon } from '@/components/icon';
 import { Button, maison } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
 import { addLookItems, getPhotoState, uploadPhoto } from '@/lib/api';
+import { WantMore } from '@/components/want-more';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
@@ -218,9 +219,12 @@ export function AddLook() {
     <Text style={styles.left}>{t('limits.left', { left, limit: usage!.look.limit })}</Text>
   );
   const limitNote = outOfSelfies && (
-    <Text style={styles.limit} accessibilityRole="alert">
-      {limitText(t, i18n.language, limit ?? 'look', usage)}
-    </Text>
+    <>
+      <Text style={styles.limit} accessibilityRole="alert">
+        {limitText(t, i18n.language, limit ?? 'look', usage)}
+      </Text>
+      <WantMore code={limit ?? 'look'} />
+    </>
   );
   // What the photo told: one line under the look's thread, read out when it changes.
   const note =

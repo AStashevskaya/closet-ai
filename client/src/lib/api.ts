@@ -164,6 +164,15 @@ export function getStyle(lang: AppLanguage): Promise<StyleState> {
   return request(`/api/style?lang=${lang}`, styleState);
 }
 
+// She tapped "I want more" on a reached limit.
+export function wantMore(code: string): Promise<void> {
+  return send('/api/usage/want-more', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+}
+
 export function refreshStyle(lang: AppLanguage): Promise<StyleState> {
   return request(`/api/style/refresh?lang=${lang}`, styleState, { method: 'POST' });
 }

@@ -116,6 +116,23 @@ describe("free-tier limits", () => {
   });
 });
 
+describe("I want more", () => {
+  it("takes a limit a plan could lift, from someone signed in", async () => {
+    const server = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    const tap = (code: string, headers: Record<string, string> = { cookie }) =>
+      server.inject({
+        method: "POST",
+        url: "/api/usage/want-more",
+        headers,
+        payload: { code },
+      });
+    expect((await tap("wear_with")).statusCode).toBe(204);
+    expect((await tap("budget")).statusCode).toBe(400);
+    expect((await tap("wear_with", {})).statusCode).toBe(401);
+  });
+});
+
 describe("half of the daily budget", () => {
   // The in-memory rows are stamped with the real time, so the clock is moved from it.
   const realNow = () => new Date();

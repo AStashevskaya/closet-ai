@@ -346,6 +346,8 @@
     }
   },
   "limits": {
+    "wantMore": "I want more",
+    "wantMoreThanks": "Thanks, noted!",
     "left": "{{left}} of {{limit}} left this month",
     "want": "You've used this month's {{limit}} screenshots. New ones from {{date}}.",
     "look": "You've used this month's {{limit}} selfies. New ones from {{date}}.",

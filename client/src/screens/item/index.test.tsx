@@ -4,6 +4,7 @@ import { AccessibilityInfo, Alert, type AlertButton } from 'react-native';
 
 import i18n from '@/i18n';
 import {
+  wantMore,
   askWearWith,
   deleteItem,
   getItem,
@@ -34,6 +35,7 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('@/lib/api', () => ({
+  wantMore: jest.fn().mockResolvedValue(undefined),
   getItem: jest.fn(),
   getSimilarItems: jest.fn(),
   updateItem: jest.fn(),
@@ -245,7 +247,16 @@ describe('<ItemScreen />', () => {
     await render(<ItemScreen id={shirt.id} />);
     await fireEvent.press(await screen.findByRole('button', { name: 'What do I wear this with?' }));
 
-    expect(alert).toHaveBeenCalledWith("That's 5 for today. Ask again tomorrow.");
+    expect(alert).toHaveBeenCalledWith(
+      "That's 5 for today. Ask again tomorrow.",
+      undefined,
+      expect.any(Array),
+    );
+    // Offers "I want more", which tells the server and says thanks.
+    const buttons = alert.mock.calls[0]![2]!;
+    buttons.find((button) => button.text === 'I want more')!.onPress!();
+    expect(wantMore).toHaveBeenCalledWith('wear_with');
+    expect(alert).toHaveBeenLastCalledWith('Thanks, noted!');
     expect(mockPush).not.toHaveBeenCalled();
   });
 

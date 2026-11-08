@@ -1,8 +1,8 @@
-import type { SpendAction } from "@closet-ai/shared";
-import { and, count, eq, gte, sum } from "drizzle-orm";
+import type { SpendAction, WantMoreCode } from "@closet-ai/shared";
+import { and, count, eq, gte, sql, sum } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { user } from "../../db/auth-schema";
-import { usageEvents } from "../../db/schema";
+import { usageEvents, wantMoreTaps } from "../../db/schema";
 
 export interface UsageRepository {
   record(userId: string, action: SpendAction, costMicros: number): Promise<void>;
@@ -14,6 +14,8 @@ export interface UsageRepository {
   spentBy(userId: string, since: Date): Promise<number>;
   // When the account was made, for the first week's limits; null if it's gone.
   accountCreatedAt(userId: string): Promise<Date | null>;
+  // She tapped "I want more" on this limit.
+  wantMore(userId: string, code: WantMoreCode): Promise<void>;
 }
 
 export function createUsageRepository(db: Db): UsageRepository {
@@ -58,6 +60,16 @@ export function createUsageRepository(db: Db): UsageRepository {
         .from(user)
         .where(eq(user.id, userId));
       return row?.createdAt ?? null;
+    },
+
+    async wantMore(userId, code) {
+      await db
+        .insert(wantMoreTaps)
+        .values({ userId, code })
+        .onConflictDoUpdate({
+          target: [wantMoreTaps.userId, wantMoreTaps.code],
+          set: { taps: sql`${wantMoreTaps.taps} + 1`, lastAt: new Date() },
+        });
     },
   };
 }

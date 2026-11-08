@@ -53,7 +53,7 @@ import {
 import { useAnnounce } from '@/lib/announce';
 import { isOffline } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { askFailedText, useUsage } from '@/lib/limits';
+import { alertAskFailed, useUsage } from '@/lib/limits';
 import { defaultCurrency, parsePrice, priceText } from '@/lib/price';
 import { styledParams } from '@/lib/styled';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
@@ -251,7 +251,7 @@ export function ItemScreen({ id }: { id: string }) {
       router.push({ pathname: '/styled/[id]', params: styledParams(requestId, item, mood) });
     } catch (cause) {
       if (__DEV__) console.warn('Asking for outfits failed', cause);
-      Alert.alert(askFailedText(t, i18n.language, cause, usage));
+      alertAskFailed(t, i18n.language, cause, usage);
     } finally {
       setBusy(false);
     }

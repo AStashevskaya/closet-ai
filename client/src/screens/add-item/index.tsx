@@ -34,6 +34,7 @@ import { Button, maison } from '@/components/maison';
 import { PhotoCropper } from '@/components/photo-cropper';
 import { PressableScale } from '@/components/pressable-scale';
 import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import { WantMore } from '@/components/want-more';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText } from '@/lib/limits';
@@ -596,9 +597,12 @@ export function AddItem() {
 
         <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {limit && (
-            <Text style={styles.error} accessibilityRole="alert">
-              {limitText(t, i18n.language, limit)}
-            </Text>
+            <>
+              <Text style={styles.error} accessibilityRole="alert">
+                {limitText(t, i18n.language, limit)}
+              </Text>
+              <WantMore code={limit} />
+            </>
           )}
           {/* Keyed by the message, so a new error fades in again instead of swapping in place. */}
           {error && (
