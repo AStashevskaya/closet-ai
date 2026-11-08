@@ -58,8 +58,8 @@ const firstOf = (items: Item[]) =>
 type StopData = { key: string; note: string; big: string; children?: ReactNode };
 
 type Section = {
-  key: 'closet' | 'looks' | 'wantCan' | 'wishes' | 'theEdit';
-  href: '/' | '/style' | '/want-can' | '/wishes' | '/the-edit';
+  key: 'closet' | 'looks' | 'wantCan' | 'inspiration' | 'wishes' | 'theEdit';
+  href: '/' | '/style' | '/want-can' | '/inspiration' | '/wishes' | '/the-edit';
 };
 
 // Each language by its own name, so it can be found whatever the app is in now.
@@ -75,6 +75,7 @@ const SECTIONS: Section[] = [
   { key: 'closet', href: '/' },
   { key: 'looks', href: '/style' },
   { key: 'wantCan', href: '/want-can' },
+  { key: 'inspiration', href: '/inspiration' },
   { key: 'wishes', href: '/wishes' },
   { key: 'theEdit', href: '/the-edit' },
 ];

@@ -144,7 +144,7 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
-          name="the-edit"
+          name="inspiration"
           options={{
             title: '',
             headerBackButtonDisplayMode: 'minimal',

@@ -89,7 +89,7 @@
   "tabs": {
     "closet": "Closet",
     "style": "Style it",
-    "inspiration": "Inspiration",
+    "brands": "Brands",
     "profile": "Profile"
   },
   "menu": {
@@ -98,7 +98,8 @@
       "closet": "My closet",
       "looks": "Outfits",
       "wantCan": "Recreate the look",
-      "theEdit": "The Edit",
+      "inspiration": "Inspiration",
+      "theEdit": "Brands",
       "wishes": "Wishes"
     },
     "language": "Language",
@@ -444,9 +445,11 @@
     "similar": "Like it from partner brands"
   },
   "edit": {
-    "title": "The Edit",
+    "recreateNote": "Similar from brands, and what you already own",
+    "title": "Brands",
     "subtitle": "Picked for your closet",
-    "failed": "Couldn't open the Edit. Try again.",
+    "failed": "Couldn't open Brands.",
+    "retry": "Try again",
     "empty": "Nothing here yet."
   },
   "verdict": {

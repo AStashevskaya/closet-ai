@@ -1,5 +1,5 @@
 import type { CatalogItem } from '@closet-ai/shared';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import i18n from '@/i18n';
 import { listCatalog } from '@/lib/api';
@@ -7,7 +7,18 @@ import { listCatalog } from '@/lib/api';
 import { TheEdit } from '.';
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+// The effect the screen runs on focus, so a test can come back to the tab.
+let mockFocus: () => void = () => {};
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: mockPush }),
+    useFocusEffect: (effect: () => void) => {
+      mockFocus = effect;
+      useEffect(effect, [effect]);
+    },
+  };
+});
 jest.mock('@/lib/api', () => ({
   listCatalog: jest.fn(),
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
@@ -40,7 +51,7 @@ describe('<TheEdit />', () => {
     jest.mocked(listCatalog).mockResolvedValue([boots, tee]);
     await render(<TheEdit />);
 
-    expect(await screen.findByText('The Edit')).toBeOnTheScreen();
+    expect(await screen.findByText('Brands')).toBeOnTheScreen();
     expect(screen.getByText('Partner · demo brand')).toBeOnTheScreen();
     expect(listCatalog).toHaveBeenCalledWith('en');
     expect(
@@ -53,9 +64,46 @@ describe('<TheEdit />', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/catalog/[id]', params: { id: tee.id } });
   });
 
-  test('says so when the Edit could not be loaded', async () => {
+  test('says so when Brands could not be loaded', async () => {
     jest.mocked(listCatalog).mockRejectedValue(new Error('offline'));
     await render(<TheEdit />);
-    expect(await screen.findByText("Couldn't open the Edit. Try again.")).toBeOnTheScreen();
+    expect(await screen.findByText("Couldn't open Brands.")).toBeOnTheScreen();
+  });
+
+  test('can try again, and reach Recreate the look, when loading failed', async () => {
+    jest.mocked(listCatalog).mockRejectedValueOnce(new Error('offline'));
+    jest.mocked(listCatalog).mockResolvedValue([boots]);
+    await render(<TheEdit />);
+    expect(await screen.findByText('Recreate the look')).toBeOnTheScreen();
+    await fireEvent.press(await screen.findByText('Try again'));
+    expect(await screen.findByText('Ankle boots')).toBeOnTheScreen();
+  });
+
+  test('coming back reads again, and shows everything when the chosen category has gone', async () => {
+    jest.mocked(listCatalog).mockResolvedValue([boots, tee]);
+    await render(<TheEdit />);
+    await fireEvent.press(await screen.findByText('Tops'));
+    expect(screen.queryByText('Ankle boots')).toBeNull();
+
+    jest.mocked(listCatalog).mockResolvedValue([boots]);
+    await act(async () => mockFocus());
+    expect(await screen.findByText('Ankle boots')).toBeOnTheScreen();
+  });
+
+  test('keeps what is on screen when reading again fails', async () => {
+    jest.mocked(listCatalog).mockResolvedValue([boots]);
+    await render(<TheEdit />);
+    await screen.findByText('Ankle boots');
+
+    jest.mocked(listCatalog).mockRejectedValue(new Error('offline'));
+    await act(async () => mockFocus());
+    expect(screen.getByText('Ankle boots')).toBeOnTheScreen();
+  });
+
+  test('has a way in to Recreate the look', async () => {
+    jest.mocked(listCatalog).mockResolvedValue([boots]);
+    await render(<TheEdit />);
+    await fireEvent.press(await screen.findByText('Recreate the look'));
+    expect(mockPush).toHaveBeenCalledWith('/want-can');
   });
 });
