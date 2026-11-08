@@ -19,7 +19,6 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { lineLength, smoothPath } from '@/components/hand-drawn';
 import { Icon } from '@/components/icon';
 import { Button, maison, ScreenTitle } from '@/components/maison';
-import { useTabBarClearance } from '@/components/tab-bar';
 import { ThreadLine } from '@/components/thread-stops';
 import { useAnnounce } from '@/lib/announce';
 import { deleteInspiration, listInspiration, sessionHeaders, uploadPhoto } from '@/lib/api';
@@ -58,7 +57,6 @@ type Frame = { y: number; height: number };
 export function Inspiration() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
-  const clearance = useTabBarClearance();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { style, update, load: loadStyle, asked, failure: styleFailure } = useStyle(i18n.language);
@@ -269,7 +267,8 @@ export function Inspiration() {
       style={styles.screen}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 20, paddingBottom: clearance },
+        // Opened from the menu: under the stack's header, with no tab bar below.
+        { paddingTop: 8, paddingBottom: insets.bottom + 24 },
       ]}
     >
       {/* One layout for every state (docs/design.md, "Waiting"): the title, the row below it and the

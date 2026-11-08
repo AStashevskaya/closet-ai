@@ -1,14 +1,17 @@
 import { ITEM_CATEGORIES, type CatalogItem } from '@closet-ai/shared';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HangerLoader } from '@/components/hanger-loader';
+import { Icon } from '@/components/icon';
 import { maison, ScreenTitle } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
+import { useTabBarClearance } from '@/components/tab-bar';
 import { absoluteUrl, listCatalog, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { priceLabel } from '@/lib/price';
@@ -21,32 +24,40 @@ type State =
   | { status: 'failed' }
   | { status: 'done'; items: CatalogItem[]; headers: Record<string, string> };
 
-// The Edit: partner brands' pieces, the ones closest to the user's closet first (the server
-// orders them), filtered by category on the phone. Labelled as partners'; a piece opens its card.
+// Brands (The Edit in code), a tab since 2026-11-08: partner brands' pieces, the ones closest to
+// the user's closet first (the server orders them), filtered by category on the phone. Labelled as
+// partners' or demo; a piece opens its card. There's a way in to Recreate the look at the top.
 export function TheEdit() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const lang = appLanguage(i18n.language);
   const [state, setState] = useState<State>({ status: 'loading' });
   const [filter, setFilter] = useState<Filter>('all');
+  const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
 
-  useEffect(() => {
-    let cancelled = false;
-    // An effect can't be async itself, so the async work goes in an inner function.
-    const load = async () => {
-      try {
-        const [items, headers] = await Promise.all([listCatalog(lang), sessionHeaders()]);
-        if (!cancelled) setState({ status: 'done', items, headers });
-      } catch (cause) {
-        if (__DEV__) console.warn('Loading the Edit failed', cause);
-        if (!cancelled) setState({ status: 'failed' });
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [lang]);
+  // A tab stays mounted, so it reads again each time it's opened: the order follows her closet,
+  // and a load that failed gets another try. What's on screen stays if the new read fails.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const load = async () => {
+        try {
+          const [items, headers] = await Promise.all([listCatalog(lang), sessionHeaders()]);
+          if (!cancelled) setState({ status: 'done', items, headers });
+        } catch (cause) {
+          if (__DEV__) console.warn('Loading the Edit failed', cause);
+          if (!cancelled) {
+            setState((current) => (current.status === 'done' ? current : { status: 'failed' }));
+          }
+        }
+      };
+      void load();
+      return () => {
+        cancelled = true;
+      };
+    }, [lang]),
+  );
 
   if (state.status !== 'done') {
     return (
@@ -73,12 +84,26 @@ export function TheEdit() {
       keyExtractor={(item) => item.id}
       numColumns={2}
       columnWrapperStyle={styles.row}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 20, paddingBottom: clearance },
+      ]}
       ListHeaderComponent={
         <Animated.View entering={rise} style={styles.header}>
           <View style={maison.gutter}>
             <ScreenTitle title={t('edit.title')} subtitle={t('edit.subtitle')} />
             <Text style={[styles.label, styles.headerLabel]}>{label}</Text>
+            <Pressable
+              style={styles.recreate}
+              onPress={() => router.push('/want-can')}
+              accessibilityRole="button"
+            >
+              <View style={styles.recreateText}>
+                <Text style={styles.recreateTitle}>{t('want.title')}</Text>
+                <Text style={maison.note}>{t('edit.recreateNote')}</Text>
+              </View>
+              <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+            </Pressable>
           </View>
           {categories.length > 1 && (
             <CategoryFilter categories={categories} value={filter} onChange={setFilter} />
@@ -133,12 +158,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   content: {
-    paddingBottom: 48,
     gap: 20,
   },
   header: {
     gap: 16,
-    paddingTop: 8,
+  },
+  // The same row as on Inspiration.
+  recreate: {
+    marginTop: 16,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.divider,
+    paddingVertical: 8,
+  },
+  recreateText: {
+    flex: 1,
+    gap: 2,
+  },
+  recreateTitle: {
+    fontFamily: fonts.displayLight,
+    fontSize: 22,
+    lineHeight: 26,
+    color: colors.text,
+    textAlign: 'left',
   },
   headerLabel: {
     marginTop: 12,

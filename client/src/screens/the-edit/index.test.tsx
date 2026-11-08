@@ -7,7 +7,13 @@ import { listCatalog } from '@/lib/api';
 import { TheEdit } from '.';
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: mockPush }),
+    useFocusEffect: (effect: () => void) => useEffect(effect, [effect]),
+  };
+});
 jest.mock('@/lib/api', () => ({
   listCatalog: jest.fn(),
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
@@ -40,7 +46,7 @@ describe('<TheEdit />', () => {
     jest.mocked(listCatalog).mockResolvedValue([boots, tee]);
     await render(<TheEdit />);
 
-    expect(await screen.findByText('The Edit')).toBeOnTheScreen();
+    expect(await screen.findByText('Brands')).toBeOnTheScreen();
     expect(screen.getByText('Partner · demo brand')).toBeOnTheScreen();
     expect(listCatalog).toHaveBeenCalledWith('en');
     expect(
@@ -53,9 +59,16 @@ describe('<TheEdit />', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/catalog/[id]', params: { id: tee.id } });
   });
 
-  test('says so when the Edit could not be loaded', async () => {
+  test('says so when Brands could not be loaded', async () => {
     jest.mocked(listCatalog).mockRejectedValue(new Error('offline'));
     await render(<TheEdit />);
-    expect(await screen.findByText("Couldn't open the Edit. Try again.")).toBeOnTheScreen();
+    expect(await screen.findByText("Couldn't open Brands. Try again.")).toBeOnTheScreen();
+  });
+
+  test('has a way in to Recreate the look', async () => {
+    jest.mocked(listCatalog).mockResolvedValue([boots]);
+    await render(<TheEdit />);
+    await fireEvent.press(await screen.findByText('Recreate the look'));
+    expect(mockPush).toHaveBeenCalledWith('/want-can');
   });
 });

@@ -93,9 +93,16 @@ describe('<Menu />', () => {
 
   test('shows only the sections the app has', async () => {
     await render(<Menu />);
-    // My profile, the closet, Style it, Recreate the look, Wishes and the Edit; nothing "soon".
-    expect(screen.getAllByRole('menuitem')).toHaveLength(6);
+    // My profile, the closet, Style it, Recreate the look, Inspiration, Wishes and Brands;
+    // nothing "soon".
+    expect(screen.getAllByRole('menuitem')).toHaveLength(7);
     expect(screen.queryByText('soon')).toBeNull();
+  });
+
+  test('opens Inspiration, which no longer has a tab', async () => {
+    await render(<Menu />);
+    await fireEvent.press(screen.getByText('Inspiration'));
+    expect(mockNavigate).toHaveBeenCalledWith('/inspiration');
   });
 
   test('shows how many wishes wait for an answer', async () => {

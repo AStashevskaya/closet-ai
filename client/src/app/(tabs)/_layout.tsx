@@ -7,7 +7,7 @@ import { TabBar } from '@/components/tab-bar';
 const TABS = [
   { name: 'index', label: 'closet' },
   { name: 'style', label: 'style' },
-  { name: 'inspiration', label: 'inspiration' },
+  { name: 'the-edit', label: 'brands' },
   { name: 'profile', label: 'profile' },
 ] as const;
 
