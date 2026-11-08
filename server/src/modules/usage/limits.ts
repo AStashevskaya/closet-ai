@@ -31,6 +31,10 @@ export const ESTIMATED_COST_MICROS: Record<UsageAction, number> = {
   inspiration: 0,
 };
 
+// An answer that was paid for but whose usage can't be read is mostly one cut off at max_tokens:
+// 8000 tokens out plus the input, so the worst case rather than the usual 3 ¢.
+export const UNREADABLE_COMPOSE_MICROS = 50_000;
+
 // An Opus brief through the Batch API, to check the room for one before sending it; what it
 // really cost is recorded once it's back.
 export const BRIEF_COST_MICROS = 100_000;

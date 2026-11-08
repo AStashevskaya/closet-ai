@@ -7,7 +7,7 @@ import type { CatalogRepository, CatalogRow } from "../catalog/catalog.repositor
 import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { flattenOnWhite, isWhole, processCutout } from "../photos/process-photo";
-import { BRIEF_COST_MICROS, ESTIMATED_COST_MICROS, type Limits } from "../usage/limits";
+import { BRIEF_COST_MICROS, UNREADABLE_COMPOSE_MICROS, type Limits } from "../usage/limits";
 import type {
   NewOutfit,
   OutfitRequestRow,
@@ -172,7 +172,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     })
     .catch(async (cause: unknown) => {
       if (cause instanceof PaidComposeFailure) {
-        await noteSpend(cause.costMicros ?? ESTIMATED_COST_MICROS.wear_with);
+        await noteSpend(cause.costMicros ?? UNREADABLE_COMPOSE_MICROS);
       }
       throw cause;
     });

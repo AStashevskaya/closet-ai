@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
 import { PaidComposeFailure } from "../src/ai/stylist";
-import { createLimits, ESTIMATED_COST_MICROS, periodStart } from "../src/modules/usage/limits";
+import { createLimits, periodStart, UNREADABLE_COMPOSE_MICROS } from "../src/modules/usage/limits";
 import {
   checkBrief,
   composeOutfits,
@@ -1099,18 +1099,31 @@ describe("what a styling costs", () => {
 
     s.stub.stylist.compose = () => Promise.reject(new PaidComposeFailure(null, "unreadable"));
     await expect(composeOutfits(s.deps, pending, "en")).rejects.toThrow("unreadable");
-    expect(await spent(s, anna.userId)).toBe(40_000 + ESTIMATED_COST_MICROS.wear_with);
+    expect(await spent(s, anna.userId)).toBe(40_000 + UNREADABLE_COMPOSE_MICROS);
 
     s.stub.stylist.compose = () => Promise.reject(new Error("api down"));
     await expect(composeOutfits(s.deps, pending, "en")).rejects.toThrow("api down");
-    expect(await spent(s, anna.userId)).toBe(40_000 + ESTIMATED_COST_MICROS.wear_with);
+    expect(await spent(s, anna.userId)).toBe(40_000 + UNREADABLE_COMPOSE_MICROS);
 
     // The retry that works counts as well.
     s.stub.stylist.compose = answer;
     await composeOutfits(s.deps, pending, "en");
     expect(await spent(s, anna.userId)).toBe(
-      40_000 + ESTIMATED_COST_MICROS.wear_with + STUB_COMPOSE_MICROS,
+      40_000 + UNREADABLE_COMPOSE_MICROS + STUB_COMPOSE_MICROS,
     );
+  });
+  it("still finishes when the cost can't be noted, since a retry would pay again", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    const id = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>().id;
+    const limits = { ...s.deps.limits, spent: () => Promise.reject(new Error("db down")) };
+
+    await composeOutfits({ ...s.deps, limits }, id, "en");
+    expect(s.logged).toContainEqual(
+      expect.objectContaining({ msg: "recording a styling's cost failed", error: "db down" }),
+    );
+    expect((await view(s, anna.cookie, id)).status).toBe("done");
   });
 });
 
