@@ -181,8 +181,18 @@ export const catalogItem = z.object({
   demo: z.boolean(),
 });
 export type CatalogItem = z.infer<typeof catalogItem>;
-// GET /api/catalog: the Edit, partner pieces closest to the user's wardrobe first.
-export const catalogList = z.array(catalogItem);
+// GET /api/catalog: the Edit, partner pieces closest to the user's wardrobe first. Each says which
+// of her pieces it goes with, by rules (`goes-with.ts`); null when none does.
+export const catalogFeedItem = catalogItem.extend({
+  goesWith: z
+    .object({
+      count: z.number().int(),
+      piece: z.object({ id: z.string(), name: z.string(), cutoutUrl: z.string() }),
+    })
+    .nullable(),
+});
+export type CatalogFeedItem = z.infer<typeof catalogFeedItem>;
+export const catalogList = z.array(catalogFeedItem);
 
 // What brands are shown, in aggregate only: a partner item shown to someone, its card opened,
 // its link followed.

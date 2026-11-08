@@ -28,6 +28,7 @@ import {
   wishesDue,
   type Wish,
   type WishAnswer,
+  type CatalogFeedItem,
   type CatalogItem,
   wearWithStarted,
   type WearWithInput,
@@ -239,7 +240,7 @@ export function getWearWith(id: string, lang: AppLanguage): Promise<WearWithRequ
 }
 
 // The Edit: partner pieces closest to the user's closet first.
-export function listCatalog(lang: AppLanguage): Promise<CatalogItem[]> {
+export function listCatalog(lang: AppLanguage): Promise<CatalogFeedItem[]> {
   return request(`/api/catalog?lang=${lang}`, catalogList);
 }
 

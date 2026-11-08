@@ -445,6 +445,9 @@
     "similar": "Like it from partner brands"
   },
   "edit": {
+    "toYour": "with your {{name}}",
+    "goesWith_one": "Goes with {{count}} of your pieces",
+    "goesWith_other": "Goes with {{count}} of your pieces",
     "recreateNote": "Similar from brands, and what you already own",
     "title": "Brands",
     "subtitle": "Picked for your closet",

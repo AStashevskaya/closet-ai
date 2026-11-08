@@ -5,7 +5,9 @@ import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { Storage } from "../../storage/storage";
+import type { ItemsRepository } from "../items/items.repository";
 import { toCatalogItem, type CatalogRepository } from "./catalog.repository";
+import { pairWithWardrobe } from "./goes-with";
 
 // Enough for the demo catalog in one screen; paging comes with real partners.
 const EDIT_LIMIT = 200;
@@ -13,7 +15,12 @@ const EDIT_LIMIT = 200;
 // A partner item's card and picture. Any signed-in user may see any catalog item: it's a
 // brand's product, not someone's wardrobe.
 export const catalogRoutes =
-  (catalog: CatalogRepository, storage: Storage, auth: Auth): FastifyPluginAsyncZod =>
+  (
+    catalog: CatalogRepository,
+    items: ItemsRepository,
+    storage: Storage,
+    auth: Auth,
+  ): FastifyPluginAsyncZod =>
   async (app) => {
     app.addHook("preHandler", requireUser(auth));
 
@@ -32,12 +39,13 @@ export const catalogRoutes =
       },
       async (request) => {
         const { lang, category } = request.query;
-        const rows = await catalog.list(
-          (request.user as SessionUser).id,
-          category ?? null,
-          EDIT_LIMIT,
-        );
-        return rows.map((row) => toCatalogItem(row, lang));
+        const userId = (request.user as SessionUser).id;
+        const [rows, wardrobe] = await Promise.all([
+          catalog.list(userId, category ?? null, EDIT_LIMIT),
+          items.list(userId),
+        ]);
+        const pairs = pairWithWardrobe(rows, wardrobe);
+        return rows.map((row, i) => ({ ...toCatalogItem(row, lang), goesWith: pairs[i] ?? null }));
       },
     );
 

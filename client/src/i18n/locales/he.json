@@ -450,6 +450,10 @@
     "similar": "דומה אצל מותגים שותפים"
   },
   "edit": {
+    "toYour": "עם {{name}} שלך",
+    "goesWith_one": "מתאים לפריט אחד שלך",
+    "goesWith_two": "מתאים לשני פריטים שלך",
+    "goesWith_other": "מתאים ל-{{count}} פריטים שלך",
     "recreateNote": "דומה ממותגים ומה שכבר יש לכם",
     "title": "מותגים",
     "subtitle": "לפי הארון שלך",

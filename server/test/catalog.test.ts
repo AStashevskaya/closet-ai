@@ -1,4 +1,4 @@
-import type { CatalogItem } from "@closet-ai/shared";
+import type { CatalogFeedItem, CatalogItem } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -39,7 +39,12 @@ async function signUp(server: App, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
+    payload: {
+      privacyConsent: "2026-11-05",
+      name: "Test User",
+      email,
+      password: "correct-horse-battery",
+    },
   });
   return res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
 }
@@ -126,7 +131,9 @@ describe("/api/catalog/:id", () => {
     const list = async (query: string) =>
       (
         await server.inject({ method: "GET", url: `/api/catalog?${query}`, headers: { cookie } })
-      ).json<CatalogItem[]>();
+      ).json<CatalogFeedItem[]>();
+    // An empty closet: nothing of hers to pair a piece with.
+    expect((await list("lang=en")).map((item) => item.goesWith)).toEqual([null, null]);
     expect((await list("lang=ru")).map((item) => item.name)).toEqual(["Футболка", "Ботинки"]);
     expect((await list("category=shoes")).map((item) => item.name)).toEqual(["Ankle boots"]);
     // Browsing the grid isn't "shown"; only an opened card counts.
