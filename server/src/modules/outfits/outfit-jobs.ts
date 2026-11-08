@@ -124,7 +124,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
 
   const reacted = await outfits.reactedOutfits(request.userId, LIKED_LOOKS_AMONG);
   const liked = reacted
-    .filter((look) => look.opinion === "like" || look.wore)
+    // A look she wore and then rejected isn't one to lean towards.
+    .filter((look) => look.opinion === "like" || (look.wore && look.opinion !== "dislike"))
     .slice(0, LIKED_LOOKS)
     .map((look) => look.description);
 

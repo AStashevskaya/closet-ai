@@ -198,9 +198,11 @@ const briefFormat = zodOutputFormat(briefOutput);
 const describe = (p: StylistPiece) =>
   `#${p.n} ${p.name} | ${p.category} | ${p.colors.join("/")} | ${p.seasons.join("/") || "?"}${p.details ? ` | ${p.details}` : ""}`;
 
+// Her taste rather than a list to repeat, so it doesn't pull against recentText: a liked look is
+// usually one of her recent looks too.
 const likedText = (liked: string[]) =>
   liked.length
-    ? `\nLooks she liked or wore, newest first (her taste, to lean towards, not to copy): ${liked.join("; ")}.`
+    ? `\nLooks she liked or wore, newest first: ${liked.join("; ")}. Read them for what she likes (the mood, proportions and colours). The rules about her recent looks still hold: don't put these pieces back together or reuse these names.`
     : "";
 
 // Her recent looks, so the new ones don't repeat them.

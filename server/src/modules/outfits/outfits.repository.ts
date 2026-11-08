@@ -548,7 +548,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           opinion,
           reason,
           wore: woreCount > 0,
-          description: `"${look.caption}": ${names.join(" + ")}`,
+          // Only wardrobe pieces have names here: a look of partner pieces is its caption alone.
+          description: names.length
+            ? `"${look.caption}": ${names.join(" + ")}`
+            : `"${look.caption}"`,
         };
       });
     },

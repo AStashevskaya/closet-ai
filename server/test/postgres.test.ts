@@ -108,7 +108,12 @@ describe.skipIf(!url)("on Postgres", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
-      payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
+      payload: {
+        privacyConsent: "2026-11-05",
+        name: "Test User",
+        email,
+        password: "correct-horse-battery",
+      },
     });
     expect(res.statusCode).toBe(200);
     return res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
@@ -802,6 +807,21 @@ describe.skipIf(!url)("on Postgres", () => {
       await outfits.saveOutfits(composing, userId, [look("Late", item.id)], { micros: 1 }),
     ).toBe(false);
     expect(await looks(composing)).toBe(0);
+
+    // Newest reaction first; a look with no named pieces is its caption alone.
+    const later = await outfits.createRequest(userId, { itemId: item.id }, 1);
+    await outfits.saveOutfits(later, userId, [look("Older", item.id), look("Newer", null)], {
+      micros: 1,
+    });
+    const saved = await db.db
+      .select()
+      .from(schema.outfits)
+      .where(eq(schema.outfits.requestId, later));
+    await outfits.react(saved.find((o) => o.caption === "Older")!.id, userId, "like");
+    await outfits.react(saved.find((o) => o.caption === "Newer")!.id, userId, "like");
+    const [newest, next] = await outfits.reactedOutfits(userId, 5);
+    expect(newest!.description).toBe('"Newer"');
+    expect(next!.description).toContain('"Older": ');
   });
 
   it("answers a second delete at once with 404, with or without a reaction", async () => {

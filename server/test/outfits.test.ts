@@ -1090,6 +1090,29 @@ describe("what she liked", () => {
   });
 });
 
+describe("a look she wore and then rejected", () => {
+  it("doesn't reach the next styling as one she liked", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    const top = await addItem(s, anna, "top");
+    const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+    await s.runJobs();
+    const [look] = (await view(s, anna.cookie, id)).outfits;
+    for (const reaction of ["wore", "dislike"]) {
+      await s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${look!.id}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload: { reaction },
+      });
+    }
+    await ask(s, anna.cookie, top.id);
+    await s.runJobs();
+    expect(s.stub.composeCalls.at(-1)!.liked).toEqual([]);
+  });
+});
+
 describe("style brief", () => {
   it("reads why she rejected an outfit, in words", async () => {
     const s = await setup();
