@@ -41,7 +41,7 @@ const state = (patch: Partial<StyleState>): StyleState => ({
 
 // Offered, tapped, and the brief now being written.
 async function askForUpdate() {
-  jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 5, looks: 2 } }));
+  jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 5, looks: 2, reactions: 0 } }));
   jest.mocked(refreshStyle).mockResolvedValue(state({ updating: true }));
   await render(<Closet />);
   await fireEvent.press(await screen.findByRole('button', { name: 'Update my style' }));
@@ -83,18 +83,48 @@ describe('<StyleCard />', () => {
     expect(screen.queryByRole('summary')).toBeNull();
   });
 
-  test('says what was added, items and looks alike', async () => {
-    jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 5, looks: 2 } }));
+  test('says when only rated looks are new, and lists all three together', async () => {
+    jest
+      .mocked(getStyle)
+      .mockResolvedValue(state({ suggest: { items: 0, looks: 0, reactions: 5 } }));
     const { rerender } = await render(<Closet />);
+    expect(await screen.findByText('New ratings')).toBeOnTheScreen();
     expect(
-      await screen.findByText('New since your last update: 5 items and 2 saved looks. Update your style with them?'),
+      screen.getByText('New since your last update: 5 rated looks. Update your style with them?'),
     ).toBeOnTheScreen();
 
-    jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 0, looks: 3 } }));
+    jest
+      .mocked(getStyle)
+      .mockResolvedValue(state({ suggest: { items: 5, looks: 2, reactions: 1 } }));
     await rerender(<></>);
     await rerender(<Closet />);
     expect(
-      await screen.findByText('New since your last update: 3 saved looks. Update your style with them?'),
+      await screen.findByText(
+        'New since your last update: 5 items, 2 saved looks and 1 rated look. Update your style with them?',
+      ),
+    ).toBeOnTheScreen();
+  });
+
+  test('says what was added, items and looks alike', async () => {
+    jest
+      .mocked(getStyle)
+      .mockResolvedValue(state({ suggest: { items: 5, looks: 2, reactions: 0 } }));
+    const { rerender } = await render(<Closet />);
+    expect(
+      await screen.findByText(
+        'New since your last update: 5 items and 2 saved looks. Update your style with them?',
+      ),
+    ).toBeOnTheScreen();
+
+    jest
+      .mocked(getStyle)
+      .mockResolvedValue(state({ suggest: { items: 0, looks: 3, reactions: 0 } }));
+    await rerender(<></>);
+    await rerender(<Closet />);
+    expect(
+      await screen.findByText(
+        'New since your last update: 3 saved looks. Update your style with them?',
+      ),
     ).toBeOnTheScreen();
   });
 
@@ -123,7 +153,9 @@ describe('<StyleCard />', () => {
 
   test('an update already on its way just reloads, without an error', async () => {
     const alert = jest.spyOn(Alert, 'alert');
-    jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 5, looks: 0 } }));
+    jest
+      .mocked(getStyle)
+      .mockResolvedValue(state({ suggest: { items: 5, looks: 0, reactions: 0 } }));
     jest.mocked(refreshStyle).mockRejectedValue(new ApiError(409, 'style:updating'));
     await render(<Closet />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Update my style' }));
@@ -132,7 +164,9 @@ describe('<StyleCard />', () => {
   });
 
   test('"Not now" hides it until tomorrow', async () => {
-    jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 6, looks: 0 } }));
+    jest
+      .mocked(getStyle)
+      .mockResolvedValue(state({ suggest: { items: 6, looks: 0, reactions: 0 } }));
     await render(<Closet />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Not now' }));
     expect(screen.queryByText('Great shopping!')).toBeNull();
@@ -144,7 +178,9 @@ describe('<StyleCard />', () => {
 
   test('stays hidden on a day it was put off', async () => {
     jest.mocked(SecureStore.getItem).mockReturnValueOnce(new Date().toDateString());
-    jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 6, looks: 0 } }));
+    jest
+      .mocked(getStyle)
+      .mockResolvedValue(state({ suggest: { items: 6, looks: 0, reactions: 0 } }));
     await render(<Closet />);
     await waitFor(() => expect(getStyle).toHaveBeenCalled());
     expect(screen.queryByText('Great shopping!')).toBeNull();

@@ -12,6 +12,7 @@ import type {
   NewOutfit,
   OutfitRequestRow,
   OutfitsRepository,
+  ReactedOutfit,
   StylingItem,
 } from "./outfits.repository";
 import {
@@ -65,6 +66,14 @@ export const LOOKS_PER_REQUEST = 3;
 // A brand's piece shown for its own sake stays the exception: never in every look (docs/product.md,
 // partner items). Partner shoes and bags that finish a look her wardrobe can't are not counted.
 export const MAX_PARTNER_LOOKS = 2;
+// A look she liked or wore. One she wore and then rejected isn't: her latest word counts.
+export const isLiked = (look: Pick<ReactedOutfit, "opinion" | "wore">) =>
+  look.opinion === "like" || (look.wore && look.opinion !== "dislike");
+
+// The liked looks each request reads, found among her newest reactions.
+const LIKED_LOOKS = 5;
+const LIKED_LOOKS_AMONG = 20;
+
 // How far back "recently" goes: about a week of styling for an active user.
 export const RECENT_REQUESTS = 6;
 
@@ -118,6 +127,12 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
         }
       : null;
 
+  const reacted = await outfits.reactedOutfits(request.userId, LIKED_LOOKS_AMONG);
+  const liked = reacted
+    .filter(isLiked)
+    .slice(0, LIKED_LOOKS)
+    .map((look) => look.description);
+
   const { looks, verdict, costMicros, tokens } = await stylist.compose({
     hero: { ...toStylistPiece(hero, nOf.get(hero.id)!), image: await asJpeg(heroFile.body, 512) },
     wardrobe: numbered
@@ -137,6 +152,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
         .sort((a, b) => b.looks - a.looks),
       captions: recent.captions,
     },
+    liked,
     season,
     mood: request.mood,
     lang,
@@ -481,7 +497,7 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
     wardrobe: numbered.map(({ item, n }) => toStylistPiece(item, n)),
     sheets,
     inspiration,
-    liked: reacted.filter((o) => o.opinion === "like" || o.wore).map((o) => o.description),
+    liked: reacted.filter(isLiked).map((o) => o.description),
     disliked: reacted
       .filter((o) => o.opinion === "dislike")
       .map((o) => (o.reason ? `${o.description} (${REASON_WORDS[o.reason]})` : o.description)),

@@ -537,7 +537,9 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           .innerJoin(items, eq(items.id, outfitPieces.itemId))
           .where(inArray(outfitPieces.outfitId, ids)),
       ]);
-      return looks.map((look) => {
+      // Newest reaction first, as asked for: the query itself keeps no order.
+      const newestFirst = [...looks].sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+      return newestFirst.map((look) => {
         const { opinion, reason, woreCount } = summarize(
           reactions.filter((r) => r.outfitId === look.id),
         );
@@ -546,7 +548,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           opinion,
           reason,
           wore: woreCount > 0,
-          description: `"${look.caption}": ${names.join(" + ")}`,
+          // Only wardrobe pieces have names here: a look of partner pieces is its caption alone.
+          description: names.length
+            ? `"${look.caption}": ${names.join(" + ")}`
+            : `"${look.caption}"`,
         };
       });
     },

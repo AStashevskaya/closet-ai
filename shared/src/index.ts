@@ -511,7 +511,9 @@ export const styleState = z.object({
   // A brief is being written (asked for, or running).
   updating: z.boolean(),
   // What's new since the brief, when it's worth an update now; null otherwise.
-  suggest: z.object({ items: z.number().int(), looks: z.number().int() }).nullable(),
+  suggest: z
+    .object({ items: z.number().int(), looks: z.number().int(), reactions: z.number().int() })
+    .nullable(),
 });
 export type StyleState = z.infer<typeof styleState>;
 

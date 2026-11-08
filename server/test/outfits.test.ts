@@ -1062,6 +1062,57 @@ async function withBrief(s: Setup) {
   return { anna, pieces };
 }
 
+describe("what she liked", () => {
+  it("reaches the next styling, the newest five, without looks she rejected", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const pieces = [];
+    for (let i = 0; i < 8; i++) pieces.push(await addItem(s, anna, i % 2 ? "bottom" : "top"));
+    const liked: string[] = [];
+    for (const [i, piece] of pieces.slice(0, 7).entries()) {
+      const { id } = (await ask(s, anna.cookie, piece.id)).json<{ id: string }>();
+      await s.runJobs();
+      const [look] = (await view(s, anna.cookie, id)).outfits;
+      const reaction = i === 6 ? "dislike" : "like";
+      await s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${look!.id}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload: { reaction },
+      });
+      if (reaction === "like") liked.unshift(look!.caption);
+    }
+    await ask(s, anna.cookie, pieces[7]!.id);
+    await s.runJobs();
+    const sent = s.stub.composeCalls.at(-1)!.liked;
+    expect(sent).toHaveLength(5);
+    expect(sent).toEqual(liked.slice(0, 5));
+  });
+});
+
+describe("a look she wore and then rejected", () => {
+  it("doesn't reach the next styling as one she liked", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    const top = await addItem(s, anna, "top");
+    const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
+    await s.runJobs();
+    const [look] = (await view(s, anna.cookie, id)).outfits;
+    for (const reaction of ["wore", "dislike"]) {
+      await s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${look!.id}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload: { reaction },
+      });
+    }
+    await ask(s, anna.cookie, top.id);
+    await s.runJobs();
+    expect(s.stub.composeCalls.at(-1)!.liked).toEqual([]);
+  });
+});
+
 describe("style brief", () => {
   it("reads why she rejected an outfit, in words", async () => {
     const s = await setup();
@@ -1253,6 +1304,7 @@ describe("her style", () => {
     expect((await style(s, anna.cookie)).json<StyleState>().suggest).toEqual({
       items: 5,
       looks: 0,
+      reactions: 0,
     });
 
     // She taps "update": no more offers while it's written, then the new brief.
@@ -1272,6 +1324,31 @@ describe("her style", () => {
     });
     // Once a day at most.
     expect((await refresh(s, anna.cookie)).json<{ message: string }>().message).toBe("style:wait");
+  });
+
+  it("offers an update after five rated looks, liked or not", async () => {
+    const s = await setup();
+    const { anna, pieces } = await withBrief(s);
+    s.clock.now = new Date("2026-10-23T13:00:00Z");
+    const rate = async (piece: { id: string }, reaction: "like" | "dislike") => {
+      const { id } = (await ask(s, anna.cookie, piece.id)).json<{ id: string }>();
+      await s.runJobs();
+      const [look] = (await view(s, anna.cookie, id)).outfits;
+      await s.server.inject({
+        method: "POST",
+        url: `/api/outfits/${look!.id}/reactions`,
+        headers: { cookie: anna.cookie },
+        payload: { reaction },
+      });
+    };
+    for (const piece of pieces.slice(3, 7)) await rate(piece, "like");
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).toBeNull();
+    await rate(pieces[7]!, "dislike");
+    expect((await style(s, anna.cookie)).json<StyleState>().suggest).toEqual({
+      items: 0,
+      looks: 0,
+      reactions: 5,
+    });
   });
 
   it("offers one update a month, and the rest of what she added next month", async () => {

@@ -481,7 +481,15 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     reactedOutfitCount: async (userId) =>
       new Set(reactions.filter((r) => r.userId === userId).map((r) => r.outfitId)).size,
     reactedOutfits: async (userId, limit) =>
-      [...new Set(reactions.filter((r) => r.userId === userId).map((r) => r.outfitId))]
+      // Newest first, as the query orders them.
+      [
+        ...new Set(
+          reactions
+            .filter((r) => r.userId === userId)
+            .map((r) => r.outfitId)
+            .reverse(),
+        ),
+      ]
         .slice(0, limit)
         .map((id) => {
           const o = storedOutfits.find((s) => s.id === id)!;
