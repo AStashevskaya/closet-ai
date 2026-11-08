@@ -1,4 +1,4 @@
-import type { CatalogFeedItem, CatalogItem } from "@closet-ai/shared";
+import type { CatalogFeedItem, CatalogItem, Item } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,7 +32,7 @@ async function setup() {
     taggingEnabled: true,
     stylistEnabled: true,
   });
-  return { server: app, catalog: repositories.catalogRepository, storage };
+  return { server: app, catalog: repositories.catalogRepository, storage, repositories };
 }
 
 async function signUp(server: App, email: string) {
@@ -108,6 +108,24 @@ describe("/api/catalog/:id", () => {
     });
     expect(photo.statusCode).toBe(200);
     expect(photo.headers["content-type"]).toBe("image/webp");
+  });
+
+  it("says which of her pieces a partner piece goes with", async () => {
+    const { server, catalog, repositories } = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    await catalog.add({ externalId: "P1", category: "top" });
+    const cutoutUrl = "/api/items/skirt/photo?variant=cutout";
+    repositories.itemsRepository.list = async () =>
+      [
+        { id: "skirt", name: "Grey skirt", category: "bottom", colors: ["gray"], cutoutUrl },
+      ] as Item[];
+
+    const res = await server.inject({ method: "GET", url: "/api/catalog", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<CatalogFeedItem[]>()[0]!.goesWith).toEqual({
+      count: 1,
+      piece: { id: "skirt", name: "Grey skirt", cutoutUrl },
+    });
   });
 
   it("answers 404 for an item that isn't in the catalog", async () => {

@@ -127,7 +127,8 @@ export function TheEdit() {
       }
       ListEmptyComponent={<Text style={[maison.body, maison.gutter]}>{t('edit.empty')}</Text>}
       renderItem={({ item, index }) => (
-        <Animated.View entering={rise.delay(STAGGER_STEP * Math.min(index, 3))}>
+        // Only the first screen staggers: a page scrolled back to mustn't wait to reappear.
+        <Animated.View entering={index < 3 ? rise.delay(STAGGER_STEP * index) : undefined}>
           <Spread
             item={item}
             headers={headers}

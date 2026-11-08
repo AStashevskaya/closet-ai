@@ -123,7 +123,7 @@ describe('<TheEdit />', () => {
     expect(screen.getAllByText(/^with your /)).toHaveLength(1);
     expect(
       screen.getByRole('button', {
-        name: 'STUDIO EDIT, Ankle boots, ₪459. Goes with 9 of your pieces',
+        name: 'STUDIO EDIT, Ankle boots, ₪459. with your grey skirt. Goes with 9 of your pieces',
       }),
     ).toBeOnTheScreen();
   });

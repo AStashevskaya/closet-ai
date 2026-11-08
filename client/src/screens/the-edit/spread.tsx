@@ -46,6 +46,7 @@ export function Spread({ item, headers, width, flipped, onPress }: Props) {
   const price = priceLabel(item.price, item.currency);
   const pair = item.goesWith;
   const goesWith = pair ? t('edit.goesWith', { count: pair.count }) : null;
+  const toYour = pair ? t('edit.toYour', { name: pair.piece.name }) : null;
   // An SVG's own coordinates don't follow the layout direction, so RTL mirrors it too.
   const mirrored = flipped !== I18nManager.isRTL;
 
@@ -54,7 +55,7 @@ export function Spread({ item, headers, width, flipped, onPress }: Props) {
       style={styles.spread}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={[`${item.brand}, ${item.name}, ${price}`, goesWith]
+      accessibilityLabel={[`${item.brand}, ${item.name}, ${price}`, toYour, goesWith]
         .filter(Boolean)
         .join('. ')}
     >
@@ -75,7 +76,9 @@ export function Spread({ item, headers, width, flipped, onPress }: Props) {
       )}
 
       <View style={[styles.head, maison.gutter]}>
-        <Text style={styles.brand}>{item.brand}</Text>
+        <Text style={styles.brand} numberOfLines={1}>
+          {item.brand}
+        </Text>
         <Text style={styles.price}>{price}</Text>
       </View>
 
@@ -111,8 +114,9 @@ export function Spread({ item, headers, width, flipped, onPress }: Props) {
           <Text
             style={[styles.note, flipped ? styles.noteFlipped : styles.notePlain]}
             numberOfLines={2}
+            maxFontSizeMultiplier={1.2}
           >
-            {t('edit.toYour', { name: pair.piece.name })}
+            {toYour}
           </Text>
         </>
       )}
@@ -156,6 +160,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   brand: {
+    flexShrink: 1,
+    marginEnd: 12,
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
     letterSpacing: 1,

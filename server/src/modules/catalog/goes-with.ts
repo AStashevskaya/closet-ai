@@ -3,16 +3,24 @@ import type { Item, ItemCategory, ItemColor } from "@closet-ai/shared";
 // Which of her pieces a partner piece goes with, by rules: no model is asked, so showing it costs
 // nothing (decided 2026-11-08). It's a suggestion to look closer, not a stylist's verdict: the
 // verdict comes from asking "what do I wear this with?".
+// Worn together, both ways round.
 const WORN_WITH: Record<ItemCategory, readonly ItemCategory[]> = {
-  top: ["bottom", "outerwear"],
-  bottom: ["top", "outerwear", "shoes"],
+  top: ["bottom", "outerwear", "accessory"],
+  bottom: ["top", "outerwear", "shoes", "accessory"],
   dress: ["outerwear", "shoes", "accessory"],
-  outerwear: ["top", "bottom", "dress"],
+  outerwear: ["top", "bottom", "dress", "accessory"],
   shoes: ["bottom", "dress"],
-  accessory: ["top", "dress"],
+  accessory: ["top", "bottom", "dress", "outerwear"],
 };
-// Colours that go with anything.
-const NEUTRAL: ReadonlySet<ItemColor> = new Set(["black", "white", "gray", "beige", "brown"]);
+// Colours that go with anything, a print counted among them.
+const NEUTRAL: ReadonlySet<ItemColor> = new Set([
+  "black",
+  "white",
+  "gray",
+  "beige",
+  "brown",
+  "multicolor",
+]);
 
 type Piece = { category: ItemCategory; colors: readonly ItemColor[] };
 

@@ -1,4 +1,4 @@
-import type { Item } from "@closet-ai/shared";
+import { ITEM_CATEGORIES, type Item } from "@closet-ai/shared";
 import { describe, expect, it } from "vitest";
 import { goesWith, pairWithWardrobe } from "./goes-with";
 
@@ -19,6 +19,36 @@ describe("goesWith", () => {
     expect(goesWith(red, { category: "bottom", colors: ["red"] })).toBe(true);
     expect(goesWith(red, { category: "bottom", colors: ["green"] })).toBe(false);
     expect(goesWith(red, { category: "top", colors: ["black"] })).toBe(false);
+  });
+
+  it("takes a print as going with anything", () => {
+    const print = { category: "top", colors: ["multicolor"] } as const;
+    expect(goesWith(print, { category: "bottom", colors: ["green"] })).toBe(true);
+  });
+
+  it("keeps a dress from tops and bottoms, and pairs an accessory with most things", () => {
+    const dress = { category: "dress", colors: ["black"] } as const;
+    expect(goesWith(dress, { category: "top", colors: ["black"] })).toBe(false);
+    expect(goesWith(dress, { category: "bottom", colors: ["black"] })).toBe(false);
+    const bag = { category: "accessory", colors: ["black"] } as const;
+    expect(goesWith(bag, { category: "bottom", colors: ["blue"] })).toBe(true);
+    expect(goesWith(bag, { category: "shoes", colors: ["black"] })).toBe(false);
+  });
+
+  it("works the same both ways round", () => {
+    for (const a of ITEM_CATEGORIES) {
+      for (const b of ITEM_CATEGORIES) {
+        const one = goesWith(
+          { category: a, colors: ["black"] },
+          { category: b, colors: ["black"] },
+        );
+        const other = goesWith(
+          { category: b, colors: ["black"] },
+          { category: a, colors: ["black"] },
+        );
+        expect(`${a}/${b}: ${one}`).toBe(`${a}/${b}: ${other}`);
+      }
+    }
   });
 });
 

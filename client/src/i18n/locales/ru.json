@@ -455,7 +455,7 @@
     "similar": "Похожее у брендов-партнёров"
   },
   "edit": {
-    "toYour": "к твоему: {{name}}",
+    "toYour": "с твоей вещью: {{name}}",
     "goesWith_one": "Подойдёт к {{count}} твоей вещи",
     "goesWith_few": "Подойдёт к {{count}} твоим вещам",
     "goesWith_many": "Подойдёт к {{count}} твоим вещам",
