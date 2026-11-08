@@ -126,9 +126,6 @@ export const items = pgTable(
   (table) => [index("items_owner_id_idx").on(table.ownerId)],
 );
 
-// One row per counted AI action (an item photo, a "want" screenshot, a selfie) and per style
-// brief written: the free-tier limits count the actions, and the cost adds up to the server's
-// daily safety stop and the user's monthly cap.
 // Who tapped "I want more" on which limit, to measure demand before there's a plan to buy
 // (decided 2026-11-08). One row per user and limit, so tapping again adds no rows.
 export const wantMoreTaps = pgTable(
@@ -145,6 +142,9 @@ export const wantMoreTaps = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.code] })],
 );
 
+// One row per counted AI action (an item photo, a "want" screenshot, a selfie) and per style
+// brief written: the free-tier limits count the actions, and the cost adds up to the server's
+// daily safety stop and the user's monthly cap.
 export const usageEvents = pgTable(
   "usage_events",
   {

@@ -105,6 +105,7 @@ describe('<WearWithPick />', () => {
     await fireEvent.press(screen.getByText('Choose from gallery'));
 
     expect(await screen.findByText("That's 1 for today. Ask again tomorrow.")).toBeOnTheScreen();
+    expect(screen.getByText('I want more')).toBeOnTheScreen();
   });
 
   describe('waiting in place', () => {

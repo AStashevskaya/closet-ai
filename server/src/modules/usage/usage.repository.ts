@@ -68,7 +68,7 @@ export function createUsageRepository(db: Db): UsageRepository {
         .values({ userId, code })
         .onConflictDoUpdate({
           target: [wantMoreTaps.userId, wantMoreTaps.code],
-          set: { taps: sql`${wantMoreTaps.taps} + 1`, lastAt: new Date() },
+          set: { taps: sql`${wantMoreTaps.taps} + 1`, lastAt: sql`now()` },
         });
     },
   };

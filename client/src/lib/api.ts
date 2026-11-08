@@ -6,6 +6,7 @@ import {
   type Item,
   itemDetail,
   type ItemDetail,
+  type LimitCode,
   itemList,
   type PhotoKind,
   photoState,
@@ -165,7 +166,7 @@ export function getStyle(lang: AppLanguage): Promise<StyleState> {
 }
 
 // She tapped "I want more" on a reached limit.
-export function wantMore(code: string): Promise<void> {
+export function wantMore(code: LimitCode): Promise<void> {
   return send('/api/usage/want-more', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

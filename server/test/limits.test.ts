@@ -16,7 +16,12 @@ import {
 type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App | undefined;
 
+// The app's "I want more" taps, for the test that reads them.
+let wantMoreTaps: Map<string, number> = new Map();
+
 async function setup(budgetUsd = testEnv.AI_DAILY_BUDGET_USD) {
+  const repositories = createInMemoryRepositories();
+  wantMoreTaps = repositories.wantMoreTaps;
   const auth = createAuth(
     testEnv,
     memoryAdapter({ user: [], session: [], account: [], verification: [] }),
@@ -24,7 +29,7 @@ async function setup(budgetUsd = testEnv.AI_DAILY_BUDGET_USD) {
   app = await buildApp({
     env: { ...testEnv, AI_DAILY_BUDGET_USD: budgetUsd },
     auth,
-    ...createInMemoryRepositories(),
+    ...repositories,
     photoQueue: createManualPhotoQueue().photoQueue,
     outfitQueue: createManualOutfitQueue().outfitQueue,
     stylistEnabled: false,
@@ -128,6 +133,8 @@ describe("I want more", () => {
         payload: { code },
       });
     expect((await tap("wear_with")).statusCode).toBe(204);
+    expect([...wantMoreTaps.values()]).toEqual([1]);
+    expect([...wantMoreTaps.keys()][0]).toMatch(/:wear_with$/);
     expect((await tap("budget")).statusCode).toBe(400);
     expect((await tap("wear_with", {})).statusCode).toBe(401);
   });

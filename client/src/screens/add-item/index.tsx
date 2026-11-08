@@ -33,11 +33,11 @@ import { MAX_COLORS } from '@/components/item-fields';
 import { Button, maison } from '@/components/maison';
 import { PhotoCropper } from '@/components/photo-cropper';
 import { PressableScale } from '@/components/pressable-scale';
-import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { WantMore } from '@/components/want-more';
+import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { limitText } from '@/lib/limits';
+import { alertAskFailed, limitText } from '@/lib/limits';
 import { defaultCurrency, parsePrice } from '@/lib/price';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 import { styledParams } from '@/lib/styled';
@@ -404,8 +404,7 @@ export function AddItem() {
         return;
       } catch (cause) {
         // The item is saved either way; only the outfits didn't start.
-        const code = limitReached(cause);
-        Alert.alert(code ? limitText(t, i18n.language, code) : t('wearWith.failed'));
+        alertAskFailed(t, i18n.language, cause);
       }
     }
     try {

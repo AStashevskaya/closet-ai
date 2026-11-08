@@ -515,7 +515,7 @@ describe.skipIf(!url)("on Postgres", () => {
     await usage.record(user!.id, "item_photo", 6_000);
 
     expect(await usage.count(user!.id, "want", before)).toBe(2);
-    // Tapping "I want more" again adds no row, and an account's taps go with it.
+    // Tapping "I want more" again adds no row; the account's taps go with it, below.
     await usage.wantMore(user!.id, "wear_with");
     await usage.wantMore(user!.id, "wear_with");
     await usage.wantMore(user!.id, "want");
@@ -531,6 +531,14 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await usage.count(user!.id, "look", before)).toBe(0);
     expect(await usage.count(user!.id, "want", new Date(Date.now() + 60_000))).toBe(0);
     expect((await usage.spentSince(before)) - spentBefore).toBe(26_000);
+
+    await db.db.delete(schema.user).where(eq(schema.user.id, user!.id));
+    expect(
+      await db.db
+        .select()
+        .from(schema.wantMoreTaps)
+        .where(eq(schema.wantMoreTaps.userId, user!.id)),
+    ).toEqual([]);
   });
 
   it("stores outfits with their pieces and reactions, and the user's brief", async () => {
