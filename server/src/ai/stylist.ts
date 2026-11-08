@@ -202,7 +202,7 @@ const describe = (p: StylistPiece) =>
 // usually one of her recent looks too.
 const likedText = (liked: string[]) =>
   liked.length
-    ? `\nLooks she liked or wore, newest first: ${liked.join("; ")}. Read them for what she likes (the mood, proportions and colours). The rules about her recent looks still hold: don't put these pieces back together or reuse these names.`
+    ? `\nLooks she liked or wore, newest first: ${liked.join("; ")}. Read them for what she likes (the mood, proportions and colours). The rules about her recent looks still hold: avoid these combinations and names where something else works as well.`
     : "";
 
 // Her recent looks, so the new ones don't repeat them.

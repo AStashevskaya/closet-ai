@@ -12,6 +12,7 @@ import type {
   NewOutfit,
   OutfitRequestRow,
   OutfitsRepository,
+  ReactedOutfit,
   StylingItem,
 } from "./outfits.repository";
 import {
@@ -65,6 +66,10 @@ export const LOOKS_PER_REQUEST = 3;
 // A brand's piece shown for its own sake stays the exception: never in every look (docs/product.md,
 // partner items). Partner shoes and bags that finish a look her wardrobe can't are not counted.
 export const MAX_PARTNER_LOOKS = 2;
+// A look she liked or wore. One she wore and then rejected isn't: her latest word counts.
+export const isLiked = (look: Pick<ReactedOutfit, "opinion" | "wore">) =>
+  look.opinion === "like" || (look.wore && look.opinion !== "dislike");
+
 // The liked looks each request reads, found among her newest reactions.
 const LIKED_LOOKS = 5;
 const LIKED_LOOKS_AMONG = 20;
@@ -124,8 +129,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
 
   const reacted = await outfits.reactedOutfits(request.userId, LIKED_LOOKS_AMONG);
   const liked = reacted
-    // A look she wore and then rejected isn't one to lean towards.
-    .filter((look) => look.opinion === "like" || (look.wore && look.opinion !== "dislike"))
+    .filter(isLiked)
     .slice(0, LIKED_LOOKS)
     .map((look) => look.description);
 
@@ -493,7 +497,7 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
     wardrobe: numbered.map(({ item, n }) => toStylistPiece(item, n)),
     sheets,
     inspiration,
-    liked: reacted.filter((o) => o.opinion === "like" || o.wore).map((o) => o.description),
+    liked: reacted.filter(isLiked).map((o) => o.description),
     disliked: reacted
       .filter((o) => o.opinion === "dislike")
       .map((o) => (o.reason ? `${o.description} (${REASON_WORDS[o.reason]})` : o.description)),
