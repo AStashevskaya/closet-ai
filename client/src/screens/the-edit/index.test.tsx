@@ -1,4 +1,4 @@
-import type { CatalogItem } from '@closet-ai/shared';
+import type { CatalogFeedItem } from '@closet-ai/shared';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import i18n from '@/i18n';
@@ -25,7 +25,11 @@ jest.mock('@/lib/api', () => ({
   absoluteUrl: (path: string) => `http://api${path}`,
 }));
 
-const piece = (id: string, name: string, category: CatalogItem['category']): CatalogItem => ({
+const piece = (
+  id: string,
+  name: string,
+  category: CatalogFeedItem['category'],
+): CatalogFeedItem => ({
   id,
   brand: 'STUDIO EDIT',
   name,
@@ -37,6 +41,7 @@ const piece = (id: string, name: string, category: CatalogItem['category']): Cat
   imageUrl: `/api/catalog/${id}/photo?v=1`,
   inStock: true,
   demo: true,
+  goesWith: null,
 });
 const boots = piece('6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a01', 'Ankle boots', 'shoes');
 const tee = piece('6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a02', 'Knit top', 'top');
@@ -52,7 +57,7 @@ describe('<TheEdit />', () => {
     await render(<TheEdit />);
 
     expect(await screen.findByText('Brands')).toBeOnTheScreen();
-    expect(screen.getByText('Partner · demo brand')).toBeOnTheScreen();
+    expect(screen.getAllByText('Partner · demo brand')).toHaveLength(2);
     expect(listCatalog).toHaveBeenCalledWith('en');
     expect(
       screen.getAllByRole('button', { name: /STUDIO EDIT/ }).map((b) => b.props.accessibilityLabel),
@@ -98,6 +103,29 @@ describe('<TheEdit />', () => {
     jest.mocked(listCatalog).mockRejectedValue(new Error('offline'));
     await act(async () => mockFocus());
     expect(screen.getByText('Ankle boots')).toBeOnTheScreen();
+  });
+
+  test('says which of her pieces a piece goes with, and only when one does', async () => {
+    jest.mocked(listCatalog).mockResolvedValue([
+      {
+        ...boots,
+        goesWith: {
+          count: 9,
+          piece: { id: 'skirt', name: 'grey skirt', cutoutUrl: '/api/items/skirt/photo' },
+        },
+      },
+      tee,
+    ]);
+    await render(<TheEdit />);
+
+    expect(await screen.findByText('with your grey skirt')).toBeOnTheScreen();
+    expect(screen.getByText('Goes with 9 of your pieces')).toBeOnTheScreen();
+    expect(screen.getAllByText(/^with your /)).toHaveLength(1);
+    expect(
+      screen.getByRole('button', {
+        name: 'STUDIO EDIT, Ankle boots, ₪459. with your grey skirt. Goes with 9 of your pieces',
+      }),
+    ).toBeOnTheScreen();
   });
 
   test('has a way in to Recreate the look', async () => {

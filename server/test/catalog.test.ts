@@ -1,4 +1,4 @@
-import type { CatalogItem } from "@closet-ai/shared";
+import type { CatalogFeedItem, CatalogItem, Item } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,14 +32,19 @@ async function setup() {
     taggingEnabled: true,
     stylistEnabled: true,
   });
-  return { server: app, catalog: repositories.catalogRepository, storage };
+  return { server: app, catalog: repositories.catalogRepository, storage, repositories };
 }
 
 async function signUp(server: App, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
+    payload: {
+      privacyConsent: "2026-11-05",
+      name: "Test User",
+      email,
+      password: "correct-horse-battery",
+    },
   });
   return res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
 }
@@ -105,6 +110,24 @@ describe("/api/catalog/:id", () => {
     expect(photo.headers["content-type"]).toBe("image/webp");
   });
 
+  it("says which of her pieces a partner piece goes with", async () => {
+    const { server, catalog, repositories } = await setup();
+    const cookie = await signUp(server, "anna@example.com");
+    await catalog.add({ externalId: "P1", category: "top" });
+    const cutoutUrl = "/api/items/skirt/photo?variant=cutout";
+    repositories.itemsRepository.list = async () =>
+      [
+        { id: "skirt", name: "Grey skirt", category: "bottom", colors: ["gray"], cutoutUrl },
+      ] as Item[];
+
+    const res = await server.inject({ method: "GET", url: "/api/catalog", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<CatalogFeedItem[]>()[0]!.goesWith).toEqual({
+      count: 1,
+      piece: { id: "skirt", name: "Grey skirt", cutoutUrl },
+    });
+  });
+
   it("answers 404 for an item that isn't in the catalog", async () => {
     const { server } = await setup();
     const cookie = await signUp(server, "anna@example.com");
@@ -126,7 +149,9 @@ describe("/api/catalog/:id", () => {
     const list = async (query: string) =>
       (
         await server.inject({ method: "GET", url: `/api/catalog?${query}`, headers: { cookie } })
-      ).json<CatalogItem[]>();
+      ).json<CatalogFeedItem[]>();
+    // An empty closet: nothing of hers to pair a piece with.
+    expect((await list("lang=en")).map((item) => item.goesWith)).toEqual([null, null]);
     expect((await list("lang=ru")).map((item) => item.name)).toEqual(["Футболка", "Ботинки"]);
     expect((await list("category=shoes")).map((item) => item.name)).toEqual(["Ankle boots"]);
     // Browsing the grid isn't "shown"; only an opened card counts.
