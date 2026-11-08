@@ -18,9 +18,13 @@ import type { UsageRepository } from "./usage.repository";
 // and compared item by item; a selfie is only read; outfits around an item are one Haiku call
 // with the stable part of the prompt cached. The outfit job records the real cost on its request:
 // 2.5 ¢ on average over the owner's 72 requests, 3.2 ¢ over the last 20 (2026-10-24).
+//
+// A styling's estimate only checks for room before asking: what it costs is recorded by the job,
+// per paid attempt (`styling` rows), so retries count. A "want" screenshot is an estimate for
+// about 3 pieces at 0.5 ¢ a cut-out and 0.2 ¢ a comparison, plus reading the photo (2026-11-08).
 export const ESTIMATED_COST_MICROS: Record<UsageAction, number> = {
   item_photo: 6_000,
-  want: 10_000,
+  want: 30_000,
   look: 2_000,
   wear_with: 30_000,
   // Stored only; the brief that reads it is paid for separately.
@@ -179,7 +183,9 @@ export function createLimits(
 
     // Once the action went through (the photo is stored and queued).
     async record(userId: string, action: UsageAction) {
-      await usage.record(userId, action, ESTIMATED_COST_MICROS[action]);
+      // The job records what a styling really costs, attempt by attempt.
+      const cost = action === "wear_with" ? 0 : ESTIMATED_COST_MICROS[action];
+      await usage.record(userId, action, cost);
       await warnSafely();
     },
 

@@ -11,8 +11,14 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
+import { PaidComposeFailure } from "../src/ai/stylist";
 import { createLimits, ESTIMATED_COST_MICROS, periodStart } from "../src/modules/usage/limits";
-import { checkBrief, refreshBrief, type OutfitJobDeps } from "../src/modules/outfits/outfit-jobs";
+import {
+  checkBrief,
+  composeOutfits,
+  refreshBrief,
+  type OutfitJobDeps,
+} from "../src/modules/outfits/outfit-jobs";
 import {
   cutoutKeyFor,
   deleteUnattachedPhotos,
@@ -1062,6 +1068,51 @@ async function withBrief(s: Setup) {
   return { anna, pieces };
 }
 
+// What the stub stylist says a compose call cost.
+const STUB_COMPOSE_MICROS = 6_000;
+
+describe("what a styling costs", () => {
+  const spent = (s: Setup, userId: string) =>
+    s.repositories.usageRepository.spentBy(userId, periodStart("month", s.clock.now));
+
+  it("counts what the model cost, not the estimate", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    await ask(s, anna.cookie, skirt.id);
+    expect(await spent(s, anna.userId)).toBe(0);
+    await s.runJobs();
+    expect(await spent(s, anna.userId)).toBe(STUB_COMPOSE_MICROS);
+  });
+
+  it("counts an answer it couldn't use, known or estimated, and not an API error", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const skirt = await addItem(s, anna, "bottom");
+    const original = { ...s.stub.stylist };
+    const pending = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>().id;
+
+    s.stub.stylist.compose = () => Promise.reject(new PaidComposeFailure(40_000, "cut off"));
+    await expect(composeOutfits(s.deps, pending, "en")).rejects.toThrow("cut off");
+    expect(await spent(s, anna.userId)).toBe(40_000);
+
+    s.stub.stylist.compose = () => Promise.reject(new PaidComposeFailure(null, "unreadable"));
+    await expect(composeOutfits(s.deps, pending, "en")).rejects.toThrow("unreadable");
+    expect(await spent(s, anna.userId)).toBe(40_000 + ESTIMATED_COST_MICROS.wear_with);
+
+    s.stub.stylist.compose = () => Promise.reject(new Error("api down"));
+    await expect(composeOutfits(s.deps, pending, "en")).rejects.toThrow("api down");
+    expect(await spent(s, anna.userId)).toBe(40_000 + ESTIMATED_COST_MICROS.wear_with);
+
+    // The retry that works counts as well.
+    s.stub.stylist.compose = original.compose;
+    await composeOutfits(s.deps, pending, "en");
+    expect(await spent(s, anna.userId)).toBe(
+      40_000 + ESTIMATED_COST_MICROS.wear_with + STUB_COMPOSE_MICROS,
+    );
+  });
+});
+
 describe("what she liked", () => {
   it("reaches the next styling, the newest five, without looks she rejected", async () => {
     const s = await setup();
@@ -1224,9 +1275,7 @@ describe("style brief", () => {
     const usage = s.repositories.usageRepository;
     const monthStart = periodStart("month", s.clock.now);
     // The stub's brief: 5 ¢, on top of the request's estimate.
-    expect(await usage.spentBy(anna.userId, monthStart)).toBe(
-      2 * ESTIMATED_COST_MICROS.wear_with + 50_000,
-    );
+    expect(await usage.spentBy(anna.userId, monthStart)).toBe(2 * STUB_COMPOSE_MICROS + 50_000);
 
     const maya = await signUp(s, "maya@example.com");
     await usage.record(maya.userId, "brief", 4_950_000);
@@ -1402,7 +1451,7 @@ describe("her style", () => {
     expect((await s.repositories.outfitsRepository.brief(anna.userId))?.brief).toBeNull();
     expect(
       await s.repositories.usageRepository.spentBy(anna.userId, periodStart("month", s.clock.now)),
-    ).toBe(2 * ESTIMATED_COST_MICROS.wear_with + 40_000);
+    ).toBe(2 * STUB_COMPOSE_MICROS + 40_000);
   });
 
   it("offers no update past her monthly cap", async () => {
@@ -1792,7 +1841,7 @@ describe("an item from a photo", () => {
       const usage = (await get(s, anna.cookie, "/api/usage")).json<Usage>();
       expect(usage.wear_with).toMatchObject({ used: 3, limit: 3 });
       expect(await s.repositories.usageRepository.spentBy(anna.userId, monthStart)).toBe(
-        3 * ESTIMATED_COST_MICROS.wear_with,
+        3 * STUB_COMPOSE_MICROS,
       );
       const over = await ask(s, anna.cookie, pieces[3]!.id);
       expect(over.statusCode).toBe(429);

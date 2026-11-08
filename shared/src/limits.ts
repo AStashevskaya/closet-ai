@@ -12,8 +12,9 @@ export type UsagePeriod = (typeof USAGE_PERIODS)[number];
 // Counted AI actions, as stored in usage_events.
 export const USAGE_ACTIONS = ["item_photo", "want", "look", "wear_with", "inspiration"] as const;
 export type UsageAction = (typeof USAGE_ACTIONS)[number];
-// Everything whose cost is recorded: the counted actions and the background style brief.
-export const SPEND_ACTIONS = [...USAGE_ACTIONS, "brief"] as const;
+// Everything whose cost is recorded: the counted actions, the background style brief, and each
+// paid attempt at composing a styling (`wear_with` itself only counts the request).
+export const SPEND_ACTIONS = [...USAGE_ACTIONS, "brief", "styling"] as const;
 export type SpendAction = (typeof SPEND_ACTIONS)[number];
 
 export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeriod }> = {
