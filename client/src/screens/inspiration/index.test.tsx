@@ -73,7 +73,7 @@ describe('<Inspiration />', () => {
   test('without a brief, every look is new and nothing can be taught yet', async () => {
     await render(<Inspiration />);
     expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
-    expect(screen.getByText(/once your closet has 8 pieces/)).toBeOnTheScreen();
+    expect(screen.getByText(/once your closet has 15 pieces/)).toBeOnTheScreen();
     expect(screen.queryByText('Taken to heart')).toBeNull();
     expect(screen.queryByText('Teach my stylist')).toBeNull();
   });

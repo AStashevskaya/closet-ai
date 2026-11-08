@@ -264,7 +264,7 @@
     "wantTitle": "What of this look do you already own?",
     "loadError": "Couldn't load your looks.",
     "briefNote": "Your style · updated {{date}}",
-    "briefNone": "Your stylist writes your style once your closet has 8 pieces, and learns from your saved looks.",
+    "briefNone": "Your stylist writes your style once your closet has 15 pieces and you've styled two of them, and learns from your saved looks.",
     "fresh": "New · {{count}}",
     "freshNote": "your stylist hasn't seen them yet",
     "teach": "Teach my stylist",

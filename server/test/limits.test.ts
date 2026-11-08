@@ -200,7 +200,7 @@ describe("monthly spend per user", () => {
 });
 
 describe("testers", () => {
-  it("get 30 outfit requests a day and no monthly cap; others keep 5", async () => {
+  it("get 30 outfit requests a day and no monthly cap; others keep the free limit", async () => {
     const { usageRepository } = createInMemoryRepositories();
     const limits = createLimits(
       usageRepository,
@@ -213,7 +213,68 @@ describe("testers", () => {
     }
     await expect(limits.check("tester", "wear_with")).rejects.toThrow("limit:wear_with");
     expect((await limits.summary("tester")).wear_with).toMatchObject({ used: 30, limit: 30 });
-    expect((await limits.summary("someone")).wear_with.limit).toBe(5);
+    expect((await limits.summary("someone")).wear_with.limit).toBe(3);
+  });
+});
+
+describe("styling", () => {
+  const day = 24 * 60 * 60 * 1000;
+  const now = new Date("2026-11-20T12:00:00Z");
+
+  it("allows three a day in the account's first week, then one", async () => {
+    const { usageRepository, setAccountCreatedAt } = createInMemoryRepositories();
+    const limits = createLimits(
+      usageRepository,
+      { dailyUsd: 3, userMonthlyUsd: 5 },
+      new Set(),
+      () => now,
+    );
+    setAccountCreatedAt("new", new Date(now.getTime() - 6 * day));
+    setAccountCreatedAt("old", new Date(now.getTime() - 7 * day));
+    expect((await limits.summary("new")).wear_with.limit).toBe(3);
+    expect((await limits.summary("old")).wear_with.limit).toBe(1);
+  });
+});
+
+describe("updates of her style", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const setup = () => {
+    const { usageRepository } = createInMemoryRepositories();
+    return {
+      usage: usageRepository,
+      limits: createLimits(
+        usageRepository,
+        { dailyUsd: 3, userMonthlyUsd: 5 },
+        new Set(["tester"]),
+        () => now,
+      ),
+    };
+  };
+
+  it("doesn't count the first brief as the month's update", async () => {
+    const { usage, limits } = setup();
+    expect(await limits.allowsBriefUpdate("anna")).toBe(true);
+    await usage.record("anna", "brief", 100_000);
+    expect(await limits.allowsBriefUpdate("anna")).toBe(true);
+    await usage.record("anna", "brief", 100_000);
+    expect(await limits.allowsBriefUpdate("anna")).toBe(false);
+  });
+
+  it("allows one in each later month", async () => {
+    const { usage, limits } = setup();
+    await usage.record("anna", "brief", 100_000);
+    // Her first brief is from an earlier month now.
+    const nextMonth = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000);
+    expect(await limits.allowsBriefUpdate("anna", nextMonth)).toBe(true);
+    await usage.record("anna", "brief", 100_000);
+    await usage.record("anna", "brief", 100_000);
+    expect(await limits.allowsBriefUpdate("anna")).toBe(false);
+  });
+
+  it("doesn't stop a tester", async () => {
+    const { usage, limits } = setup();
+    for (let i = 0; i < 3; i++) await usage.record("tester", "brief", 100_000);
+    expect(await limits.allowsBriefUpdate("tester")).toBe(true);
   });
 });
 

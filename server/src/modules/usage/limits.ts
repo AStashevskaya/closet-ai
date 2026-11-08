@@ -1,4 +1,7 @@
 import {
+  FIRST_WEEK_DAYS,
+  FIRST_WEEK_LIMITS,
+  FREE_BRIEF_UPDATES_A_MONTH,
   FREE_LIMITS,
   MONTHLY_SAFETY_LIMITS,
   limitMessage,
@@ -52,7 +55,7 @@ export type Limits = ReturnType<typeof createLimits>;
 export const BUDGET_WARN_SHARE = 0.5;
 
 // People testing the app (TESTER_USER_IDS) get roomier limits, so a test session doesn't stop
-// halfway; the server's daily budget and the $5 a month per user still apply to them.
+// halfway; the server's daily budget and the monthly spend per user still apply to them.
 export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
   wear_with: 30,
   want: 30,
@@ -102,9 +105,18 @@ export function createLimits(
   // The action is recorded by then: a failed check must not fail it.
   const warnSafely = () => warnPastHalf(clock()).catch(() => undefined);
 
-  // The count allowed per period: the free tier's, or a tester's.
-  const allowed = (userId: string, action: UsageAction) =>
-    (testers.has(userId) ? TESTER_LIMITS[action] : undefined) ?? FREE_LIMITS[action].count;
+  // The count allowed per period: a tester's, the first week's, or the free tier's.
+  async function allowed(userId: string, action: UsageAction, now: Date) {
+    const tester = testers.has(userId) ? TESTER_LIMITS[action] : undefined;
+    if (tester !== undefined) return tester;
+    const firstWeek = FIRST_WEEK_LIMITS[action];
+    if (firstWeek !== undefined) {
+      const createdAt = await usage.accountCreatedAt(userId);
+      const weekMs = FIRST_WEEK_DAYS * 24 * 60 * 60 * 1000;
+      if (createdAt && now.getTime() - createdAt.getTime() < weekMs) return firstWeek;
+    }
+    return FREE_LIMITS[action].count;
+  }
 
   return {
     // Before the action: throws when the user's limit or the server's daily budget is used up.
@@ -112,7 +124,8 @@ export function createLimits(
       const now = clock();
       const { period } = FREE_LIMITS[action];
       if (
-        (await usage.count(userId, action, periodStart(period, now))) >= allowed(userId, action)
+        (await usage.count(userId, action, periodStart(period, now))) >=
+        (await allowed(userId, action, now))
       ) {
         throw httpError(429, limitMessage(action));
       }
@@ -136,6 +149,21 @@ export function createLimits(
       return (await roomFor(userId, costMicros, now)) === null;
     },
 
+    // Whether her style may be rewritten this month. The first brief doesn't use the month's
+    // update: if every brief she has had is from this month, one of them is that first one.
+    async allowsBriefUpdate(userId: string, now = clock()) {
+      if (testers.has(userId)) return true;
+      const thisMonth = await usage.count(userId, "brief", periodStart("month", now));
+      const ever = await usage.count(userId, "brief", new Date(0));
+      const updates = ever === thisMonth ? Math.max(0, thisMonth - 1) : thisMonth;
+      return updates < FREE_BRIEF_UPDATES_A_MONTH;
+    },
+
+    // How many times she has done this, ever.
+    async timesDone(userId: string, action: UsageAction) {
+      return usage.count(userId, action, new Date(0));
+    },
+
     // What background work really cost, once it's known.
     async spent(userId: string, action: SpendAction, costMicros: number) {
       await usage.record(userId, action, costMicros);
@@ -154,7 +182,7 @@ export function createLimits(
         const { period } = FREE_LIMITS[action];
         return {
           used: await usage.count(userId, action, periodStart(period, now)),
-          limit: allowed(userId, action),
+          limit: await allowed(userId, action, now),
           resetsAt: nextPeriodStart(period, now).toISOString(),
         };
       };

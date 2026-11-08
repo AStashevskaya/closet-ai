@@ -8,11 +8,11 @@ import { BRIEF_EVERY_MS, type OutfitQueue } from "../outfits/outfit-jobs";
 import type { OutfitsRepository } from "../outfits/outfits.repository";
 import { BRIEF_COST_MICROS, type Limits } from "../usage/limits";
 
-// A day that adds this many pieces or saved looks is worth an update of her style ("great
-// shopping", decided 2026-10-25). The brief is ~10 ¢, so it's offered rather than written.
+// This many new pieces or saved looks since her last brief are worth an update of her style
+// (decided 2026-10-25, counted since the brief rather than within a day from 2026-11-08). The
+// brief is ~10 ¢, so it's offered rather than written, once a month on the free tier.
 export const SHOPPING_ITEMS = 5;
 export const SHOPPING_LOOKS = 3;
-const DAY_MS = 24 * 60 * 60 * 1000;
 // The brief job runs right after she asks; if no batch started by then, it declined.
 const ASKED_FOR_MS = 10 * 60 * 1000;
 
@@ -41,14 +41,14 @@ export const styleRoutes =
       const waiting = lastTry !== null && now.getTime() - lastTry.getTime() < BRIEF_EVERY_MS;
 
       let suggest: StyleState["suggest"] = null;
-      // The first brief is written on its own; after that, new pieces since it, within a day,
-      // offered only when an update could go now (not past her monthly cap).
+      // The first brief is written on its own; after that, new pieces since it, offered only
+      // when an update could go now (not past her monthly cap or this month's update).
       if (stylistEnabled && brief?.brief && brief.writtenAt && !updating && !waiting) {
-        const since = new Date(Math.max(brief.writtenAt.getTime(), now.getTime() - DAY_MS));
-        const added = await outfits.addedSince(userId, since);
+        const added = await outfits.addedSince(userId, brief.writtenAt);
         if (
           (added.items >= SHOPPING_ITEMS || added.looks >= SHOPPING_LOOKS) &&
-          (await limits.allows(userId, BRIEF_COST_MICROS, now))
+          (await limits.allows(userId, BRIEF_COST_MICROS, now)) &&
+          (await limits.allowsBriefUpdate(userId, now))
         ) {
           suggest = added;
         }
@@ -87,6 +87,10 @@ export const styleRoutes =
         }
         if (!(await limits.allows(user.id, BRIEF_COST_MICROS, now))) {
           throw httpError(429, "limit:monthly");
+        }
+        // Only a stale screen gets here: the app stops offering it once the month's is used.
+        if (!(await limits.allowsBriefUpdate(user.id, now))) {
+          throw httpError(409, "style:wait");
         }
         await outfits.askBrief(user.id, now);
         await queue.enqueueBrief(user.id);

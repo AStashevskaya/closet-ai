@@ -40,7 +40,7 @@ const envSchema = z
     // from $15 for the pilot, 2026-10-28). A log line says when half of it is spent.
     AI_DAILY_BUDGET_USD: z.coerce.number().positive().default(8),
     // What one user's AI may cost in a calendar month, briefs included (decided 2026-10-24).
-    USER_MONTHLY_BUDGET_USD: z.coerce.number().positive().default(5),
+    USER_MONTHLY_BUDGET_USD: z.coerce.number().positive().default(2),
     // User ids (comma-separated) with roomier limits for testing, see TESTER_LIMITS.
     TESTER_USER_IDS: z
       .string()

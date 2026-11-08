@@ -15,7 +15,10 @@ export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: U
       : '';
     return t(`limits.${code}`, { limit: FREE_LIMITS[code].count, date });
   }
-  if (code === 'wear_with') return t('limits.wear_with', { limit: FREE_LIMITS.wear_with.count });
+  // The first week has more room, so the server's number when the app has it.
+  if (code === 'wear_with') {
+    return t('limits.wear_with', { limit: usage?.wear_with.limit ?? FREE_LIMITS.wear_with.count });
+  }
   if (code === 'monthly') {
     // The server's months are calendar ones in UTC, so it opens again on the 1st.
     const now = new Date();

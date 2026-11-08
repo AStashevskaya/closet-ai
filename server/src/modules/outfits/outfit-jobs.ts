@@ -403,7 +403,10 @@ async function heroFromPhoto(
 }
 
 // A brief needs something to read; below this the stylist works from the wardrobe directly.
-export const MIN_ITEMS_FOR_BRIEF = 8;
+// The first one also waits for a second styling (decided 2026-11-08), so someone who only tries
+// the app once doesn't cost a brief.
+export const MIN_ITEMS_FOR_BRIEF = 15;
+export const MIN_STYLINGS_FOR_BRIEF = 2;
 // After the first one, a brief is rewritten when she asks (the app offers it after a day of new
 // pieces, src/modules/style) or, if anything changed, once a month (decided 2026-10-25: most
 // users don't care to, and a brief is ~10 ¢).
@@ -445,6 +448,12 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   };
   const wardrobe = await outfits.wardrobe(userId);
   if (wardrobe.length < MIN_ITEMS_FOR_BRIEF) return decline();
+  if (
+    !current?.brief &&
+    (await deps.limits.timesDone(userId, "wear_with")) < MIN_STYLINGS_FOR_BRIEF
+  ) {
+    return decline();
+  }
   const reactions = await outfits.reactedOutfitCount(userId);
   const saved = (await deps.photos.listInspiration(userId)).length;
   const monthly =
@@ -456,6 +465,7 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   if (current?.brief && !asked && !monthly) return;
   // Past her monthly cap (or the server's day) the stylist keeps the brief it has.
   if (!(await deps.limits.allows(userId, BRIEF_COST_MICROS, now))) return decline();
+  if (current?.brief && !(await deps.limits.allowsBriefUpdate(userId, now))) return decline();
 
   // The newest pieces when the wardrobe is big: they say most about her taste now.
   const numbered = wardrobe.map((item, i) => ({ item, n: i + 1 }));

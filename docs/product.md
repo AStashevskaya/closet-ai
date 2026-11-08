@@ -20,6 +20,15 @@ The roadmap and the product decisions behind it, with dates. Read before changin
 13. Sign in with Apple / Google, free-tier limits (count AI actions per user and device), RevenueCat trial. Want / Can split between free and Premium: see "Free and Premium" in the Want / Can section.
 14. Prompt evals: a few test wardrobes and look screenshots, scored by hand, rerun after each prompt change. Start collecting the set at step 4. The owner scores outfits on the 1–5 scale from the stylist questionnaire.
 
+## Free tier limits for launch (decided 2026-11-08)
+
+- Stylings: 3 a day in the account's first week, so a new user can try several pieces, then 1 a day. Repeating a piece stays free; the hidden 30 a month stays.
+- Her style: the first brief waits for 15 pieces and a second styling, so someone who tries the app once costs no Opus call. After that, one update a calendar month, asked for with the button or the monthly one. The button counts everything added since the last brief (5 pieces or 3 saved looks). Pro will allow one a day.
+- A user's AI spend is capped at $2 a month. Recreate the look, selfies and item photos keep their limits: they fill the wardrobe or lead to partner pieces.
+- About 50 ¢ a month for an active free user, about $1.35 in a month that fills a closet of 150 pieces (estimates from the owner's dev data, 2026-11-08; `/closet-ai-cost` checks them).
+- No payment at launch: a reached limit will ask whether she wants more, to measure demand first.
+- Cut-outs stay on SAM 3 at launch (0.5 ¢ a photo, $15 for 30 testers with 100 pieces each). After launch, compare cut-outs on the phone (Apple Vision, ML Kit) on the owner's test photos: they keep "the main subject", which is where BiRefNet and Bria failed.
+
 ## Photo polish: free and Premium (decided 2026-10-19)
 
 Compared on the owner's 7 test photos (script and side-by-side page in `~/Desktop/closet/wrinkle-lab`):
