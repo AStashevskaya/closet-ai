@@ -224,7 +224,7 @@ describe("inspiration", () => {
     await s.photoQueue.runAll(s.photoDeps);
     await s.outfitQueue.runAll(s.outfitDeps);
     expect(s.stub.briefCalls).toHaveLength(1);
-    expect((await style()).suggest).toEqual({ items: 0, looks: 3 });
+    expect((await style()).suggest).toEqual({ items: 0, looks: 3, reactions: 0 });
 
     const asked = await s.server.inject({
       method: "POST",

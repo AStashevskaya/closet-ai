@@ -81,18 +81,20 @@ export function StyleCard({
       </>
     );
   } else if (style.suggest && !dismissed) {
-    const { items, looks } = style.suggest;
-    const itemsText = t('items.count', { count: items });
-    const looksText = t('style.looks', { count: looks });
-    const added =
-      items > 0 && looks > 0
-        ? t('style.both', { items: itemsText, looks: looksText })
-        : items > 0
-          ? itemsText
-          : looksText;
+    const { items, looks, reactions } = style.suggest;
+    // Only what there's some of, the last two joined by "and".
+    const parts = [
+      items > 0 ? t('items.count', { count: items }) : null,
+      looks > 0 ? t('style.looks', { count: looks }) : null,
+      reactions > 0 ? t('style.reactions', { count: reactions }) : null,
+    ].filter((part) => part !== null);
+    const last = parts.pop() ?? '';
+    const before = parts.pop();
+    const end = before ? t('style.both', { items: before, looks: last }) : last;
+    const added = parts.length > 0 ? `${parts[0]}, ${end}` : end;
     body = (
       <>
-        <Title>{t('style.shoppingTitle')}</Title>
+        <Title>{t(items > 0 || looks > 0 ? 'style.shoppingTitle' : 'style.ratedTitle')}</Title>
         <Text style={styles.text}>{t('style.shoppingBody', { added })}</Text>
         <Button label={t('style.update')} onPress={onUpdate} busy={busy} kind="ink" />
         <Pressable onPress={dismiss} hitSlop={8} accessibilityRole="button" style={styles.later}>

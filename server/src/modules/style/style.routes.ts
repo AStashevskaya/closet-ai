@@ -13,6 +13,8 @@ import { BRIEF_COST_MICROS, type Limits } from "../usage/limits";
 // brief is ~10 ¢, so it's offered rather than written, once a month on the free tier.
 export const SHOPPING_ITEMS = 5;
 export const SHOPPING_LOOKS = 3;
+// Looks she has rated since then, liked or not (decided 2026-11-08).
+export const NEW_REACTIONS = 5;
 // The brief job runs right after she asks; if no batch started by then, it declined.
 const ASKED_FOR_MS = 10 * 60 * 1000;
 
@@ -45,12 +47,18 @@ export const styleRoutes =
       // when an update could go now (not past her monthly cap or this month's update).
       if (stylistEnabled && brief?.brief && brief.writtenAt && !updating && !waiting) {
         const added = await outfits.addedSince(userId, brief.writtenAt);
+        const reactions = Math.max(
+          0,
+          (await outfits.reactedOutfitCount(userId)) - brief.reactionCount,
+        );
         if (
-          (added.items >= SHOPPING_ITEMS || added.looks >= SHOPPING_LOOKS) &&
+          (added.items >= SHOPPING_ITEMS ||
+            added.looks >= SHOPPING_LOOKS ||
+            reactions >= NEW_REACTIONS) &&
           (await limits.allows(userId, BRIEF_COST_MICROS, now)) &&
           (await limits.allowsBriefUpdate(userId, now))
         ) {
-          suggest = added;
+          suggest = { ...added, reactions };
         }
       }
       return {

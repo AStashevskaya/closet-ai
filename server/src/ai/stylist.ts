@@ -55,6 +55,9 @@ export interface ComposeInput {
   // What her last few requests already used: sheet pieces with the number of looks they were
   // in, and the looks' names. Fresh pieces and ideas are preferred over them.
   recent: { pieces: { n: number; looks: number }[]; captions: string[] };
+  // Looks she liked or wore, newest first, so what she has just told counts before the next
+  // brief. About 0.03 ¢ a request, and after the cached part, so a new like keeps the cache.
+  liked: string[];
   // An item she doesn't own yet and is thinking of buying: the pieces of its category she owns
   // that are closest to it (cosine of the embeddings, which see shape more than colour), for the
   // verdict. null for her own items.
@@ -195,6 +198,11 @@ const briefFormat = zodOutputFormat(briefOutput);
 const describe = (p: StylistPiece) =>
   `#${p.n} ${p.name} | ${p.category} | ${p.colors.join("/")} | ${p.seasons.join("/") || "?"}${p.details ? ` | ${p.details}` : ""}`;
 
+const likedText = (liked: string[]) =>
+  liked.length
+    ? `\nLooks she liked or wore, newest first (her taste, to lean towards, not to copy): ${liked.join("; ")}.`
+    : "";
+
 // Her recent looks, so the new ones don't repeat them.
 const recentText = ({ pieces, captions }: ComposeInput["recent"]) =>
   [
@@ -271,7 +279,7 @@ export function createClaudeStylist(
               ...(input.shop ? [jpegBlock(input.shop.sheet)] : []),
               {
                 type: "text",
-                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.${recentText(input.recent)}${input.buying ? buyingText(input.buying) : ""}${input.shop ? shopText(input.shop.pieces) : ""}\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
+                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.${recentText(input.recent)}${likedText(input.liked)}${input.buying ? buyingText(input.buying) : ""}${input.shop ? shopText(input.shop.pieces) : ""}\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
               },
             ],
           },

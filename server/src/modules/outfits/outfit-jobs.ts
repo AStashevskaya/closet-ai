@@ -65,6 +65,10 @@ export const LOOKS_PER_REQUEST = 3;
 // A brand's piece shown for its own sake stays the exception: never in every look (docs/product.md,
 // partner items). Partner shoes and bags that finish a look her wardrobe can't are not counted.
 export const MAX_PARTNER_LOOKS = 2;
+// The liked looks each request reads, found among her newest reactions.
+const LIKED_LOOKS = 5;
+const LIKED_LOOKS_AMONG = 20;
+
 // How far back "recently" goes: about a week of styling for an active user.
 export const RECENT_REQUESTS = 6;
 
@@ -118,6 +122,12 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
         }
       : null;
 
+  const reacted = await outfits.reactedOutfits(request.userId, LIKED_LOOKS_AMONG);
+  const liked = reacted
+    .filter((look) => look.opinion === "like" || look.wore)
+    .slice(0, LIKED_LOOKS)
+    .map((look) => look.description);
+
   const { looks, verdict, costMicros, tokens } = await stylist.compose({
     hero: { ...toStylistPiece(hero, nOf.get(hero.id)!), image: await asJpeg(heroFile.body, 512) },
     wardrobe: numbered
@@ -137,6 +147,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
         .sort((a, b) => b.looks - a.looks),
       captions: recent.captions,
     },
+    liked,
     season,
     mood: request.mood,
     lang,
