@@ -173,7 +173,7 @@ describe("inspiration", () => {
   it("offers to update her style after three saved looks, and the update reads them", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 15; i++) {
       const key = `photos/${anna.userId}/item-${i}.webp`;
       await s.storage.put(
         key,
@@ -194,8 +194,12 @@ describe("inspiration", () => {
         payload: { name: `Item ${i}`, category: "top", colors: ["white"], photoKey: key },
       });
     }
-    // A first brief, written from the wardrobe alone.
+    // A first brief, written from the wardrobe alone once she has styled two pieces.
+    await s.repositories.usageRepository.record(anna.userId, "wear_with", 0);
+    await s.repositories.usageRepository.record(anna.userId, "wear_with", 0);
     await s.outfitQueue.outfitQueue.enqueueBrief(anna.userId);
+    // Written a moment after those pieces, as a real batch would be.
+    s.clock.now = new Date(s.clock.now.getTime() + 60_000);
     await s.outfitQueue.runAll(s.outfitDeps);
     expect(s.stub.briefCalls).toHaveLength(1);
     expect(s.stub.briefCalls[0]!.inspiration).toHaveLength(0);

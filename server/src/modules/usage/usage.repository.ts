@@ -1,16 +1,19 @@
-import type { SpendAction, UsageAction } from "@closet-ai/shared";
+import type { SpendAction } from "@closet-ai/shared";
 import { and, count, eq, gte, sum } from "drizzle-orm";
 import type { Db } from "../../db/client";
+import { user } from "../../db/auth-schema";
 import { usageEvents } from "../../db/schema";
 
 export interface UsageRepository {
   record(userId: string, action: SpendAction, costMicros: number): Promise<void>;
   // How many times the user did this since `since`.
-  count(userId: string, action: UsageAction, since: Date): Promise<number>;
+  count(userId: string, action: SpendAction, since: Date): Promise<number>;
   // Spend of everyone since `since`, in millionths of a dollar.
   spentSince(since: Date): Promise<number>;
   // The same for one user.
   spentBy(userId: string, since: Date): Promise<number>;
+  // When the account was made, for the first week's limits; null if it's gone.
+  accountCreatedAt(userId: string): Promise<Date | null>;
 }
 
 export function createUsageRepository(db: Db): UsageRepository {
@@ -47,6 +50,14 @@ export function createUsageRepository(db: Db): UsageRepository {
         .from(usageEvents)
         .where(and(eq(usageEvents.userId, userId), gte(usageEvents.createdAt, since)));
       return Number(row?.total ?? 0);
+    },
+
+    async accountCreatedAt(userId) {
+      const [row] = await db
+        .select({ createdAt: user.createdAt })
+        .from(user)
+        .where(eq(user.id, userId));
+      return row?.createdAt ?? null;
     },
   };
 }

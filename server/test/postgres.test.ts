@@ -73,6 +73,7 @@ describe.skipIf(!url)("on Postgres", () => {
       REDIS_URL: "redis://localhost:6379",
       AI_DAILY_BUDGET_USD: 3,
       USER_MONTHLY_BUDGET_USD: 5,
+      TESTER_MONTHLY_BUDGET_USD: 10,
       TESTER_USER_IDS: [],
       MODEL_CACHE_DIR: ".models",
       WORKERS_IN_API: true,
@@ -509,6 +510,9 @@ describe.skipIf(!url)("on Postgres", () => {
     await usage.record(user!.id, "item_photo", 6_000);
 
     expect(await usage.count(user!.id, "want", before)).toBe(2);
+    // The first week's limits read the account's age from the auth table.
+    expect(await usage.accountCreatedAt(user!.id)).toBeInstanceOf(Date);
+    expect(await usage.accountCreatedAt("nobody")).toBeNull();
     expect(await usage.count(user!.id, "look", before)).toBe(0);
     expect(await usage.count(user!.id, "want", new Date(Date.now() + 60_000))).toBe(0);
     expect((await usage.spentSince(before)) - spentBefore).toBe(26_000);

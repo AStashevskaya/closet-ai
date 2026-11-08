@@ -68,6 +68,7 @@ export const testEnv: Env = {
   REDIS_URL: "redis://localhost:6379",
   AI_DAILY_BUDGET_USD: 3,
   USER_MONTHLY_BUDGET_USD: 5,
+  TESTER_MONTHLY_BUDGET_USD: 10,
   TESTER_USER_IDS: [],
   MODEL_CACHE_DIR: ".models",
   WORKERS_IN_API: true,
@@ -290,6 +291,8 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
 
   const usageRows: { userId: string; action: SpendAction; costMicros: number; createdAt: Date }[] =
     [];
+  const accountsCreatedAt = new Map<string, Date>();
+  const setAccountCreatedAt = (userId: string, at: Date) => accountsCreatedAt.set(userId, at);
   const usageRepository: UsageRepository = {
     record: async (userId, action, costMicros) => {
       usageRows.push({ userId, action, costMicros, createdAt: new Date() });
@@ -303,6 +306,8 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       usageRows
         .filter((r) => r.userId === userId && r.createdAt >= since)
         .reduce((sum, r) => sum + r.costMicros, 0),
+    // As the `user` table would answer: new, like the usage rows, unless a test moves it.
+    accountCreatedAt: async (userId) => accountsCreatedAt.get(userId) ?? new Date(),
   };
 
   // Outfits keep their own rows and read items and photos from the stores above.
@@ -683,6 +688,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     itemsRepository,
     photosRepository,
     usageRepository,
+    setAccountCreatedAt,
     outfitsRepository,
     profileRepository,
     catalogRepository,

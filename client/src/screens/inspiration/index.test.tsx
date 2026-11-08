@@ -73,7 +73,7 @@ describe('<Inspiration />', () => {
   test('without a brief, every look is new and nothing can be taught yet', async () => {
     await render(<Inspiration />);
     expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
-    expect(screen.getByText(/once your closet has 8 pieces/)).toBeOnTheScreen();
+    expect(screen.getByText(/once your closet has 15 pieces/)).toBeOnTheScreen();
     expect(screen.queryByText('Taken to heart')).toBeNull();
     expect(screen.queryByText('Teach my stylist')).toBeNull();
   });
@@ -112,6 +112,20 @@ describe('<Inspiration />', () => {
     jest.mocked(refreshStyle).mockResolvedValueOnce({ ...brief, updating: true });
     await fireEvent.press(screen.getByText('Teach my stylist'));
     expect(await screen.findByText('Learning…')).toBeOnTheScreen();
+  });
+
+  test("says when this month's update has gone, and reads the screen again", async () => {
+    jest.mocked(getStyle).mockResolvedValue(brief);
+    jest.mocked(listInspiration).mockResolvedValue([look(3, '2026-10-27T09:00:00.000Z'), look(1)]);
+    jest.mocked(refreshStyle).mockRejectedValueOnce(new ApiError(409, 'style:month'));
+    await render(<Inspiration />);
+    const button = await screen.findByText('Teach my stylist');
+    const readsBefore = jest.mocked(getStyle).mock.calls.length;
+    await fireEvent.press(button);
+    expect(alert).toHaveBeenCalledWith(
+      expect.stringContaining('Your stylist updates your style once a month.'),
+    );
+    expect(jest.mocked(getStyle).mock.calls.length).toBeGreaterThan(readsBefore);
   });
 
   test('saves several looks at once as inspiration', async () => {

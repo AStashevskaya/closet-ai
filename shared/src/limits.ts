@@ -21,14 +21,23 @@ export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeri
   item_photo: { count: 50, period: "day" },
   want: { count: 5, period: "month" },
   look: { count: 3, period: "month" },
-  // "What do I wear this with?" is meant to be opened every day, so it's generous.
-  wear_with: { count: 5, period: "day" },
+  // "What do I wear this with?" is meant to be opened every day. One a day after the first week
+  // (decided 2026-11-08): most of what a free user costs, and repeating a piece stays free.
+  wear_with: { count: 1, period: "day" },
   // Saving a look costs nothing (no model reads it until the brief does): a cap against abuse.
   inspiration: { count: 50, period: "day" },
 };
 
+// A new account tries several pieces at once, so the first week has room (decided 2026-11-08).
+export const FIRST_WEEK_DAYS = 7;
+export const FIRST_WEEK_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 3 };
+
+// Rewriting her style costs about 10 ¢: the first brief, then this many a calendar month, only
+// when she asks (decided 2026-11-08). Pro will allow one a day.
+export const FREE_BRIEF_UPDATES_A_MONTH = 1;
+
 // Hidden monthly caps on top, so one account can't cost more than it could ever be worth.
-// The per-user spend cap (USER_MONTHLY_BUDGET_USD, $5) is the real bound; these keep one
+// The per-user spend cap (USER_MONTHLY_BUDGET_USD, $2) is the real bound; these keep one
 // feature from using all of it: 30 outfit requests (60 until 2026-10-28), about one a day,
 // ~90 ¢ for the most active free user at ~3 ¢ a request.
 export const MONTHLY_SAFETY_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 30 };
