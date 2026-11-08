@@ -6,6 +6,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { getUsage } from './api';
 import { ApiError, isOffline, limitReached } from './api-error';
 
+// The server's months are calendar ones in UTC, so what's monthly opens again on the 1st.
+export function nextMonthDate(lang: string) {
+  const now = new Date();
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return next.toLocaleDateString(lang, { day: 'numeric', month: 'long' });
+}
+
 // What the user sees when a limit stops them: which limit, how many, and when it resets.
 export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: Usage | null) {
   if (code === 'want' || code === 'look') {
@@ -19,13 +26,7 @@ export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: U
   if (code === 'wear_with') {
     return t('limits.wear_with', { limit: usage?.wear_with.limit ?? FREE_LIMITS.wear_with.count });
   }
-  if (code === 'monthly') {
-    // The server's months are calendar ones in UTC, so it opens again on the 1st.
-    const now = new Date();
-    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    const date = next.toLocaleDateString(lang, { day: 'numeric', month: 'long' });
-    return t('limits.monthly', { date });
-  }
+  if (code === 'monthly') return t('limits.monthly', { date: nextMonthDate(lang) });
   return t(`limits.${code}`);
 }
 

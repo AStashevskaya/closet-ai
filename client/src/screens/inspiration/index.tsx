@@ -25,7 +25,7 @@ import { useAnnounce } from '@/lib/announce';
 import { deleteInspiration, listInspiration, sessionHeaders, uploadPhoto } from '@/lib/api';
 import { ApiError, isOffline, limitReached, OfflineError } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { limitText } from '@/lib/limits';
+import { limitText, nextMonthDate } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { useStyle } from '@/lib/style';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
@@ -190,9 +190,17 @@ export function Inspiration() {
       const code = limitReached(cause);
       if (code) Alert.alert(limitText(t, i18n.language, code));
       else if (cause instanceof OfflineError) Alert.alert(t('common.offline'));
-      // Once a day: the stylist has already learned today.
-      else if (cause instanceof ApiError && cause.message === 'style:wait')
+      // Once a day: the stylist has already learned today. The screen may be out of date, so
+      // what it offers is read again.
+      else if (cause instanceof ApiError && cause.message === 'style:wait') {
         Alert.alert(t('inspiration.teachWait'));
+        void loadStyle();
+      }
+      // This month's update has gone: it comes back on the 1st.
+      else if (cause instanceof ApiError && cause.message === 'style:month') {
+        Alert.alert(t('inspiration.teachMonth', { date: nextMonthDate(i18n.language) }));
+        void loadStyle();
+      }
       // Already being written, or nothing to write from yet: show what is.
       else if (cause instanceof ApiError && cause.status === 409) void loadStyle();
       else Alert.alert(t('style.failed'));

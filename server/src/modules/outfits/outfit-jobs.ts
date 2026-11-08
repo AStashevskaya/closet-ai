@@ -407,10 +407,8 @@ async function heroFromPhoto(
 // the app once doesn't cost a brief.
 export const MIN_ITEMS_FOR_BRIEF = 15;
 export const MIN_STYLINGS_FOR_BRIEF = 2;
-// After the first one, a brief is rewritten when she asks (the app offers it after a day of new
-// pieces, src/modules/style) or, if anything changed, once a month (decided 2026-10-25: most
-// users don't care to, and a brief is ~10 ¢).
-const REFRESH_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+// After the first one, a brief is rewritten only when she asks (src/modules/style, decided
+// 2026-11-08; a monthly rewrite on its own until then): a brief is ~10 ¢.
 // At most one Opus brief a day per user, written or failed.
 export const BRIEF_EVERY_MS = 24 * 60 * 60 * 1000;
 // Batches usually end in minutes; one that runs for a day is given up on.
@@ -430,8 +428,7 @@ const REASON_WORDS: Record<DislikeReason, string> = {
   occasion: "wrong for her occasions",
 };
 
-// Job "brief": starts a new brief through the Batch API: the first one, one she asked for, or
-// the monthly one when something changed.
+// Job "brief": starts a new brief through the Batch API: the first one, or one she asked for.
 export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   const { outfits, storage, stylist, queue } = deps;
   if (!stylist) return;
@@ -454,15 +451,7 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
   ) {
     return decline();
   }
-  const reactions = await outfits.reactedOutfitCount(userId);
-  const saved = (await deps.photos.listInspiration(userId)).length;
-  const monthly =
-    current?.writtenAt != null &&
-    now.getTime() - current.writtenAt.getTime() > REFRESH_AFTER_MS &&
-    (wardrobe.length !== current.itemCount ||
-      reactions !== current.reactionCount ||
-      saved !== current.inspirationCount);
-  if (current?.brief && !asked && !monthly) return;
+  if (current?.brief && !asked) return;
   // Past her monthly cap (or the server's day) the stylist keeps the brief it has.
   if (!(await deps.limits.allows(userId, BRIEF_COST_MICROS, now))) return decline();
   if (current?.brief && !(await deps.limits.allowsBriefUpdate(userId, now))) return decline();

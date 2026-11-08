@@ -150,7 +150,7 @@ export const outfitsRoutes =
         const id = await outfits.createRequest(user.id, hero, size, mood);
         await queue.enqueueComposing(id, request.query.lang);
         await limits.record(user.id, "wear_with");
-        // A new brief is written in the background when the old one is stale; the job decides.
+        // The first brief is written in the background once it's due; the job decides.
         await queue.enqueueBrief(user.id);
         return reply.code(202).send({ id });
       },
@@ -336,7 +336,7 @@ export const outfitsRoutes =
         const { reaction, reason } = request.body;
         const saved = await outfits.react(request.params.id, user.id, reaction, reason);
         if (!saved) throw httpError(404, "outfit not found");
-        // Reactions make the brief stale after a few; the job decides.
+        // The first brief may be due; the job decides.
         await queue.enqueueBrief(user.id);
         return reply.code(204).send();
       },

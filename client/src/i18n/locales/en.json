@@ -264,12 +264,13 @@
     "wantTitle": "What of this look do you already own?",
     "loadError": "Couldn't load your looks.",
     "briefNote": "Your style · updated {{date}}",
-    "briefNone": "Your stylist writes your style once your closet has 15 pieces and you've styled two of them, and learns from your saved looks.",
+    "briefNone": "Your stylist writes your style once your closet has 15 pieces and you've asked for looks twice, and learns from your saved looks.",
     "fresh": "New · {{count}}",
     "freshNote": "your stylist hasn't seen them yet",
     "teach": "Teach my stylist",
     "teaching": "Learning…",
     "teachWait": "Your stylist has already learned today. Try again tomorrow.",
+    "teachMonth": "Your stylist updates your style once a month. The next update opens on {{date}}.",
     "learned": "Taken to heart",
     "lookLabel": "Saved look, {{date}}",
     "showAll": "Show all {{count}}"
@@ -475,7 +476,7 @@
   "style": {
     "title": "Your style",
     "shoppingTitle": "Great shopping!",
-    "shoppingBody": "New today: {{added}}. Update your style with them?",
+    "shoppingBody": "New since your last update: {{added}}. Update your style with them?",
     "looks_one": "{{count}} saved look",
     "looks_other": "{{count}} saved looks",
     "both": "{{items}} and {{looks}}",

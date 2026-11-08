@@ -87,14 +87,14 @@ describe('<StyleCard />', () => {
     jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 5, looks: 2 } }));
     const { rerender } = await render(<Closet />);
     expect(
-      await screen.findByText('New today: 5 items and 2 saved looks. Update your style with them?'),
+      await screen.findByText('New since your last update: 5 items and 2 saved looks. Update your style with them?'),
     ).toBeOnTheScreen();
 
     jest.mocked(getStyle).mockResolvedValue(state({ suggest: { items: 0, looks: 3 } }));
     await rerender(<></>);
     await rerender(<Closet />);
     expect(
-      await screen.findByText('New today: 3 saved looks. Update your style with them?'),
+      await screen.findByText('New since your last update: 3 saved looks. Update your style with them?'),
     ).toBeOnTheScreen();
   });
 

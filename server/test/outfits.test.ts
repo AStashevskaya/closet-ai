@@ -119,7 +119,12 @@ async function signUp({ server }: Setup, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
+    payload: {
+      privacyConsent: "2026-11-05",
+      name: "Test User",
+      email,
+      password: "correct-horse-battery",
+    },
   });
   const cookie = res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
   const session = await server.inject({
@@ -1123,7 +1128,7 @@ describe("style brief", () => {
     expect(s.stub.composeCalls.at(-1)!.brief).toBe("High-low with a wink.");
   });
 
-  it("isn't rewritten on its own as the wardrobe grows, only a month on", async () => {
+  it("is never rewritten on its own, however long and whatever changes", async () => {
     const s = await setup();
     const { anna, pieces } = await withBrief(s);
 
@@ -1133,12 +1138,11 @@ describe("style brief", () => {
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(1);
 
-    // A month later, with the wardrobe changed: rewritten, from the brief it replaces.
+    // A month later, with the wardrobe changed: still only when she asks.
     s.clock.now = new Date("2026-11-21T12:30:00Z");
-    await ask(s, anna.cookie, pieces[2]!.id);
+    await ask(s, anna.cookie, pieces[4]!.id);
     await s.runJobs();
-    expect(s.stub.briefCalls).toHaveLength(2);
-    expect(s.stub.briefCalls[1]!.previous).toBe("High-low with a wink.");
+    expect(s.stub.briefCalls).toHaveLength(1);
   });
 
   it("waits a day after a batch that failed instead of sending another", async () => {
@@ -1260,6 +1264,7 @@ describe("her style", () => {
     );
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(2);
+    expect(s.stub.briefCalls[1]!.previous).toBe("High-low with a wink.");
     expect(s.stub.briefCalls[1]!.wardrobe).toHaveLength(20);
     expect((await style(s, anna.cookie)).json<StyleState>()).toMatchObject({
       updating: false,
@@ -1286,7 +1291,7 @@ describe("her style", () => {
     s.clock.now = new Date("2026-10-30T13:00:00Z");
     await addFive();
     expect((await style(s, anna.cookie)).json<StyleState>().suggest).toBeNull();
-    expect((await refresh(s, anna.cookie)).json<{ message: string }>().message).toBe("style:wait");
+    expect((await refresh(s, anna.cookie)).json<{ message: string }>().message).toBe("style:month");
     await s.runJobs();
     expect(s.stub.briefCalls).toHaveLength(2);
   });

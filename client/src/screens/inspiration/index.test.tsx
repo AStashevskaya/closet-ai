@@ -114,6 +114,19 @@ describe('<Inspiration />', () => {
     expect(await screen.findByText('Learning…')).toBeOnTheScreen();
   });
 
+  test("says when this month's update has gone, and reads the screen again", async () => {
+    jest.mocked(getStyle).mockResolvedValue(brief);
+    jest.mocked(listInspiration).mockResolvedValue([look(3, '2026-10-27T09:00:00.000Z'), look(1)]);
+    jest.mocked(refreshStyle).mockRejectedValueOnce(new ApiError(409, 'style:month'));
+    await render(<Inspiration />);
+    await fireEvent.press(await screen.findByText('Teach my stylist'));
+    const reads = jest.mocked(getStyle).mock.calls.length;
+    expect(alert).toHaveBeenCalledWith(
+      expect.stringContaining('Your stylist updates your style once a month.'),
+    );
+    expect(reads).toBeGreaterThan(1);
+  });
+
   test('saves several looks at once as inspiration', async () => {
     jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
       canceled: false,

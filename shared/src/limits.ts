@@ -32,8 +32,8 @@ export const FREE_LIMITS: Record<UsageAction, { count: number; period: UsagePeri
 export const FIRST_WEEK_DAYS = 7;
 export const FIRST_WEEK_LIMITS: Partial<Record<UsageAction, number>> = { wear_with: 3 };
 
-// Rewriting her style costs about 10 ¢: the first brief, then this many a calendar month, asked
-// for or the monthly one (decided 2026-11-08). Pro will allow one a day.
+// Rewriting her style costs about 10 ¢: the first brief, then this many a calendar month, only
+// when she asks (decided 2026-11-08). Pro will allow one a day.
 export const FREE_BRIEF_UPDATES_A_MONTH = 1;
 
 // Hidden monthly caps on top, so one account can't cost more than it could ever be worth.

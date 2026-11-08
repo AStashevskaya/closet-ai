@@ -90,7 +90,7 @@ export const styleRoutes =
         }
         // Only a stale screen gets here: the app stops offering it once the month's is used.
         if (!(await limits.allowsBriefUpdate(user.id, now))) {
-          throw httpError(409, "style:wait");
+          throw httpError(409, "style:month");
         }
         await outfits.askBrief(user.id, now);
         await queue.enqueueBrief(user.id);

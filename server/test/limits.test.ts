@@ -42,7 +42,12 @@ async function signUp(server: App, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
+    payload: {
+      privacyConsent: "2026-11-05",
+      name: "Test User",
+      email,
+      password: "correct-horse-battery",
+    },
   });
   return res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
 }
@@ -266,6 +271,14 @@ describe("updates of her style", () => {
     // Her first brief is from an earlier month now.
     const nextMonth = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000);
     expect(await limits.allowsBriefUpdate("anna", nextMonth)).toBe(true);
+    await usage.record("anna", "brief", 100_000);
+    await usage.record("anna", "brief", 100_000);
+    expect(await limits.allowsBriefUpdate("anna")).toBe(false);
+  });
+
+  it("counts a paid brief that failed as her first, never allowing more than intended", async () => {
+    const { usage, limits } = setup();
+    await usage.record("anna", "brief", 40_000);
     await usage.record("anna", "brief", 100_000);
     await usage.record("anna", "brief", 100_000);
     expect(await limits.allowsBriefUpdate("anna")).toBe(false);
