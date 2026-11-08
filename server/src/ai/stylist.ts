@@ -23,6 +23,19 @@ export const BRIEF_MODEL = "claude-opus-5-5";
 
 // $ per million tokens, October 2026 list prices; check before quoting. Cache writes cost
 // 1.25× the input price, cache reads 0.1×; the Batch API halves everything.
+// The model answered, so it's paid for, but there's nothing to use. costMicros is null when the
+// answer's usage can't be read either; the caller then counts its estimate.
+export class PaidComposeFailure extends Error {
+  constructor(
+    readonly costMicros: number | null,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "PaidComposeFailure";
+  }
+}
+
 const PRICES = {
   "claude-haiku-5-5": { input: 1, output: 5 },
   "claude-sonnet-5-5": { input: 3, output: 15 },
@@ -256,7 +269,7 @@ export function createClaudeStylist(
 
   return {
     async compose(input) {
-      const response = await client.messages.parse({
+      const request = client.messages.parse({
         model: composingModel,
         // Room for thinking: 4000 cut the answer off mid-JSON on every try for a shoe from a
         // photo (2026-10-23). Only the tokens used are paid for.
@@ -287,8 +300,16 @@ export function createClaudeStylist(
           },
         ],
       });
+      // An error from the API isn't billed; an answer we can't use is.
+      const response = await request.catch((cause: unknown) => {
+        if (cause instanceof Anthropic.APIError) throw cause;
+        throw new PaidComposeFailure(null, "the answer could not be read", { cause });
+      });
       if (!response.parsed_output) {
-        throw new Error(`no outfits in the response (stop reason ${response.stop_reason})`);
+        throw new PaidComposeFailure(
+          costOf(composingModel, tokensOf(response.usage)),
+          `no outfits in the response (stop reason ${response.stop_reason})`,
+        );
       }
       const tokens = tokensOf(response.usage);
       return {

@@ -1,13 +1,13 @@
 import type { AppLanguage, DislikeReason } from "@closet-ai/shared";
 import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
-import type { Stylist } from "../../ai/stylist";
+import { PaidComposeFailure, type Stylist } from "../../ai/stylist";
 import type { Storage } from "../../storage/storage";
 import type { CatalogRepository, CatalogRow } from "../catalog/catalog.repository";
 import { cutOutByName, cutoutKeyFor } from "../photos/photo-jobs";
 import type { PhotosRepository } from "../photos/photos.repository";
 import { flattenOnWhite, isWhole, processCutout } from "../photos/process-photo";
-import { BRIEF_COST_MICROS, type Limits } from "../usage/limits";
+import { BRIEF_COST_MICROS, UNREADABLE_COMPOSE_MICROS, type Limits } from "../usage/limits";
 import type {
   NewOutfit,
   OutfitRequestRow,
@@ -133,31 +133,51 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     .slice(0, LIKED_LOOKS)
     .map((look) => look.description);
 
-  const { looks, verdict, costMicros, tokens } = await stylist.compose({
-    hero: { ...toStylistPiece(hero, nOf.get(hero.id)!), image: await asJpeg(heroFile.body, 512) },
-    wardrobe: numbered
-      .filter(({ item }) => item.id !== hero.id)
-      .map(({ item, n }) => toStylistPiece(item, n)),
-    sheet,
-    brief: (await outfits.brief(request.userId))?.brief ?? null,
-    shop,
-    buying,
-    // Only the pieces on the sheet matter to the model; the most used first.
-    recent: {
-      pieces: candidates
-        .flatMap((item) => {
-          const looks = recent.pieces.get(item.id) ?? 0;
-          return looks > 0 ? [{ n: nOf.get(item.id)!, looks }] : [];
-        })
-        .sort((a, b) => b.looks - a.looks),
-      captions: recent.captions,
-    },
-    liked,
-    season,
-    mood: request.mood,
-    lang,
-    looks: LOOKS_PER_REQUEST,
-  });
+  // Every paid attempt counts toward her cap and the server's day, retries included, and right
+  // away: a look deleted while the model wrote is still paid for. A failed note must not fail the
+  // job, since a retry would pay again.
+  const noteSpend = (micros: number) =>
+    deps.limits.spent(request.userId, "styling", micros).catch((cause: unknown) => {
+      (deps.log ?? ((line) => console.log(JSON.stringify(line))))({
+        msg: "recording a styling's cost failed",
+        requestId,
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+    });
+  const composed = await stylist
+    .compose({
+      hero: { ...toStylistPiece(hero, nOf.get(hero.id)!), image: await asJpeg(heroFile.body, 512) },
+      wardrobe: numbered
+        .filter(({ item }) => item.id !== hero.id)
+        .map(({ item, n }) => toStylistPiece(item, n)),
+      sheet,
+      brief: (await outfits.brief(request.userId))?.brief ?? null,
+      shop,
+      buying,
+      // Only the pieces on the sheet matter to the model; the most used first.
+      recent: {
+        pieces: candidates
+          .flatMap((item) => {
+            const looks = recent.pieces.get(item.id) ?? 0;
+            return looks > 0 ? [{ n: nOf.get(item.id)!, looks }] : [];
+          })
+          .sort((a, b) => b.looks - a.looks),
+        captions: recent.captions,
+      },
+      liked,
+      season,
+      mood: request.mood,
+      lang,
+      looks: LOOKS_PER_REQUEST,
+    })
+    .catch(async (cause: unknown) => {
+      if (cause instanceof PaidComposeFailure) {
+        await noteSpend(cause.costMicros ?? UNREADABLE_COMPOSE_MICROS);
+      }
+      throw cause;
+    });
+  const { looks, verdict, costMicros, tokens } = composed;
+  await noteSpend(costMicros);
 
   // Any piece of her wardrobe: the model sometimes takes a fitting one from the list that wasn't
   // on the sheet, and dropping it left a look without its skirt while "why" still spoke of it
