@@ -47,6 +47,7 @@ import { File } from 'expo-file-system';
 import { ApiError, OfflineError } from './api-error';
 import { apiUrl } from './api-url';
 import { authClient } from './auth-client';
+import { closetChanged } from './closet-changes';
 
 export { ApiError, OfflineError };
 
@@ -125,16 +126,24 @@ function request<T>(
   return exchange(path, init, timeoutMs, async (res) => schema.parse(await res.json()));
 }
 
+// A call that changes her closet: anyone keeping a copy hears of it once the answer is in, or the
+// lack of one, since a request that timed out may still have gone through.
+function changingCloset<T>(call: Promise<T>): Promise<T> {
+  return call.finally(closetChanged);
+}
+
 export function listItems(): Promise<Item[]> {
   return request('/api/items', itemList);
 }
 
 export function createItem(input: CreateItemInput): Promise<Item> {
-  return request('/api/items', item, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  });
+  return changingCloset(
+    request('/api/items', item, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  );
 }
 
 // The item with what the vision model read off its photo, for the item screen.
@@ -149,11 +158,13 @@ export function getSimilarItems(id: string): Promise<SimilarItem[]> {
 
 // Saves the user's corrections; only the fields given change.
 export function updateItem(id: string, patch: UpdateItemInput): Promise<ItemDetail> {
-  return request(`/api/items/${id}`, itemDetail, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
+  return changingCloset(
+    request(`/api/items/${id}`, itemDetail, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  );
 }
 
 // How much of the free tier is used: the wardrobe size and this month's screenshots and selfies.
@@ -281,17 +292,14 @@ export async function deleteWearWith(id: string): Promise<void> {
 export function rotateItem(id: string, photoUrl?: string): Promise<ItemDetail> {
   const version = photoUrl?.match(/[?&]v=([^&]+)/)?.[1];
   const query = version ? `?v=${version}` : '';
-  return request(
-    `/api/items/${id}/rotate${query}`,
-    itemDetail,
-    { method: 'POST' },
-    HEAVY_TIMEOUT_MS,
+  return changingCloset(
+    request(`/api/items/${id}/rotate${query}`, itemDetail, { method: 'POST' }, HEAVY_TIMEOUT_MS),
   );
 }
 
 // The server answers 204 with no body, so there is nothing to parse.
 export async function deleteItem(id: string): Promise<void> {
-  await send(`/api/items/${id}`, { method: 'DELETE' });
+  await changingCloset(send(`/api/items/${id}`, { method: 'DELETE' }));
 }
 
 const uploadAttempts = new Map<string, string>();
@@ -339,15 +347,17 @@ export function getPhotoState(photoKey: string, lang?: AppLanguage): Promise<Pho
 
 // Adds the items picked from a look photo to the wardrobe; each gets the look cropped to it.
 export function addLookItems(input: AddLookItemsInput): Promise<Item[]> {
-  return request(
-    '/api/photos/look-items',
-    itemList,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    },
-    // The server crops and stores each piece in turn.
-    HEAVY_TIMEOUT_MS,
+  return changingCloset(
+    request(
+      '/api/photos/look-items',
+      itemList,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      // The server crops and stores each piece in turn.
+      HEAVY_TIMEOUT_MS,
+    ),
   );
 }
