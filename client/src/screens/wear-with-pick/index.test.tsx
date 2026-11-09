@@ -1,6 +1,7 @@
 import type { Item, LookItem, PhotoState } from '@closet-ai/shared';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { StrictMode } from 'react';
 import { AccessibilityInfo, Linking } from 'react-native';
 
 import i18n from '@/i18n';
@@ -182,6 +183,85 @@ describe('<WearWithPick />', () => {
     ).toBeOnTheScreen();
     expect(screen.getByTestId('print-photo', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+  });
+
+  test('leaving while the outfits are asked for leaves her where she went', async () => {
+    jest
+      .mocked(getPhotoState)
+      .mockResolvedValue(found([lookItem('Shirt', 'top'), lookItem('Skirt', 'bottom')]));
+    let answer: (started: { id: string }) => void = () => undefined;
+    jest.mocked(askWearWith).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const view = await render(<WearWithPick />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Skirt' }, { timeout: 3000 }));
+
+    await view.unmount();
+    await act(async () => answer({ id: 'req-1' }));
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  test("still goes on under Strict Mode, whose double effect run mustn't count as leaving", async () => {
+    jest
+      .mocked(getPhotoState)
+      .mockResolvedValue(found([lookItem('Shirt', 'top'), lookItem('Skirt', 'bottom')]));
+    await render(
+      <StrictMode>
+        <WearWithPick />
+      </StrictMode>,
+    );
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Skirt' }, { timeout: 3000 }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalled());
+  });
+
+  describe('a picker that will not open', () => {
+    const cameraFailed = "Couldn't open the camera. Choose a photo from the gallery.";
+
+    test.each([
+      ['asking for the camera', () => ImagePicker.requestCameraPermissionsAsync],
+      ['opening the camera', () => ImagePicker.launchCameraAsync],
+    ])('%s failing says so, and is no refusal', async (_name, failing) => {
+      jest
+        .mocked(ImagePicker.requestCameraPermissionsAsync)
+        .mockResolvedValue({ granted: true } as never);
+      jest.mocked(failing()).mockRejectedValueOnce(new Error('no camera'));
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Take a photo'));
+
+      expect(await screen.findByText(cameraFailed)).toBeOnTheScreen();
+      expect(announce).toHaveBeenCalledWith(cameraFailed);
+      expect(screen.queryByText(/No access to the camera/)).not.toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Open settings' })).not.toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Take a photo' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Choose from gallery' })).toBeOnTheScreen();
+    });
+
+    test('the gallery failing says so, and the next try clears it', async () => {
+      jest
+        .mocked(ImagePicker.launchImageLibraryAsync)
+        .mockRejectedValueOnce(new Error('no gallery'));
+      jest.mocked(getPhotoState).mockReturnValue(new Promise(() => {}));
+      await render(<WearWithPick />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+
+      const failed = "Couldn't open the gallery. Try again.";
+      expect(await screen.findByText(failed)).toBeOnTheScreen();
+      expect(uploadPhoto).not.toHaveBeenCalled();
+
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+
+      expect(
+        await screen.findByRole('progressbar', { name: 'Finding the item on the photo…' }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText(failed)).not.toBeOnTheScreen();
+    });
   });
 
   test('goes straight to the outfits when there is one item', async () => {

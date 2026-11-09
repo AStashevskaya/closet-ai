@@ -1,16 +1,21 @@
 import { File } from 'expo-file-system';
 
 import {
+  addLookItems,
   ApiError,
+  createItem,
   deleteItem,
   getPhotoState,
   HEAVY_TIMEOUT_MS,
+  listItems,
   OfflineError,
   POLL_TIMEOUT_MS,
   REQUEST_TIMEOUT_MS,
   rotateItem,
+  updateItem,
   uploadPhoto,
 } from './api';
+import { onClosetChanged } from './closet-changes';
 
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -34,6 +39,51 @@ beforeEach(() => {
     json: async () => ({ photoKey: 'photos/u1/p1.webp', status: 'processing' }),
   });
   globalThis.fetch = fetchMock;
+});
+
+describe('calls that change her closet', () => {
+  // The tests below read the first call made.
+  afterEach(() => {
+    fetchMock.mockClear();
+  });
+
+  const look = { photoKey: 'k', pieces: [] } as unknown as Parameters<typeof addLookItems>[0];
+  const piece = { name: 'n' } as unknown as Parameters<typeof createItem>[0];
+  test.each([
+    ['createItem (one piece, the batch, a wish, "add to my closet")', () => createItem(piece)],
+    ['updateItem', () => updateItem('i', {})],
+    ['rotateItem', () => rotateItem('i')],
+    ['deleteItem', () => deleteItem('i')],
+    ['addLookItems (the selfie)', () => addLookItems(look)],
+  ])('%s says so once the answer is in, whatever it was', async (_name, call) => {
+    const heard = jest.fn();
+    const stop = onClosetChanged(heard);
+    let answer: (response: unknown) => void = () => undefined;
+    fetchMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+
+    const pending = call().catch(() => undefined);
+    expect(heard).not.toHaveBeenCalled();
+    answer({ ok: false, status: 500, json: async () => ({ message: 'boom' }) });
+    await pending;
+
+    expect(heard).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  test('reading the closet does not', async () => {
+    const heard = jest.fn();
+    const stop = onClosetChanged(heard);
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => [] });
+
+    await listItems();
+
+    expect(heard).not.toHaveBeenCalled();
+    stop();
+  });
 });
 
 describe('uploadPhoto', () => {

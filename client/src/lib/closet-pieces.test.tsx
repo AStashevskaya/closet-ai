@@ -2,6 +2,7 @@ import type { Item } from '@closet-ai/shared';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { listItems } from '@/lib/api';
+import { closetChanged } from '@/lib/closet-changes';
 
 import { clearClosetPieces, piecesToHang, useClosetPieces } from './closet-pieces';
 
@@ -107,6 +108,94 @@ describe('useClosetPieces', () => {
     await waitFor(() => expect(listItems).toHaveBeenCalledTimes(2));
     await act(async () => {});
     expect(ids(second.result)).toEqual(['a']);
+  });
+
+  test('a change in the closet makes the next screen read again, however recent the read', async () => {
+    jest.mocked(listItems).mockResolvedValueOnce([piece('a')]);
+    const first = await renderHook(() => useClosetPieces(4));
+    await waitFor(() => expect(ids(first.result)).toEqual(['a']));
+    await first.unmount();
+
+    closetChanged();
+    expect(listItems).toHaveBeenCalledTimes(1);
+
+    const refresh = pending();
+    jest.mocked(listItems).mockReturnValueOnce(refresh.read);
+    const next = await renderHook(() => useClosetPieces(4));
+    expect(listItems).toHaveBeenCalledTimes(2);
+    expect(next.result.current.refreshing).toBe(true);
+
+    await act(async () => refresh.answer([piece('new'), piece('a')]));
+    expect(ids(next.result)).toEqual(['new', 'a']);
+    expect(next.result.current.refreshing).toBe(false);
+  });
+
+  test('a screen on show sees the list change, and a deleted piece go', async () => {
+    jest.mocked(listItems).mockResolvedValueOnce([piece('a'), piece('gone')]);
+    const shown = await renderHook(() => useClosetPieces(4));
+    await waitFor(() => expect(ids(shown.result)).toEqual(['a', 'gone']));
+
+    jest.mocked(listItems).mockResolvedValueOnce([piece('a')]);
+    await act(async () => closetChanged());
+
+    await waitFor(() => expect(ids(shown.result)).toEqual(['a']));
+    expect(listItems).toHaveBeenCalledTimes(2);
+  });
+
+  test('a read from before a change never lands', async () => {
+    const before = pending();
+    jest.mocked(listItems).mockReturnValueOnce(before.read);
+    const shown = await renderHook(() => useClosetPieces(4));
+    await waitFor(() => expect(listItems).toHaveBeenCalledTimes(1));
+
+    const after = pending();
+    jest.mocked(listItems).mockReturnValueOnce(after.read);
+    await act(async () => closetChanged());
+    expect(listItems).toHaveBeenCalledTimes(2);
+
+    await act(async () => after.answer([piece('after')]));
+    await act(async () => before.answer([piece('before')]));
+
+    expect(ids(shown.result)).toEqual(['after']);
+  });
+
+  test('a failed read after a change keeps what was read, and the next screen tries again', async () => {
+    jest.mocked(listItems).mockResolvedValueOnce([piece('a')]);
+    const first = await renderHook(() => useClosetPieces(4));
+    await waitFor(() => expect(ids(first.result)).toEqual(['a']));
+
+    jest.mocked(listItems).mockRejectedValueOnce(new Error('boom'));
+    await act(async () => closetChanged());
+    await waitFor(() => expect(first.result.current.refreshing).toBe(false));
+    expect(ids(first.result)).toEqual(['a']);
+
+    jest.mocked(listItems).mockResolvedValueOnce([piece('b')]);
+    const next = await renderHook(() => useClosetPieces(4));
+    await waitFor(() => expect(ids(next.result)).toEqual(['b']));
+  });
+
+  test('a stale list counts as refreshing from its first render, and a failed read ends that', async () => {
+    jest.mocked(listItems).mockRejectedValueOnce(new Error('boom'));
+    const seen: boolean[] = [];
+    const shown = await renderHook(() => {
+      const closet = useClosetPieces(4);
+      seen.push(closet.refreshing);
+      return closet;
+    });
+
+    expect(seen[0]).toBe(true);
+    await waitFor(() => expect(shown.result.current.refreshing).toBe(false));
+  });
+
+  test('signing out empties a screen still showing her pieces', async () => {
+    jest.mocked(listItems).mockResolvedValueOnce([piece('hers')]);
+    const shown = await renderHook(() => useClosetPieces(4));
+    await waitFor(() => expect(ids(shown.result)).toEqual(['hers']));
+
+    await act(async () => clearClosetPieces());
+
+    expect(ids(shown.result)).toEqual([]);
+    expect(shown.result.current.headers).toBeUndefined();
   });
 
   test('after signing out the next account does not see the last one', async () => {

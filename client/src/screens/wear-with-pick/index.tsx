@@ -66,6 +66,17 @@ export function WearWithPick() {
   const asking = useRef(false);
   // The camera was refused: without saying so, the button would look broken.
   const [cameraDenied, setCameraDenied] = useState(false);
+  // The camera or the gallery wouldn't open, which isn't a refusal: settings wouldn't help.
+  const [pickerFailed, setPickerFailed] = useState<'camera' | 'library' | null>(null);
+  // Left the screen while the outfits are asked for: the answer mustn't replace wherever she went.
+  // Set in the effect too, as Strict Mode runs the cleanup once before the screen is really gone.
+  const onScreen = useRef(true);
+  useEffect(() => {
+    onScreen.current = true;
+    return () => {
+      onScreen.current = false;
+    };
+  }, []);
   // The photo as picked, to shrink again on a retry.
   const picked = useRef<ImagePicker.ImagePickerAsset | null>(null);
   const shrunk = useRef<string | null>(null);
@@ -75,17 +86,25 @@ export function WearWithPick() {
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
 
   async function pick(source: 'camera' | 'library') {
-    if (source === 'camera') {
-      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-      if (!granted) {
-        setCameraDenied(true);
-        return;
+    setPickerFailed(null);
+    let asset: ImagePicker.ImagePickerAsset | undefined;
+    try {
+      if (source === 'camera') {
+        const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+        if (!granted) {
+          setCameraDenied(true);
+          return;
+        }
       }
+      const launch =
+        source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+      const result = await launch({ mediaTypes: ['images'] });
+      asset = result.canceled ? undefined : result.assets[0];
+    } catch (cause) {
+      if (__DEV__) console.warn('Opening the picker failed', cause);
+      setPickerFailed(source);
+      return;
     }
-    const launch =
-      source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
-    const result = await launch({ mediaTypes: ['images'] });
-    const asset = result.canceled ? undefined : result.assets[0];
     if (!asset) return;
 
     setCameraDenied(false);
@@ -154,6 +173,8 @@ export function WearWithPick() {
         mood ? { photoKey: key, index, mood } : { photoKey: key, index },
         lang,
       );
+      // The server carries on without her: the styling turns up in her diary when it's done.
+      if (!onScreen.current) return;
       void Haptics.selectionAsync();
       router.replace({ pathname: '/wear-with/[id]', params: { id } });
     } catch (cause) {
@@ -243,7 +264,12 @@ export function WearWithPick() {
   const statusText = waitingFor ?? failedText ?? foundText;
   const outOfToday = left === 0 || limit !== null;
   const deniedText = cameraDenied && !outOfToday ? t('wearWith.cameraDenied') : null;
-  useAnnounce(deniedText ?? statusText);
+  const pickerFailedText =
+    pickerFailed && !outOfToday
+      ? t(pickerFailed === 'camera' ? 'wearWith.cameraFailed' : 'wearWith.galleryFailed')
+      : null;
+  const noteText = pickerFailedText ?? deniedText;
+  useAnnounce(noteText ?? statusText);
 
   const hasPhoto = shot.status !== 'empty';
   // Over a failure "Try again" is the bright one; otherwise the gallery is the main way in.
@@ -332,9 +358,9 @@ export function WearWithPick() {
             style={[styles.actions, phase === 'empty' && styles.actionsAtBottom]}
             entering={arrive}
           >
-            {deniedText && (
+            {noteText && (
               <Text style={styles.denied} accessibilityRole="alert">
-                {deniedText}
+                {noteText}
               </Text>
             )}
             {canRetry && (
