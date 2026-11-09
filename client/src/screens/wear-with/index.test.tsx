@@ -14,6 +14,7 @@ import {
   reactToOutfit,
 } from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
+import { clearClosetPieces } from '@/lib/closet-pieces';
 import { ThreadRow } from '@/screens/style-it/thread-row';
 import { colors } from '@/theme';
 
@@ -82,6 +83,7 @@ const done: WearWithRequest = {
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  clearClosetPieces();
   await i18n.changeLanguage('en');
   jest.mocked(reactToOutfit).mockResolvedValue();
   jest.mocked(listItems).mockResolvedValue([]);
@@ -231,7 +233,7 @@ describe('<WearWith /> waiting in place', () => {
       expect(listItems).not.toHaveBeenCalled();
     });
 
-    test('while composing, under the piece, with one tag between it and the thread', async () => {
+    test('while composing, under the piece, with the only tag on its rail', async () => {
       jest.mocked(getWearWith).mockResolvedValue(composing);
       jest.mocked(listItems).mockResolvedValue([tee, skirt]);
       await render(<WearWith id="req-1" />);
@@ -244,6 +246,9 @@ describe('<WearWith /> waiting in place', () => {
         ),
       );
       expect(bead()).toHaveLength(1);
+      expect(
+        within(belt()!).getByTestId('thread-waiting', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
       // The belt adds nothing for a screen reader: the progressbar still speaks for the wait.
       expect(screen.queryByTestId('closet-belt')).not.toBeOnTheScreen();
       expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
