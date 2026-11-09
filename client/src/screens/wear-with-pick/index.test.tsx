@@ -6,6 +6,7 @@ import { AccessibilityInfo, Linking } from 'react-native';
 import i18n from '@/i18n';
 import { askWearWith, getPhotoState, getUsage, listItems, uploadPhoto } from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
+import { clearClosetPieces } from '@/lib/closet-pieces';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { colors } from '@/theme';
 
@@ -75,6 +76,7 @@ const found = (items: LookItem[]): PhotoState => ({
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  clearClosetPieces();
   await i18n.changeLanguage('en');
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
     canceled: false,
@@ -151,7 +153,7 @@ describe('<WearWithPick />', () => {
     expect(screen.getByTestId('thread-waiting', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
-  test('a limit reached on a piece brings the photo back, with the message under it', async () => {
+  test('a limit reached on a piece keeps what was found on the rail, with the message under it', async () => {
     jest
       .mocked(getPhotoState)
       .mockResolvedValue(found([lookItem('Shirt', 'top'), lookItem('Skirt', 'bottom')]));
@@ -163,8 +165,23 @@ describe('<WearWithPick />', () => {
 
     expect(await screen.findByText("That's 1 for today. Ask again tomorrow.")).toBeOnTheScreen();
     expect(screen.getByText('I want more')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Skirt' })).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Skirt' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Shirt' })).toBeOnTheScreen();
+    expect(screen.queryByText(/tap the one you mean/)).not.toBeOnTheScreen();
+    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+  });
+
+  test('a limit reached on the only piece brings the photo back, with the message under it', async () => {
+    jest.mocked(getPhotoState).mockResolvedValue(found([lookItem('Skirt', 'bottom')]));
+    jest.mocked(askWearWith).mockRejectedValue(new ApiError(429, 'limit:wear_with'));
+    await render(<WearWithPick />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+
+    expect(
+      await screen.findByText("That's 1 for today. Ask again tomorrow.", {}, { timeout: 3000 }),
+    ).toBeOnTheScreen();
     expect(screen.getByTestId('print-photo', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
   });
 
   test('goes straight to the outfits when there is one item', async () => {
@@ -260,6 +277,9 @@ describe('<WearWithPick />', () => {
       expect(announce).toHaveBeenCalledWith(expect.stringMatching(denied));
       expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
       expect(screen.queryByText('Take a photo')).not.toBeOnTheScreen();
+      // Only the message and the buttons change: nothing above them jumps.
+      expect(screen.getByRole('header', { name: 'What are we trying on?' })).toBeOnTheScreen();
+      expect(screen.getByText('Everyday')).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: 'Open settings' })).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: 'Choose from gallery' })).toBeOnTheScreen();
     });
