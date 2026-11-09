@@ -1,5 +1,12 @@
 import { useEffect } from 'react';
-import { I18nManager, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  I18nManager,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -18,8 +25,8 @@ import { RailLine } from '@/components/rail-line';
 import { useClosetPieces } from '@/lib/closet-pieces';
 import { durations } from '@/motion';
 
-// At most this many of her pieces, each hung twice so the loop has no seam. Fewer than the least of
-// them don't fill a rail, so the gap would show going round: they hang still instead.
+// At most this many of her pieces, hung over and over so the loop has no seam. Fewer than the least
+// of them are too few to look like a closet going past: they hang still instead.
 const MOST = 8;
 const LEAST_TO_ROLL = 5;
 const SLOT = 84;
@@ -36,20 +43,29 @@ const DIRECTION = I18nManager.isRTL ? 1 : -1;
 
 // Her closet going past while looks are put together from it (owner, 2026-11-09, docs/design.md,
 // "Waiting"): what's happening, shown with her own pieces. The tag on the rail stays the only sign
-// of waiting. One transform on the UI thread moves the whole strip, and each piece is flattened into
-// a texture, so it asks little of a mid-range Android. Only decoration, so screen readers skip it:
+// of waiting. One transform on the UI thread moves the whole strip, so it asks little of a mid-range
+// Android beyond the pieces' shadows. Only decoration, so screen readers skip it:
 // the caller keeps the progressbar and the announcements. Its load failing leaves just the rail.
 export function ClosetBelt({ style }: { style?: StyleProp<ViewStyle> }) {
   const reduced = useReducedMotion();
+  const { width } = useWindowDimensions();
   const { pieces, headers } = useClosetPieces(MOST);
   const rolling = pieces.length >= LEAST_TO_ROLL && !reduced;
-  const hung = rolling ? [...pieces, ...pieces] : pieces;
-  // One round of the belt: where the doubled strip looks just as it did at the start.
+  // One round of the belt: where the strip looks just as it did at the start.
   const round = pieces.length * SLOT;
+  // Enough copies to still cover the screen at the end of a round: two on a phone, more on a tablet
+  // or a foldable, whose screen is wider than a round.
+  const copies = rolling ? Math.ceil(width / round) + 1 : 1;
+  const hung = Array.from({ length: copies }).flatMap(() => pieces);
 
   const progress = useSharedValue(0);
   useEffect(() => {
-    if (!rolling) return;
+    if (!rolling) {
+      // Stopped part-way round (Reduce Motion turned on), the still pieces would stay shifted.
+      cancelAnimation(progress);
+      progress.set(0);
+      return;
+    }
     progress.set(0);
     progress.set(
       withRepeat(
@@ -78,16 +94,16 @@ export function ClosetBelt({ style }: { style?: StyleProp<ViewStyle> }) {
       <View style={styles.window}>
         <Animated.View testID="closet-belt-strip" style={[styles.strip, moving]}>
           {hung.map((piece, index) => (
-            <View
+            <Animated.View
               key={`${piece.id}-${index}`}
               testID="belt-piece"
               style={styles.slot}
-              renderToHardwareTextureAndroid
+              entering={FadeIn.duration(durations.leave)}
               shouldRasterizeIOS
             >
               <Hanger kind={HANGERS[piece.category]} width={HANG_WIDTH} />
               <BarePiece item={piece} headers={headers} style={styles.image} />
-            </View>
+            </Animated.View>
           ))}
         </Animated.View>
       </View>
