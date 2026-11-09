@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import type { Item } from '@closet-ai/shared';
+import { useEffect, useState } from 'react';
 import {
   I18nManager,
   StyleSheet,
@@ -49,8 +50,17 @@ const DIRECTION = I18nManager.isRTL ? 1 : -1;
 export function ClosetBelt({ style }: { style?: StyleProp<ViewStyle> }) {
   const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
-  const { pieces, headers } = useClosetPieces(MOST);
-  const rolling = pieces.length >= LEAST_TO_ROLL && !reduced;
+  const { pieces: latest, headers, refreshing } = useClosetPieces(MOST);
+  // The list it rolls with, set when it starts and kept until it stops: a different list part-way
+  // round would move every piece on screen, and there's no moment when they're all out of sight. So
+  // it waits for a read on its way before it starts, hanging still, and a list that comes later waits
+  // for the next time (the wait lasts a minute or two at most).
+  const [onBelt, setOnBelt] = useState<Item[] | null>(null);
+  // No headers: the account is gone (`clearClosetPieces`), and its pieces with it.
+  if (onBelt && (reduced || !headers)) setOnBelt(null);
+  else if (!onBelt && !reduced && !refreshing && latest.length >= LEAST_TO_ROLL) setOnBelt(latest);
+  const pieces = onBelt ?? latest;
+  const rolling = onBelt !== null && !reduced;
   // One round of the belt: where the strip looks just as it did at the start.
   const round = pieces.length * SLOT;
   // Enough copies to still cover the screen at the end of a round: two on a phone, more on a tablet

@@ -1,10 +1,11 @@
 import type { Item } from '@closet-ai/shared';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 import { useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 
 import { listItems } from '@/lib/api';
+import { closetChanged } from '@/lib/closet-changes';
 import { clearClosetPieces } from '@/lib/closet-pieces';
 
 import { ClosetBelt } from './closet-belt';
@@ -117,6 +118,86 @@ describe('<ClosetBelt />', () => {
     expect(pieces()).toHaveLength(5);
     await view.rerender(<ClosetBelt />);
     expect(Math.abs(shift())).toBe(0);
+  });
+
+  describe('a list that changes', () => {
+    const rolled = async () => {
+      jest.mocked(listItems).mockResolvedValueOnce(closet(5));
+      const view = await render(<ClosetBelt />);
+      await waitFor(() => expect(pieces()).toHaveLength(10));
+      return view;
+    };
+
+    test('part-way round changes nothing: no restart, and the same pieces', async () => {
+      const view = await rolled();
+      const timing = jest.spyOn(Reanimated, 'withTiming');
+      const progress = stripProgress();
+      await view.rerender(<ClosetBelt />);
+      expect(progress.get()).toBe(1);
+
+      jest.mocked(listItems).mockResolvedValueOnce(closet(7));
+      await act(async () => closetChanged());
+      await waitFor(() => expect(listItems).toHaveBeenCalledTimes(2));
+      await view.rerender(<ClosetBelt />);
+
+      expect(pieces()).toHaveLength(10);
+      // A restart would ask for a round of 14 s, or 19.6 s with 7 pieces.
+      expect(timing).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 14_000 }));
+      expect(timing).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 19_600 }));
+      expect(progress.get()).toBe(1);
+      expect(shift()).toBe(-420);
+    });
+
+    test('the next belt has the new list', async () => {
+      const view = await rolled();
+      jest.mocked(listItems).mockResolvedValueOnce(closet(7));
+      await act(async () => closetChanged());
+      await waitFor(() => expect(listItems).toHaveBeenCalledTimes(2));
+      await view.unmount();
+
+      await render(<ClosetBelt />);
+
+      expect(pieces()).toHaveLength(14);
+      expect(listItems).toHaveBeenCalledTimes(2);
+    });
+
+    test('an old list hangs still until the read on its way comes, so it starts on the new one', async () => {
+      const view = await rolled();
+      await view.unmount();
+      await act(async () => closetChanged());
+
+      let answer: (items: Item[]) => void = () => undefined;
+      jest.mocked(listItems).mockReturnValueOnce(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      await render(<ClosetBelt />);
+      expect(pieces()).toHaveLength(5);
+
+      await act(async () => answer(closet(6)));
+
+      await waitFor(() => expect(pieces()).toHaveLength(12));
+    });
+
+    test('a failed read still lets it roll, on what it has', async () => {
+      const view = await rolled();
+      await view.unmount();
+      await act(async () => closetChanged());
+
+      jest.mocked(listItems).mockRejectedValueOnce(new Error('boom'));
+      await render(<ClosetBelt />);
+
+      await waitFor(() => expect(pieces()).toHaveLength(10));
+    });
+
+    test('an account signing out takes its pieces off a rolling belt', async () => {
+      await rolled();
+
+      await act(async () => clearClosetPieces());
+
+      expect(pieces()).toHaveLength(0);
+    });
   });
 
   test('hangs enough copies for a screen wider than a round', async () => {
