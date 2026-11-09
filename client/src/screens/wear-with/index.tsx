@@ -7,6 +7,7 @@ import { AccessibilityInfo, Alert, ScrollView, StyleSheet, Text, View } from 're
 import Animated, { FadeOut } from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
+import { ClosetBelt } from '@/components/closet-belt';
 import { Hanger, HANGER_PIVOT_Y, HANGER_WIDTH, HANGERS } from '@/components/hanger';
 import { Button } from '@/components/maison';
 import { PressableScale } from '@/components/pressable-scale';
@@ -113,6 +114,7 @@ export function WearWith({ id }: { id: string }) {
   // One layout while it waits and after (docs/design.md, "Waiting"): the piece and its thread stay,
   // and what comes with the looks settles in around them; nothing here enters again.
   const waiting = state.status === 'pending';
+  const composing = waiting && state.composing;
   const outfits = waiting ? [] : state.outfits;
   // The piece itself: the hero of its outfits; with none yet, or none at all (nothing in her closet
   // goes with it), its photo by the request (as the server serves it) and the name it'd be added
@@ -154,6 +156,10 @@ export function WearWith({ id }: { id: string }) {
                 {hero.name}
               </Animated.Text>
             )}
+            {/* Her closet going past while the looks are put together from it; the tag moves to its
+                rail, so there's still one sign of waiting. Not on the first load: a request done
+                long ago may come back at once. */}
+            {composing && <ClosetBelt style={styles.belt} />}
             {waiting && (
               <Animated.View
                 exiting={FadeOut.duration(durations.state)}
@@ -201,7 +207,7 @@ export function WearWith({ id }: { id: string }) {
         <ThreadLine
           top={-(KNOT_Y - BEAD / 2)}
           length={Math.max(0, rowHeight - KNOT_Y)}
-          waiting={waiting}
+          waiting={waiting && !composing}
           measured={false}
           x={THREAD_X}
         />
@@ -332,6 +338,10 @@ const styles = StyleSheet.create({
   // Room for the thread the bead runs down, with nothing hanging off it yet.
   headWaiting: {
     minHeight: 420,
+  },
+  // To the screen's edge, past the column's padding.
+  belt: {
+    marginEnd: -20,
   },
   piece: {
     flexDirection: 'row',
