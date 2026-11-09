@@ -320,6 +320,8 @@
     "blank": "your find will hang here",
     "cameraDenied": "No access to the camera. Allow it in settings or choose a photo from the gallery.",
     "openSettings": "Open settings",
+    "cameraFailed": "Couldn't open the camera. Choose a photo from the gallery.",
+    "galleryFailed": "Couldn't open the gallery. Try again.",
     "finding": "Finding the item on the photo…",
     "pickOne": "There are a few things here: tap the one you mean",
     "none": "Couldn't find an item on this photo. Try another one.",
