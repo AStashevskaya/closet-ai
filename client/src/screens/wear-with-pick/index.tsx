@@ -39,12 +39,12 @@ type Shot =
   // `final`: the server has given up on this photo and won't read it again, so only another will do.
   | { status: 'failed'; uri: string; aspect: number; offline: boolean; final?: boolean };
 
-// Where the stage stands for a shot. One piece goes straight on, so it stays as it was found; a limit
-// reached on a piece can't be tried again today, so the photo comes back with the message under it.
+// Where the stage stands for a shot. One piece goes straight on, so it stays as it was found; with a
+// limit reached on it the photo comes back. Several stay hanging, so she still sees what was found.
 function railPhase(shot: Shot, busy: boolean, limit: LimitCode | null): RailPhase {
   if (shot.status !== 'found') return shot.status;
-  if (shot.items.length === 0 || limit) return 'failed';
-  if (shot.items.length === 1) return 'finding';
+  if (shot.items.length === 0) return 'failed';
+  if (shot.items.length === 1) return limit ? 'failed' : 'finding';
   return busy ? 'chosen' : 'picking';
 }
 
@@ -62,6 +62,8 @@ export function WearWithPick() {
   const [busy, setBusy] = useState(false);
   // The piece tapped, while its outfits are asked for.
   const [chosen, setChosen] = useState<number | null>(null);
+  // Two taps in one frame, before the buttons are disabled, would ask twice.
+  const asking = useRef(false);
   // The camera was refused: without saying so, the button would look broken.
   const [cameraDenied, setCameraDenied] = useState(false);
   // The photo as picked, to shrink again on a retry.
@@ -142,6 +144,9 @@ export function WearWithPick() {
   }
 
   async function choose(key: string, index: number) {
+    if (asking.current) return;
+    asking.current = true;
+    setLimit(null);
     setBusy(true);
     setChosen(index);
     try {
@@ -152,6 +157,7 @@ export function WearWithPick() {
       void Haptics.selectionAsync();
       router.replace({ pathname: '/wear-with/[id]', params: { id } });
     } catch (cause) {
+      asking.current = false;
       setBusy(false);
       setChosen(null);
       const code = limitReached(cause);
@@ -229,7 +235,7 @@ export function WearWithPick() {
     shot.status === 'failed' ? t(shot.offline ? 'common.offline' : 'wearWith.notRead') : null;
   // One piece goes straight on to its outfits, with nothing to pick here.
   const foundText =
-    phase === 'picking'
+    phase === 'picking' && !limit
       ? t('wearWith.pickOne')
       : shot.status === 'found' && shot.items.length === 0
         ? t('wearWith.none')
@@ -307,8 +313,9 @@ export function WearWithPick() {
           </Animated.View>
         )}
 
-        {phase === 'empty' && !outOfToday && !deniedText && (
-          <>
+        {/* Stays through a refused camera and a limit, so only what's under it changes. */}
+        {phase === 'empty' && (
+          <Animated.View style={styles.ask} exiting={FadeOut.duration(durations.press)}>
             <Text style={styles.title} accessibilityRole="header">
               {t('wearWith.ask')}
             </Text>
@@ -317,10 +324,10 @@ export function WearWithPick() {
             <View style={styles.moods}>
               <MoodChips mood={mood} onChange={setMood} inset={GUTTER} />
             </View>
-          </>
+          </Animated.View>
         )}
 
-        {(phase === 'empty' || phase === 'failed') && (
+        {(phase === 'empty' || phase === 'failed' || limit) && (
           <Animated.View
             style={[styles.actions, phase === 'empty' && styles.actionsAtBottom]}
             entering={arrive}
@@ -359,6 +366,9 @@ const styles = StyleSheet.create({
   under: {
     flexGrow: 1,
     paddingHorizontal: GUTTER,
+    gap: 10,
+  },
+  ask: {
     gap: 10,
   },
   title: {
