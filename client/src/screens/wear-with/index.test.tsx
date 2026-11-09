@@ -5,7 +5,14 @@ import * as Reanimated from 'react-native-reanimated';
 
 import { DIMMED_OPACITY } from '@/components/dimmable';
 import i18n from '@/i18n';
-import { addWish, createItem, deleteWearWith, getWearWith, reactToOutfit } from '@/lib/api';
+import {
+  addWish,
+  createItem,
+  deleteWearWith,
+  getWearWith,
+  listItems,
+  reactToOutfit,
+} from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
 import { ThreadRow } from '@/screens/style-it/thread-row';
 import { colors } from '@/theme';
@@ -22,6 +29,7 @@ jest.mock('@/lib/api', () => ({
   getWearWith: jest.fn(),
   reactToOutfit: jest.fn(),
   createItem: jest.fn(),
+  listItems: jest.fn(),
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
   absoluteUrl: (path: string) => `http://api${path}`,
 }));
@@ -76,6 +84,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   await i18n.changeLanguage('en');
   jest.mocked(reactToOutfit).mockResolvedValue();
+  jest.mocked(listItems).mockResolvedValue([]);
 });
 
 describe('<WearWith /> waiting in place', () => {
@@ -210,6 +219,60 @@ describe('<WearWith /> waiting in place', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
     expect(getWearWith).toHaveBeenCalledTimes(5);
   }, 14000);
+
+  describe('her closet going past', () => {
+    const belt = () => screen.queryByTestId('closet-belt', { includeHiddenElements: true });
+
+    test('not on the first load, when nothing is known yet', async () => {
+      jest.mocked(getWearWith).mockReturnValue(new Promise(() => {}));
+      await render(<WearWith id="req-1" />);
+
+      expect(belt()).not.toBeOnTheScreen();
+      expect(listItems).not.toHaveBeenCalled();
+    });
+
+    test('while composing, under the piece, with one tag between it and the thread', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(composing);
+      jest.mocked(listItems).mockResolvedValue([tee, skirt]);
+      await render(<WearWith id="req-1" />);
+
+      await screen.findByText('Mauve satin skirt');
+      expect(belt()).toBeOnTheScreen();
+      await waitFor(() =>
+        expect(screen.getAllByTestId('belt-piece', { includeHiddenElements: true })).toHaveLength(
+          2,
+        ),
+      );
+      expect(bead()).toHaveLength(1);
+      // The belt adds nothing for a screen reader: the progressbar still speaks for the wait.
+      expect(screen.queryByTestId('closet-belt')).not.toBeOnTheScreen();
+      expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
+    });
+
+    test('a closet that fails to load only leaves the rail, and says nothing', async () => {
+      jest.mocked(getWearWith).mockResolvedValue(composing);
+      jest.mocked(listItems).mockRejectedValue(new Error('boom'));
+      await render(<WearWith id="req-1" />);
+
+      await screen.findByText('Mauve satin skirt');
+      await waitFor(() => expect(listItems).toHaveBeenCalled());
+      expect(belt()).toBeOnTheScreen();
+      expect(screen.getByText('Looking through your closet…')).toBeOnTheScreen();
+      expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
+    });
+
+    test('goes when the looks come', async () => {
+      jest.mocked(getWearWith).mockResolvedValueOnce(composing).mockResolvedValue(done);
+      await render(<WearWith id="req-1" />);
+
+      await screen.findByText('Looking through your closet…');
+      expect(belt()).toBeOnTheScreen();
+      expect(
+        await screen.findByText('Сатин после спорта', {}, { timeout: 5000 }),
+      ).toBeOnTheScreen();
+      expect(belt()).not.toBeOnTheScreen();
+    });
+  });
 
   test('with Reduce Motion the sign stays still on the thread, so she still sees it waits', async () => {
     const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
