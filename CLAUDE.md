@@ -28,7 +28,8 @@ This is also a learning project. The owner is a frontend engineer (React, React 
 - `docs/launch.md`: the owner's checklist for going to testers (server on one VPS from `deploy/`, EAS builds in `client/eas.json`, TestFlight).
 - `docs/design.md`: the design rules (what the thread, dashed, blue, the bead, the heart, prints and handwriting mean; motion; marks on photos) and the screens decided but not built yet. Read it before any UI work.
 - `.claude/skills/fashion-creative-director`: the creative-director skill for UI work (new screens, redesigns, motion): three directions and approval before building anything significant.
-- Manual skills (run on request, never automatically): `/closet-security-review` (before a tester build, on auth/storage PRs), `/closet-release-check` (before TestFlight / store), `/closet-outfit-eval` (a change that claims better looks or picks), `/closet-ai-cost` (before setting limits or prices).
+- Manual skills (run on request, never automatically): `/closet-security-review` (before a tester build, on auth/storage PRs), `/closet-release-check` (before TestFlight / store), `/closet-outfit-eval` (a change that claims better looks or picks), `/closet-ai-cost` (before setting limits or prices), `/closet-creative-naming` (naming or renaming the app).
+- `.claude/skills/fashion-growth-strategist`: marketing, launch, pricing and brand pilots, with what may be promised today. Its dated state needs updating as those decisions change.
 - Technical roadmap with options and trade-offs per step: https://claude.ai/code/artifact/d1343c0a-0f00-4893-aa36-76e2c3684035
 
 ## Stack
