@@ -1,6 +1,6 @@
 import type { Item } from '@closet-ai/shared';
 import { render, screen, waitFor } from '@testing-library/react-native';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 
@@ -45,12 +45,12 @@ const setWidth = (width: number) =>
 const realSharedValue = Reanimated.useSharedValue;
 let made: Reanimated.SharedValue<number>[] = [];
 function useKeptValue(init: unknown) {
-  const kept = useRef<Reanimated.SharedValue<number> | null>(null);
-  if (!kept.current) {
-    kept.current = realSharedValue(init as number);
-    made.push(kept.current);
-  }
-  return kept.current;
+  const [kept] = useState(() => {
+    const value = realSharedValue(init as number);
+    made.push(value);
+    return value;
+  });
+  return kept;
 }
 const stripProgress = () => made[0]!;
 // How far the strip has moved, as last rendered.
