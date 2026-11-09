@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 import { fontAssets } from '@/fonts';
 import { authClient } from '@/lib/auth-client';
+import { clearClosetPieces } from '@/lib/closet-pieces';
 import { colors, fonts } from '@/theme';
 
 // Keep the splash screen up until fonts are loaded and we know whether there is a session,
@@ -21,6 +22,12 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(fontAssets);
   const ready = !isPending && (fontsLoaded || fontError !== null);
   const signedIn = Boolean(session);
+
+  // One account's pieces never show for another; useSession is what the guards below go by too.
+  const userId = session?.user.id;
+  useEffect(() => {
+    clearClosetPieces();
+  }, [userId]);
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();

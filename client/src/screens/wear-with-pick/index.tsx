@@ -1,17 +1,14 @@
 import type { LimitCode, LookItem, OutfitMood } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
 
-import { Icon } from '@/components/icon';
 import { Button } from '@/components/maison';
 import { MoodChips } from '@/components/mood-chips';
-import { PressableScale } from '@/components/pressable-scale';
 import { WantMore } from '@/components/want-more';
 import { useAnnounce } from '@/lib/announce';
 import { askWearWith, getPhotoState, uploadPhoto } from '@/lib/api';
@@ -19,10 +16,10 @@ import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import { limitText, useUsage } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
-import { arrive, durations, STAGGER_STEP } from '@/motion';
-import { LookCrop } from '@/screens/add-look/look-crop';
-import { LookThread } from '@/screens/add-look/look-thread';
+import { arrive, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
+
+import { PickRail, type RailPhase } from './pick-rail';
 
 // Finding the items takes a few seconds; after a minute the screen gives up.
 const POLL_MS = 1500;
@@ -30,8 +27,8 @@ const MAX_POLLS = 40;
 // A blip is no reason to stop, but no connection for this many checks in a row (a few seconds) is: the
 // screen says so and offers to try again, rather than waiting out the minute.
 const MAX_OFFLINE_POLLS = 5;
-// The thread here carries no beads: the pieces are the rows under it.
-const NO_BEADS: boolean[] = [];
+// The column under the stage; the stage itself runs to the screen's edges.
+const GUTTER = 22;
 
 // The photo picked, uploaded and read: from nothing picked yet to the items found on it.
 type Shot =
@@ -41,6 +38,15 @@ type Shot =
   // offline: the server couldn't be reached, which is no fault of the photo.
   // `final`: the server has given up on this photo and won't read it again, so only another will do.
   | { status: 'failed'; uri: string; aspect: number; offline: boolean; final?: boolean };
+
+// Where the stage stands for a shot. One piece goes straight on, so it stays as it was found; with a
+// limit reached on it the photo comes back. Several stay hanging, so she still sees what was found.
+function railPhase(shot: Shot, busy: boolean, limit: LimitCode | null): RailPhase {
+  if (shot.status !== 'found') return shot.status;
+  if (shot.items.length === 0) return 'failed';
+  if (shot.items.length === 1) return limit ? 'failed' : 'finding';
+  return busy ? 'chosen' : 'picking';
+}
 
 // "What do I wear this with?" for an item the user doesn't own (yet): a screenshot or photo,
 // the item on it picked when there are several, then the outfits.
@@ -54,6 +60,23 @@ export function WearWithPick() {
   const [attempt, setAttempt] = useState(0);
   const [limit, setLimit] = useState<LimitCode | null>(null);
   const [busy, setBusy] = useState(false);
+  // The piece tapped, while its outfits are asked for.
+  const [chosen, setChosen] = useState<number | null>(null);
+  // Two taps in one frame, before the buttons are disabled, would ask twice.
+  const asking = useRef(false);
+  // The camera was refused: without saying so, the button would look broken.
+  const [cameraDenied, setCameraDenied] = useState(false);
+  // The camera or the gallery wouldn't open, which isn't a refusal: settings wouldn't help.
+  const [pickerFailed, setPickerFailed] = useState<'camera' | 'library' | null>(null);
+  // Left the screen while the outfits are asked for: the answer mustn't replace wherever she went.
+  // Set in the effect too, as Strict Mode runs the cleanup once before the screen is really gone.
+  const onScreen = useRef(true);
+  useEffect(() => {
+    onScreen.current = true;
+    return () => {
+      onScreen.current = false;
+    };
+  }, []);
   // The photo as picked, to shrink again on a retry.
   const picked = useRef<ImagePicker.ImagePickerAsset | null>(null);
   const shrunk = useRef<string | null>(null);
@@ -63,16 +86,28 @@ export function WearWithPick() {
   const left = usage ? Math.max(0, usage.wear_with.limit - usage.wear_with.used) : null;
 
   async function pick(source: 'camera' | 'library') {
-    if (source === 'camera') {
-      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-      if (!granted) return;
+    setPickerFailed(null);
+    let asset: ImagePicker.ImagePickerAsset | undefined;
+    try {
+      if (source === 'camera') {
+        const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+        if (!granted) {
+          setCameraDenied(true);
+          return;
+        }
+      }
+      const launch =
+        source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+      const result = await launch({ mediaTypes: ['images'] });
+      asset = result.canceled ? undefined : result.assets[0];
+    } catch (cause) {
+      if (__DEV__) console.warn('Opening the picker failed', cause);
+      setPickerFailed(source);
+      return;
     }
-    const launch =
-      source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
-    const result = await launch({ mediaTypes: ['images'] });
-    const asset = result.canceled ? undefined : result.assets[0];
     if (!asset) return;
 
+    setCameraDenied(false);
     setLimit(null);
     setPhotoKey(null);
     picked.current = asset;
@@ -120,17 +155,32 @@ export function WearWithPick() {
     }
   }
 
+  // She may come back with the camera allowed: the camera button is back, and if it's still refused
+  // she's told again. Nothing to say if the settings didn't open: the gallery is still there.
+  function openSettings() {
+    setCameraDenied(false);
+    Linking.openSettings().catch(() => undefined);
+  }
+
   async function choose(key: string, index: number) {
+    if (asking.current) return;
+    asking.current = true;
+    setLimit(null);
     setBusy(true);
+    setChosen(index);
     try {
       const { id } = await askWearWith(
         mood ? { photoKey: key, index, mood } : { photoKey: key, index },
         lang,
       );
+      // The server carries on without her: the styling turns up in her diary when it's done.
+      if (!onScreen.current) return;
       void Haptics.selectionAsync();
       router.replace({ pathname: '/wear-with/[id]', params: { id } });
     } catch (cause) {
+      asking.current = false;
       setBusy(false);
+      setChosen(null);
       const code = limitReached(cause);
       if (code) setLimit(code);
       else {
@@ -198,24 +248,32 @@ export function WearWithPick() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photoKey, attempt]);
 
+  const phase = railPhase(shot, busy, limit);
   // While the pieces are found, and once one's chosen while its outfits are asked for.
-  const waiting = shot.status === 'finding' || busy;
-  const waitingFor = busy
-    ? t('wearWith.composing')
-    : shot.status === 'finding'
-      ? t('wearWith.finding')
-      : null;
+  const waiting = phase === 'finding' || phase === 'chosen';
+  const waitingFor = busy ? t('wearWith.composing') : waiting ? t('wearWith.finding') : null;
   const failedText =
     shot.status === 'failed' ? t(shot.offline ? 'common.offline' : 'wearWith.notRead') : null;
   // One piece goes straight on to its outfits, with nothing to pick here.
   const foundText =
-    shot.status !== 'found' || shot.items.length === 1
-      ? null
-      : t(shot.items.length === 0 ? 'wearWith.none' : 'wearWith.pickOne');
+    phase === 'picking' && !limit
+      ? t('wearWith.pickOne')
+      : shot.status === 'found' && shot.items.length === 0
+        ? t('wearWith.none')
+        : null;
   const statusText = waitingFor ?? failedText ?? foundText;
-  useAnnounce(statusText);
-
   const outOfToday = left === 0 || limit !== null;
+  const deniedText = cameraDenied && !outOfToday ? t('wearWith.cameraDenied') : null;
+  const pickerFailedText =
+    pickerFailed && !outOfToday
+      ? t(pickerFailed === 'camera' ? 'wearWith.cameraFailed' : 'wearWith.galleryFailed')
+      : null;
+  const noteText = pickerFailedText ?? deniedText;
+  useAnnounce(noteText ?? statusText);
+
+  const hasPhoto = shot.status !== 'empty';
+  // Over a failure "Try again" is the bright one; otherwise the gallery is the main way in.
+  const canRetry = shot.status === 'failed' && !shot.final && !outOfToday;
   const buttons = outOfToday ? (
     <>
       <Text style={styles.limit} accessibilityRole="alert">
@@ -225,115 +283,98 @@ export function WearWithPick() {
     </>
   ) : (
     <View style={styles.photoButtons}>
-      <PressableScale
-        style={styles.secondaryButton}
-        onPress={() => pick('camera')}
+      {deniedText ? (
+        <Button
+          kind="outline"
+          label={t('wearWith.openSettings')}
+          onPress={openSettings}
+          style={styles.photoButton}
+        />
+      ) : (
+        <Button
+          kind="outline"
+          label={t('addItem.takePhoto')}
+          onPress={() => void pick('camera')}
+          disabled={busy}
+          style={styles.photoButton}
+        />
+      )}
+      <Button
+        kind={canRetry ? 'outline' : 'bright'}
+        label={t('addItem.choosePhoto')}
+        onPress={() => void pick('library')}
         disabled={busy}
-        accessibilityRole="button"
-      >
-        <Text style={styles.secondaryButtonText}>{t('addItem.takePhoto')}</Text>
-      </PressableScale>
-      <PressableScale
-        style={styles.secondaryButton}
-        onPress={() => pick('library')}
-        disabled={busy}
-        accessibilityRole="button"
-      >
-        <Text style={styles.secondaryButtonText}>{t('addItem.choosePhoto')}</Text>
-      </PressableScale>
+        style={styles.photoButton}
+      />
     </View>
   );
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {shot.status === 'empty' ? (
-        <>
-          <View style={[styles.photo, styles.photoEmpty]}>
-            <Icon name="spark" color={colors.iconMuted} size={34} strokeWidth={1.2} />
-          </View>
-          <Text style={styles.intro}>{t('wearWith.intro')}</Text>
-          <MoodChips mood={mood} onChange={setMood} />
-          {buttons}
-          {left !== null && left > 0 && !limit && (
-            <Text style={styles.left}>
-              {t('wearWith.left', { left, limit: usage!.wear_with.limit })}
-            </Text>
-          )}
-        </>
-      ) : (
-        <>
-          {/* One layout while it waits and after (docs/design.md, "Waiting"): the photo and its
-              thread stay, and the pieces settle in under them. */}
-          <Image
-            source={{ uri: shot.uri }}
-            style={styles.photo}
-            contentFit="cover"
-            transition={250}
-          />
-          {/* The thread from the photo to the pieces found on it, as on a selfie. Solid with the
-              bead while it waits; then dashed, as the pieces aren't hers, or the photo wasn't read. */}
-          <LookThread state={waiting ? 'waiting' : 'unread'} pieces={NO_BEADS} />
-        </>
-      )}
+      <PickRail
+        phase={phase}
+        uri={hasPhoto ? shot.uri : undefined}
+        aspect={hasPhoto ? shot.aspect : undefined}
+        items={shot.status === 'found' ? shot.items : []}
+        chosen={chosen}
+        onChoose={(index) => {
+          if (shot.status === 'found') void choose(shot.photoKey, index);
+        }}
+      />
 
-      {statusText && (
-        <Animated.View
-          key={`${shot.status}-${busy}`}
-          style={styles.status}
-          entering={arrive}
-          exiting={FadeOut.duration(durations.press)}
-          accessible={waiting}
-          accessibilityRole={waiting ? 'progressbar' : undefined}
-          accessibilityLabel={waitingFor ?? undefined}
-        >
-          <Text style={styles.statusText}>{statusText}</Text>
-        </Animated.View>
-      )}
-
-      {limit && shot.status !== 'empty' && (
-        <>
-          <Text style={styles.limit} accessibilityRole="alert">
-            {limitText(t, i18n.language, limit, usage)}
-          </Text>
-          <WantMore code={limit} />
-        </>
-      )}
-
-      {shot.status === 'found' &&
-        shot.items.length > 1 &&
-        shot.items.map((item, index) => (
+      <View style={styles.under}>
+        {statusText && (
           <Animated.View
-            key={`${shot.photoKey}-${index}`}
-            entering={arrive.delay(index * STAGGER_STEP)}
+            key={`${shot.status}-${busy}`}
+            style={styles.status}
+            entering={arrive}
+            exiting={FadeOut.duration(durations.press)}
+            accessible={waiting}
+            accessibilityRole={waiting ? 'progressbar' : undefined}
+            accessibilityLabel={waitingFor ?? undefined}
           >
-            <PressableScale
-              style={styles.row}
-              onPress={() => choose(shot.photoKey, index)}
-              disabled={busy}
-              accessibilityRole="button"
-              accessibilityLabel={item.name}
-            >
-              <LookCrop uri={shot.uri} aspect={shot.aspect} box={item.box} style={styles.crop} />
-              <View style={styles.rowText}>
-                <Text style={styles.rowName} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                <Text style={styles.rowCategory}>{t(`categories.${item.category}`)}</Text>
-              </View>
-              <Icon name="chevron" color={colors.iconMuted} size={18} strokeWidth={1.5} />
-            </PressableScale>
-          </Animated.View>
-        ))}
-
-      {(shot.status === 'failed' || (shot.status === 'found' && shot.items.length === 0)) &&
-        !busy && (
-          <Animated.View style={styles.again} entering={arrive}>
-            {shot.status === 'failed' && !shot.final && !outOfToday && (
-              <Button kind="outline" label={t('wearWith.retry')} onPress={() => void retry()} />
-            )}
-            {buttons}
+            <Text style={phase === 'picking' ? styles.pickText : styles.statusText}>
+              {statusText}
+            </Text>
           </Animated.View>
         )}
+
+        {/* Stays through a refused camera and a limit, so only what's under it changes. */}
+        {phase === 'empty' && (
+          <Animated.View style={styles.ask} exiting={FadeOut.duration(durations.press)}>
+            <Text style={styles.title} accessibilityRole="header">
+              {t('wearWith.ask')}
+            </Text>
+            <Text style={styles.intro}>{t('wearWith.intro')}</Text>
+            {/* The row runs to the screen's edges, past the column's gutter. */}
+            <View style={styles.moods}>
+              <MoodChips mood={mood} onChange={setMood} inset={GUTTER} />
+            </View>
+          </Animated.View>
+        )}
+
+        {(phase === 'empty' || phase === 'failed' || limit) && (
+          <Animated.View
+            style={[styles.actions, phase === 'empty' && styles.actionsAtBottom]}
+            entering={arrive}
+          >
+            {noteText && (
+              <Text style={styles.denied} accessibilityRole="alert">
+                {noteText}
+              </Text>
+            )}
+            {canRetry && (
+              <Button kind="bright" label={t('wearWith.retry')} onPress={() => void retry()} />
+            )}
+            {buttons}
+            {phase === 'empty' && !outOfToday && left !== null && left > 0 && (
+              <Text style={styles.left}>
+                {t('wearWith.left', { left, limit: usage!.wear_with.limit })}
+              </Text>
+            )}
+          </Animated.View>
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -345,110 +386,89 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: 22,
+    flexGrow: 1,
     paddingBottom: 40,
+  },
+  under: {
+    flexGrow: 1,
+    paddingHorizontal: GUTTER,
     gap: 10,
   },
-  photo: {
-    alignSelf: 'center',
-    width: '55%',
-    aspectRatio: 3 / 4,
+  ask: {
+    gap: 10,
   },
-  photoEmpty: {
-    backgroundColor: colors.hero,
-    alignItems: 'center',
-    justifyContent: 'center',
+  title: {
+    fontFamily: fonts.displayLight,
+    fontSize: 27,
+    lineHeight: 31,
+    color: colors.text,
+    textAlign: 'left',
   },
   intro: {
-    marginTop: 6,
     fontFamily: fonts.body,
     fontSize: 15,
     lineHeight: 21,
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: 'left',
   },
-  photoButtons: {
-    marginTop: 6,
-    flexDirection: 'row',
+  moods: {
+    marginHorizontal: -GUTTER,
+    marginTop: 2,
+  },
+  actions: {
     gap: 10,
   },
-  secondaryButton: {
-    flex: 1,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // At the bottom of the screen; on a short one the words above push them on, and it scrolls.
+  actionsAtBottom: {
+    marginTop: 'auto',
+    paddingTop: 16,
   },
-  secondaryButtonText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: colors.accent,
-    textAlign: 'center',
+  photoButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  // Two side by side: less padding than a full-width button, for the long Russian labels.
+  photoButton: {
+    flex: 1,
+    paddingHorizontal: 10,
   },
   left: {
-    marginTop: 4,
     fontFamily: fonts.body,
     fontSize: 12,
+    lineHeight: 17,
     color: colors.textMuted,
     textAlign: 'center',
   },
   limit: {
-    marginTop: 12,
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
     textAlign: 'center',
   },
+  denied: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    lineHeight: 21,
+    color: colors.textSecondary,
+    textAlign: 'left',
+  },
   status: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
     minHeight: 24,
-    marginVertical: 4,
+    justifyContent: 'center',
   },
   statusText: {
-    flexShrink: 1,
     fontFamily: fonts.body,
-    fontSize: 13,
+    fontSize: 15,
+    lineHeight: 21,
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
-    backgroundColor: colors.surface,
-  },
-  crop: {
-    width: 64,
-    height: 84,
-  },
-  rowText: {
-    flex: 1,
-    gap: 2,
-  },
-  rowName: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 15,
+  pickText: {
+    fontFamily: fonts.displayLight,
+    fontSize: 27,
+    lineHeight: 31,
     color: colors.text,
-    textAlign: 'left',
-  },
-  rowCategory: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'left',
-  },
-  again: {
-    marginTop: 18,
-    gap: 10,
+    textAlign: 'center',
   },
 });
