@@ -140,21 +140,20 @@ describe('<WearWith /> waiting in place', () => {
       jest.useRealTimers();
     }
   });
-  test('composing: the piece on its thread with the bead, nothing hanging off it', async () => {
+  test('composing: the piece alone on the rail, her closet going past under it', async () => {
     jest.mocked(getWearWith).mockResolvedValue(composing);
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
     await render(<WearWith id="req-1" />);
 
-    expect(await screen.findByText('Mauve satin skirt')).toBeOnTheScreen();
-    expect(screen.getByTestId('bare-piece').props.source).toEqual([
+    expect(await screen.findByText('Looking through your closet…')).toBeOnTheScreen();
+    expect(screen.getByTestId('bare-piece', { includeHiddenElements: true }).props.source).toEqual([
       expect.objectContaining({ uri: 'http://api/api/wear-with/req-1/photo' }),
     ]);
-    expect(screen.getByText('Looking through your closet…')).toBeOnTheScreen();
     expect(announce).toHaveBeenCalledWith('Putting looks together from your closet…');
+    // The tag on the belt's rail: still one sign of waiting.
     expect(bead()).toHaveLength(1);
-    // Waiting is never drawn dashed, though this piece isn't hers.
-    expect(rootDashed()).toBe(false);
-    // The actions and the empty note come with the result.
+    // As in the prototype the name comes with the looks, and so do the actions and the empty note.
+    expect(screen.queryByText('Mauve satin skirt')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Add to my closet' })).not.toBeOnTheScreen();
     expect(screen.queryByText(/nothing in your closet/i)).not.toBeOnTheScreen();
   });
@@ -238,7 +237,7 @@ describe('<WearWith /> waiting in place', () => {
       jest.mocked(listItems).mockResolvedValue([tee, skirt]);
       await render(<WearWith id="req-1" />);
 
-      await screen.findByText('Mauve satin skirt');
+      await screen.findByText('Looking through your closet…');
       expect(belt()).toBeOnTheScreen();
       await waitFor(() =>
         expect(screen.getAllByTestId('belt-piece', { includeHiddenElements: true })).toHaveLength(
@@ -259,7 +258,7 @@ describe('<WearWith /> waiting in place', () => {
       jest.mocked(listItems).mockRejectedValue(new Error('boom'));
       await render(<WearWith id="req-1" />);
 
-      await screen.findByText('Mauve satin skirt');
+      await screen.findByText('Looking through your closet…');
       await waitFor(() => expect(listItems).toHaveBeenCalled());
       expect(belt()).toBeOnTheScreen();
       expect(screen.getByText('Looking through your closet…')).toBeOnTheScreen();
@@ -284,7 +283,7 @@ describe('<WearWith /> waiting in place', () => {
     jest.mocked(getWearWith).mockResolvedValue(composing);
     await render(<WearWith id="req-1" />);
 
-    expect(await screen.findByText('Mauve satin skirt')).toBeOnTheScreen();
+    expect(await screen.findByText('Looking through your closet…')).toBeOnTheScreen();
     expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
     expect(bead()).toHaveLength(1);
     reduced.mockReturnValue(false);

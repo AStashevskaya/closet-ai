@@ -21,6 +21,7 @@ import { KNOT_Y, THREAD_X, ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
 import { OutfitCard } from './outfit-card';
+import { ComposingStage } from './composing-stage';
 import { ComposingSteps } from './composing-steps';
 import { useWearWith } from './use-wear-with';
 
@@ -131,6 +132,23 @@ export function WearWith({ id }: { id: string }) {
   // the piece turns out to be.
   const hers = waiting || !state.addable || adding === 'added';
   const verdict = waiting ? null : state.verdict;
+
+  // A piece from a photo while its looks are put together: as on the pick screen it came from, alone
+  // on the rail with her closet going past below (prototype direction C, "Собираю"). The looks then
+  // come on the piece's thread.
+  if (composing && state.addable && hero) {
+    return (
+      <ScrollView style={styles.screen} contentContainerStyle={styles.stageContent}>
+        <ComposingStage
+          piece={hero}
+          headers={headers}
+          dashed={adding !== 'added'}
+          label={waitingFor ?? ''}
+        />
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View onLayout={(event) => setRowHeight(Math.round(event.nativeEvent.layout.height))}>
@@ -304,6 +322,10 @@ const styles = StyleSheet.create({
     paddingStart: 6,
     paddingEnd: 20,
     paddingTop: 12,
+    paddingBottom: 48,
+  },
+  // Rails run edge to edge.
+  stageContent: {
     paddingBottom: 48,
   },
   center: {
