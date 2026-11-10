@@ -52,8 +52,7 @@ export function ComposingStage({ piece, headers, dashed, label }: Props) {
       exiting={FadeOut.duration(durations.state)}
     >
       <View
-        style={styles.top}
-        pointerEvents="none"
+        style={[styles.top, { pointerEvents: 'none' }]}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
