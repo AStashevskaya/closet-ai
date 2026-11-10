@@ -20,8 +20,9 @@ import { DeleteStyling, useDeleteStyling } from '@/screens/style-it/delete-styli
 import { KNOT_Y, THREAD_X, ThreadRow } from '@/screens/style-it/thread-row';
 import { colors, fonts } from '@/theme';
 
-import { OutfitCard } from './outfit-card';
+import { ComposingStage } from './composing-stage';
 import { ComposingSteps } from './composing-steps';
+import { OutfitCard } from './outfit-card';
 import { useWearWith } from './use-wear-with';
 
 // "What do I wear this with?": the outfits composed around one item, each with its reactions.
@@ -131,107 +132,126 @@ export function WearWith({ id }: { id: string }) {
   // the piece turns out to be.
   const hers = waiting || !state.addable || adding === 'added';
   const verdict = waiting ? null : state.verdict;
+
+  // A piece from a photo while its looks are put together: as on the pick screen it came from, alone
+  // on the rail with her closet going past below (prototype direction C, "Собираю"). The looks then
+  // come on the piece's thread. One ScrollView either way, so the stage's fade out plays.
+  const stage =
+    composing && state.addable && hero && waitingFor ? { hero, label: waitingFor } : null;
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View onLayout={(event) => setRowHeight(Math.round(event.nativeEvent.layout.height))}>
-        {/* On a thread like Style it's (decided 2026-10-29, prototype
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={stage ? styles.stageContent : styles.content}
+    >
+      {stage ? (
+        <ComposingStage piece={stage.hero} headers={headers} dashed label={stage.label} />
+      ) : (
+        <>
+          <View onLayout={(event) => setRowHeight(Math.round(event.nativeEvent.layout.height))}>
+            {/* On a thread like Style it's (decided 2026-10-29, prototype
             `~/Desktop/closet/wrinkle-lab/design-photo-outfits`, direction A), dashed while the piece
             isn't hers yet; solid once it's in her closet. */}
-        <ThreadRow
-          kind="root"
-          dashed={!hers}
-          hollow={!hers}
-          last={!waiting && outfits.length === 0}
-        >
-          <View style={[styles.head, waiting && styles.headWaiting]}>
-            <View style={styles.piece}>
-              {/* Its place is kept until the piece is known. */}
-              {(hero || waiting) && (
-                <BarePiece item={hero ?? {}} headers={headers} style={styles.pieceImage} />
-              )}
-              {verdict && <Verdict verdict={verdict} />}
-            </View>
-            {hero && (
-              <Animated.Text style={styles.heroName} entering={arrive}>
-                {hero.name}
-              </Animated.Text>
-            )}
-            {/* Her closet going past while the looks are put together from it; the tag moves to its
+            <ThreadRow
+              kind="root"
+              dashed={!hers}
+              hollow={!hers}
+              last={!waiting && outfits.length === 0}
+            >
+              <View style={[styles.head, waiting && styles.headWaiting]}>
+                <View style={styles.piece}>
+                  {/* Its place is kept until the piece is known. */}
+                  {(hero || waiting) && (
+                    <BarePiece item={hero ?? {}} headers={headers} style={styles.pieceImage} />
+                  )}
+                  {verdict && <Verdict verdict={verdict} />}
+                </View>
+                {hero && (
+                  <Animated.Text style={styles.heroName} entering={arrive}>
+                    {hero.name}
+                  </Animated.Text>
+                )}
+                {/* Her closet going past while the looks are put together from it; the tag moves to its
                 rail, so there's still one sign of waiting. Not on the first load: a request done
                 long ago may come back at once. */}
-            {composing && <ClosetBelt style={styles.belt} />}
-            {waiting && (
-              <Animated.View
-                exiting={FadeOut.duration(durations.state)}
-                accessible
-                accessibilityRole="progressbar"
-                accessibilityLabel={waitingFor ?? undefined}
-              >
-                {state.composing && <ComposingSteps style={styles.empty} />}
-              </Animated.View>
-            )}
-            {verdict?.twin && hero && (
-              <Similar piece={hero} twin={verdict.twin} headers={headers} />
-            )}
-            {!waiting && state.addable && (
-              <Animated.View style={styles.actions} entering={arrive}>
-                <Button
-                  kind={state.wishId ? 'outline' : 'bright'}
-                  label={t(state.wishId ? 'wishes.added' : 'wishes.add')}
-                  onPress={wish}
-                  disabled={state.wishId !== null}
-                  busy={wishing}
-                  style={styles.action}
-                />
-                <Button
-                  kind="outline"
-                  label={t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
-                  onPress={addToCloset}
-                  disabled={adding === 'added'}
-                  busy={adding === 'busy'}
-                  style={styles.action}
-                />
-              </Animated.View>
-            )}
-            {!waiting && outfits.length === 0 && (
-              <Animated.Text style={styles.empty} entering={arrive}>
-                {t('wearWith.empty')}
-              </Animated.Text>
-            )}
-            {/* Only once there's a styling to see: while it waits, there's nothing to delete yet. */}
-            {!waiting && <DeleteStyling control={deleting} name={hero?.name} />}
-          </View>
-        </ThreadRow>
-        {/* From the knot down the thread; mounted all along so the bead fades as it goes. No line of
+                {composing && <ClosetBelt style={styles.belt} />}
+                {waiting && (
+                  <Animated.View
+                    exiting={FadeOut.duration(durations.state)}
+                    accessible
+                    accessibilityRole="progressbar"
+                    accessibilityLabel={waitingFor ?? undefined}
+                  >
+                    {state.composing && <ComposingSteps style={styles.empty} />}
+                  </Animated.View>
+                )}
+                {verdict?.twin && hero && (
+                  <Similar piece={hero} twin={verdict.twin} headers={headers} />
+                )}
+                {!waiting && state.addable && (
+                  <Animated.View style={styles.actions} entering={arrive}>
+                    <Button
+                      kind={state.wishId ? 'outline' : 'bright'}
+                      label={t(state.wishId ? 'wishes.added' : 'wishes.add')}
+                      onPress={wish}
+                      disabled={state.wishId !== null}
+                      busy={wishing}
+                      style={styles.action}
+                    />
+                    <Button
+                      kind="outline"
+                      label={t(adding === 'added' ? 'wearWith.added' : 'wearWith.add')}
+                      onPress={addToCloset}
+                      disabled={adding === 'added'}
+                      busy={adding === 'busy'}
+                      style={styles.action}
+                    />
+                  </Animated.View>
+                )}
+                {!waiting && outfits.length === 0 && (
+                  <Animated.Text style={styles.empty} entering={arrive}>
+                    {t('wearWith.empty')}
+                  </Animated.Text>
+                )}
+                {/* Only once there's a styling to see: while it waits, there's nothing to delete yet. */}
+                {!waiting && <DeleteStyling control={deleting} name={hero?.name} />}
+              </View>
+            </ThreadRow>
+            {/* From the knot down the thread; mounted all along so the bead fades as it goes. No line of
             its own: the row draws that. With Reduce Motion it stays still at the start. */}
-        <ThreadLine
-          top={-(KNOT_Y - BEAD / 2)}
-          length={Math.max(0, rowHeight - KNOT_Y)}
-          waiting={waiting && !composing}
-          measured={false}
-          x={THREAD_X}
-        />
-      </View>
-      {outfits.map((outfit, index) => (
-        <ThreadRow
-          key={outfit.id}
-          kind="branch"
-          dashed={!hers}
-          last={index === outfits.length - 1}
-          delay={(index + 1) * STAGGER_STEP}
-        >
-          <Animated.View style={styles.look} entering={arrive.delay((index + 1) * STAGGER_STEP)}>
-            <OutfitCard
-              outfit={outfit}
-              index={index}
-              total={outfits.length}
-              headers={headers}
-              onReact={react}
-              heroLoose={!hers}
+            <ThreadLine
+              top={-(KNOT_Y - BEAD / 2)}
+              length={Math.max(0, rowHeight - KNOT_Y)}
+              waiting={waiting && !composing}
+              measured={false}
+              x={THREAD_X}
             />
-          </Animated.View>
-        </ThreadRow>
-      ))}
+          </View>
+          {outfits.map((outfit, index) => (
+            <ThreadRow
+              key={outfit.id}
+              kind="branch"
+              dashed={!hers}
+              last={index === outfits.length - 1}
+              delay={(index + 1) * STAGGER_STEP}
+            >
+              <Animated.View
+                style={styles.look}
+                entering={arrive.delay((index + 1) * STAGGER_STEP)}
+              >
+                <OutfitCard
+                  outfit={outfit}
+                  index={index}
+                  total={outfits.length}
+                  headers={headers}
+                  onReact={react}
+                  heroLoose={!hers}
+                />
+              </Animated.View>
+            </ThreadRow>
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -304,6 +324,10 @@ const styles = StyleSheet.create({
     paddingStart: 6,
     paddingEnd: 20,
     paddingTop: 12,
+    paddingBottom: 48,
+  },
+  // Rails run edge to edge.
+  stageContent: {
     paddingBottom: 48,
   },
   center: {
