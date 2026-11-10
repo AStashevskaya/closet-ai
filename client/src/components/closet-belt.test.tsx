@@ -82,7 +82,7 @@ describe('<ClosetBelt />', () => {
     const view = await render(<ClosetBelt />);
 
     await waitFor(() => expect(pieces()).toHaveLength(10));
-    expect(tag()).toBeOnTheScreen();
+    expect(tag()).not.toBeOnTheScreen();
     // 5 pieces of 84 pt at 30 pt a second.
     expect(timing).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 14_000 }));
     // The mock jumps to the end of the round, against the reading direction.
@@ -216,44 +216,43 @@ describe('<ClosetBelt />', () => {
     await waitFor(() => expect(pieces()).toHaveLength(16));
   });
 
-  test('with fewer than 5 it does not roll: they just hang, and the tag runs', async () => {
+  test('with fewer than 5 it does not roll: they just hang', async () => {
     const timing = jest.spyOn(Reanimated, 'withTiming');
     jest.mocked(listItems).mockResolvedValue(closet(4));
     await render(<ClosetBelt />);
 
     await waitFor(() => expect(pieces()).toHaveLength(4));
-    expect(tag()).toBeOnTheScreen();
-    // 4 pieces would take 11.2 s a round; the tag has its own, shorter run.
+    // 4 pieces would take 11.2 s a round.
     expect(timing).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 11_200 }));
   });
 
-  test('an empty closet leaves the rail and the tag', async () => {
+  test('an empty closet leaves the rail', async () => {
     jest.mocked(listItems).mockResolvedValue([]);
     await render(<ClosetBelt />);
 
     await waitFor(() => expect(listItems).toHaveBeenCalled());
     expect(pieces()).toHaveLength(0);
-    expect(tag()).toBeOnTheScreen();
+    expect(tag()).not.toBeOnTheScreen();
   });
 
-  test('a failed load stays silent: the rail and the tag', async () => {
+  test('a failed load stays silent: the rail', async () => {
     jest.mocked(listItems).mockRejectedValue(new Error('boom'));
     await render(<ClosetBelt />);
 
     await waitFor(() => expect(listItems).toHaveBeenCalled());
     expect(pieces()).toHaveLength(0);
-    expect(tag()).toBeOnTheScreen();
+    expect(tag()).not.toBeOnTheScreen();
     expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
   });
 
-  test('with Reduce Motion it does not roll, and the tag stays', async () => {
+  test('with Reduce Motion it does not roll', async () => {
     jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
     const timing = jest.spyOn(Reanimated, 'withTiming');
     jest.mocked(listItems).mockResolvedValue(closet(8));
     await render(<ClosetBelt />);
 
     await waitFor(() => expect(pieces()).toHaveLength(8));
-    expect(tag()).toBeOnTheScreen();
+    expect(tag()).not.toBeOnTheScreen();
     expect(timing).not.toHaveBeenCalled();
   });
 

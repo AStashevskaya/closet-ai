@@ -150,8 +150,8 @@ describe('<WearWith /> waiting in place', () => {
       expect.objectContaining({ uri: 'http://api/api/wear-with/req-1/photo' }),
     ]);
     expect(announce).toHaveBeenCalledWith('Putting looks together from your closet…');
-    // The tag on the belt's rail: still one sign of waiting.
-    expect(bead()).toHaveLength(1);
+    // No tag while composing (owner, 2026-11-10): her closet going past is the wait.
+    expect(bead()).toHaveLength(0);
     // As in the prototype the name comes with the looks, and so do the actions and the empty note.
     expect(screen.queryByText('Mauve satin skirt')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Add to my closet' })).not.toBeOnTheScreen();
@@ -232,7 +232,7 @@ describe('<WearWith /> waiting in place', () => {
       expect(listItems).not.toHaveBeenCalled();
     });
 
-    test('while composing, under the piece, with the only tag on its rail', async () => {
+    test('while composing, under the piece, with no tag', async () => {
       jest.mocked(getWearWith).mockResolvedValue(composing);
       jest.mocked(listItems).mockResolvedValue([tee, skirt]);
       await render(<WearWith id="req-1" />);
@@ -244,10 +244,7 @@ describe('<WearWith /> waiting in place', () => {
           2,
         ),
       );
-      expect(bead()).toHaveLength(1);
-      expect(
-        within(belt()!).getByTestId('thread-waiting', { includeHiddenElements: true }),
-      ).toBeOnTheScreen();
+      expect(bead()).toHaveLength(0);
       // The belt adds nothing for a screen reader: the progressbar still speaks for the wait.
       expect(screen.queryByTestId('closet-belt')).not.toBeOnTheScreen();
       expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
@@ -278,14 +275,14 @@ describe('<WearWith /> waiting in place', () => {
     });
   });
 
-  test('with Reduce Motion the sign stays still on the thread, so she still sees it waits', async () => {
+  test('with Reduce Motion nothing moves, and the words still say it waits', async () => {
     const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
     jest.mocked(getWearWith).mockResolvedValue(composing);
     await render(<WearWith id="req-1" />);
 
     expect(await screen.findByText('Looking through your closet…')).toBeOnTheScreen();
     expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
-    expect(bead()).toHaveLength(1);
+    expect(bead()).toHaveLength(0);
     reduced.mockReturnValue(false);
   });
 });

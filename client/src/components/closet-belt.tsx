@@ -43,8 +43,8 @@ const HEIGHT = 140;
 const DIRECTION = I18nManager.isRTL ? 1 : -1;
 
 // Her closet going past while looks are put together from it (owner, 2026-11-09, docs/design.md,
-// "Waiting"): what's happening, shown with her own pieces. The tag on the rail stays the only sign
-// of waiting. One transform on the UI thread moves the whole strip, so it asks little of a mid-range
+// "Waiting"): what's happening, shown with her own pieces. No tag on its rail (owner, 2026-11-10):
+// the pieces going past are the wait. One transform on the UI thread moves the whole strip, so it asks little of a mid-range
 // Android beyond the pieces' shadows. Only decoration, so screen readers skip it:
 // the caller keeps the progressbar and the announcements. Its load failing leaves just the rail.
 export function ClosetBelt({ style }: { style?: StyleProp<ViewStyle> }) {
@@ -117,7 +117,7 @@ export function ClosetBelt({ style }: { style?: StyleProp<ViewStyle> }) {
           ))}
         </Animated.View>
       </View>
-      <RailLine waiting style={styles.rail} />
+      <RailLine style={styles.rail} />
     </Animated.View>
   );
 }
