@@ -482,7 +482,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       const piece = look?.pieces.find((p) => p.id === pieceId);
       if (!piece) return "missing";
       if (piece.hero) return "hero";
-      piece.struckAt = struck ? now() : null;
+      piece.struckAt = struck ? (piece.struckAt ?? now()) : null;
       return "ok";
     },
     struckPieces: async (userId, limit) => {
@@ -493,7 +493,10 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
           o.pieces.flatMap((p) => {
             const piece = nameOf(p.itemId);
             if (!p.struckAt || !piece) return [];
-            const hero = nameOf(o.pieces.find((h) => h.hero)?.itemId ?? null) ?? "the piece";
+            const hero =
+              nameOf(o.pieces.find((h) => h.hero)?.itemId ?? null) ??
+              requests.find((r) => r.id === o.requestId)?.heroNoun ??
+              "the piece";
             return [{ hero, piece, at: p.struckAt }];
           }),
         )

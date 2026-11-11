@@ -133,6 +133,21 @@ describe('<WearWith /> waiting in place', () => {
       .mock.calls.filter(([props]) => props.kind === 'root')
       .at(-1)?.[0].dashed;
 
+  test('a quick cut and tie-back that both fail end where the server is', async () => {
+    jest.mocked(getWearWith).mockResolvedValue(done);
+    jest.mocked(strikePiece).mockRejectedValue(new Error('offline'));
+    await render(<WearWith id="req-1" />);
+    await fireEvent(await screen.findByLabelText(/^Сатин после спорта, /), 'layout', {
+      nativeEvent: { layout: { width: 300 } },
+    });
+    const tap = () =>
+      fireEvent.press(screen.getByTestId(`strike-${tee.id}`, { includeHiddenElements: true }));
+    await tap();
+    await tap();
+    await waitFor(() => expect(strikePiece).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(`without «${tee.name}» — I'll remember`)).toBeNull();
+  });
+
   test('cuts a piece of hers out of a look, and ties it back when the server says no', async () => {
     jest.mocked(getWearWith).mockResolvedValue(done);
     jest.mocked(strikePiece).mockResolvedValueOnce();

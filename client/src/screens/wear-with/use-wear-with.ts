@@ -202,6 +202,7 @@ export function useWearWith(id: string | null) {
   // Cuts a piece's string in a look, or ties it back: shown at once, and back as it was if the
   // server doesn't take it. One piece's taps go one after another, so the last one wins.
   const strikes = useRef(new Map<string, Promise<void>>());
+  const confirmedStrikes = useRef(new Map<string, boolean>());
   function strike(outfit: Outfit, pieceId: string, struck: boolean) {
     if (state.status !== 'done') return;
     void Haptics.selectionAsync();
@@ -221,14 +222,26 @@ export function useWearWith(id: string | null) {
             }
           : current,
       );
+    // What the server has: a failure goes back to it, and only the latest tap's failure does, so
+    // a quick cut and tie-back that both fail end where the server is (senior-reviewer, #156).
+    const confirmed =
+      confirmedStrikes.current.get(pieceId) ??
+      outfit.pieces.find((p) => p.id === pieceId)?.struck ??
+      false;
+    confirmedStrikes.current.set(pieceId, confirmed);
     set(struck);
-    const sent = (strikes.current.get(pieceId) ?? Promise.resolve()).then(async () => {
-      try {
-        await strikePiece(outfit.id, pieceId, struck);
-      } catch {
-        set(!struck);
-      }
-    });
+    const sent: Promise<void> = (strikes.current.get(pieceId) ?? Promise.resolve()).then(
+      async () => {
+        try {
+          await strikePiece(outfit.id, pieceId, struck);
+          confirmedStrikes.current.set(pieceId, struck);
+        } catch {
+          if (strikes.current.get(pieceId) === sent) {
+            set(confirmedStrikes.current.get(pieceId) ?? false);
+          }
+        }
+      },
+    );
     strikes.current.set(pieceId, sent);
   }
 

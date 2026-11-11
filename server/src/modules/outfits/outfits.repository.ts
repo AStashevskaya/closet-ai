@@ -25,6 +25,7 @@ import {
   ne,
   notInArray,
   or,
+  sql,
 } from "drizzle-orm";
 import type { ModelTokens } from "../../ai/stylist";
 import type { Db } from "../../db/client";
@@ -516,16 +517,22 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       if (piece.hero) return "hero";
       await db
         .update(outfitPieces)
-        .set({ struckAt: struck ? new Date() : null })
+        // A second cut keeps the first one's time, so a retry doesn't reorder what she cut.
+        .set({ struckAt: struck ? sql`coalesce(${outfitPieces.struckAt}, now())` : null })
         .where(eq(outfitPieces.id, pieceId));
       return "ok";
     },
 
     async struckPieces(userId, limit) {
       const struck = await db
-        .select({ outfitId: outfitPieces.outfitId, piece: items.name })
+        .select({
+          outfitId: outfitPieces.outfitId,
+          piece: items.name,
+          heroNoun: outfitRequests.heroNoun,
+        })
         .from(outfitPieces)
         .innerJoin(outfits, eq(outfits.id, outfitPieces.outfitId))
+        .innerJoin(outfitRequests, eq(outfitRequests.id, outfits.requestId))
         .innerJoin(items, eq(items.id, outfitPieces.itemId))
         .where(and(eq(outfits.userId, userId), isNotNull(outfitPieces.struckAt)))
         .orderBy(desc(outfitPieces.struckAt))
@@ -544,9 +551,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
             eq(outfitPieces.hero, true),
           ),
         );
-      // A look around a piece from a photo has no hero row with a name: "the piece" stands in.
+      // A look around a piece from a photo has no hero row with a name: its English noun stands
+      // in, or "the piece" when that's gone too.
       return struck.map((s) => ({
-        hero: heroes.find((h) => h.outfitId === s.outfitId)?.name ?? "the piece",
+        hero: heroes.find((h) => h.outfitId === s.outfitId)?.name ?? s.heroNoun ?? "the piece",
         piece: s.piece,
       }));
     },
