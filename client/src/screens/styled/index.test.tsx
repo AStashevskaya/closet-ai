@@ -24,6 +24,7 @@ jest.mock('@/lib/api', () => ({
   askWearWith: jest.fn(),
   deleteWearWith: jest.fn(),
   getWearWith: jest.fn(),
+  listItems: jest.fn().mockResolvedValue([]),
   reactToOutfit: jest.fn(),
   getUsage: jest.fn(),
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
@@ -68,6 +69,20 @@ describe('<Styled />', () => {
     expect(screen.getByRole('header', { name: 'Outfits with Satin midi skirt' })).toBeOnTheScreen();
     expect(await screen.findByText('The tee makes the satin offhand.')).toBeOnTheScreen();
     expect(getWearWith).toHaveBeenCalledWith('req-1', 'en');
+  });
+
+  test('waits with her closet going past, as the outfits screen does', async () => {
+    jest.mocked(getWearWith).mockResolvedValue({
+      ...looks('req-1'),
+      status: 'pending',
+      outfits: [],
+      composing: true,
+    } as WearWithRequest);
+    await render(<Styled requestId="req-1" piece={piece} mood={null} />);
+
+    await screen.findByText('Looking through your closet…');
+    expect(screen.getByTestId('closet-belt', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
   });
 
   test('goes back once the styling is deleted, and stays if that fails', async () => {
