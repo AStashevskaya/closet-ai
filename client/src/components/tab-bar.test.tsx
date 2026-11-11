@@ -7,6 +7,8 @@ import { TabBar } from './tab-bar';
 // `mock` prefix: jest.mock factories may only use variables named like this.
 const mockPush = jest.fn();
 
+// These tests are about open brands; closed brands have tests of their own.
+jest.mock('@/lib/features', () => ({ BRANDS_OPEN: true }));
 jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,

@@ -93,7 +93,8 @@
     "closet": "ארון",
     "style": "סטיילינג",
     "brands": "מותגים",
-    "profile": "פרופיל"
+    "profile": "פרופיל",
+    "soon": "{{tab}}, בקרוב"
   },
   "menu": {
     "title": "פרופיל",
@@ -120,7 +121,8 @@
     "report": "דיווח על בעיה",
     "reportSubject": "Closet: בעיה",
     "reportIntro": "מה קרה, ומה ציפיתם שיקרה?",
-    "noMail": "כתבו לנו ל-{{email}}"
+    "noMail": "כתבו לנו ל-{{email}}",
+    "soon": "בקרוב"
   },
   "items": {
     "count_one": "פריט אחד",

@@ -8,6 +8,7 @@ import { Dimmable } from '@/components/dimmable';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { priceLabel } from '@/lib/price';
+import { BRANDS_OPEN } from '@/lib/features';
 import { colors, fonts } from '@/theme';
 
 type Props = {
@@ -29,7 +30,9 @@ export function PartnerPiece({ item, headers, dimmed = false }: Props) {
     <PressableScale
       style={styles.row}
       onPress={() => router.push({ pathname: '/catalog/[id]', params: { id: item.id } })}
-      accessibilityRole="button"
+      // Brands are closed for now: the piece is shown, its card doesn't open.
+      disabled={!BRANDS_OPEN}
+      accessibilityRole={BRANDS_OPEN ? 'button' : undefined}
       accessibilityLabel={`${label}: ${item.brand}, ${item.name}, ${price}`}
     >
       <Dimmable dimmed={dimmed} style={styles.frame} testID="partner-picture">

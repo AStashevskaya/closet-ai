@@ -93,7 +93,8 @@
     "closet": "Шкаф",
     "style": "Стайлинг",
     "brands": "Бренды",
-    "profile": "Профиль"
+    "profile": "Профиль",
+    "soon": "{{tab}}, скоро"
   },
   "menu": {
     "title": "Профиль",
@@ -120,7 +121,8 @@
     "report": "Сообщить о проблеме",
     "reportSubject": "Closet: проблема",
     "reportIntro": "Что случилось и что должно было произойти?",
-    "noMail": "Напиши нам на {{email}}"
+    "noMail": "Напиши нам на {{email}}",
+    "soon": "скоро"
   },
   "items": {
     "count_one": "{{count}} вещь",
