@@ -27,10 +27,21 @@ function isSupported(code: string | null): code is Language {
   return SUPPORTED_LANGUAGES.includes(code as Language);
 }
 
-// First supported language in the user's device preference list.
+// A language we don't have, read as the one its speakers read best (owner, 2026-11-11). Belarus
+// is the first market and reads Russian. Ukrainian is left out on purpose: those phones get
+// English until there's a Ukrainian locale, not Russian.
+const NEAREST: Record<string, Language> = {
+  be: 'ru',
+};
+
+// The first language in the user's device preference list that we have, or its nearest.
 export function detectLanguage(): Language {
-  const match = getLocales().find((locale) => isSupported(locale.languageCode));
-  return (match?.languageCode as Language | undefined) ?? FALLBACK_LANGUAGE;
+  for (const { languageCode } of getLocales()) {
+    if (isSupported(languageCode)) return languageCode;
+    const nearest = languageCode ? NEAREST[languageCode] : undefined;
+    if (nearest) return nearest;
+  }
+  return FALLBACK_LANGUAGE;
 }
 
 // The language picked in the profile, kept on the phone; none follows the phone's languages.
