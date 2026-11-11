@@ -33,7 +33,10 @@ const HEIGHT = HANG + PHOTO_H + 2 * BORDER + 8;
 // are for screen readers in one label; the picture and the threads are decoration.
 export function InspirationExample() {
   const { t } = useTranslation();
-  const notes = NOTES.map((note) => t(`inspiration.example.notes.${note.key}`));
+  const notes = NOTES.map((note) => ({
+    ...note,
+    text: t(`inspiration.example.notes.${note.key}`),
+  }));
 
   return (
     <Animated.View
@@ -41,7 +44,7 @@ export function InspirationExample() {
       entering={arrive}
       testID="inspiration-example"
       accessible
-      accessibilityLabel={[t('inspiration.example.label'), ...notes].join(', ')}
+      accessibilityLabel={[t('inspiration.example.label'), ...notes.map((n) => n.text)].join(', ')}
     >
       <View
         style={StyleSheet.absoluteFill}
@@ -52,9 +55,8 @@ export function InspirationExample() {
         <Svg
           width="100%"
           height={HEIGHT}
+          // No viewBox: drawn in points, so the threads meet the print and the notes on any width.
           style={I18nManager.isRTL && styles.mirrored}
-          viewBox={`0 0 320 ${HEIGHT}`}
-          preserveAspectRatio="xMinYMin meet"
         >
           <Path d="M-20 6 Q90 34 640 -10" fill="none" stroke={colors.text} strokeWidth={1.2} />
           {NOTES.map((note) => {
@@ -93,11 +95,11 @@ export function InspirationExample() {
         </View>
         {notes.map((note, index) => (
           <Animated.Text
-            key={NOTES[index]!.key}
-            style={[styles.note, { top: HANG + NOTES[index]!.top }]}
+            key={note.key}
+            style={[styles.note, { top: HANG + note.top }]}
             entering={arrive.delay((index + 2) * 2 * STAGGER_STEP)}
           >
-            {note}
+            {note.text}
           </Animated.Text>
         ))}
       </View>
