@@ -70,6 +70,12 @@
       "en": "./locales/en.json",
       "ru": "./locales/ru.json",
       "he": "./locales/he.json"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "c1f14adc-398c-4e48-97c5-52eeddc9fd4d"
+      }
+    },
+    "owner": "nastyastash"
   }
 }
