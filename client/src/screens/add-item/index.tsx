@@ -470,6 +470,10 @@ export function AddItem() {
     >
       <KeyboardAvoidingView
         style={[styles.screen, handingOff && styles.handingOff]}
+        // Hidden means hidden for touch and screen readers too, not only to the eye.
+        pointerEvents={handingOff ? 'none' : 'auto'}
+        accessibilityElementsHidden={handingOff}
+        importantForAccessibility={handingOff ? 'no-hide-descendants' : 'auto'}
         // The view shrinks above the keyboard on both platforms, so the bar under the scroll (the
         // Hang button and its errors) stays in sight. It measures itself from its parent, not the
         // window, so on iOS it's told where the sheet starts (the sheet's top and the header).
