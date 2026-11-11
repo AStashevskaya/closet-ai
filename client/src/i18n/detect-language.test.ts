@@ -41,4 +41,9 @@ describe('detectLanguage', () => {
     deviceLanguages('uk');
     expect(detectLanguage()).toBe('en');
   });
+
+  test('skips Ukrainian for the next language she reads', () => {
+    deviceLanguages('uk', 'ru');
+    expect(detectLanguage()).toBe('ru');
+  });
 });
