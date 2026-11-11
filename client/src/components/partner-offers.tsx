@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from '@/components/pressable-scale';
 import { absoluteUrl } from '@/lib/api';
 import { priceLabel } from '@/lib/price';
+import { BRANDS_OPEN } from '@/lib/features';
 import { colors, fonts } from '@/theme';
 
 type Props = {
@@ -39,7 +40,9 @@ export function PartnerOffers({ offers, headers }: Props) {
               key={offer.id}
               style={styles.offer}
               onPress={() => router.push({ pathname: '/catalog/[id]', params: { id: offer.id } })}
-              accessibilityRole="button"
+              // Brands are closed for now: the piece is shown, its card doesn't open.
+              disabled={!BRANDS_OPEN}
+              accessibilityRole={BRANDS_OPEN ? 'button' : undefined}
               accessibilityLabel={`${label}: ${offer.brand}, ${offer.name}, ${price}`}
             >
               <View style={styles.frame}>

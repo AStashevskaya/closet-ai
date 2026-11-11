@@ -16,6 +16,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
+import { BRANDS_OPEN } from '@/lib/features';
 import { colors, fonts } from '@/theme';
 
 // What expo-router's Tabs hands a custom bar (its vendored react-navigation isn't a dependency of ours).
@@ -129,6 +130,8 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
     const route = state.routes[index]!;
     const focused = state.index === index;
     const { options } = descriptors[route.key]!;
+    // Brands are closed for now: the word stays, faint, with "soon", and does nothing.
+    const closed = route.name === 'the-edit' && !BRANDS_OPEN;
     return (
       <PressableScale
         key={route.key}
@@ -136,8 +139,9 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
         onLayout={place(index)}
         hitSlop={4}
         accessibilityRole="tab"
-        accessibilityState={{ selected: focused }}
-        accessibilityLabel={options.title}
+        accessibilityState={{ selected: focused, disabled: closed }}
+        accessibilityLabel={closed ? t('tabs.soon', { tab: options.title }) : options.title}
+        disabled={closed}
         onPress={() => {
           const event = emitter.emit({
             type: 'tabPress',
@@ -151,7 +155,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
         }}
       >
         <Text
-          style={[styles.word, focused && styles.wordOn]}
+          style={[styles.word, focused && styles.wordOn, closed && styles.wordClosed]}
           numberOfLines={1}
           maxFontSizeMultiplier={1.3}
           // Four words on a 360 pt phone in Russian at a large text size: shrink rather than clip.
@@ -204,6 +208,12 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
 }
 
 const styles = StyleSheet.create({
+  // A tab that's closed for now: faint. A disabled control is outside the 4.5:1 rule, and the
+  // screen reader hears "soon".
+  wordClosed: {
+    color: colors.textMuted,
+    opacity: 0.6,
+  },
   bar: {
     position: 'absolute',
     left: 0,

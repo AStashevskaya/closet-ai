@@ -93,7 +93,8 @@
     "closet": "Closet",
     "style": "Style it",
     "brands": "Brands",
-    "profile": "Profile"
+    "profile": "Profile",
+    "soon": "{{tab}}, soon"
   },
   "menu": {
     "title": "Profile",
@@ -120,7 +121,8 @@
     "report": "Report a problem",
     "reportSubject": "Closet: a problem",
     "reportIntro": "What happened, and what did you expect?",
-    "noMail": "Write to us at {{email}}"
+    "noMail": "Write to us at {{email}}",
+    "soon": "soon"
   },
   "items": {
     "count_one": "{{count}} item",

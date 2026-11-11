@@ -37,6 +37,7 @@ import { setLanguage } from '@/lib/language';
 import { useUsage } from '@/lib/limits';
 import { problemReportUrl, supportEmail } from '@/lib/report-problem';
 import { rise, STAGGER_STEP } from '@/motion';
+import { BRANDS_OPEN } from '@/lib/features';
 import { colors, fonts } from '@/theme';
 
 import { ProfileThread, Stop } from './thread';
@@ -302,22 +303,31 @@ export function Menu() {
               <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
             </View>
           </Pressable>
-          {SECTIONS.map(({ key, href }) => (
-            <Pressable
-              key={key}
-              style={styles.row}
-              onPress={() => router.navigate(href)}
-              accessibilityRole="menuitem"
-            >
-              <Text style={styles.rowLabel}>{t(`menu.sections.${key}`)}</Text>
-              {key === 'wishes' && due > 0 && (
-                <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
-              )}
-              <View style={styles.chevron}>
-                <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
-              </View>
-            </Pressable>
-          ))}
+          {SECTIONS.map(({ key, href }) => {
+            // Brands are closed for now: the row stays, faint, with "soon".
+            const closed = key === 'theEdit' && !BRANDS_OPEN;
+            return (
+              <Pressable
+                key={key}
+                style={styles.row}
+                onPress={() => router.navigate(href)}
+                disabled={closed}
+                accessibilityRole="menuitem"
+                accessibilityState={{ disabled: closed }}
+              >
+                <Text style={[styles.rowLabel, closed && styles.rowClosed]}>
+                  {t(`menu.sections.${key}`)}
+                </Text>
+                {closed && <Text style={styles.soon}>{t('menu.soon')}</Text>}
+                {key === 'wishes' && due > 0 && (
+                  <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
+                )}
+                <View style={styles.chevron}>
+                  <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+                </View>
+              </Pressable>
+            );
+          })}
 
           {supportEmail() && (
             <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
@@ -374,6 +384,14 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   // The menu is set in the display face, like the prototype's index of sections.
+  rowClosed: {
+    color: colors.textMuted,
+  },
+  soon: {
+    fontFamily: fonts.hand,
+    fontSize: 17,
+    color: colors.textMuted,
+  },
   rowLabel: {
     flex: 1,
     paddingVertical: 8,

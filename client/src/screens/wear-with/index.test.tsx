@@ -23,6 +23,8 @@ import { WearWith } from '.';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
+// These tests are about open brands; closed brands have tests of their own.
+jest.mock('@/lib/features', () => ({ BRANDS_OPEN: true }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: mockBack }) }));
 
 jest.mock('@/lib/api', () => ({
