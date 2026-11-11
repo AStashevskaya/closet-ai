@@ -1,12 +1,15 @@
 import { createHash } from "node:crypto";
 import {
   APP_LANGUAGES,
+  incompleteMessage,
+  missingForLook,
   outfitReactionInput,
   styledList,
   wearWithInput,
   wearWithRequest,
   wearWithStarted,
   type Item,
+  type ItemCategory,
   type StyledEntry,
   type StyledPreview,
   type WearWithRequest,
@@ -101,6 +104,16 @@ export const outfitsRoutes =
         const size = await outfits.wardrobeSize(user.id);
         const mood = request.body.mood ?? null;
         let hero: Parameters<OutfitsRepository["createRequest"]>[1];
+        // A look needs a bottom (or a dress) and a top: when the closet can't give the piece one,
+        // she's told what to add before anything is paid for or counted (owner, 2026-11-11: looks
+        // without trousers were shown).
+        const lacking = async (category: ItemCategory, exceptId?: string) => {
+          const closet = (await items.list(user.id))
+            .filter((item) => item.id !== exceptId)
+            .map((item) => item.category);
+          const missing = missingForLook(category, closet);
+          if (missing.length > 0) throw httpError(422, incompleteMessage(missing));
+        };
         // Still at work, as when the phone gave up waiting for the answer and asks again: the same
         // request, not a second one counted against her day.
         const atWork = (asked: { status: string; createdAt: Date } | null) =>
@@ -108,13 +121,15 @@ export const outfitsRoutes =
 
         if ("itemId" in request.body) {
           const { itemId } = request.body;
-          if (!(await items.get(user.id, itemId))) throw httpError(404, "item not found");
+          const item = await items.get(user.id, itemId);
+          if (!item) throw httpError(404, "item not found");
           const asked = await outfits.latestAsked(user.id, { itemId }, mood);
           if (asked && atWork(asked)) return reply.code(200).send({ id: asked.id });
           const last = await outfits.latestDone(user.id, itemId, mood);
           if (last && (await stillHolds(user.id, last, size))) {
             return reply.code(200).send({ id: last.id });
           }
+          await lacking(item.category, itemId);
           await limits.check(user.id, "wear_with");
           hero = { itemId };
         } else {
@@ -139,6 +154,7 @@ export const outfitsRoutes =
           }
           const file = await storage.get(photo.key);
           if (!file) throw httpError(409, "the photo is not ready");
+          await lacking(found.category);
           await limits.check(user.id, "wear_with");
 
           await storage.put(key, await cropToBox(file.body, found.box), "image/webp");

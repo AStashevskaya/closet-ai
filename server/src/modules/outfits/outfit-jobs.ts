@@ -246,14 +246,17 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     }
     return { look, items, finishing, promoted, lost };
   });
-  // A look without a bottom (or a dress) isn't one; shown only if every look came out so.
+  // A look without a bottom (or a dress) isn't one, and is never shown (owner, 2026-11-11: three
+  // looks without trousers were). The request checks the closet can make one before it's sent,
+  // so none coming back complete is the model's miss: the request fails, and she can ask again.
   const complete = resolved.filter(({ items, promoted }) =>
     isComplete([hero.category, ...items.map((item) => item.category), promoted?.category]),
   );
+  if (complete.length === 0) throw new PermanentOutfitError("no complete look");
   // A look whose "why" may name a piece it doesn't show (the owner's pink boots in the text,
   // her white sneakers in the look, 2026-10-25) isn't shown, unless every look lost one. Those
   // go first, so a hidden look takes none of the brand's places below.
-  const pool = complete.length > 0 ? complete : resolved;
+  const pool = complete;
   const kept = pool.some((look) => !look.lost) ? pool.filter((look) => !look.lost) : pool;
   // A brand's piece past the cap is taken out, and the look is marked lost: its why may name it.
   let promotedLooks = 0;

@@ -1,8 +1,15 @@
 import i18n from '@/i18n';
 
-import { limitText } from './limits';
+import { Alert } from 'react-native';
 
-jest.mock('expo-router', () => ({ useFocusEffect: jest.fn() }));
+import { ApiError } from './api-error';
+import { alertAskFailed, limitText } from './limits';
+
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  useFocusEffect: jest.fn(),
+  router: { push: (...a: unknown[]) => mockPush(...a) },
+}));
 
 jest.mock('./api', () => ({ getUsage: jest.fn() }));
 
@@ -25,5 +32,23 @@ describe('limitText', () => {
     expect(limitText(i18n.t, 'ru', 'monthly')).toBe(
       'ИИ-подборки на этот месяц закончились. Вернутся с 1 января.',
     );
+  });
+});
+
+describe('alertAskFailed', () => {
+  test('says what the closet lacks for a whole look, and offers to add it on its rail', async () => {
+    await i18n.changeLanguage('en');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    alertAskFailed(i18n.t, 'en', new ApiError(422, 'incomplete:bottom'));
+
+    const [text, , buttons] = alert.mock.calls.at(-1)!;
+    expect(text).toBe(
+      'To put looks together around this piece, I need trousers, a skirt or shorts in your closet.',
+    );
+    buttons!.find((b) => b.text === 'Add a piece')!.onPress!();
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/add-item',
+      params: { category: 'bottom' },
+    });
   });
 });

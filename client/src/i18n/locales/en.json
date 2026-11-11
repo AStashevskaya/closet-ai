@@ -361,6 +361,12 @@
     "steps": {
       "closet": "Looking through your closet…",
       "pairing": "Trying pieces together…"
+    },
+    "incomplete": {
+      "bottom": "To put looks together around this piece, I need trousers, a skirt or shorts in your closet.",
+      "top": "To put looks together around this piece, I need a top in your closet: a tee, a shirt or a knit.",
+      "both": "To put looks together around this piece, I need a dress, or a top and a bottom, in your closet.",
+      "add": "Add a piece"
     }
   },
   "limits": {
