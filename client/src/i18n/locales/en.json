@@ -261,6 +261,14 @@
   "inspiration": {
     "title": "Inspiration",
     "intro": "Save looks you like: screenshots from Instagram, Pinterest, shops. The app learns your taste from them and puts your outfits together bolder and closer to you.",
+    "example": {
+      "label": "Example: a saved look, and what your stylist reads in it",
+      "notes": {
+        "hat": "the hat does the talking",
+        "blazer": "a big blazer over a mini",
+        "boots": "chunky boots with something light"
+      }
+    },
     "add": "Add looks",
     "saving": "Saving…",
     "deleteTitle": "Delete this look?",
