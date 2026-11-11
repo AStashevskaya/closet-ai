@@ -14,7 +14,7 @@ import { useAnnounce } from '@/lib/announce';
 import { askWearWith, getPhotoState, uploadPhoto } from '@/lib/api';
 import { isOffline, limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
-import { limitText, useUsage } from '@/lib/limits';
+import { alertAskFailed, limitText, missingForAsk, useUsage } from '@/lib/limits';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { arrive, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -183,6 +183,9 @@ export function WearWithPick() {
       setChosen(null);
       const code = limitReached(cause);
       if (code) setLimit(code);
+      // Her closet can't make a whole look with this piece: she's told what to add, and the found
+      // pieces stay to pick another.
+      else if (missingForAsk(cause)) alertAskFailed(t, i18n.language, cause);
       else {
         if (__DEV__) console.warn('Asking for outfits failed', cause);
         setShot((current) =>

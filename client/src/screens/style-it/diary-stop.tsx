@@ -91,15 +91,19 @@ export function DiaryStop({
             </View>
           </View>
           {/* Sent with the list (the rejected ones left out), read again with it on each visit. */}
-          {entry.previews.length > 0 && (
+          {/* A look with nothing of hers to fold (the piece itself and a brand's are left out) would
+              be blank paper: it isn't drawn (owner, 2026-11-11). */}
+          {entry.previews.some((look) => look.pieces.length > 0) && (
             <View
               style={styles.peek}
               importantForAccessibility="no-hide-descendants"
               accessibilityElementsHidden
             >
-              {entry.previews.map((look) => (
-                <MiniLook key={look.id} look={look} headers={headers} />
-              ))}
+              {entry.previews
+                .filter((look) => look.pieces.length > 0)
+                .map((look) => (
+                  <MiniLook key={look.id} look={look} headers={headers} />
+                ))}
             </View>
           )}
         </PressableScale>

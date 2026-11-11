@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import {
   APP_LANGUAGES,
+  incompleteMessage,
+  isWholeLook,
+  missingForLook,
   outfitReactionInput,
   styledList,
   wearWithInput,
   wearWithRequest,
   wearWithStarted,
   type Item,
+  type ItemCategory,
   type StyledEntry,
   type StyledPreview,
   type WearWithRequest,
@@ -35,6 +39,28 @@ const COMPOSING_FOR_MS = 5 * 60 * 1000;
 // The photo of an item from a photo, served by the API like an item's: by request id.
 export const heroPath = (requestId: string, variant?: "cutout") =>
   `/api/wear-with/${requestId}/photo${variant ? `?variant=${variant}` : ""}`;
+
+// Only whole looks are shown: one with a bottom (or a dress) and a top. Looks saved before that
+// rule (owner, 2026-11-11) may lack one; they stay in the database for the brief, unseen. The
+// piece's kind comes from its hero piece, or for a piece from a photo from the photo's tags;
+// when neither is known the look is kept.
+function wholeOnly<T extends WearWithRequest | null>(request: T, heroCategory?: ItemCategory): T {
+  if (!request) return request;
+  return {
+    ...request,
+    outfits: request.outfits.filter((look) => {
+      const hero = heroCategory ?? look.pieces.find((piece) => piece.hero)?.item?.category;
+      if (!hero) return true;
+      return isWholeLook(
+        hero,
+        look.pieces.flatMap((piece) => {
+          const category = piece.item?.category ?? piece.catalogItem?.category;
+          return !piece.hero && category ? [category] : [];
+        }),
+      );
+    }),
+  };
+}
 
 // The diary's folded looks: wardrobe pieces only, so the language of partner names doesn't matter.
 const PREVIEW_LOOKS = 3;
@@ -101,6 +127,16 @@ export const outfitsRoutes =
         const size = await outfits.wardrobeSize(user.id);
         const mood = request.body.mood ?? null;
         let hero: Parameters<OutfitsRepository["createRequest"]>[1];
+        // A look needs a bottom (or a dress) and a top: when the closet can't give the piece one,
+        // she's told what to add before anything is paid for or counted (owner, 2026-11-11: looks
+        // without trousers were shown).
+        const lacking = async (category: ItemCategory, exceptId?: string) => {
+          const closet = (await items.list(user.id))
+            .filter((item) => item.id !== exceptId)
+            .map((item) => item.category);
+          const missing = missingForLook(category, closet);
+          if (missing.length > 0) throw httpError(422, incompleteMessage(missing));
+        };
         // Still at work, as when the phone gave up waiting for the answer and asks again: the same
         // request, not a second one counted against her day.
         const atWork = (asked: { status: string; createdAt: Date } | null) =>
@@ -108,13 +144,20 @@ export const outfitsRoutes =
 
         if ("itemId" in request.body) {
           const { itemId } = request.body;
-          if (!(await items.get(user.id, itemId))) throw httpError(404, "item not found");
+          const item = await items.get(user.id, itemId);
+          if (!item) throw httpError(404, "item not found");
           const asked = await outfits.latestAsked(user.id, { itemId }, mood);
           if (asked && atWork(asked)) return reply.code(200).send({ id: asked.id });
           const last = await outfits.latestDone(user.id, itemId, mood);
-          if (last && (await stillHolds(user.id, last, size))) {
+          // Only while it holds a whole look: one saved before that rule may not.
+          if (
+            last &&
+            (await stillHolds(user.id, last, size)) &&
+            wholeOnly(await outfits.view(last.id, user.id, "en"))?.outfits.length
+          ) {
             return reply.code(200).send({ id: last.id });
           }
+          await lacking(item.category, itemId);
           await limits.check(user.id, "wear_with");
           hero = { itemId };
         } else {
@@ -139,6 +182,7 @@ export const outfitsRoutes =
           }
           const file = await storage.get(photo.key);
           if (!file) throw httpError(409, "the photo is not ready");
+          await lacking(found.category);
           await limits.check(user.id, "wear_with");
 
           await storage.put(key, await cropToBox(file.body, found.box), "image/webp");
@@ -174,7 +218,7 @@ export const outfitsRoutes =
               id: row.id,
               createdAt: row.createdAt.toISOString(),
               mood: row.mood,
-              previews: previewsOf(await outfits.view(row.id, user.id, "en")),
+              previews: previewsOf(wholeOnly(await outfits.view(row.id, user.id, "en"))),
             };
             if (row.itemId) {
               const item = await items.get(user.id, row.itemId);
@@ -217,8 +261,10 @@ export const outfitsRoutes =
       },
       async (request): Promise<WearWithRequest> => {
         const user = request.user as SessionUser;
-        const found = await outfits.view(request.params.id, user.id, request.query.lang);
+        const viewed = await outfits.view(request.params.id, user.id, request.query.lang);
         const row = await outfits.getRequest(request.params.id);
+        const photoTags = row?.heroPhotoKey ? (await photos.get(row.heroPhotoKey))?.tags : null;
+        const found = wholeOnly(viewed, photoTags?.category);
         if (!found || !row) throw httpError(404, "request not found");
         // Done, with neither piece: deleted, or about an item deleted since. Only its reacted looks
         // are left, for the brief. (A pending one whose item went is about to be marked failed.)

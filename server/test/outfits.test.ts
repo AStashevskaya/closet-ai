@@ -16,6 +16,7 @@ import { createLimits, periodStart, UNREADABLE_COMPOSE_MICROS } from "../src/mod
 import {
   checkBrief,
   composeOutfits,
+  PermanentOutfitError,
   refreshBrief,
   type OutfitJobDeps,
 } from "../src/modules/outfits/outfit-jobs";
@@ -191,6 +192,100 @@ const view = async ({ server }: Setup, cookie: string, id: string) =>
   ).json<WearWithRequest>();
 
 describe("POST /api/wear-with", () => {
+  it("says what the closet lacks for a whole look, before anything is paid for or counted", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const shirt = await addItem(s, anna, "top");
+    await addItem(s, anna, "shoes", "white sneakers");
+
+    const refused = await ask(s, anna.cookie, shirt.id);
+    expect(refused.statusCode).toBe(422);
+    expect(refused.json<{ message: string }>().message).toBe("incomplete:bottom");
+    await s.runJobs();
+    expect(s.stub.composeCalls).toEqual([]);
+    const usage = await s.server.inject({
+      method: "GET",
+      url: "/api/usage",
+      headers: { cookie: anna.cookie },
+    });
+    expect(usage.json<Usage>().wear_with.used).toBe(0);
+
+    // With jeans in the closet the shirt can be styled.
+    await addItem(s, anna, "bottom", "jeans");
+    expect((await ask(s, anna.cookie, shirt.id)).statusCode).toBe(202);
+  });
+
+  it("hides looks saved without a bottom before the rule, and asks afresh rather than reuse them", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const shirt = await addItem(s, anna, "top");
+    const shoes = await addItem(s, anna, "shoes", "white sneakers");
+    // A styling from before the rule: its only look is the shirt and shoes. Made for a closet of
+    // three, the size it has once the jeans are in, so only the rule stops it being reused.
+    const size = 3;
+    const old = await s.repositories.outfitsRepository.createRequest(
+      anna.userId,
+      { itemId: shirt.id },
+      size,
+      null,
+    );
+    await s.repositories.outfitsRepository.saveOutfits(
+      old,
+      anna.userId,
+      [
+        {
+          caption: "Old",
+          occasion: "coffee",
+          why: "because",
+          missing: null,
+          pieces: [
+            { hero: true, itemId: shirt.id },
+            { hero: false, itemId: shoes.id },
+          ],
+        },
+      ],
+      { micros: 0 },
+    );
+    const view = await s.server.inject({
+      method: "GET",
+      url: `/api/wear-with/${old}?lang=en`,
+      headers: { cookie: anna.cookie },
+    });
+    expect(view.json<WearWithRequest>().outfits).toEqual([]);
+
+    await addItem(s, anna, "bottom", "jeans");
+    const again = await ask(s, anna.cookie, shirt.id);
+    expect(again.statusCode).toBe(202);
+    expect(again.json<{ id: string }>().id).not.toBe(old);
+  });
+
+  it("never shows looks without a bottom: none complete, the styling fails", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const shirt = await addItem(s, anna, "top");
+    await addItem(s, anna, "bottom", "jeans");
+    const shoes = await addItem(s, anna, "shoes", "white sneakers");
+    s.stub.stylist.compose = async (input) => ({
+      // The model left the jeans out of every look.
+      looks: [1, 2, 3].map((i) => ({
+        items: input.wardrobe.filter((p) => p.category === "shoes").map((p) => p.n),
+        partners: [],
+        missing: null,
+        caption: `Look ${i}`,
+        occasion: "coffee",
+        why: "because",
+      })),
+      verdict: null,
+      costMicros: 6_000,
+    });
+
+    const { id } = (await ask(s, anna.cookie, shirt.id)).json<{ id: string }>();
+    // A permanent failure: the queue marks the request failed, so she can ask again.
+    await expect(composeOutfits(s.deps, id, "en")).rejects.toThrow(PermanentOutfitError);
+    expect((await view(s, anna.cookie, id)).outfits).toEqual([]);
+    expect(shoes.id).toBeTruthy();
+  });
+
   it("composes outfits around a wardrobe item in the background", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
@@ -877,6 +972,8 @@ describe("POST /api/wear-with", () => {
   it("is limited to three a day in the first week", async () => {
     const s = await setup({ dayLimit: true });
     const anna = await signUp(s, "anna@example.com");
+    // A look needs a bottom: the closet has one, so the piece can be styled.
+    await addItem(s, anna, "bottom", "jeans");
     const pieces = [];
     for (let i = 0; i < 4; i++) pieces.push(await addItem(s, anna));
     for (const piece of pieces.slice(0, 3))
@@ -889,6 +986,8 @@ describe("POST /api/wear-with", () => {
   it("only works with the user's own item, and only with a stylist", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
+    // A skirt needs a top: the closet has one, so it can be styled.
+    await addItem(s, anna, "top");
     const maya = await signUp(s, "maya@example.com");
     const skirt = await addItem(s, anna, "bottom");
     expect((await ask(s, maya.cookie, skirt.id)).statusCode).toBe(404);
@@ -906,6 +1005,7 @@ describe("POST /api/wear-with", () => {
     await app!.close();
     const off = await setup({ stylistEnabled: false });
     const noa = await signUp(off, "noa@example.com");
+    await addItem(off, noa, "bottom", "jeans");
     const item = await addItem(off, noa);
     expect((await ask(off, noa.cookie, item.id)).statusCode).toBe(503);
   });
@@ -1078,6 +1178,8 @@ describe("what a styling costs", () => {
   it("counts what the model cost, not the estimate", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
+    // A skirt needs a top: the closet has one, so it can be styled.
+    await addItem(s, anna, "top");
     const skirt = await addItem(s, anna, "bottom");
     await ask(s, anna.cookie, skirt.id);
     expect(await spent(s, anna.userId)).toBe(0);
@@ -1088,6 +1190,8 @@ describe("what a styling costs", () => {
   it("counts an answer it couldn't use, known or estimated, and not an API error", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
+    // A skirt needs a top: the closet has one, so it can be styled.
+    await addItem(s, anna, "top");
     const skirt = await addItem(s, anna, "bottom");
     const real = s.stub.stylist;
     const answer = real.compose.bind(real);
@@ -1115,6 +1219,8 @@ describe("what a styling costs", () => {
   it("still finishes when the cost can't be noted, since a retry would pay again", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
+    // A skirt needs a top: the closet has one, so it can be styled.
+    await addItem(s, anna, "top");
     const skirt = await addItem(s, anna, "bottom");
     const id = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>().id;
     const limits = { ...s.deps.limits, spent: () => Promise.reject(new Error("db down")) };
@@ -1599,6 +1705,8 @@ describe("an item from a photo", () => {
   it("asked about the same piece again, it's the same request and counted once", async () => {
     const s = await setup({ dayLimit: true });
     const anna = await signUp(s, "anna@example.com");
+    // A look needs a bottom: the closet has one, so the piece can be styled.
+    await addItem(s, anna, "bottom", "jeans");
     await addItem(s, anna, "top");
     const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
     await s.runPhotoJobs();
@@ -1761,6 +1869,8 @@ describe("an item from a photo", () => {
   it("lists a piece from a photo as not hers, with its wish, until it's in her closet", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
+    // A look needs a bottom: the closet has one, so the piece can be styled.
+    await addItem(s, anna, "bottom", "jeans");
     const top = await addItem(s, anna, "top");
     await ask(s, anna.cookie, top.id);
     await s.runJobs();
@@ -1844,6 +1954,8 @@ describe("an item from a photo", () => {
     it("never gives a try back: a deleted styling still counts toward the limit", async () => {
       const s = await setup({ dayLimit: true });
       const anna = await signUp(s, "anna@example.com");
+      // A look needs a bottom: the closet has one, so the piece can be styled.
+      await addItem(s, anna, "bottom", "jeans");
       const pieces = [];
       for (let i = 0; i < 4; i++) pieces.push(await addItem(s, anna, "top"));
       const monthStart = periodStart("month", s.clock.now);
@@ -1865,6 +1977,8 @@ describe("an item from a photo", () => {
     it("asks afresh after a delete, for a try of its own, rather than reusing it", async () => {
       const s = await setup({ dayLimit: true });
       const anna = await signUp(s, "anna@example.com");
+      // A skirt needs a top: the closet has one, so it can be styled.
+      await addItem(s, anna, "top");
       const skirt = await addItem(s, anna, "bottom");
       const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
       await s.runJobs();
@@ -2067,6 +2181,8 @@ describe("an item from a photo", () => {
     it("costs no model call when deleted before composing starts", async () => {
       const s = await setup({ dayLimit: true });
       const anna = await signUp(s, "anna@example.com");
+      // A skirt needs a top: the closet has one, so it can be styled.
+      await addItem(s, anna, "top");
       const skirt = await addItem(s, anna, "bottom");
       const { id } = (await ask(s, anna.cookie, skirt.id)).json<{ id: string }>();
 
@@ -2276,6 +2392,8 @@ describe("an item from a photo", () => {
   it("keeps the crop through the cleanup, and not the uploaded photo", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
+    // A look needs a bottom: the closet has one, so the piece can be styled.
+    await addItem(s, anna, "bottom", "jeans");
     await addItem(s, anna, "top");
     const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
     await s.runPhotoJobs();
@@ -2303,6 +2421,8 @@ describe("an item from a photo", () => {
   it("refuses someone else's photo, a missing item, and uploads once today's outfits are used", async () => {
     const s = await setup({ dayLimit: true });
     const anna = await signUp(s, "anna@example.com");
+    // A look needs a bottom: the closet has one, so the piece can be styled.
+    await addItem(s, anna, "bottom", "jeans");
     const maya = await signUp(s, "maya@example.com");
     const { photoKey } = (await uploadWear(s, anna.cookie)).json<{ photoKey: string }>();
     await s.runPhotoJobs();

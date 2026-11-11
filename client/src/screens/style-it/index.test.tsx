@@ -144,6 +144,17 @@ describe('<StyleIt />', () => {
     expect(getWearWith).not.toHaveBeenCalled();
   });
 
+  test('never draws a folded look with nothing on it', async () => {
+    jest
+      .mocked(listStyled)
+      .mockResolvedValueOnce([
+        { ...styled, previews: [{ id: 'empty', liked: false, pieces: [] }] },
+      ]);
+    await render(<StyleIt />);
+    expect(await screen.findByLabelText('Outfits with Leather jacket')).toBeOnTheScreen();
+    expect(screen.queryAllByTestId('mini-look', { includeHiddenElements: true })).toHaveLength(0);
+  });
+
   // Presses "Delete" in the confirmation, which says plainly what deleting does.
   async function confirmDelete() {
     const [title, message, buttons] = alert.mock.calls.at(-1)!;

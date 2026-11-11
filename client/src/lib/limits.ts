@@ -1,7 +1,7 @@
 import type { LimitCode, Usage } from '@closet-ai/shared';
-import { FREE_LIMITS, WANT_MORE_CODES } from '@closet-ai/shared';
+import { FREE_LIMITS, missingOf, WANT_MORE_CODES } from '@closet-ai/shared';
 import type { TFunction } from 'i18next';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -32,10 +32,19 @@ export function limitText(t: TFunction, lang: string, code: LimitCode, usage?: U
   return t(`limits.${code}`);
 }
 
+// What the closet lacks for a whole look around the piece, when that's why asking was refused.
+export function missingForAsk(cause: unknown) {
+  if (!(cause instanceof ApiError) || cause.status !== 422) return null;
+  const missing = missingOf(cause.message);
+  return missing && missing.length > 0 ? missing : null;
+}
+
 // Why asking for outfits didn't start: a limit, the outfits switched off, or anything else.
 export function askFailedText(t: TFunction, lang: string, cause: unknown, usage?: Usage | null) {
   const code = limitReached(cause);
   if (code) return limitText(t, lang, code, usage);
+  const missing = missingForAsk(cause);
+  if (missing) return t(`wearWith.incomplete.${missing.length > 1 ? 'both' : missing[0]!}`);
   if (cause instanceof ApiError && cause.status === 503) return t('wearWith.off');
   if (isOffline(cause)) return t('common.offline');
   return t('wearWith.failed');
@@ -44,6 +53,18 @@ export function askFailedText(t: TFunction, lang: string, cause: unknown, usage?
 // The same as an alert, offering "I want more" when it was a limit a plan could lift.
 export function alertAskFailed(t: TFunction, lang: string, cause: unknown, usage?: Usage | null) {
   const text = askFailedText(t, lang, cause, usage);
+  // Nothing to make a whole look with: the way to add what's missing, on its rail.
+  const missing = missingForAsk(cause);
+  if (missing) {
+    Alert.alert(text, undefined, [
+      { text: t('common.close'), style: 'cancel' },
+      {
+        text: t('wearWith.incomplete.add'),
+        onPress: () => router.push({ pathname: '/add-item', params: { category: missing[0] } }),
+      },
+    ]);
+    return;
+  }
   const code = limitReached(cause);
   if (!code || !(WANT_MORE_CODES as readonly string[]).includes(code)) {
     Alert.alert(text);

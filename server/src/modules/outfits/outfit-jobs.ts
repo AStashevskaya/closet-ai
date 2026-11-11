@@ -1,4 +1,10 @@
-import type { AppLanguage, DislikeReason } from "@closet-ai/shared";
+import {
+  isWholeLook,
+  missingForLook,
+  type AppLanguage,
+  type DislikeReason,
+  type ItemCategory,
+} from "@closet-ai/shared";
 import type { BackgroundRemover } from "../../ai/background-remover";
 import type { ItemEmbedder } from "../../ai/item-embedder";
 import { PaidComposeFailure, type Stylist } from "../../ai/stylist";
@@ -107,7 +113,18 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
   // An item from a photo is one she may buy: the verdict compares it with what she owns.
   const buying = request.heroPhotoKey ? { closest: closestOwned(hero, wardrobe, nOf) } : null;
   const recent = await outfits.recentlyUsed(request.userId, RECENT_REQUESTS);
-  const candidates = pickCandidates(hero, wardrobe, season, recent.pieces);
+  const inSeason = pickCandidates(hero, wardrobe, season, recent.pieces);
+  // The request checked the closet can make a whole look, but not in this season: a needed kind
+  // the season left off the sheet comes back out of season, so the model has one to use.
+  // Categories here come from the database enum, typed as plain strings on the styling item.
+  const categoryOf = (item: { category: string }) => item.category as ItemCategory;
+  const lacking = missingForLook(categoryOf(hero), inSeason.map(categoryOf));
+  const candidates = [
+    ...inSeason,
+    ...lacking.flatMap((kind) =>
+      wardrobe.filter((item) => item.id !== hero.id && item.category === kind).slice(0, 2),
+    ),
+  ];
   const sheet = await contactSheet(
     storage,
     candidates.map((item) => ({ n: nOf.get(item.id)!, imageKey: item.imageKey })),
@@ -246,15 +263,22 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
     }
     return { look, items, finishing, promoted, lost };
   });
-  // A look without a bottom (or a dress) isn't one; shown only if every look came out so.
+  // A look without a bottom (or a dress) isn't one, and is never shown (owner, 2026-11-11: three
+  // looks without trousers were). The request checks the closet can make one before it's sent,
+  // so none coming back complete is the model's miss: the request fails, and she can ask again.
   const complete = resolved.filter(({ items, promoted }) =>
-    isComplete([hero.category, ...items.map((item) => item.category), promoted?.category]),
+    isWholeLook(hero.category as ItemCategory, [
+      ...items.map((item) => item.category as ItemCategory),
+      ...(promoted ? [promoted.category] : []),
+    ]),
   );
+  if (complete.length === 0) throw new PermanentOutfitError("no complete look");
   // A look whose "why" may name a piece it doesn't show (the owner's pink boots in the text,
   // her white sneakers in the look, 2026-10-25) isn't shown, unless every look lost one. Those
   // go first, so a hidden look takes none of the brand's places below.
-  const pool = complete.length > 0 ? complete : resolved;
-  const kept = pool.some((look) => !look.lost) ? pool.filter((look) => !look.lost) : pool;
+  const kept = complete.some((look) => !look.lost)
+    ? complete.filter((look) => !look.lost)
+    : complete;
   // A brand's piece past the cap is taken out, and the look is marked lost: its why may name it.
   let promotedLooks = 0;
   const capped = kept.map((look) => {
@@ -323,8 +347,8 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
       requestId,
       asked: looks.length,
       shown: saved.length,
-      incomplete: looks.length - pool.length,
-      lost: pool.length - saved.length,
+      incomplete: looks.length - complete.length,
+      lost: complete.length - saved.length,
     });
   }
 
@@ -377,13 +401,6 @@ function closestOwned(hero: StylingItem, wardrobe: StylingItem[], nOf: Map<strin
     }))
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, CLOSEST_OWNED);
-}
-
-// Something to wear: a dress, or a top and a bottom.
-export function isComplete(categories: (string | undefined)[]) {
-  return (
-    categories.includes("dress") || (categories.includes("top") && categories.includes("bottom"))
-  );
 }
 
 // The item from a photo, as styling sees it: cut out by its English name the first time (the
