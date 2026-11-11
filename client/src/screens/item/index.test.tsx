@@ -226,7 +226,13 @@ describe('<ItemScreen />', () => {
     expect(askWearWith).toHaveBeenCalledWith({ itemId: shirt.id }, 'en');
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/styled/[id]',
-      params: { id: 'req-1', item: shirt.id, name: shirt.name, photoUrl: shirt.photoUrl },
+      params: {
+        id: 'req-1',
+        item: shirt.id,
+        name: shirt.name,
+        photoUrl: shirt.photoUrl,
+        category: 'top',
+      },
     });
   });
 

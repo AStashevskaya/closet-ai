@@ -1,11 +1,24 @@
-import { type Item, outfitMood, type OutfitMood } from '@closet-ai/shared';
+import {
+  itemCategory,
+  type Item,
+  type ItemCategory,
+  outfitMood,
+  type OutfitMood,
+} from '@closet-ai/shared';
 
-export type StyledPiece = { id: string; name: string; photoUrl?: string; cutoutUrl?: string };
+export type StyledPiece = {
+  id: string;
+  name: string;
+  photoUrl?: string;
+  cutoutUrl?: string;
+  // Its kind, for the hanger it waits on; missing on a link made before it was passed.
+  category?: ItemCategory;
+};
 
 // The params of `styled/[id]` for a closet piece's request: strings only, nothing left undefined.
 export function styledParams(
   requestId: string,
-  item: Pick<Item, 'id' | 'name' | 'photoUrl' | 'cutoutUrl'>,
+  item: Pick<Item, 'id' | 'name' | 'photoUrl' | 'cutoutUrl'> & { category?: ItemCategory },
   mood: OutfitMood | null,
 ) {
   return {
@@ -14,6 +27,7 @@ export function styledParams(
     name: item.name,
     ...(item.photoUrl && { photoUrl: item.photoUrl }),
     ...(item.cutoutUrl && { cutoutUrl: item.cutoutUrl }),
+    ...(item.category && { category: item.category }),
     ...(mood && { mood }),
   };
 }
@@ -34,6 +48,8 @@ export function readStyledParams(params: RawParams) {
   const cutoutUrl = one('cutoutUrl');
   if (photoUrl) piece.photoUrl = photoUrl;
   if (cutoutUrl) piece.cutoutUrl = cutoutUrl;
+  const category = itemCategory.safeParse(one('category'));
+  if (category.success) piece.category = category.data;
   const mood = outfitMood.safeParse(one('mood'));
   return { requestId: id, piece, mood: mood.success ? mood.data : null };
 }

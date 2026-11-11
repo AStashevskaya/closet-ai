@@ -142,6 +142,7 @@ export function StyleIt() {
         name: item.name,
         photoUrl: item.photoUrl ?? undefined,
         cutoutUrl: item.cutoutUrl ?? undefined,
+        category: item.category,
         item,
       });
     } catch (cause) {

@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ItemCategory } from '@closet-ai/shared';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
-import { ClosetBelt } from '@/components/closet-belt';
 import { HandDrawn, seedFrom } from '@/components/hand-drawn';
 import { Button, maison } from '@/components/maison';
 import { BEAD, ThreadLine } from '@/components/thread-stops';
 import { useAnnounce } from '@/lib/announce';
 import { arrive, durations, STAGGER_STEP } from '@/motion';
-import { ComposingSteps } from '@/screens/wear-with/composing-steps';
+import { ComposingStage } from '@/screens/wear-with/composing-stage';
 import { OutfitCard } from '@/screens/wear-with/outfit-card';
 import { useWearWith } from '@/screens/wear-with/use-wear-with';
 import { colors, fonts } from '@/theme';
@@ -24,6 +24,7 @@ export type Chosen = {
   name: string;
   photoUrl?: string;
   cutoutUrl?: string;
+  category?: ItemCategory;
 };
 
 type Props = {
@@ -70,6 +71,14 @@ export function StyleThread({
       : t('common.loading');
   useAnnounce(waitingFor);
 
+  // While the looks are put together: the piece alone on a hanger in the middle of a rail, her
+  // closet going past below (prototype `design-wear-with-upload`, "Собираю"), as for a piece from
+  // a photo (owner, 2026-11-12: a closet piece sat as a picture at the side). Hers, so bare on a
+  // solid hanger. The looks then come on the piece's thread.
+  if (composing && waitingFor) {
+    return <ComposingStage piece={chosen} headers={headers} dashed={false} label={waitingFor} />;
+  }
+
   return (
     <View style={styles.thread}>
       {/* One layout while it waits and after (docs/design.md, "Waiting"): the piece and its thread
@@ -91,19 +100,13 @@ export function StyleThread({
             <Text style={styles.chosenTitle} accessibilityRole="header">
               {t('styleIt.open', { name: chosen.name })}
             </Text>
-            {/* Her closet going past while the looks are put together from it, as on the outfits
-                screen (owner, 2026-11-11: a closet piece showed the old wait). Not on the first
-                load: a request done long ago may come back at once. */}
-            {composing && <ClosetBelt style={styles.belt} />}
             {waiting && (
               <Animated.View
                 exiting={FadeOut.duration(durations.state)}
                 accessible
                 accessibilityRole="progressbar"
                 accessibilityLabel={waitingFor ?? undefined}
-              >
-                {looks.composing && <ComposingSteps style={maison.body} />}
-              </Animated.View>
+              />
             )}
             {/* While it waits for the looks, there's nothing to delete yet. */}
             {!waiting && <DeleteStyling control={deleting} name={chosen.name} />}
@@ -114,8 +117,7 @@ export function StyleThread({
         <ThreadLine
           top={-(KNOT_Y - BEAD / 2)}
           length={Math.max(0, rowHeight - KNOT_Y)}
-          // The belt is the wait while it rolls: the thread's tag stands down (owner, 2026-11-10).
-          waiting={waiting && !composing}
+          waiting={waiting}
           measured={false}
           x={THREAD_X}
         />
@@ -202,10 +204,6 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     color: colors.text,
     textAlign: 'left',
-  },
-  // Edge to edge at the far side, like the outfits screen's.
-  belt: {
-    marginEnd: -20,
   },
   waiting: {
     paddingTop: 12,
