@@ -36,6 +36,10 @@ const LOOKS: { key: 'easy' | 'out' | 'bold'; pieces: PieceId[] }[] = [
   { key: 'bold', pieces: ['P016', 'P056', 'P031', 'P075', 'P061'] },
 ];
 const LOOK_WIDTH = 236;
+// The screen's gutter (`maison.gutter`) and the print's width: the stamp sits on the print's
+// far corner, and the thread leaves from under its middle.
+const GUTTER = 20;
+const PRINT_WIDTH = 104;
 
 // What Style it does, before she has asked for anything (decided 2026-11-11, prototype
 // `~/Desktop/closet/wrinkle-lab/design-empty`): a piece as a tilted print with "example" by hand,
@@ -108,7 +112,7 @@ const styles = StyleSheet.create({
   },
   // A piece that isn't hers: a white-bordered print, the hero one tilted (docs/design.md).
   print: {
-    width: 104,
+    width: PRINT_WIDTH,
     height: 128,
     padding: 6,
     backgroundColor: colors.paper,
@@ -125,7 +129,7 @@ const styles = StyleSheet.create({
   stamp: {
     position: 'absolute',
     top: -14,
-    start: 92,
+    start: GUTTER + PRINT_WIDTH - 32,
     fontFamily: fonts.hand,
     fontSize: 20,
     color: colors.bead,
@@ -139,13 +143,13 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   thread: {
-    marginStart: 72,
+    marginStart: GUTTER + PRINT_WIDTH / 2,
     height: 26,
     borderStartWidth: 1.2,
     borderColor: colors.text,
   },
   looks: {
-    paddingHorizontal: 20,
+    paddingHorizontal: GUTTER,
     gap: 20,
   },
   look: {
