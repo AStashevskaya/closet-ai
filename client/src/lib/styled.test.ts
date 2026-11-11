@@ -38,4 +38,16 @@ describe('styled params', () => {
     expect(readStyledParams({ id: 'req-1' })).toBeNull();
     expect(readStyledParams({ id: 'req-1', item: 'item-1', name: '' })).toBeNull();
   });
+
+  test('carry the kind for the hanger, and drop one that is not a kind', () => {
+    const params = styledParams(
+      'req-1',
+      { id: 'item-1', name: 'Skirt', photoUrl: '/p', category: 'bottom' },
+      null,
+    );
+    expect(readStyledParams(params)?.piece.category).toBe('bottom');
+    expect(
+      readStyledParams({ id: 'req-1', item: 'item-1', name: 'Skirt', category: 'hats' })?.piece,
+    ).toEqual({ id: 'item-1', name: 'Skirt' });
+  });
 });

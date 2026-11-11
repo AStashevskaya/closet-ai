@@ -113,7 +113,6 @@ const styles = StyleSheet.create({
   // Hers: no border, so it sits where the print's photo would.
   bare: {
     marginTop: UNDER_HANGER + BORDER,
-    marginBottom: BORDER,
   },
   belt: {
     marginTop: 56,
