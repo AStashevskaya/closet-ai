@@ -17,6 +17,10 @@ export function missingForLook(
   return (["top", "bottom"] as const).filter((kind) => !has(kind));
 }
 
+// Whether a look around a piece of this kind is whole: the same rule, over the look's own pieces.
+export const isWholeLook = (hero: ItemCategory, pieces: readonly ItemCategory[]) =>
+  missingForLook(hero, pieces).length === 0;
+
 // How the server says so (422), and how the app reads it back.
 export const INCOMPLETE_PREFIX = "incomplete:";
 export const incompleteMessage = (missing: readonly ("top" | "bottom")[]) =>

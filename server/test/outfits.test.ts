@@ -215,6 +215,50 @@ describe("POST /api/wear-with", () => {
     expect((await ask(s, anna.cookie, shirt.id)).statusCode).toBe(202);
   });
 
+  it("hides looks saved without a bottom before the rule, and asks afresh rather than reuse them", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const shirt = await addItem(s, anna, "top");
+    const shoes = await addItem(s, anna, "shoes", "white sneakers");
+    // A styling from before the rule: its only look is the shirt and shoes. Made for a closet of
+    // three, the size it has once the jeans are in, so only the rule stops it being reused.
+    const size = 3;
+    const old = await s.repositories.outfitsRepository.createRequest(
+      anna.userId,
+      { itemId: shirt.id },
+      size,
+      null,
+    );
+    await s.repositories.outfitsRepository.saveOutfits(
+      old,
+      anna.userId,
+      [
+        {
+          caption: "Old",
+          occasion: "coffee",
+          why: "because",
+          missing: null,
+          pieces: [
+            { hero: true, itemId: shirt.id },
+            { hero: false, itemId: shoes.id },
+          ],
+        },
+      ],
+      { micros: 0 },
+    );
+    const view = await s.server.inject({
+      method: "GET",
+      url: `/api/wear-with/${old}?lang=en`,
+      headers: { cookie: anna.cookie },
+    });
+    expect(view.json<WearWithRequest>().outfits).toEqual([]);
+
+    await addItem(s, anna, "bottom", "jeans");
+    const again = await ask(s, anna.cookie, shirt.id);
+    expect(again.statusCode).toBe(202);
+    expect(again.json<{ id: string }>().id).not.toBe(old);
+  });
+
   it("never shows looks without a bottom: none complete, the styling fails", async () => {
     const s = await setup();
     const anna = await signUp(s, "anna@example.com");
