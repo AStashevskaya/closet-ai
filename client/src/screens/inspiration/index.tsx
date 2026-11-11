@@ -31,6 +31,7 @@ import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { Garland, type GarlandLook, type Point } from './garland';
+import { InspirationExample } from './inspiration-example';
 
 // The learned garland shows this many at first: every look is a picture and a drawn heart, and
 // the screen isn't a list that recycles them. The rest are a tap away.
@@ -294,6 +295,11 @@ export function Inspiration() {
           </View>
         </Pressable>
       </View>
+
+      {/* Before her first look: what saving one does (docs/design.md, "Empty screens"). */}
+      {!waiting && !failedText && fresh.length === 0 && allLearned.length === 0 && (
+        <InspirationExample />
+      )}
 
       <View style={styles.story} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
         {thread && everPlaced && <Thread {...thread} reduceMotion={reduceMotion} />}

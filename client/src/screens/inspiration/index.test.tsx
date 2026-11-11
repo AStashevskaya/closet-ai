@@ -70,6 +70,23 @@ describe('<Inspiration />', () => {
     expect(mockPush).toHaveBeenCalledWith('/want-can');
   });
 
+  test('before her first look, shows a look being read for her taste', async () => {
+    jest.mocked(listInspiration).mockResolvedValue([]);
+    await render(<Inspiration />);
+
+    const example = await screen.findByTestId('inspiration-example');
+    expect(example).toHaveAccessibleName(
+      'Example: a saved look, and what your stylist reads in it, the hat does the talking, a big blazer over a mini, chunky boots with something light',
+    );
+    expect(screen.getByRole('button', { name: 'Add looks' })).toBeOnTheScreen();
+  });
+
+  test('the example goes once she has saved a look', async () => {
+    await render(<Inspiration />);
+    expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
+    expect(screen.queryByTestId('inspiration-example')).not.toBeOnTheScreen();
+  });
+
   test('without a brief, every look is new and nothing can be taught yet', async () => {
     await render(<Inspiration />);
     expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
@@ -216,6 +233,7 @@ describe('<Inspiration />', () => {
 
       expect(await screen.findByText("Couldn't load your looks.")).toBeOnTheScreen();
       expect(screen.queryByRole('button', { name: 'Add looks' })).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('inspiration-example')).not.toBeOnTheScreen();
 
       await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
       expect(await screen.findByRole('header', { name: 'New · 2' })).toBeOnTheScreen();
