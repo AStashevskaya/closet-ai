@@ -786,6 +786,18 @@ describe('<AddItem />', () => {
       },
     });
     expect(uploadPhoto).not.toHaveBeenCalled();
+    // The gallery slides away onto the batch screen, not onto this form.
+    expect(screen.getByText('Choose from gallery')).not.toBeVisible();
+  });
+  test('shows the form again when the gallery closes without several photos', async () => {
+    jest
+      .mocked(ImagePicker.launchImageLibraryAsync)
+      .mockResolvedValue({ canceled: true, assets: null } as never);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByText('Choose from gallery')).toBeVisible();
   });
   test('turns the photo and uploads the turned copy', async () => {
     jest.mocked(rotatePhoto).mockResolvedValue('file:///turned.jpg');

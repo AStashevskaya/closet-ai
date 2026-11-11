@@ -107,6 +107,9 @@ export function AddItem() {
   const [cropping, setCropping] = useState<string | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
+  // While the gallery that takes several photos is open, the form underneath stays empty: if she
+  // picks several, the gallery slides away straight onto the batch screen, not onto this one.
+  const [handingOff, setHandingOff] = useState(false);
   // A limit the save ran into (the day's photos, or the server's daily stop).
   const [limit, setLimit] = useState<LimitCode | null>(null);
   // Brand and price stay folded behind "+ add" until she opens them or the photo shows a brand.
@@ -163,12 +166,17 @@ export function AddItem() {
       source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
     // Before a photo is in the form, the gallery takes several: one item each, on their own screen.
     const several = source === 'library' && !photoUri;
+    if (several) setHandingOff(true);
     const result = await launch({
       mediaTypes: ['images'],
       allowsMultipleSelection: several,
       selectionLimit: several ? MAX_PHOTOS : 1,
       orderedSelection: several,
+    }).catch((cause: unknown) => {
+      setHandingOff(false);
+      throw cause;
     });
+    if (result.canceled || result.assets.length <= 1) setHandingOff(false);
     if (!result.canceled && result.assets.length > 1) {
       const photos: PickedPhoto[] = result.assets.map(({ uri, width, height }) => ({
         uri,
@@ -461,7 +469,7 @@ export function AddItem() {
       onLayout={() => root.current?.measureInWindow((_x, y) => setKeyboardOffset(y))}
     >
       <KeyboardAvoidingView
-        style={styles.screen}
+        style={[styles.screen, handingOff && styles.handingOff]}
         // The view shrinks above the keyboard on both platforms, so the bar under the scroll (the
         // Hang button and its errors) stays in sight. It measures itself from its parent, not the
         // window, so on iOS it's told where the sheet starts (the sheet's top and the header).
@@ -694,6 +702,7 @@ export function AddItem() {
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
+  handingOff: { opacity: 0 },
   screen: {
     flex: 1,
     backgroundColor: colors.background,
