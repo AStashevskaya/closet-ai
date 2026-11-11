@@ -33,6 +33,8 @@ const PARALLEL_UPLOADS = 3;
 // How many photos the band fans out, and where the thread runs from the start edge.
 const FAN = 3;
 const THREAD_AT = 14;
+// The list's start padding: the pieces sit this far in, the thread and its stops in that margin.
+const THREAD_PAD = 34;
 // The fanned prints: the middle one on top, the others turned out a little behind it.
 const fanPlace = (i: number, n: number) => {
   const offset = n === 1 ? 0 : (i - (n - 1) / 2) * 62;
@@ -371,17 +373,18 @@ export function AddItems() {
           const canRotate = (ready && !entry.rotating) || entry.status === 'unknown';
           return (
             <View key={index} style={styles.card}>
-              {/* Its stop: a bead when it goes to the closet, empty when not, dashed when unread. */}
-              <View
-                style={[
-                  styles.stop,
-                  selected && styles.stopOn,
-                  entry.status === 'unknown' && styles.stopUnknown,
-                ]}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              />
               <View style={styles.row}>
+                {/* Its stop, beside the row (not the open fields): a bead when it goes to the
+                    closet, empty when not, dashed when unread. */}
+                <View
+                  style={[
+                    styles.stop,
+                    selected && styles.stopOn,
+                    entry.status === 'unknown' && styles.stopUnknown,
+                  ]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                />
                 <View>
                   <View
                     style={[
@@ -581,7 +584,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   thread: {
-    paddingStart: 34,
+    paddingStart: THREAD_PAD,
     paddingEnd: 22,
     paddingTop: 10,
   },
@@ -591,7 +594,7 @@ const styles = StyleSheet.create({
   // A stop on the thread, beside the piece.
   stop: {
     position: 'absolute',
-    start: THREAD_AT - 34 - 5,
+    start: THREAD_AT - THREAD_PAD - 5,
     top: '50%',
     width: 10,
     height: 10,
@@ -609,6 +612,7 @@ const styles = StyleSheet.create({
     borderColor: colors.textMuted,
   },
   row: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
