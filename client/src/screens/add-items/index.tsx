@@ -10,10 +10,10 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Icon } from '@/components/icon';
 import { BrandPriceFields } from '@/components/brand-price-fields';
 import { ItemFields, MAX_COLORS } from '@/components/item-fields';
-import { HangerLoader } from '@/components/hanger-loader';
 import { PressableScale } from '@/components/pressable-scale';
 import { PhotoCropper } from '@/components/photo-cropper';
 import { CropButton, RotateButton } from '@/components/rotate-button';
+import { ThreadLine } from '@/components/thread-stops';
 import { WantMore } from '@/components/want-more';
 import { createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
@@ -30,6 +30,20 @@ const POLL_MS = 1500;
 const MAX_POLLS = 20;
 // Photos shrunk and uploaded at once; the rest wait their turn.
 const PARALLEL_UPLOADS = 3;
+// How many photos the band fans out, and where the thread runs from the start edge.
+const FAN = 3;
+const THREAD_AT = 14;
+// The list's start padding: the pieces sit this far in, the thread and its stops in that margin.
+const THREAD_PAD = 34;
+// The fanned prints: the middle one on top, the others turned out a little behind it.
+const fanPlace = (i: number, n: number) => {
+  const offset = n === 1 ? 0 : (i - (n - 1) / 2) * 62;
+  const turn = n === 1 ? -3 : (i - (n - 1) / 2) * 6;
+  return {
+    transform: [{ translateX: offset }, { rotate: `${turn}deg` }],
+    zIndex: i === Math.floor(n / 2) ? 2 : 1,
+  };
+};
 
 export type PickedPhoto = { uri: string; width: number; height: number };
 
@@ -96,6 +110,8 @@ export function AddItems() {
   const [open, setOpen] = useState<number | null>(null);
   // The row whose photo is in the cropper.
   const [cropping, setCropping] = useState<number | null>(null);
+  // How tall the list is, for the thread down its stops.
+  const [threadHeight, setThreadHeight] = useState(0);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
   // A limit an upload or a save ran into: shown instead of the generic error.
@@ -308,127 +324,171 @@ export function AddItems() {
       automaticallyAdjustKeyboardInsets
       keyboardDismissMode="interactive"
     >
-      <Animated.View
-        key={pending > 0 ? 'pending' : 'ready'}
-        style={styles.status}
-        entering={FadeIn.duration(durations.state)}
-        exiting={FadeOut.duration(durations.press)}
-        accessibilityLiveRegion="polite"
-      >
-        {pending > 0 && <HangerLoader size="small" />}
-        <Text style={styles.statusText}>
+      {/* The new pieces arriving, on the blue of something new (decided 2026-10-31, prototype
+          `~/Desktop/closet/wrinkle-lab/design-adding`, "batch", "Выбрано"): three of the photos
+          fanned as prints, and how many are read. */}
+      <View style={styles.band}>
+        <View
+          style={styles.fan}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {entries.slice(0, FAN).map((entry, i, shown) => (
+            <View
+              key={i}
+              style={[
+                styles.fanPrint,
+                fanPlace(i, shown.length),
+                isPending(entry) && styles.printReading,
+              ]}
+            >
+              <Image source={{ uri: entry.uri }} style={styles.fill} contentFit="cover" />
+            </View>
+          ))}
+        </View>
+        <Animated.Text
+          key={pending > 0 ? 'pending' : 'ready'}
+          style={styles.statusText}
+          entering={FadeIn.duration(durations.state)}
+          exiting={FadeOut.duration(durations.press)}
+          accessibilityLiveRegion="polite"
+        >
           {pending > 0
             ? t('addItems.progress', { done, count: entries.length })
             : t('addItems.ready')}
-        </Text>
-      </Animated.View>
+        </Animated.Text>
+      </View>
 
-      {entries.map((entry, index) => {
-        const ready = entry.status === 'ready';
-        const selected = ready && picked.has(index);
-        const expanded = ready && open === index;
-        const name = ready ? entry.draft.name : t(`addItems.${entry.status}`);
-        const canRotate = (ready && !entry.rotating) || entry.status === 'unknown';
-        return (
-          <View
-            key={index}
-            style={[styles.card, selected && styles.cardSelected, !ready && styles.cardIdle]}
-          >
-            <View style={styles.row}>
-              <View>
-                <Image source={{ uri: entry.uri }} style={styles.thumb} contentFit="cover" />
-                {(canRotate || (ready && entry.rotating)) && (
-                  <View style={styles.photoActions}>
-                    <CropButton
-                      size="small"
-                      onPress={() => setCropping(index)}
-                      disabled={!canRotate || busy}
-                    />
-                    <RotateButton
-                      size="small"
-                      onPress={() => rotate(index)}
-                      disabled={!canRotate || busy}
-                    />
-                  </View>
-                )}
-              </View>
-
-              <PressableScale
-                style={styles.rowText}
-                onPress={ready ? () => setOpen(expanded ? null : index) : undefined}
-                disabled={!ready || busy}
-                accessibilityRole={ready ? 'button' : undefined}
-                accessibilityState={ready ? { expanded } : undefined}
-                accessibilityLabel={ready ? t('addItems.edit', { name }) : name}
-              >
-                <Text
-                  style={ready && name.trim() ? styles.rowName : styles.rowNote}
-                  numberOfLines={2}
-                >
-                  {ready && !name.trim() ? t('addItem.namePlaceholder') : name}
-                </Text>
-                {ready && (
-                  <Text style={styles.rowCategory}>{t(`categories.${entry.draft.category}`)}</Text>
-                )}
-              </PressableScale>
-
-              {isPending(entry) ? (
-                <ActivityIndicator size="small" color={colors.iconMuted} />
-              ) : ready ? (
-                <PressableScale
-                  onPress={() => toggle(index)}
-                  disabled={busy}
-                  hitSlop={12}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: selected }}
-                  accessibilityLabel={name}
-                >
-                  <Animated.View
+      {/* Each piece a stop on one thread; the sign of waiting runs down it while any is read. */}
+      <View
+        style={styles.thread}
+        onLayout={(event) => setThreadHeight(event.nativeEvent.layout.height)}
+      >
+        <ThreadLine top={0} length={threadHeight} waiting={pending > 0} x={THREAD_AT} />
+        {entries.map((entry, index) => {
+          const ready = entry.status === 'ready';
+          const selected = ready && picked.has(index);
+          const expanded = ready && open === index;
+          const name = ready ? entry.draft.name : t(`addItems.${entry.status}`);
+          const canRotate = (ready && !entry.rotating) || entry.status === 'unknown';
+          return (
+            <View key={index} style={styles.card}>
+              <View style={styles.row}>
+                {/* Its stop, beside the row (not the open fields): a bead when it goes to the
+                    closet, empty when not, dashed when unread. */}
+                <View
+                  style={[
+                    styles.stop,
+                    selected && styles.stopOn,
+                    entry.status === 'unknown' && styles.stopUnknown,
+                  ]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                />
+                <View>
+                  <View
                     style={[
-                      styles.check,
-                      selected && styles.checkSelected,
-                      { transitionProperty: ['backgroundColor', 'borderColor'] },
-                      {
-                        transitionDuration: durations.state,
-                        transitionTimingFunction: CSS_EASE_OUT,
-                      },
+                      styles.print,
+                      { transform: [{ rotate: index % 2 ? '1deg' : '-1deg' }] },
+                      entry.status === 'unknown' && styles.printUnknown,
+                      isPending(entry) && styles.printReading,
                     ]}
                   >
-                    {selected && (
-                      <Icon name="check" color={colors.onAccent} size={14} strokeWidth={2} />
-                    )}
-                  </Animated.View>
-                </PressableScale>
-              ) : null}
-            </View>
+                    <Image source={{ uri: entry.uri }} style={styles.fill} contentFit="cover" />
+                  </View>
+                  {(canRotate || (ready && entry.rotating)) && (
+                    <View style={styles.photoActions}>
+                      <CropButton
+                        size="small"
+                        onPress={() => setCropping(index)}
+                        disabled={!canRotate || busy}
+                      />
+                      <RotateButton
+                        size="small"
+                        onPress={() => rotate(index)}
+                        disabled={!canRotate || busy}
+                      />
+                    </View>
+                  )}
+                </View>
 
-            {expanded && (
-              <Animated.View
-                style={styles.editor}
-                entering={FadeIn.duration(durations.state)}
-                exiting={FadeOut.duration(durations.press)}
-              >
-                <ItemFields
-                  name={entry.draft.name}
-                  onNameChange={(value) => edit(index, { name: value })}
-                  category={entry.draft.category}
-                  onCategoryChange={(value) => edit(index, { category: value })}
-                  itemColors={entry.draft.colors}
-                  onColorsChange={(value) => edit(index, { colors: value })}
-                />
-                <BrandPriceFields
-                  brand={entry.draft.brand}
-                  onBrandChange={(value) => edit(index, { brand: value })}
-                  price={entry.draft.price}
-                  onPriceChange={(value) => edit(index, { price: value })}
-                  currency={entry.draft.currency}
-                  onCurrencyChange={(value) => edit(index, { currency: value })}
-                />
-              </Animated.View>
-            )}
-          </View>
-        );
-      })}
+                <PressableScale
+                  style={styles.rowText}
+                  onPress={ready ? () => setOpen(expanded ? null : index) : undefined}
+                  disabled={!ready || busy}
+                  accessibilityRole={ready ? 'button' : undefined}
+                  accessibilityState={ready ? { expanded } : undefined}
+                  accessibilityLabel={ready ? t('addItems.edit', { name }) : name}
+                >
+                  <Text
+                    style={ready && name.trim() ? styles.rowName : styles.rowNote}
+                    numberOfLines={2}
+                  >
+                    {ready && !name.trim() ? t('addItem.namePlaceholder') : name}
+                  </Text>
+                  {ready && (
+                    <Text style={styles.rowCategory}>
+                      {t(`categories.${entry.draft.category}`)}
+                    </Text>
+                  )}
+                </PressableScale>
+
+                {ready ? (
+                  <PressableScale
+                    onPress={() => toggle(index)}
+                    disabled={busy}
+                    hitSlop={12}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={name}
+                  >
+                    <Animated.View
+                      style={[
+                        styles.check,
+                        selected && styles.checkSelected,
+                        { transitionProperty: ['backgroundColor', 'borderColor'] },
+                        {
+                          transitionDuration: durations.state,
+                          transitionTimingFunction: CSS_EASE_OUT,
+                        },
+                      ]}
+                    >
+                      {selected && (
+                        <Icon name="check" color={colors.onBead} size={14} strokeWidth={2} />
+                      )}
+                    </Animated.View>
+                  </PressableScale>
+                ) : null}
+              </View>
+
+              {expanded && (
+                <Animated.View
+                  style={styles.editor}
+                  entering={FadeIn.duration(durations.state)}
+                  exiting={FadeOut.duration(durations.press)}
+                >
+                  <ItemFields
+                    name={entry.draft.name}
+                    onNameChange={(value) => edit(index, { name: value })}
+                    category={entry.draft.category}
+                    onCategoryChange={(value) => edit(index, { category: value })}
+                    itemColors={entry.draft.colors}
+                    onColorsChange={(value) => edit(index, { colors: value })}
+                  />
+                  <BrandPriceFields
+                    brand={entry.draft.brand}
+                    onBrandChange={(value) => edit(index, { brand: value })}
+                    price={entry.draft.price}
+                    onPriceChange={(value) => edit(index, { price: value })}
+                    currency={entry.draft.currency}
+                    onCurrencyChange={(value) => edit(index, { currency: value })}
+                  />
+                </Animated.View>
+              )}
+            </View>
+          );
+        })}
+      </View>
 
       {limit && (
         <>
@@ -453,7 +513,7 @@ export function AddItems() {
 
       {/* Waits for every photo, so nothing still being recognised or turned is left behind. */}
       <PressableScale
-        style={[styles.button, (busy || pending > 0) && styles.buttonBusy]}
+        style={[styles.button, styles.gutter, (busy || pending > 0) && styles.buttonBusy]}
         onPress={save}
         disabled={busy || pending > 0}
         accessibilityRole="button"
@@ -461,7 +521,7 @@ export function AddItems() {
         {busy ? (
           <ActivityIndicator color={colors.onAccent} />
         ) : (
-          <Text style={styles.buttonText}>{t('addLook.add', { count: picked.size })}</Text>
+          <Text style={styles.buttonText}>{t('addItems.hang', { count: picked.size })}</Text>
         )}
       </PressableScale>
 
@@ -481,49 +541,106 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: 22,
     paddingBottom: 40,
-    gap: 10,
   },
-  status: {
-    flexDirection: 'row',
+  gutter: {
+    marginHorizontal: 22,
+  },
+  // The header is on the same blue (see app/_layout.tsx), so the band carries on from it.
+  band: {
+    backgroundColor: colors.ground,
+    paddingTop: 8,
+    paddingBottom: 22,
+    alignItems: 'center',
+    gap: 14,
+  },
+  fan: {
+    height: 128,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    minHeight: 24,
-    marginBottom: 4,
+  },
+  fanPrint: {
+    position: 'absolute',
+    width: 92,
+    height: 118,
+    padding: 5,
+    backgroundColor: colors.paper,
+    shadowColor: colors.text,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  fill: {
+    flex: 1,
+    backgroundColor: colors.hero,
   },
   statusText: {
-    flexShrink: 1,
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.textSecondary,
     textAlign: 'center',
+    paddingHorizontal: 22,
+  },
+  thread: {
+    paddingStart: THREAD_PAD,
+    paddingEnd: 22,
+    paddingTop: 10,
   },
   card: {
-    // Set, not left out: iOS keeps a dashed border once it's been dashed.
-    borderStyle: 'solid',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
+    paddingVertical: 10,
+  },
+  // A stop on the thread, beside the piece.
+  stop: {
+    position: 'absolute',
+    start: THREAD_AT - THREAD_PAD - 5,
+    top: '50%',
+    width: 10,
+    height: 10,
+    marginTop: -5,
+    borderRadius: 5,
+    borderWidth: 1.2,
+    borderColor: colors.text,
     backgroundColor: colors.background,
   },
-  cardSelected: {
-    // Picked rows sit on the studio grey.
-    backgroundColor: colors.hero,
+  stopOn: {
+    backgroundColor: colors.bead,
   },
-  cardIdle: {
+  stopUnknown: {
     borderStyle: 'dashed',
+    borderColor: colors.textMuted,
   },
   row: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
   },
-  thumb: {
+  // A piece not in the closet yet: a white-bordered print, a list's prints tilted ±1°.
+  print: {
     width: 64,
     height: 84,
-    backgroundColor: colors.hero,
+    padding: 4,
+    backgroundColor: colors.paper,
+    shadowColor: colors.text,
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  // Couldn't be read: a dashed empty print, the photo faint inside it.
+  printUnknown: {
+    borderWidth: 1.2,
+    borderStyle: 'dashed',
+    borderColor: colors.textMuted,
+    backgroundColor: colors.background,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  // Still being read: faded; the thread's sign says it waits.
+  printReading: {
+    opacity: 0.45,
   },
   photoActions: {
     position: 'absolute',
@@ -539,8 +656,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   rowName: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 15,
+    fontFamily: fonts.displayLight,
+    fontSize: 22,
+    lineHeight: 26,
     color: colors.text,
     textAlign: 'left',
   },
@@ -551,31 +669,34 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   rowCategory: {
-    fontFamily: fonts.body,
-    fontSize: 13,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
     color: colors.textMuted,
     textAlign: 'left',
   },
   check: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
+    borderColor: colors.bead,
+    backgroundColor: colors.bead,
   },
   editor: {
-    paddingTop: 4,
+    paddingTop: 10,
     paddingBottom: 6,
     gap: 10,
   },
   error: {
     marginTop: 8,
+    marginHorizontal: 22,
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
     color: colors.error,
@@ -583,11 +704,11 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 52,
-    marginTop: 12,
+    marginTop: 18,
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.bead,
   },
   buttonBusy: {
     opacity: 0.6,
@@ -595,6 +716,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 15,
-    color: colors.onAccent,
+    color: colors.onBead,
   },
 });

@@ -252,7 +252,9 @@
     "errors": {
       "save": "Couldn't add some of the items. Try again.",
       "incomplete": "Fill in a name and at least one color for each ticked item"
-    }
+    },
+    "hang_one": "Hang {{count}} piece",
+    "hang_other": "Hang {{count}} pieces"
   },
   "discard": {
     "title": "Leave without saving?",

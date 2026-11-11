@@ -59,7 +59,8 @@ export default function RootLayout() {
           options={{
             presentation: 'modal',
             title: t('addItems.title'),
-            headerStyle: { backgroundColor: colors.background },
+            // The new pieces arrive on blue, header and band alike (docs/design.md).
+            headerStyle: { backgroundColor: colors.ground },
             headerTintColor: colors.accent,
             headerTitleStyle: { fontFamily: fonts.displayLight, fontSize: 24, color: colors.text },
             headerShadowVisible: false,
