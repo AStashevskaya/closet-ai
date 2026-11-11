@@ -26,4 +26,24 @@ describe('detectLanguage', () => {
     deviceLanguages('fr');
     expect(detectLanguage()).toBe('en');
   });
+
+  test('reads a Belarusian phone in Russian', () => {
+    deviceLanguages('be');
+    expect(detectLanguage()).toBe('ru');
+  });
+
+  test('keeps the order of her languages: English first stays English', () => {
+    deviceLanguages('pl', 'en', 'be');
+    expect(detectLanguage()).toBe('en');
+  });
+
+  test('gives a Ukrainian phone English, not Russian', () => {
+    deviceLanguages('uk');
+    expect(detectLanguage()).toBe('en');
+  });
+
+  test('skips Ukrainian for the next language she reads', () => {
+    deviceLanguages('uk', 'ru');
+    expect(detectLanguage()).toBe('ru');
+  });
 });
