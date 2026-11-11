@@ -184,7 +184,8 @@ export function Menu() {
       ),
     });
   }
-  if (items && saved !== null && styled) {
+  // A new account's "0 · 0 · 0" says nothing yet: the stop comes with the first of them.
+  if (items && saved !== null && styled && items.length + saved + styled.length > 0) {
     stops.push({
       key: 'counts',
       note: t('menu.counts'),
@@ -280,7 +281,9 @@ export function Menu() {
         </ProfileThread>
       )}
 
-      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={maison.gutter}>
+      {/* The language heads the list, so its line and the list's are one: apart, the gap between
+          them read as an empty row (owner's phone, 2026-11-11). */}
+      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.list}>
         <Select
           label={t('menu.language')}
           value={language}
@@ -288,42 +291,41 @@ export function Menu() {
           onChange={pickLanguage}
           disabled={switching}
         />
-      </Animated.View>
-
-      <View accessibilityRole="menu" style={styles.list}>
-        <Pressable
-          style={styles.row}
-          onPress={() => router.push('/profile-details')}
-          accessibilityRole="menuitem"
-        >
-          <Text style={styles.rowLabel}>{t('details.row')}</Text>
-          <View style={styles.chevron}>
-            <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
-          </View>
-        </Pressable>
-        {SECTIONS.map(({ key, href }) => (
+        <View accessibilityRole="menu">
           <Pressable
-            key={key}
             style={styles.row}
-            onPress={() => router.navigate(href)}
+            onPress={() => router.push('/profile-details')}
             accessibilityRole="menuitem"
           >
-            <Text style={styles.rowLabel}>{t(`menu.sections.${key}`)}</Text>
-            {key === 'wishes' && due > 0 && (
-              <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
-            )}
+            <Text style={styles.rowLabel}>{t('details.row')}</Text>
             <View style={styles.chevron}>
               <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
             </View>
           </Pressable>
-        ))}
+          {SECTIONS.map(({ key, href }) => (
+            <Pressable
+              key={key}
+              style={styles.row}
+              onPress={() => router.navigate(href)}
+              accessibilityRole="menuitem"
+            >
+              <Text style={styles.rowLabel}>{t(`menu.sections.${key}`)}</Text>
+              {key === 'wishes' && due > 0 && (
+                <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
+              )}
+              <View style={styles.chevron}>
+                <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+              </View>
+            </Pressable>
+          ))}
 
-        {supportEmail() && (
-          <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
-            <Text style={styles.rowLabel}>{t('menu.report')}</Text>
-          </Pressable>
-        )}
-      </View>
+          {supportEmail() && (
+            <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
+              <Text style={styles.rowLabel}>{t('menu.report')}</Text>
+            </Pressable>
+          )}
+        </View>
+      </Animated.View>
     </ScrollView>
   );
 }
