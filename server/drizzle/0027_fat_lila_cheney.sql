@@ -1,0 +1,1 @@
+ALTER TABLE "outfit_pieces" ADD COLUMN "struck_at" timestamp with time zone;

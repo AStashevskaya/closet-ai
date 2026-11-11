@@ -305,8 +305,11 @@ export const missingPiece = z.object({ category: itemCategory, description: z.st
 export type MissingPiece = z.infer<typeof missingPiece>;
 
 export const outfitPiece = z.object({
+  id: z.string().uuid(),
   // The item the outfit is built around.
   hero: z.boolean(),
+  // She cut its string: this piece didn't work in this look.
+  struck: z.boolean(),
   // A wardrobe item; null when it was deleted since, or for a partner item.
   item: item.nullable(),
   // A partner brand's item the stylist added where the wardrobe had nothing as good; always
@@ -434,6 +437,9 @@ export const styledEntry = z.object({
 export type StyledEntry = z.infer<typeof styledEntry>;
 export type StyledPreview = StyledEntry["previews"][number];
 export const styledList = z.array(styledEntry);
+
+// Cutting a piece's string in a look, or tying it back.
+export const pieceStrikeInput = z.object({ struck: z.boolean() });
 
 export const outfitReactionInput = z
   .object({ reaction: outfitReaction, reason: dislikeReason.optional() })

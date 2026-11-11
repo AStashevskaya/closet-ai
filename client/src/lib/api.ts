@@ -272,6 +272,15 @@ export async function reactToOutfit(
   });
 }
 
+// Cuts a piece's string in her look (it didn't work there), or ties it back.
+export async function strikePiece(outfitId: string, pieceId: string, struck: boolean) {
+  await send(`/api/outfits/${outfitId}/pieces/${pieceId}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ struck }),
+  });
+}
+
 // The looks saved on Inspiration, newest first.
 export function listInspiration(): Promise<Inspiration[]> {
   return request('/api/inspiration', inspirationList);

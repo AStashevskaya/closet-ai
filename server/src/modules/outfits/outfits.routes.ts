@@ -5,6 +5,7 @@ import {
   isWholeLook,
   missingForLook,
   outfitReactionInput,
+  pieceStrikeInput,
   styledList,
   wearWithInput,
   wearWithRequest,
@@ -371,6 +372,29 @@ export const outfitsRoutes =
           .header("content-type", file.contentType)
           .header("cache-control", "private, max-age=3600")
           .send(Buffer.from(file.body));
+      },
+    );
+
+    // Cuts a piece's string in her look, or ties it back: this piece didn't work here.
+    app.put(
+      "/outfits/:id/pieces/:pieceId",
+      {
+        schema: {
+          params: z.object({ id: z.string().uuid(), pieceId: z.string().uuid() }),
+          body: pieceStrikeInput,
+        },
+      },
+      async (request, reply) => {
+        const user = request.user as SessionUser;
+        const done = await outfits.strike(
+          request.params.id,
+          request.params.pieceId,
+          user.id,
+          request.body.struck,
+        );
+        if (done === "missing") throw httpError(404, "piece not found");
+        if (done === "hero") throw httpError(400, "the look is built around this piece");
+        return reply.code(204).send();
       },
     );
 

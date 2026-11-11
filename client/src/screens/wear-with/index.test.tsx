@@ -12,6 +12,7 @@ import {
   getWearWith,
   listItems,
   reactToOutfit,
+  strikePiece,
 } from '@/lib/api';
 import { ApiError, OfflineError } from '@/lib/api-error';
 import { clearClosetPieces } from '@/lib/closet-pieces';
@@ -29,6 +30,7 @@ jest.mock('@/lib/api', () => ({
   deleteWearWith: jest.fn(),
   getWearWith: jest.fn(),
   reactToOutfit: jest.fn(),
+  strikePiece: jest.fn(),
   createItem: jest.fn(),
   listItems: jest.fn(),
   sessionHeaders: jest.fn(async () => ({ cookie: 'session' })),
@@ -69,10 +71,28 @@ const done: WearWithRequest = {
       why: 'The tee makes the satin offhand.',
       missing: { category: 'shoes', description: 'chunky white sneakers' },
       pieces: [
-        { hero: true, item: skirt, catalogItem: null },
-        { hero: false, item: tee, catalogItem: null },
+        {
+          id: 'c5a86a64-8e30-44e8-b425-b396b5b28123',
+          struck: false,
+          hero: true,
+          item: skirt,
+          catalogItem: null,
+        },
+        {
+          id: 'eea7f883-8850-4584-b796-7280632185e3',
+          struck: false,
+          hero: false,
+          item: tee,
+          catalogItem: null,
+        },
         // A piece deleted since is left out.
-        { hero: false, item: null, catalogItem: null },
+        {
+          id: '4c6cf9a2-58a5-4702-92a0-a05266161374',
+          struck: false,
+          hero: false,
+          item: null,
+          catalogItem: null,
+        },
       ],
       opinion: null,
       reason: null,
@@ -112,6 +132,59 @@ describe('<WearWith /> waiting in place', () => {
       .mocked(ThreadRow)
       .mock.calls.filter(([props]) => props.kind === 'root')
       .at(-1)?.[0].dashed;
+
+  test('a quick cut and tie-back that both fail end where the server is', async () => {
+    jest.mocked(getWearWith).mockResolvedValue(done);
+    jest.mocked(strikePiece).mockRejectedValue(new Error('offline'));
+    await render(<WearWith id="req-1" />);
+    await fireEvent(await screen.findByLabelText(/^Сатин после спорта, /), 'layout', {
+      nativeEvent: { layout: { width: 300 } },
+    });
+    const tap = () =>
+      fireEvent.press(screen.getByTestId(`strike-${tee.id}`, { includeHiddenElements: true }));
+    await tap();
+    await tap();
+    await waitFor(() => expect(strikePiece).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(`without «${tee.name}» — I'll remember`)).toBeNull();
+  });
+
+  test('cuts a piece of hers out of a look, and ties it back when the server says no', async () => {
+    jest.mocked(getWearWith).mockResolvedValue(done);
+    jest.mocked(strikePiece).mockResolvedValueOnce();
+    await render(<WearWith id="req-1" />);
+    await fireEvent(await screen.findByLabelText(/^Сатин после спорта, /), 'layout', {
+      nativeEvent: { layout: { width: 300 } },
+    });
+
+    // The piece styled can't be cut; the tee can.
+    expect(
+      screen.queryByTestId(`strike-${skirt.id}`, {
+        includeHiddenElements: true,
+      }),
+    ).toBeNull();
+    await fireEvent.press(
+      screen.getByTestId(`strike-${tee.id}`, {
+        includeHiddenElements: true,
+      }),
+    );
+    expect(strikePiece).toHaveBeenCalledWith(
+      '6f1c2a52-8a43-4f4e-9b1a-3c2d1e0f9a90',
+      'eea7f883-8850-4584-b796-7280632185e3',
+      true,
+    );
+    expect(await screen.findByText(`without «${tee.name}» — I'll remember`)).toBeOnTheScreen();
+
+    jest.mocked(strikePiece).mockRejectedValueOnce(new Error('offline'));
+    await fireEvent.press(
+      screen.getByTestId(`strike-${tee.id}`, {
+        includeHiddenElements: true,
+      }),
+    );
+    // Tying back failed: it stays cut, as the server has it.
+    await waitFor(() =>
+      expect(screen.getByText(`without «${tee.name}» — I'll remember`)).toBeOnTheScreen(),
+    );
+  });
 
   test('the first load: the thread and the bead, no caption until it is being composed', async () => {
     jest.mocked(getWearWith).mockReturnValue(new Promise(() => {}));
@@ -429,8 +502,20 @@ describe('<WearWith />', () => {
           missing: null,
           pieces: [
             ...look.pieces,
-            { hero: false, item: null, catalogItem: boots },
-            { hero: false, item: null, catalogItem: bag },
+            {
+              id: '6d11506e-e6ae-4a22-9c7a-97a32632d134',
+              struck: false,
+              hero: false,
+              item: null,
+              catalogItem: boots,
+            },
+            {
+              id: '36608958-5f4a-4968-bbd6-0ac26b8a14ae',
+              struck: false,
+              hero: false,
+              item: null,
+              catalogItem: bag,
+            },
           ],
         },
       ],
@@ -487,7 +572,19 @@ describe('<WearWith />', () => {
       jest.mocked(getWearWith).mockResolvedValue({
         ...done,
         outfits: [
-          { ...look, pieces: [...look.pieces, { hero: false, item: null, catalogItem: boots }] },
+          {
+            ...look,
+            pieces: [
+              ...look.pieces,
+              {
+                id: '7bb1a11f-9b1e-48d1-97ce-5e044fb003ce',
+                struck: false,
+                hero: false,
+                item: null,
+                catalogItem: boots,
+              },
+            ],
+          },
         ],
       });
       await render(<WearWith id="req-1" />);

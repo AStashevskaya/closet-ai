@@ -191,6 +191,50 @@ const view = async ({ server }: Setup, cookie: string, id: string) =>
     await server.inject({ method: "GET", url: `/api/wear-with/${id}`, headers: { cookie } })
   ).json<WearWithRequest>();
 
+describe("PUT /api/outfits/:id/pieces/:pieceId", () => {
+  it("cuts a piece out of her look, ties it back, and the stylist hears of it", async () => {
+    const s = await setup();
+    const anna = await signUp(s, "anna@example.com");
+    const maya = await signUp(s, "maya@example.com");
+    const shirt = await addItem(s, anna, "top");
+    await addItem(s, anna, "bottom", "jeans");
+    await addItem(s, anna, "shoes", "loafers");
+    const { id } = (await ask(s, anna.cookie, shirt.id)).json<{ id: string }>();
+    await s.runJobs();
+    const look = (await view(s, anna.cookie, id)).outfits[0]!;
+    const hero = look.pieces.find((p) => p.hero)!;
+    const shoes = look.pieces.find((p) => p.item?.category === "shoes")!;
+    expect(shoes.struck).toBe(false);
+    const strike = (cookie: string, pieceId: string, struck: boolean) =>
+      s.server.inject({
+        method: "PUT",
+        url: `/api/outfits/${look.id}/pieces/${pieceId}`,
+        headers: { cookie },
+        payload: { struck },
+      });
+
+    expect((await strike(anna.cookie, shoes.id, true)).statusCode).toBe(204);
+    expect(
+      (await view(s, anna.cookie, id)).outfits[0]!.pieces.find((p) => p.id === shoes.id)!.struck,
+    ).toBe(true);
+    // The look is built around its piece: that one can't be cut. Nor can someone else's look.
+    expect((await strike(anna.cookie, hero.id, true)).statusCode).toBe(400);
+    expect((await strike(maya.cookie, shoes.id, false)).statusCode).toBe(404);
+
+    // The next styling tells the model which pair didn't work.
+    s.stub.composeCalls.length = 0;
+    const tee = await addItem(s, anna, "top", "tee");
+    await ask(s, anna.cookie, tee.id);
+    await s.runJobs();
+    expect(s.stub.composeCalls[0]!.struck).toEqual([{ hero: shirt.name, piece: shoes.item!.name }]);
+
+    expect((await strike(anna.cookie, shoes.id, false)).statusCode).toBe(204);
+    expect(
+      (await view(s, anna.cookie, id)).outfits[0]!.pieces.find((p) => p.id === shoes.id)!.struck,
+    ).toBe(false);
+  });
+});
+
 describe("POST /api/wear-with", () => {
   it("says what the closet lacks for a whole look, before anything is paid for or counted", async () => {
     const s = await setup();

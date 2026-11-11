@@ -99,7 +99,15 @@ const looks = (id: string): WearWithRequest => ({
       occasion: 'weekend in town',
       why: 'The tee makes the satin offhand.',
       missing: null,
-      pieces: [{ hero: true, item: skirt, catalogItem: null }],
+      pieces: [
+        {
+          id: 'ca3563fc-079e-4d85-b81d-a56c78f83663',
+          struck: false,
+          hero: true,
+          item: skirt,
+          catalogItem: null,
+        },
+      ],
       opinion: null,
       reason: null,
       woreCount: 0,
