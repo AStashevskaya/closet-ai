@@ -1,5 +1,5 @@
 import type { Item } from '@closet-ai/shared';
-import { Image } from 'expo-image';
+import { Image, type ImageSource } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { I18nManager, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -17,13 +17,15 @@ import { HandDrawn } from '@/components/hand-drawn';
 import { absoluteUrl } from '@/lib/api';
 import { colors, fonts } from '@/theme';
 
-type Piece = Pick<Item, 'id' | 'name' | 'category' | 'photoUrl' | 'cutoutUrl'> & {
+export type MobilePiece = Pick<Item, 'id' | 'name' | 'category' | 'photoUrl' | 'cutoutUrl'> & {
   // Not hers (the piece from a photo, a partner's): on a dashed string.
   loose?: boolean;
+  // A cut-out shipped with the app (Style it's example), in place of one from the server.
+  image?: ImageSource | number;
 };
 
 type Props = {
-  pieces: Piece[];
+  pieces: MobilePiece[];
   headers: Record<string, string> | undefined;
   // Handwritten name of the look.
   caption: string;
@@ -54,12 +56,12 @@ const MAX_PIECE = 116;
 // overlap their neighbours a little instead.
 const MIN_PIECE = 64;
 
-export type Hung = { piece: Piece; x: number; drop: number; width: number };
+export type Hung = { piece: MobilePiece; x: number; drop: number; width: number };
 
 // Where each piece hangs on a wire this wide: in order across, evenly spaced, each at its drop.
 // The drops are counted from the highest piece in the look, so a look without a top (a lone pair of
 // shoes) doesn't hang far below an empty wire.
-export function hang(pieces: Piece[], width: number): Hung[] {
+export function hang(pieces: MobilePiece[], width: number): Hung[] {
   const sorted = [...pieces].sort((a, b) => ORDER.indexOf(a.category) - ORDER.indexOf(b.category));
   const slot = width / Math.max(1, sorted.length);
   const size = Math.min(MAX_PIECE, Math.max(MIN_PIECE, slot * 0.92), width);
@@ -189,20 +191,22 @@ function Hanging({
   }, [index, reduceMotion, swing]);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${swing.value}deg` }] }));
   const url = piece.cutoutUrl ?? piece.photoUrl;
+  const cutout = piece.image !== undefined || Boolean(piece.cutoutUrl);
+  const source = piece.image ?? (url && headers ? { uri: absoluteUrl(url), headers } : null);
   return (
     <Animated.View
       style={[
         styles.piece,
-        piece.cutoutUrl ? styles.cutout : styles.print,
+        cutout ? styles.cutout : styles.print,
         { start: x - width / 2, top, width, height: (width * 4) / 3 },
         style,
       ]}
     >
-      {url && headers ? (
+      {source ? (
         <Image
-          source={{ uri: absoluteUrl(url), headers }}
+          source={source}
           style={styles.image}
-          contentFit={piece.cutoutUrl ? 'contain' : 'cover'}
+          contentFit={cutout ? 'contain' : 'cover'}
           transition={200}
           accessibilityIgnoresInvertColors
           testID="hung-piece"
