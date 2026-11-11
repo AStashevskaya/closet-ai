@@ -50,6 +50,8 @@ A screen with nothing of hers yet shows the shape of what will be there, never a
 - **Style it** (built): one example made in advance from the demo catalog (STUDIO EDIT, `server/seed/catalog`), shipped with the app, no AI and no network: a beige blazer as a tilted print with "example" by hand, a thread down to its three looks hanging as mobiles (`OutfitMobile`, on dashed strings: not hers), scrolling sideways. It stands where the diary will be, until her first styling.
 - **Inspiration** (built): Inspiration learns her taste, it doesn't recreate the look, so the example shows a look being read: a saved look (the owner's own photo) tied to the garland with a heart, as a learned look is, three handwritten notes tied by threads to what they point at ("the hat does the talking", "a big blazer over a mini", "chunky boots with something light"), above "Your style" as it is today (in the prototype a dashed card said "From notes like these your stylist writes your style"; the app keeps its own line about when the style gets written). It goes with her first saved look.
 
+- **Wishes** (built, owner 2026-11-11, direction A "an example of the week"): a trench from the demo catalog on the diary's dashed thread as a tilted print marked "example", "Think it over", the week's seven beads with three gone and "4 days to go", and by hand "In a week I'll ask: «still want it?»". Under it how a wish gets here and "Photograph a piece", which opens "What do I wear this with?" on a photo, the only way a wish is made. It goes with her first wish.
+
 ## Decided, not built yet
 
 All prototyped in `~/Desktop/closet/wrinkle-lab/design-adding`, direction "Выбрано" on each screen. One PR per screen, no data-model change.

@@ -123,10 +123,22 @@ describe('<Wishes />', () => {
     });
   });
 
-  test('explains the wishes when there are none', async () => {
+  test('shows an example wish and the way in when there are none', async () => {
     jest.mocked(listWishes).mockResolvedValue([]);
     await render(<Wishes />);
-    expect(await screen.findByText(/In a week I'll ask/)).toBeOnTheScreen();
+
+    expect(await screen.findByTestId('wishes-example')).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('Example, Trench coat, Think it over, 4 days to go'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Photograph a piece' }));
+    expect(mockPush).toHaveBeenCalledWith('/wear-with-pick');
+  });
+
+  test('the example goes once she has a wish', async () => {
+    await render(<Wishes />);
+    expect(await screen.findByText(tank.name)).toBeOnTheScreen();
+    expect(screen.queryByTestId('wishes-example')).not.toBeOnTheScreen();
   });
 
   describe('waiting in place', () => {
@@ -145,7 +157,7 @@ describe('<Wishes />', () => {
       expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeOnTheScreen();
       expect(screen.getByTestId('thread-row-waiting')).toBeOnTheScreen();
       expect(announce).toHaveBeenCalledWith('Loading');
-      expect(screen.queryByText(/In a week I'll ask/)).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('wishes-example')).not.toBeOnTheScreen();
       expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
     });
 
@@ -168,7 +180,7 @@ describe('<Wishes />', () => {
       await render(<Wishes />);
       expect(await screen.findByText("Couldn't open your wishes. Try again.")).toBeOnTheScreen();
       expect(screen.getByRole('header', { name: 'Wishes' })).toBeOnTheScreen();
-      expect(screen.queryByText(/In a week I'll ask/)).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('wishes-example')).not.toBeOnTheScreen();
 
       const load = pendingLoad();
       await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
