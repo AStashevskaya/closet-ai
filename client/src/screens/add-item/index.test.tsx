@@ -787,7 +787,11 @@ describe('<AddItem />', () => {
     });
     expect(uploadPhoto).not.toHaveBeenCalled();
     // The gallery slides away onto the batch screen, not onto this form.
-    expect(screen.getByText('Choose from gallery')).not.toBeVisible();
+    expect(
+      screen.getByText('Choose from gallery', { includeHiddenElements: true }),
+    ).not.toBeVisible();
+    // Hidden from screen readers too: a default query no longer finds it.
+    expect(screen.queryByText('Choose from gallery')).toBeNull();
   });
   test('shows the form again when the gallery closes without several photos', async () => {
     jest
