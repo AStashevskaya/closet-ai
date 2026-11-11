@@ -506,7 +506,13 @@
   "wishes": {
     "title": "Wishes",
     "subtitle": "A week to think it over",
-    "intro": "Save pieces you want to buy here. In a week I'll ask whether you still want them.",
+    "intro": "Seen a piece you'd like to buy? Photograph it: I'll tell you what in your closet it goes with, and keep it here for a week.",
+    "example": {
+      "label": "Example",
+      "name": "Trench coat",
+      "ask": "In a week I'll ask: «still want it?»",
+      "shoot": "Photograph a piece"
+    },
     "add": "Add to wishes",
     "added": "In your wishes",
     "ask": "Still want it?",

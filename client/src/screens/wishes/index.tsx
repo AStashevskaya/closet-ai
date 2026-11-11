@@ -1,5 +1,6 @@
 import type { Wish, WishAnswer } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -161,11 +162,6 @@ export function Wishes() {
           wishes settle in under it; nothing here enters again. */}
       <View style={[maison.gutter, styles.header]}>
         <ScreenTitle title={t('wishes.title')} subtitle={t('wishes.subtitle')} />
-        {state.status === 'done' && wishes.length === 0 && (
-          <Animated.Text style={maison.body} entering={arrive}>
-            {t('wishes.intro')}
-          </Animated.Text>
-        )}
         {failedText && (
           <Animated.View style={styles.failed} entering={arrive}>
             <Text style={maison.body}>{failedText}</Text>
@@ -176,6 +172,7 @@ export function Wishes() {
 
       <View style={styles.thread}>
         {state.status === 'loading' && <ThreadWaiting />}
+        {state.status === 'done' && wishes.length === 0 && <WishesExample />}
         {wishes.map((wish, index) => {
           const leaving = pending?.id === wish.id ? pending.value : null;
           const call = wish.call && t(`verdict.${wish.call}`);
@@ -264,6 +261,58 @@ export function Wishes() {
         })}
       </View>
     </ScrollView>
+  );
+}
+
+// An example wish, before she has one (decided 2026-11-11, prototype
+// `~/Desktop/closet/wrinkle-lab/design-empty`, "Хотелки" A): a trench from the demo catalog on the
+// diary's dashed thread with its verdict and three days of the week gone, as hers will look, then
+// how one gets here. A wish is only made from "What do I wear this with?" on a photo, so the
+// button opens that.
+const EXAMPLE_DAYS = 3;
+function WishesExample() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  return (
+    <>
+      <ThreadRow kind="root" dashed hollow last delay={0}>
+        <Animated.View style={styles.stop} entering={arrive} testID="wishes-example">
+          <View
+            style={styles.who}
+            accessible
+            accessibilityLabel={[
+              t('wishes.example.label'),
+              t('wishes.example.name'),
+              t('verdict.think'),
+              t('wishes.left', { count: WEEK - EXAMPLE_DAYS }),
+            ].join(', ')}
+          >
+            <View style={styles.print}>
+              <Image
+                source={require('../../../assets/example/P019.webp')}
+                style={styles.printImage}
+                contentFit="contain"
+              />
+            </View>
+            <Text style={styles.stamp}>{t('styleIt.example.stamp')}</Text>
+            <View style={styles.text}>
+              <Text style={styles.name}>{t('wishes.example.name')}</Text>
+              <Text style={styles.call}>{t('verdict.think')}</Text>
+              <Week passed={EXAMPLE_DAYS} />
+            </View>
+          </View>
+          <Text style={styles.then}>{t('wishes.example.ask')}</Text>
+        </Animated.View>
+      </ThreadRow>
+      <Animated.View style={[maison.gutter, styles.how]} entering={arrive.delay(2 * STAGGER_STEP)}>
+        <Text style={maison.body}>{t('wishes.intro')}</Text>
+        <Button
+          kind="bright"
+          label={t('wishes.example.shoot')}
+          onPress={() => router.push('/wear-with-pick')}
+        />
+      </Animated.View>
+    </>
   );
 }
 
@@ -382,6 +431,35 @@ const styles = StyleSheet.create({
   },
   ask: {
     gap: 6,
+  },
+  // The example: a piece not hers, so a white-bordered print, tilted a little.
+  print: {
+    width: 92,
+    height: 110,
+    padding: 5,
+    backgroundColor: colors.paper,
+    transform: [{ rotate: '-2deg' }],
+    shadowColor: colors.text,
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
+  },
+  printImage: {
+    flex: 1,
+  },
+  stamp: {
+    position: 'absolute',
+    top: -14,
+    start: 58,
+    fontFamily: fonts.hand,
+    fontSize: 20,
+    color: colors.bead,
+    transform: [{ rotate: '-6deg' }],
+  },
+  how: {
+    gap: 16,
+    marginTop: 4,
   },
   question: {
     fontFamily: fonts.display,
