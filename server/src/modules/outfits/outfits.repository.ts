@@ -165,6 +165,16 @@ export interface OutfitsRepository {
   // alone can't make the brief stale.
   reactedOutfitCount(userId: string): Promise<number>;
   reactedOutfits(userId: string, limit: number): Promise<ReactedOutfit[]>;
+  // Cuts (or ties back) a piece's string in her look. "hero" for the piece the look is built
+  // around, which can't be cut; "missing" when the look or the piece isn't hers.
+  strike(
+    outfitId: string,
+    pieceId: string,
+    userId: string,
+    struck: boolean,
+  ): Promise<"ok" | "hero" | "missing">;
+  // The pieces she cut, newest first, each with the piece its look was built around, by name.
+  struckPieces(userId: string, limit: number): Promise<{ hero: string; piece: string }[]>;
   // Storage keys of the looks the user saved (and "want" screenshots still around), newest first.
   inspirationKeys(userId: string, limit: number): Promise<string[]>;
   // Whether a wardrobe item uses this photo (an item from a photo, added to the wardrobe).
@@ -422,9 +432,11 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         ? await Promise.all([
             db
               .select({
+                id: outfitPieces.id,
                 outfitId: outfitPieces.outfitId,
                 position: outfitPieces.position,
                 hero: outfitPieces.hero,
+                struckAt: outfitPieces.struckAt,
                 item: items,
                 photoStatus: photos.status,
                 cutoutKey: photos.cutoutKey,
@@ -456,7 +468,9 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           pieces: pieces
             .filter((p) => p.outfitId === look.id)
             .map((p) => ({
+              id: p.id,
               hero: p.hero,
+              struck: p.struckAt !== null,
               item: p.item
                 ? toItem(p.item, {
                     photoStatus: p.photoStatus ?? null,
@@ -484,6 +498,57 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         throw cause;
       }
       return true;
+    },
+
+    async strike(outfitId, pieceId, userId, struck) {
+      const [piece] = await db
+        .select({ hero: outfitPieces.hero })
+        .from(outfitPieces)
+        .innerJoin(outfits, eq(outfits.id, outfitPieces.outfitId))
+        .where(
+          and(
+            eq(outfitPieces.id, pieceId),
+            eq(outfitPieces.outfitId, outfitId),
+            eq(outfits.userId, userId),
+          ),
+        );
+      if (!piece) return "missing";
+      if (piece.hero) return "hero";
+      await db
+        .update(outfitPieces)
+        .set({ struckAt: struck ? new Date() : null })
+        .where(eq(outfitPieces.id, pieceId));
+      return "ok";
+    },
+
+    async struckPieces(userId, limit) {
+      const struck = await db
+        .select({ outfitId: outfitPieces.outfitId, piece: items.name })
+        .from(outfitPieces)
+        .innerJoin(outfits, eq(outfits.id, outfitPieces.outfitId))
+        .innerJoin(items, eq(items.id, outfitPieces.itemId))
+        .where(and(eq(outfits.userId, userId), isNotNull(outfitPieces.struckAt)))
+        .orderBy(desc(outfitPieces.struckAt))
+        .limit(limit);
+      if (struck.length === 0) return [];
+      const heroes = await db
+        .select({ outfitId: outfitPieces.outfitId, name: items.name })
+        .from(outfitPieces)
+        .innerJoin(items, eq(items.id, outfitPieces.itemId))
+        .where(
+          and(
+            inArray(
+              outfitPieces.outfitId,
+              struck.map((s) => s.outfitId),
+            ),
+            eq(outfitPieces.hero, true),
+          ),
+        );
+      // A look around a piece from a photo has no hero row with a name: "the piece" stands in.
+      return struck.map((s) => ({
+        hero: heroes.find((h) => h.outfitId === s.outfitId)?.name ?? "the piece",
+        piece: s.piece,
+      }));
     },
 
     async recentlyUsed(userId, requests) {

@@ -1,20 +1,22 @@
 import type { Item } from '@closet-ai/shared';
 import { Image, type ImageSource } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { I18nManager, StyleSheet, Text, View } from 'react-native';
+import { I18nManager, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withDelay,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 
 import { cutoutShadow } from '@/components/cutout-shadow';
 import { Dimmable } from '@/components/dimmable';
 import { HandDrawn } from '@/components/hand-drawn';
 import { absoluteUrl } from '@/lib/api';
+import { durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export type MobilePiece = Pick<Item, 'id' | 'name' | 'category' | 'photoUrl' | 'cutoutUrl'> & {
@@ -22,6 +24,13 @@ export type MobilePiece = Pick<Item, 'id' | 'name' | 'category' | 'photoUrl' | '
   loose?: boolean;
   // A cut-out shipped with the app (Style it's example), in place of one from the server.
   image?: ImageSource | number;
+  // She cut its string: it didn't work in this look (decided 2026-11-11, prototype
+  // `~/Desktop/closet/wrinkle-lab/design-strike`, A). It hangs lower and faded on a dashed stub.
+  struck?: boolean;
+  // Cuts the string, or ties it back; left out for a piece that can't be cut (the one styled).
+  onStrike?: () => void;
+  // What a screen reader offers for it: "Cut Loafers out of this look" or "Tie Loafers back".
+  strikeLabel?: string;
 };
 
 type Props = {
@@ -50,6 +59,8 @@ const DROP: Record<Item['category'], number> = {
   accessory: 46,
 };
 const WIRE_Y = 14;
+// How far a cut piece drops below where it hung.
+const STRUCK_DROP = 22;
 const SAG = 10;
 const MAX_PIECE = 116;
 // Five or six pieces would each get too small a share of the wire to read: past this size they
@@ -100,6 +111,14 @@ export function OutfitMobile({
     <View
       style={styles.mobile}
       onLayout={(event) => setWidth(Math.round(event.nativeEvent.layout.width))}
+      // Cutting a piece is an action on the look for a screen reader: the pieces aren't elements.
+      accessibilityActions={pieces.flatMap((p) =>
+        p.onStrike && p.strikeLabel ? [{ name: `strike:${p.id}`, label: p.strikeLabel }] : [],
+      )}
+      onAccessibilityAction={(event) => {
+        const id = event.nativeEvent.actionName.replace(/^strike:/, '');
+        pieces.find((p) => p.id === id)?.onStrike?.();
+      }}
       accessible
       // The pieces are pictures only: the look's name, then what's in it.
       accessibilityLabel={[caption, ...pieces.map((p) => p.name)].filter(Boolean).join(', ')}
@@ -121,6 +140,24 @@ export function OutfitMobile({
             />
             {hung.map(({ piece, x, drop }) => {
               const top = wireY(x, width);
+              // Cut: a short end left on the wire, then a dashed stub down to where it hangs now.
+              if (piece.struck) {
+                const cut = top + Math.max(10, drop * 0.35);
+                return (
+                  <G key={piece.id}>
+                    <Line x1={x} y1={top} x2={x} y2={cut} stroke={colors.text} strokeWidth={1} />
+                    <Line
+                      x1={x}
+                      y1={cut + 8}
+                      x2={x}
+                      y2={top + drop + 6 + STRUCK_DROP}
+                      stroke={colors.textMuted}
+                      strokeWidth={1}
+                      strokeDasharray={[3, 4]}
+                    />
+                  </G>
+                );
+              }
               return (
                 <Line
                   key={piece.id}
@@ -134,17 +171,19 @@ export function OutfitMobile({
                 />
               );
             })}
-            {hung.map(({ piece, x }) => (
-              <Circle
-                key={`knot-${piece.id}`}
-                cx={x}
-                cy={wireY(x, width)}
-                r={3}
-                fill={piece.loose ? colors.background : colors.bead}
-                stroke={piece.loose ? colors.textMuted : colors.text}
-                strokeWidth={1}
-              />
-            ))}
+            {hung
+              .filter(({ piece }) => !piece.struck)
+              .map(({ piece, x }) => (
+                <Circle
+                  key={`knot-${piece.id}`}
+                  cx={x}
+                  cy={wireY(x, width)}
+                  r={3}
+                  fill={piece.loose ? colors.background : colors.bead}
+                  stroke={piece.loose ? colors.textMuted : colors.text}
+                  strokeWidth={1}
+                />
+              ))}
           </Svg>
           {hung.map((h, index) => (
             <Hanging
@@ -189,7 +228,16 @@ function Hanging({
     if (reduceMotion) return;
     swing.value = withDelay(120 * index, withSpring(0, { damping: 11, stiffness: 60 }));
   }, [index, reduceMotion, swing]);
-  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${swing.value}deg` }] }));
+  // Cut: it slides down a little and fades; tied back, it goes up again.
+  const cut = useSharedValue(piece.struck ? 1 : 0);
+  useEffect(() => {
+    const to = piece.struck ? 1 : 0;
+    cut.value = reduceMotion ? to : withTiming(to, { duration: durations.settle / 2 });
+  }, [piece.struck, reduceMotion, cut]);
+  const style = useAnimatedStyle(() => ({
+    opacity: 1 - cut.value * 0.62,
+    transform: [{ translateY: cut.value * STRUCK_DROP }, { rotate: `${swing.value}deg` }],
+  }));
   const url = piece.cutoutUrl ?? piece.photoUrl;
   const cutout = piece.image !== undefined || Boolean(piece.cutoutUrl);
   const source = piece.image ?? (url && headers ? { uri: absoluteUrl(url), headers } : null);
@@ -202,16 +250,25 @@ function Hanging({
         style,
       ]}
     >
-      {source ? (
-        <Image
-          source={source}
-          style={styles.image}
-          contentFit={cutout ? 'contain' : 'cover'}
-          transition={200}
-          accessibilityIgnoresInvertColors
-          testID="hung-piece"
-        />
-      ) : null}
+      <Pressable
+        style={styles.image}
+        onPress={piece.onStrike}
+        disabled={!piece.onStrike}
+        // The look as a whole is what a screen reader reaches; it carries the cut as an action.
+        accessible={false}
+        testID={piece.onStrike ? `strike-${piece.id}` : undefined}
+      >
+        {source ? (
+          <Image
+            source={source}
+            style={styles.image}
+            contentFit={cutout ? 'contain' : 'cover'}
+            transition={200}
+            accessibilityIgnoresInvertColors
+            testID="hung-piece"
+          />
+        ) : null}
+      </Pressable>
     </Animated.View>
   );
 }

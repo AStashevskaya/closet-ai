@@ -51,7 +51,7 @@ export function StyleThread({
   onDeleted,
 }: Props) {
   const { t } = useTranslation();
-  const { state: looks, react, retry } = useWearWith(chosen.requestId);
+  const { state: looks, react, strike, retry } = useWearWith(chosen.requestId);
   const deleting = useDeleteStyling(chosen.requestId, onDeleted);
   // A heart around the piece once one of its outfits is liked (owner's call, 2026-10-27).
   const loved = looks.status === 'done' && looks.outfits.some((o) => o.opinion === 'like');
@@ -152,6 +152,7 @@ export function StyleThread({
                 total={looks.outfits.length}
                 headers={headers}
                 onReact={react}
+                onStrike={strike}
               />
             </Animated.View>
           </ThreadRow>

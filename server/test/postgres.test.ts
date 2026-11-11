@@ -717,6 +717,68 @@ describe.skipIf(!url)("on Postgres", () => {
     });
   });
 
+  it("cuts a piece out of her look and lists it with the piece the look was built around", async () => {
+    const cookie = await signUp("cut@example.com");
+    const [user] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "cut@example.com"));
+    const [other] = await db.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "outfits@example.com"));
+    const photos = createPhotosRepository(db.db);
+    const ids: string[] = [];
+    for (const [i, category] of (["bottom", "shoes"] as const).entries()) {
+      const key = `photos/${user!.id}/cut-${i}.webp`;
+      await photos.createReady({ key, ownerId: user!.id, tags: { ...shirtTags, category } });
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/items",
+        headers: { cookie },
+        payload: { name: `cut ${category}`, category, colors: ["white"], photoKey: key },
+      });
+      ids.push(res.json<Item>().id);
+    }
+    const [skirt, shoes] = ids as [string, string];
+    const outfits = createOutfitsRepository(db.db);
+    const requestId = await outfits.createRequest(user!.id, { itemId: skirt }, 2);
+    await outfits.saveOutfits(
+      requestId,
+      user!.id,
+      [
+        {
+          caption: "Cut",
+          occasion: "coffee",
+          why: "because",
+          missing: null,
+          pieces: [
+            { hero: true, itemId: skirt },
+            { hero: false, itemId: shoes },
+          ],
+        },
+      ],
+      { micros: 1 },
+    );
+    const look = (await outfits.view(requestId, user!.id, "en"))!.outfits[0]!;
+    const hero = look.pieces.find((p) => p.hero)!;
+    const cut = look.pieces.find((p) => !p.hero)!;
+
+    expect(await outfits.strike(look.id, hero.id, user!.id, true)).toBe("hero");
+    expect(await outfits.strike(look.id, cut.id, other!.id, true)).toBe("missing");
+    expect(await outfits.strike(look.id, cut.id, user!.id, true)).toBe("ok");
+    expect(
+      (await outfits.view(requestId, user!.id, "en"))!.outfits[0]!.pieces.find(
+        (p) => p.id === cut.id,
+      )!.struck,
+    ).toBe(true);
+    expect(await outfits.struckPieces(user!.id, 10)).toEqual([
+      { hero: "cut bottom", piece: "cut shoes" },
+    ]);
+    expect(await outfits.strike(look.id, cut.id, user!.id, false)).toBe("ok");
+    expect(await outfits.struckPieces(user!.id, 10)).toEqual([]);
+  });
+
   it("deletes a styling, keeping the piece and the looks she reacted to", async () => {
     const cookie = await signUp("delete-styling@example.com");
     const [user] = await db.db

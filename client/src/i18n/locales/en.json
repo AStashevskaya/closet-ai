@@ -367,7 +367,10 @@
       "top": "To put looks together around this piece, I need a top in your closet: a tee, a shirt or a knit.",
       "both": "To put looks together around this piece, I need a dress, or a top and a bottom, in your closet.",
       "add": "Add a piece"
-    }
+    },
+    "cut": "Cut {{name}} out of this look",
+    "tieBack": "Tie {{name}} back",
+    "struckNote": "without {{names}} — I'll remember"
   },
   "limits": {
     "wantMore": "I want more",

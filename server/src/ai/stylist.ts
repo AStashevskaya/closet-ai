@@ -71,6 +71,9 @@ export interface ComposeInput {
   // Looks she liked or wore, newest first, so what she has just told counts before the next
   // brief. About 0.03 ¢ a request, and after the cached part, so a new like keeps the cache.
   liked: string[];
+  // Pieces she cut out of earlier looks, each with the piece that look was built around, newest
+  // first: that pair didn't work for her (owner, 2026-11-11). After the cached part, like `liked`.
+  struck: { hero: string; piece: string }[];
   // An item she doesn't own yet and is thinking of buying: the pieces of its category she owns
   // that are closest to it (cosine of the embeddings, which see shape more than colour), for the
   // verdict. null for her own items.
@@ -211,6 +214,12 @@ const briefFormat = zodOutputFormat(briefOutput);
 const describe = (p: StylistPiece) =>
   `#${p.n} ${p.name} | ${p.category} | ${p.colors.join("/")} | ${p.seasons.join("/") || "?"}${p.details ? ` | ${p.details}` : ""}`;
 
+// A cut piece says one thing: not with that piece. It may still be right with others.
+const struckText = (struck: { hero: string; piece: string }[]) =>
+  struck.length
+    ? `\nPieces she cut out of earlier looks, as "piece (in a look around the item)", newest first: ${struck.map((s) => `${s.piece} (around ${s.hero})`).join("; ")}. Don't put these pairs together again; the piece may still work with others.`
+    : "";
+
 // Her taste rather than a list to repeat, so it doesn't pull against recentText: a liked look is
 // usually one of her recent looks too.
 const likedText = (liked: string[]) =>
@@ -294,7 +303,7 @@ export function createClaudeStylist(
               ...(input.shop ? [jpegBlock(input.shop.sheet)] : []),
               {
                 type: "text",
-                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.${recentText(input.recent)}${likedText(input.liked)}${input.buying ? buyingText(input.buying) : ""}${input.shop ? shopText(input.shop.pieces) : ""}\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
+                text: `The item (first image): ${input.hero.name} | ${input.hero.category} | ${input.hero.colors.join("/")}${input.hero.details ? ` | ${input.hero.details}` : ""}\nThe contact sheet (second image) shows the pieces to choose from.${recentText(input.recent)}${likedText(input.liked)}${struckText(input.struck)}${input.buying ? buyingText(input.buying) : ""}${input.shop ? shopText(input.shop.pieces) : ""}\nSeason: ${input.season}.${input.mood ? ` Mood she asked for: ${MOODS[input.mood]}. This comes first: every look, and every occasion, is for this mood (no office look when she asked for sporty); the directions above vary the looks within it.` : ""} Language: ${LANGUAGE_NAMES[input.lang]}. Compose ${input.looks} looks.`,
               },
             ],
           },

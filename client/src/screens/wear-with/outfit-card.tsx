@@ -20,6 +20,8 @@ type Props = {
   total: number;
   headers: Record<string, string> | undefined;
   onReact: (outfit: Outfit, reaction: OutfitReaction, reason?: DislikeReason) => void;
+  // Cuts one of her pieces out of the look, or ties it back; left out where looks can't be marked.
+  onStrike?: (outfit: Outfit, pieceId: string, struck: boolean) => void;
   // The piece styled isn't hers yet (one from a photo): it hangs on a dashed string.
   heroLoose?: boolean;
 };
@@ -32,10 +34,38 @@ type Props = {
 // she couldn't tell it was the same look): the look stays where it is, dimmed, with the reasons
 // (optional, read by the brief) and "Bring it back" in place of the reactions. One component for both
 // states, so the mobile isn't remounted and doesn't swing in again.
-export function OutfitCard({ outfit, index, total, headers, onReact, heroLoose = false }: Props) {
+export function OutfitCard({
+  outfit,
+  index,
+  total,
+  headers,
+  onReact,
+  onStrike,
+  heroLoose = false,
+}: Props) {
   const { t } = useTranslation();
   const rejected = outfit.opinion === 'dislike';
-  const pieces = outfit.pieces.flatMap((p) => (p.item ? [p.item] : []));
+  // Her pieces with the look's own piece ids: one that isn't the piece styled can be cut out
+  // (decided 2026-11-11). Not in a look she set aside: that one is "not mine" as a whole.
+  const pieces = outfit.pieces.flatMap((p) =>
+    p.item
+      ? [
+          {
+            ...p.item,
+            struck: p.struck,
+            ...(onStrike && !p.hero && !rejected
+              ? {
+                  onStrike: () => onStrike(outfit, p.id, !p.struck),
+                  strikeLabel: t(p.struck ? 'wearWith.tieBack' : 'wearWith.cut', {
+                    name: p.item.name,
+                  }),
+                }
+              : {}),
+          },
+        ]
+      : [],
+  );
+  const struck = outfit.pieces.flatMap((p) => (p.struck && p.item ? [p.item.name] : []));
   const heroId = outfit.pieces.find((p) => p.hero)?.item?.id;
   // Labelled: partner shoes or a bag where the closet had none for the look, and now and
   // then a brand's piece shown for its own sake.
@@ -70,6 +100,12 @@ export function OutfitCard({ outfit, index, total, headers, onReact, heroLoose =
         seed={seedFrom(outfit.id)}
         dimmed={rejected}
       />
+      {/* What she cut, by hand: the stylist will remember. */}
+      {struck.length > 0 && !rejected && (
+        <Text style={styles.struck}>
+          {t('wearWith.struckNote', { names: struck.map((name) => `«${name}»`).join(', ') })}
+        </Text>
+      )}
       {/* The pictures carry the dimming. The words only take a small step in colour, since faded
           text would fall below 4.5:1. */}
       <Text style={[styles.occasion, rejected && styles.wordsSetAside]}>{outfit.occasion}</Text>
@@ -175,6 +211,13 @@ function Reaction({ label, a11yLabel, on, radio = false, onPress }: ReactionProp
 
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
+  struck: {
+    fontFamily: fonts.hand,
+    fontSize: 18,
+    lineHeight: 24,
+    color: colors.textSecondary,
+    textAlign: 'left',
+  },
   card: {
     gap: 8,
   },

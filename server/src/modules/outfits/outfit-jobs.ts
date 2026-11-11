@@ -80,6 +80,9 @@ export const isLiked = (look: Pick<ReactedOutfit, "opinion" | "wore">) =>
 const LIKED_LOOKS = 5;
 const LIKED_LOOKS_AMONG = 20;
 
+// The pieces she cut out of looks that the stylist reads, newest first.
+const STRUCK_PIECES = 15;
+
 // How far back "recently" goes: about a week of styling for an active user.
 export const RECENT_REQUESTS = 6;
 
@@ -182,6 +185,7 @@ export async function composeOutfits(deps: OutfitJobDeps, requestId: string, lan
         captions: recent.captions,
       },
       liked,
+      struck: await outfits.struckPieces(request.userId, STRUCK_PIECES),
       season,
       mood: request.mood,
       lang,
@@ -535,9 +539,15 @@ export async function refreshBrief(deps: OutfitJobDeps, userId: string) {
     sheets,
     inspiration,
     liked: reacted.filter(isLiked).map((o) => o.description),
-    disliked: reacted
-      .filter((o) => o.opinion === "dislike")
-      .map((o) => (o.reason ? `${o.description} (${REASON_WORDS[o.reason]})` : o.description)),
+    disliked: [
+      ...reacted
+        .filter((o) => o.opinion === "dislike")
+        .map((o) => (o.reason ? `${o.description} (${REASON_WORDS[o.reason]})` : o.description)),
+      // A piece cut out of a look: that pair, not the whole look.
+      ...(await outfits.struckPieces(userId, BRIEF_REACTED)).map(
+        (s) => `${s.piece} cut out of a look around ${s.hero}`,
+      ),
+    ],
     previous: current?.brief ?? null,
   });
   await outfits.setBriefBatch(userId, batchId, now);

@@ -258,6 +258,9 @@ export const outfitPieces = pgTable(
       onDelete: "set null",
     }),
     sponsored: boolean("sponsored").notNull().default(false),
+    // She cut this piece's string: it didn't work in this look (owner, 2026-11-11). Read by the
+    // stylist and the brief; null when she didn't, or tied it back.
+    struckAt: timestamp("struck_at", { withTimezone: true }),
   },
   (table) => [index("outfit_pieces_outfit_idx").on(table.outfitId)],
 );

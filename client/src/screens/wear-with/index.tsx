@@ -29,7 +29,7 @@ import { useWearWith } from './use-wear-with';
 export function WearWith({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
-  const { state, setWishId, react, retry } = useWearWith(id);
+  const { state, setWishId, react, strike, retry } = useWearWith(id);
   // Leaving the screen stops its polling, so this works while the looks are being composed too.
   const deleting = useDeleteStyling(id, () => router.back());
   const [headers, setHeaders] = useState<Record<string, string>>();
@@ -245,6 +245,7 @@ export function WearWith({ id }: { id: string }) {
                   total={outfits.length}
                   headers={headers}
                   onReact={react}
+                  onStrike={strike}
                   heroLoose={!hers}
                 />
               </Animated.View>

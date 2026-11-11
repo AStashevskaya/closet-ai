@@ -317,7 +317,12 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
 
   // Outfits keep their own rows and read items and photos from the stores above.
   type Request = OutfitRequestRow;
-  type StoredOutfit = NewOutfit & { id: string; requestId: string; userId: string };
+  type StoredOutfit = Omit<NewOutfit, "pieces"> & {
+    id: string;
+    requestId: string;
+    userId: string;
+    pieces: (NewOutfit["pieces"][number] & { id: string; struckAt: Date | null })[];
+  };
   const requests: Request[] = [];
   const storedOutfits: StoredOutfit[] = [];
   const reactions: {
@@ -410,7 +415,13 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       const request = requests.find((r) => r.id === requestId);
       if (!request) return false;
       for (const look of looks)
-        storedOutfits.push({ ...look, id: randomUUID(), requestId, userId });
+        storedOutfits.push({
+          ...look,
+          pieces: look.pieces.map((p) => ({ ...p, id: randomUUID(), struckAt: null })),
+          id: randomUUID(),
+          requestId,
+          userId,
+        });
       Object.assign(request, { status: "done", verdict });
       return true;
     },
@@ -455,7 +466,9 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
               const row = itemRows.find((r) => r.id === p.itemId);
               const partner = catalogRows.find((r) => r.id === p.catalogItemId);
               return {
+                id: p.id,
                 hero: p.hero,
+                struck: p.struckAt !== null,
                 item: row ? toApiItem(row) : null,
                 catalogItem: partner ? toCatalogItem(partner, lang) : null,
               };
@@ -463,6 +476,30 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
             ...summarize(reactions.filter((r) => r.outfitId === o.id)),
           })),
       };
+    },
+    strike: async (outfitId, pieceId, userId, struck) => {
+      const look = storedOutfits.find((o) => o.id === outfitId && o.userId === userId);
+      const piece = look?.pieces.find((p) => p.id === pieceId);
+      if (!piece) return "missing";
+      if (piece.hero) return "hero";
+      piece.struckAt = struck ? now() : null;
+      return "ok";
+    },
+    struckPieces: async (userId, limit) => {
+      const nameOf = (id: string | null) => itemRows.find((r) => r.id === id)?.input.name;
+      return storedOutfits
+        .filter((o) => o.userId === userId)
+        .flatMap((o) =>
+          o.pieces.flatMap((p) => {
+            const piece = nameOf(p.itemId);
+            if (!p.struckAt || !piece) return [];
+            const hero = nameOf(o.pieces.find((h) => h.hero)?.itemId ?? null) ?? "the piece";
+            return [{ hero, piece, at: p.struckAt }];
+          }),
+        )
+        .sort((a, b) => b.at.getTime() - a.at.getTime())
+        .slice(0, limit)
+        .map(({ hero, piece }) => ({ hero, piece }));
     },
     react: async (outfitId, userId, reaction, reason) => {
       if (!storedOutfits.some((o) => o.id === outfitId && o.userId === userId)) return false;
