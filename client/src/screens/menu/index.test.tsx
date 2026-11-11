@@ -3,7 +3,7 @@ import { Linking } from 'react-native';
 
 import i18n from '@/i18n';
 
-import { getStyle, listInspiration } from '@/lib/api';
+import { getStyle, listInspiration, listItems, listStyled } from '@/lib/api';
 import { setLanguage } from '@/lib/language';
 
 import { Menu } from '.';
@@ -190,6 +190,15 @@ describe('<Menu />', () => {
     expect(await screen.findByText('Pink boots')).toBeOnTheScreen();
     expect(screen.getByText('White tank')).toBeOnTheScreen();
     // The counts need all three lists.
+    expect(screen.queryByText('Pieces · Looks saved · Styled')).toBeNull();
+  });
+
+  test('a new account has no "0 · 0 · 0": the counts come with the first piece or look', async () => {
+    jest.mocked(listItems).mockResolvedValueOnce([]);
+    jest.mocked(listInspiration).mockResolvedValueOnce([]);
+    jest.mocked(listStyled).mockResolvedValueOnce([]);
+    await render(<Menu />);
+    expect(await screen.findByText('Style it today')).toBeOnTheScreen();
     expect(screen.queryByText('Pieces · Looks saved · Styled')).toBeNull();
   });
 
