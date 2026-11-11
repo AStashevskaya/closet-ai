@@ -83,6 +83,9 @@ type ErrorKey =
   | 'addItem.errors.unreadable'
   | 'addItem.errors.save';
 
+// About how long the sheet takes to slide up.
+const SHEET_UP_MS = 450;
+
 export function AddItem() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
@@ -466,13 +469,23 @@ export function AddItem() {
       <Text style={styles.bandNote}>{t('addItem.upToTwenty')}</Text>
     ) : null;
 
-  // "Several photos from the gallery" on an empty closet: the gallery opens as the sheet does.
+  // "Several photos from the gallery" on an empty closet: the gallery opens once the sheet is up
+  // (iOS may drop a picker presented while the sheet is still sliding in), and only once: the
+  // ref outlives a re-run of the effect, as in Strict Mode.
   const openedGallery = useRef(false);
+  // The latest `pick`, so the timer below isn't restarted by every render.
+  const latestPick = useRef(pick);
+  useEffect(() => {
+    latestPick.current = pick;
+  });
   useEffect(() => {
     if (params.source !== 'library' || openedGallery.current) return;
-    openedGallery.current = true;
-    void pick('library');
-  });
+    const timer = setTimeout(() => {
+      openedGallery.current = true;
+      void latestPick.current('library');
+    }, SHEET_UP_MS);
+    return () => clearTimeout(timer);
+  }, [params.source]);
 
   return (
     <View

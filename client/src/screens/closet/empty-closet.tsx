@@ -8,7 +8,7 @@ import Svg, { Path } from 'react-native-svg';
 import { HANGERS } from '@/components/hanger';
 import { Button } from '@/components/maison';
 import { RailLine, RAIL_WEIGHT } from '@/components/rail-line';
-import { SilhouetteHanger, type Silhouette } from '@/components/silhouette-hanger';
+import { FAINT, SilhouetteHanger, type Silhouette } from '@/components/silhouette-hanger';
 import { arrive, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -25,7 +25,6 @@ const SHOES = [
   'M4 34V12q0-6 6-6h9l3 14 36 6q8 2 8 8Z',
 ];
 const SHOE_WIDTH = 64;
-const FAINT = 0.34;
 
 // An empty closet (decided 2026-11-11, prototype `~/Desktop/closet/wrinkle-lab/design-empty`,
 // direction A on powder blue): the rail from sign-up, now one per kind of piece, faint shapes on
@@ -87,6 +86,7 @@ export function EmptyCloset() {
           <Pressable
             style={styles.shoes}
             onPress={() => add({ category: 'shoes' })}
+            hitSlop={4}
             accessibilityRole="button"
             accessibilityLabel={t('closet.emptyRail', { rail: t('closet.filters.shoes') })}
           >
@@ -123,6 +123,7 @@ export function EmptyCloset() {
           style={styles.link}
           onPress={() => add({ source: 'library' })}
           accessibilityRole="button"
+          accessibilityLabel={t('closet.emptyGallery')}
         >
           <Text style={styles.linkText}>{t('closet.emptyGallery')}</Text>
         </Pressable>

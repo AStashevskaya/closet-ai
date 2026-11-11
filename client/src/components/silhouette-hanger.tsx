@@ -24,7 +24,7 @@ const SWAY_DEG = 3;
 const SWAY_OFFSET_MS = 700;
 // Silhouettes appear one after another, and how faint they are once they're there.
 const FILL_STEP = 120;
-const FAINT = 0.34;
+export const FAINT = 0.34;
 
 // How visible a silhouette is, 0 (an empty hanger) to FAINT, for how far it has come in (0 to 1).
 export function silhouetteOpacity(shown: number) {
