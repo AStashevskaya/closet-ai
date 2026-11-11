@@ -20,6 +20,7 @@ import { useStyle } from '@/lib/style';
 import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
+import { EmptyCloset } from './empty-closet';
 import { NewIn } from './new-in';
 import { Rail, RailWaiting } from './rail';
 import { useCloset } from './use-closet';
@@ -95,10 +96,12 @@ export function Closet() {
   });
   // A closet of a few items has nothing to feature; the banner would only repeat the rails.
   const newest = items.length >= NEW_IN_FROM ? items[0] : undefined;
+  // A closet with nothing in it yet: the first screen she sees, on the blue of something new.
+  const empty = ready && items.length === 0;
 
   const header = (
     <>
-      <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 24 }, empty && styles.headerNew]}>
         <View style={styles.heading}>
           <Text style={styles.title} accessibilityRole="header">
             {t('closet.title')}
@@ -137,7 +140,7 @@ export function Closet() {
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        scrollEnabled={items.length > 0}
+        scrollEnabled={ready}
       >
         {header}
         {loading && <RailWaiting />}
@@ -153,11 +156,7 @@ export function Closet() {
           </Animated.View>
         )}
 
-        {ready && items.length === 0 && (
-          <Animated.View style={styles.center} entering={arrive}>
-            <Text style={styles.message}>{t('closet.empty')}</Text>
-          </Animated.View>
-        )}
+        {empty && <EmptyCloset />}
 
         {rails.map((rail, index) => (
           <Rail
@@ -213,6 +212,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 16,
+  },
+  headerNew: {
+    backgroundColor: colors.ground,
   },
   heading: {
     flex: 1,

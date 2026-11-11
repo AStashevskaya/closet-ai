@@ -1,5 +1,6 @@
 import {
   ITEM_CATEGORIES,
+  itemCategory,
   type Currency,
   type Item,
   type ItemCategory,
@@ -10,7 +11,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -82,9 +83,15 @@ type ErrorKey =
   | 'addItem.errors.unreadable'
   | 'addItem.errors.save';
 
+// About how long the sheet takes to slide up.
+const SHEET_UP_MS = 450;
+
 export function AddItem() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  // From an empty closet: the rail she tapped, or the gallery to open straight away.
+  const params = useLocalSearchParams<{ category?: string; source?: string }>();
+  const preset = itemCategory.safeParse(params.category);
   const lang = appLanguage(i18n.language);
   // A local JPEG, already shrunk for upload.
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -96,10 +103,18 @@ export function AddItem() {
   // Not in the form: they come from the photo's tags and can be corrected on the item later.
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [name, setName] = useState('');
-  const [category, setCategory] = useState<ItemCategory | null>(null);
+  // A rail she chose before the photo counts as hers: the photo's tags don't change it.
+  const [category, setCategory] = useState<ItemCategory | null>(
+    preset.success ? preset.data : null,
+  );
   const [itemColors, setItemColors] = useState<ItemColor[]>([]);
   // Fields the user changed by hand: a crop refills the others from the cropped photo's tags.
-  const edited = useRef({ name: false, category: false, colors: false, brand: false });
+  const edited = useRef({
+    name: false,
+    category: preset.success,
+    colors: false,
+    brand: false,
+  });
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
@@ -461,6 +476,24 @@ export function AddItem() {
     ) : !photoUri ? (
       <Text style={styles.bandNote}>{t('addItem.upToTwenty')}</Text>
     ) : null;
+
+  // "Several photos from the gallery" on an empty closet: the gallery opens once the sheet is up
+  // (iOS may drop a picker presented while the sheet is still sliding in), and only once: the
+  // ref outlives a re-run of the effect, as in Strict Mode.
+  const openedGallery = useRef(false);
+  // The latest `pick`, so the timer below isn't restarted by every render.
+  const latestPick = useRef(pick);
+  useEffect(() => {
+    latestPick.current = pick;
+  });
+  useEffect(() => {
+    if (params.source !== 'library' || openedGallery.current) return;
+    const timer = setTimeout(() => {
+      openedGallery.current = true;
+      void latestPick.current('library');
+    }, SHEET_UP_MS);
+    return () => clearTimeout(timer);
+  }, [params.source]);
 
   return (
     <View

@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react-native';
 
-import { AuthRail, silhouetteOpacity } from './auth-rail';
+import { silhouetteOpacity } from '@/components/silhouette-hanger';
+
+import { AuthRail } from './auth-rail';
 
 describe('<AuthRail />', () => {
   test('hangs five pieces, hidden from screen readers', async () => {
