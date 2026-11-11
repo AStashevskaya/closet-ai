@@ -19,6 +19,7 @@ import { colors } from '@/theme';
 
 import { ClosetPicker } from './closet-picker';
 import { DiaryStop } from './diary-stop';
+import { StyleExample } from './style-example';
 import { StyleThread, type Chosen as StyledPiece } from './style-thread';
 import { ThreadWaiting } from './thread-row';
 
@@ -275,9 +276,7 @@ export function StyleIt() {
               </Animated.View>
             )
           ) : (
-            <Animated.Text style={[maison.note, maison.gutter]} entering={arrive}>
-              {t('styleIt.historyEmpty')}
-            </Animated.Text>
+            <StyleExample />
           )
         ) : (
           entries.map((entry, index) =>

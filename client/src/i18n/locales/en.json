@@ -374,7 +374,31 @@
     "closetHint": "Tap a piece and I'll build three outfits around it",
     "emptyCloset": "Add a few pieces to your closet and I'll start styling them.",
     "addFirst": "Add an item",
-    "historyEmpty": "Outfits you ask for are kept here.",
+    "example": {
+      "stamp": "example",
+      "lead": "You pick a piece, and I build three looks around it.",
+      "source": "Pieces from the STUDIO EDIT demo catalogue. With yours it works the same.",
+      "looks": {
+        "easy": "easy",
+        "out": "going out",
+        "bold": "bold"
+      },
+      "pieces": {
+        "P016": "Blazer",
+        "P006": "Long-sleeve top",
+        "P037": "Linen trousers",
+        "P078": "Loafers",
+        "P064": "Tote bag",
+        "P004": "Strappy top",
+        "P026": "Slit skirt",
+        "P077": "Ballet flats",
+        "P066": "Mini bag",
+        "P056": "Draped top",
+        "P031": "Wide-leg jeans",
+        "P075": "Canvas sneakers",
+        "P061": "Shoulder bag"
+      }
+    },
     "loadError": "Couldn't load the outfits you asked for.",
     "open": "Outfits with {{name}}",
     "styling": "Styling {{name}}…",

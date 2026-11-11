@@ -504,7 +504,7 @@ describe('<StyleIt />', () => {
       expect(screen.getByTestId('thread-row-waiting')).toBeOnTheScreen();
       expect(announce).toHaveBeenCalledWith('Loading');
       expect(screen.queryByRole('button', { name: 'From my closet' })).not.toBeOnTheScreen();
-      expect(screen.queryByText('Outfits you ask for are kept here.')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('style-example')).not.toBeOnTheScreen();
       expect(screen.queryByText(/Add a few pieces/)).not.toBeOnTheScreen();
     });
 
@@ -529,10 +529,15 @@ describe('<StyleIt />', () => {
       expect(screen.getByRole('header', { name: 'Style it' })).toBe(title);
     });
 
-    test('says "nothing here yet" only once the diary has been read', async () => {
+    test('shows the example only once the diary has been read and is empty', async () => {
       jest.mocked(listStyled).mockResolvedValueOnce([]);
       await render(<StyleIt />);
-      expect(await screen.findByText('Outfits you ask for are kept here.')).toBeOnTheScreen();
+      expect(await screen.findByTestId('style-example')).toBeOnTheScreen();
+      expect(screen.getByText('example')).toBeOnTheScreen();
+      // Three looks around the blazer, each named and hung from the app's own pictures.
+      for (const name of ['easy', 'going out', 'bold']) {
+        expect(screen.getByLabelText(new RegExp(`^${name}, Blazer, `))).toBeOnTheScreen();
+      }
     });
 
     test('a diary that could not be read is not an empty one, and it tries again', async () => {
@@ -540,7 +545,7 @@ describe('<StyleIt />', () => {
       await render(<StyleIt />);
 
       expect(await screen.findByText("Couldn't load the outfits you asked for.")).toBeOnTheScreen();
-      expect(screen.queryByText('Outfits you ask for are kept here.')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('style-example')).not.toBeOnTheScreen();
       // The closet came, so the ways in are there.
       expect(screen.getByRole('button', { name: 'From my closet' })).toBeOnTheScreen();
 
