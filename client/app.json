@@ -8,7 +8,11 @@
     "scheme": "closetai",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": {
+        "light": "./assets/images/icon-ios-light.png",
+        "dark": "./assets/images/icon-ios-dark.png",
+        "tinted": "./assets/images/icon-ios-tinted.png"
+      },
       "bundleIdentifier": "com.stashevskaya.closet",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -16,7 +20,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#D6E4F1",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -33,9 +37,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
+          "backgroundColor": "#D6E4F1",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 110
+          "imageWidth": 150
         }
       ],
       [
