@@ -82,7 +82,17 @@ describe('<Styled />', () => {
 
     await screen.findByText('Looking through your closet…');
     expect(screen.getByTestId('closet-belt', { includeHiddenElements: true })).toBeOnTheScreen();
+    // The belt is the wait: no tag runs down the thread meanwhile.
+    expect(screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true })).toHaveLength(
+      0,
+    );
     expect(screen.getByRole('progressbar', { name: /Putting looks together/ })).toBeOnTheScreen();
+  });
+
+  test('no belt on the first load, before the server says it is composing', async () => {
+    jest.mocked(getWearWith).mockReturnValue(new Promise(() => {}));
+    await render(<Styled requestId="req-1" piece={piece} mood={null} />);
+    expect(screen.queryByTestId('closet-belt', { includeHiddenElements: true })).toBeNull();
   });
 
   test('goes back once the styling is deleted, and stays if that fails', async () => {
