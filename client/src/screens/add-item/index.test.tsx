@@ -23,7 +23,11 @@ import { PHOTO_FRAME } from './hang-up';
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, replace: mockReplace }) }));
+let mockParams: Record<string, string> = {};
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ back: mockBack, replace: mockReplace }),
+  useLocalSearchParams: () => mockParams,
+}));
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(),
   launchCameraAsync: jest.fn(),
@@ -88,6 +92,7 @@ const picked = {
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  mockParams = {};
   jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   await i18n.changeLanguage('en');
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue(picked as never);
@@ -726,6 +731,36 @@ describe('<AddItem />', () => {
     expect(screen.getByRole('checkbox', { name: 'Tops' })).not.toBeChecked();
     // Colors were still empty, so those are filled in.
     expect(screen.getByRole('checkbox', { name: 'White' })).toBeChecked();
+  });
+
+  test("keeps the rail she tapped on an empty closet over the photo's tags", async () => {
+    mockParams = { category: 'bottom' };
+    tagAfterOnePoll(tags);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    expect(await screen.findByRole('checkbox', { name: 'Bottoms' })).toBeChecked();
+
+    await screen.findByText('Filled in from the photo — check it', {}, { timeout: 3000 });
+    expect(screen.getByRole('checkbox', { name: 'Bottoms' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tops' })).not.toBeChecked();
+  });
+
+  test('ignores a rail that is not one', async () => {
+    mockParams = { category: 'hats' };
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    expect(await screen.findByRole('checkbox', { name: 'Tops' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Bottoms' })).not.toBeChecked();
+  });
+
+  test('opens the gallery once when she came for several photos', async () => {
+    mockParams = { source: 'library' };
+    await render(<AddItem />);
+
+    await waitFor(() => expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1));
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ allowsMultipleSelection: true }),
+    );
   });
 
   test('fills in nothing when the photo shows no single item', async () => {

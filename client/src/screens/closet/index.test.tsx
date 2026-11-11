@@ -102,7 +102,7 @@ describe('<Closet />', () => {
       expect(announce).toHaveBeenCalledWith('Loading');
       // No rail names, no empty state, no error, no edit.
       expect(screen.queryByText('Tops')).not.toBeOnTheScreen();
-      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      expect(screen.queryByText(/waiting for its first piece/)).not.toBeOnTheScreen();
       expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
       expect(screen.queryByText('Edit')).not.toBeOnTheScreen();
     });
@@ -117,7 +117,7 @@ describe('<Closet />', () => {
       expect(screen.getByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
       expect(screen.queryByTestId('rail-waiting')).not.toBeOnTheScreen();
       expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
-      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      expect(screen.queryByText(/waiting for its first piece/)).not.toBeOnTheScreen();
       // The very same element: the screen wasn't laid out anew.
       expect(screen.getByRole('header', { name: 'My wardrobe' })).toBe(title);
     });
@@ -125,11 +125,11 @@ describe('<Closet />', () => {
     test('an empty closet says so only once the load has ended', async () => {
       const load = pendingLoad();
       await render(<Closet />);
-      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      expect(screen.queryByText(/waiting for its first piece/)).not.toBeOnTheScreen();
 
       await load.answer([]);
 
-      expect(screen.getByText(/Your closet is empty/)).toBeOnTheScreen();
+      expect(screen.getByText(/waiting for its first piece/)).toBeOnTheScreen();
       expect(screen.queryByTestId('rail-waiting')).not.toBeOnTheScreen();
       expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
     });
@@ -140,7 +140,7 @@ describe('<Closet />', () => {
       await load.fail(new Error('500'));
 
       expect(screen.getByText("Couldn't load your closet.")).toBeOnTheScreen();
-      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      expect(screen.queryByText(/waiting for its first piece/)).not.toBeOnTheScreen();
       expect(screen.queryByTestId('rail-waiting')).not.toBeOnTheScreen();
 
       const again = pendingLoad();
@@ -157,7 +157,7 @@ describe('<Closet />', () => {
 
       expect(screen.getByText(/No connection to the server/)).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
-      expect(screen.queryByText(/Your closet is empty/)).not.toBeOnTheScreen();
+      expect(screen.queryByText(/waiting for its first piece/)).not.toBeOnTheScreen();
     });
 
     test('with Reduce Motion the sign stays still on the rail, so she still sees it waits', async () => {
@@ -198,7 +198,43 @@ describe('<Closet />', () => {
     list.mockResolvedValue([]);
     await render(<Closet />);
 
-    expect(await screen.findByText(/Your closet is empty/)).toBeOnTheScreen();
+    expect(await screen.findByText(/waiting for its first piece/)).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Tops' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Shoes' })).toBeOnTheScreen();
+  });
+
+  test('adds a piece to the rail whose shape she taps, or from the button', async () => {
+    list.mockResolvedValue([]);
+    await render(<Closet />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add to Bottoms' }));
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: '/add-item',
+      params: { category: 'bottom' },
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Add to Shoes' }));
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: '/add-item',
+      params: { category: 'shoes' },
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Photograph a piece' }));
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/add-item', params: {} });
+    await fireEvent.press(screen.getByRole('button', { name: 'Several photos from the gallery' }));
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: '/add-item',
+      params: { source: 'library' },
+    });
+  });
+
+  test('leaves the blue and the empty rails once a piece is in', async () => {
+    list.mockResolvedValue([shirt]);
+    await render(<Closet />);
+
+    expect(await screen.findByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
+    expect(screen.queryByText(/waiting for its first piece/)).not.toBeOnTheScreen();
+    expect(
+      screen.queryAllByTestId('empty-closet-piece', { includeHiddenElements: true }),
+    ).toHaveLength(0);
   });
 
   test('offers to retry after a failed load', async () => {
