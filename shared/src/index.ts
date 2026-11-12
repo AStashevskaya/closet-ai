@@ -456,6 +456,14 @@ export const todayWeek = z.object({
       wore: z.boolean(),
     }),
   ),
+  // The look of the day, built by rules from her closet; null when the closet can't make one yet,
+  // and then what it lacks.
+  look: outfit.nullable(),
+  missing: z.array(z.enum(["top", "bottom", "shoes"])),
+  // How many looks the day has had, sent back with "another" so a tap sent twice adds one; and
+  // whether another, different one is left.
+  shown: z.number().int().min(0),
+  more: z.boolean(),
 });
 export type TodayWeek = z.infer<typeof todayWeek>;
 

@@ -785,6 +785,39 @@ describe.skipIf(!url)("on Postgres", () => {
       new Date().toISOString().slice(0, 10),
     ]);
     expect(await outfits.woreDays(user!.id, new Date(Date.now() + 86_400_000), 0)).toEqual([]);
+
+    // Her cut pairs, by her pieces.
+    await outfits.strike(look.id, cut.id, user!.id, true);
+    expect(await outfits.struckPairs(user!.id, 10)).toEqual([[shoes, skirt].sort().join("|")]);
+
+    // One look-of-the-day request a day, even asked for twice at once; its looks in order.
+    const [a, b] = await Promise.all([
+      outfits.dailyRequest(user!.id, "2026-11-12", 2),
+      outfits.dailyRequest(user!.id, "2026-11-12", 2),
+    ]);
+    expect(a).toBe(b);
+    const daily = (caption: string) => ({
+      caption,
+      occasion: "",
+      why: "",
+      missing: null,
+      pieces: [
+        { hero: false, itemId: skirt },
+        { hero: false, itemId: shoes },
+      ],
+    });
+    expect(await outfits.addDailyLook(a, user!.id, daily("first"), 0)).toBe(true);
+    // "Another" sent twice at once: one adds, the other sees it's behind.
+    const added = await Promise.all([
+      outfits.addDailyLook(a, user!.id, daily("another"), 1),
+      outfits.addDailyLook(a, user!.id, daily("another"), 1),
+    ]);
+    expect(added.sort()).toEqual([false, true]);
+    expect((await outfits.view(a, user!.id, "en"))!.outfits.map((o) => o.caption)).toEqual([
+      "first",
+      "another",
+    ]);
+    expect(await outfits.dailyRequest(user!.id, "2026-11-13", 2)).not.toBe(a);
   });
 
   it("deletes a styling, keeping the piece and the looks she reacted to", async () => {

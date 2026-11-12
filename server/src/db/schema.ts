@@ -26,6 +26,7 @@ import { sql } from "drizzle-orm";
 import type { ModelTokens } from "../ai/stylist";
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -215,9 +216,18 @@ export const outfitRequests = pgTable(
     tokens: jsonb("tokens").$type<ModelTokens>(),
     // For an item from a photo: whether it's worth buying for her wardrobe; null otherwise.
     verdict: jsonb("verdict").$type<BuyVerdict>(),
+    // The look of the day (2026-11-12): the day in her city it's for; null for a styling she asked
+    // for. Its looks are built by rules, about no piece in particular, and stay out of her diary.
+    dailyOn: date("daily_on", { mode: "string" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("outfit_requests_user_item_idx").on(table.userId, table.itemId)],
+  (table) => [
+    index("outfit_requests_user_item_idx").on(table.userId, table.itemId),
+    // One look-of-the-day request a day, even when the app asks twice at once.
+    uniqueIndex("outfit_requests_user_daily_idx")
+      .on(table.userId, table.dailyOn)
+      .where(sql`${table.dailyOn} is not null`),
+  ],
 );
 
 export const outfits = pgTable(
