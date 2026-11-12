@@ -1,8 +1,20 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
-import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  FadeOut,
+  LinearTransition,
+  scrollTo,
+  useAnimatedReaction,
+  useAnimatedRef,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import { HANGER_PIVOT_Y } from '@/components/hanger';
 import { RAIL_WEIGHT, RailLine } from '@/components/rail-line';
@@ -10,7 +22,7 @@ import { isLaunching, offerLaunchRail } from '@/lib/launch';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-import { pieceStep, RailPiece } from './rail-piece';
+import { pieceMiddle, pieceStep, RailPiece } from './rail-piece';
 import { useRailSwing } from './swing';
 
 // Once a deleted piece has dropped, the rest slide together to close its gap.
@@ -19,6 +31,8 @@ const closeUp = LinearTransition.duration(durations.state).easing(EASE_OUT);
 // Room above the hooks, and where the rail line runs through them.
 const TRACK_TOP = 9;
 const LINE = RAIL_WEIGHT;
+// Where the track's first piece starts (the track's padding).
+const TRACK_START = 22;
 
 type Props = {
   category: ItemCategory;
@@ -41,7 +55,18 @@ type Props = {
   ticks?: boolean;
   // The first rail on screen at launch: the launch hanger's bar lands on its line.
   launchTarget?: boolean;
+  // "Look what turned up": the rail flips through its hangers by itself and stops with this piece
+  // in the middle, then says so. Once per piece.
+  seek?: { itemId: string; onArrived: () => void };
+  // Under the rail: what the found piece says.
+  below?: ReactNode;
 };
+
+// The flip through the hangers: from about seven before the piece, slowing onto it (the owner
+// chose the slow one in the prototype, 2026-11-12).
+const SEEK_MS = 2400;
+const SEEK_FROM = 7;
+const seekEasing = Easing.bezier(0.22, 1, 0.36, 1);
 
 // One category of the closet as a clothes rail: an ink line across the screen with the pieces
 // hanging from it, scrolled sideways; they swing as it moves. Shoes stand on a floor line instead.
@@ -61,16 +86,103 @@ export function Rail({
   heading,
   ticks = false,
   launchTarget = false,
+  seek,
+  below,
 }: Props) {
   const { t } = useTranslation();
   const title = t(`closet.filters.${category}`);
   const shoes = category === 'shoes';
+  const reduced = useReducedMotion();
+  const { width: screen } = useWindowDimensions();
+  const list = useAnimatedRef<FlatList<Item>>();
+  const [contentWidth, setContentWidth] = useState(0);
+  const seeking = useSharedValue(0);
+  const from = useSharedValue(0);
+  const to = useSharedValue(0);
+  const flipping = useSharedValue(false);
+  // Which piece the rail went to, so it goes once; and whether it has said so yet.
+  const sought = useRef<string | null>(null);
+  const arrived = useRef(false);
+  const land = useCallback(() => {
+    if (arrived.current) return;
+    arrived.current = true;
+    seek?.onArrived();
+  }, [seek]);
+  // A finger on the rail before it got there: she has it; the line just comes.
+  const handOver = useCallback(() => {
+    if (!flipping.get()) return;
+    flipping.set(false);
+    cancelAnimation(seeking);
+    land();
+  }, [flipping, seeking, land]);
   // Shoes stand still, so their rail has no pendulums to step.
-  const { onScroll, swing } = useRailSwing(
+  const { onScroll, swing, guide } = useRailSwing(
     category,
     shoes ? [] : items.map((item) => item.id),
     ticks ? pieceStep(category) : undefined,
+    handOver,
   );
+  useAnimatedReaction(
+    () => seeking.get(),
+    (p) => {
+      if (flipping.get()) scrollTo(list, from.get() + (to.get() - from.get()) * p, 0, false);
+    },
+  );
+  useEffect(() => {
+    if (!seek || sought.current === seek.itemId) return;
+    // The flip needs the track's length to know where it ends; standing still doesn't.
+    if (contentWidth === 0 && !reduced) return;
+    const index = items.findIndex((item) => item.id === seek.itemId);
+    if (index < 0) return;
+    sought.current = seek.itemId;
+    arrived.current = false;
+    const end = contentWidth > 0 ? Math.max(0, contentWidth - screen) : Infinity;
+    const target = Math.min(
+      end,
+      Math.max(0, TRACK_START + pieceMiddle(category, index) - screen / 2),
+    );
+    const done = () => {
+      guide(false);
+      flipping.set(false);
+      land();
+    };
+    if (reduced) {
+      scheduleOnUI(() => {
+        'worklet';
+        scrollTo(list, target, 0, false);
+      });
+      land();
+      return;
+    }
+    from.set(Math.max(0, target - SEEK_FROM * pieceStep(category)));
+    to.set(target);
+    scheduleOnUI(() => {
+      'worklet';
+      scrollTo(list, from.get(), 0, false);
+    });
+    flipping.set(true);
+    guide(true);
+    seeking.set(0);
+    seeking.set(
+      withTiming(1, { duration: SEEK_MS, easing: seekEasing }, (finished) => {
+        if (finished) scheduleOnRN(done);
+      }),
+    );
+  }, [
+    seek,
+    contentWidth,
+    items,
+    category,
+    screen,
+    reduced,
+    list,
+    from,
+    to,
+    seeking,
+    flipping,
+    guide,
+    land,
+  ]);
   const settle = enterDelay === undefined ? undefined : arrive.delay(enterDelay);
   const line = useRef<ComponentRef<typeof View>>(null);
   // The launch hanger's bar lands here: it measures the line when it lands.
@@ -128,7 +240,9 @@ export function Rail({
           </Animated.View>
         )}
         <Animated.FlatList
+          ref={list}
           horizontal
+          onContentSizeChange={(contentW) => setContentWidth(contentW)}
           onScroll={onScroll}
           scrollEventThrottle={16}
           itemLayoutAnimation={closeUp}
@@ -161,6 +275,7 @@ export function Rail({
           )}
         />
       </View>
+      {below}
     </View>
   );
 }

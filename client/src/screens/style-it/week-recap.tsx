@@ -169,7 +169,7 @@ export function WeekRecap({
                         },
                       ]}
                     >
-                      <MiniLook look={d.look} headers={headers} />
+                      <MiniLook items={piecesOf(d.look)} headers={headers} />
                     </Animated.View>
                   </>
                 )}
@@ -183,14 +183,14 @@ export function WeekRecap({
 
 // A worn look, small: the top or dress (a coat behind it), the bottom under it, the shoes at the
 // foot. Bags and other accessories are left out at this size.
-function MiniLook({
-  look,
+// Also the looks of "look what turned up" (src/screens/closet/found.tsx).
+export function MiniLook({
+  items,
   headers,
 }: {
-  look: Outfit;
+  items: { id: string; category: string; photoUrl?: string | null; cutoutUrl?: string | null }[];
   headers: Record<string, string> | undefined;
 }) {
-  const items = look.pieces.flatMap((p) => (p.item ? [p.item] : []));
   const of = (category: string) => items.find((item) => item.category === category);
   const dress = of('dress');
   const top = of('top');

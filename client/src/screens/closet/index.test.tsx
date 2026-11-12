@@ -4,7 +4,9 @@ import { AccessibilityInfo, Alert, type AlertButton } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 
 import i18n from '@/i18n';
-import { deleteItem, listItems } from '@/lib/api';
+import * as SecureStore from 'expo-secure-store';
+
+import { deleteItem, getFound, listItems } from '@/lib/api';
 import { OfflineError } from '@/lib/api-error';
 
 import { Closet } from '.';
@@ -25,7 +27,14 @@ jest.mock('expo-router', () => {
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
   };
 });
+jest.mock('expo-secure-store', () => ({
+  getItem: jest.fn(() => null),
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('@/lib/api', () => ({
+  getFound: jest.fn().mockResolvedValue({ piece: null, looks: [], week: '2026-11-09' }),
+  wearFound: jest.fn(),
   listItems: jest.fn(),
   deleteItem: jest.fn(),
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
@@ -438,5 +447,42 @@ describe('<Closet />', () => {
     const block = await screen.findByRole('button', { name: 'New in your closet: Item 0' });
     await fireEvent.press(block);
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: many[0]!.id } });
+  });
+});
+
+describe('look what turned up', () => {
+  const shoes: Item = {
+    ...shirt,
+    id: '6b1f7c3e-0000-4000-8000-000000000003',
+    name: 'Loafers',
+    category: 'shoes',
+  };
+  const find = {
+    piece: shirt,
+    looks: [{ pieces: [shirt, jeans, shoes] }],
+    week: '2026-11-09',
+  };
+
+  test('with Reduce Motion the rail stands on the find and the line comes, once for the week', async () => {
+    const reduced = jest.spyOn(Reanimated, 'useReducedMotion').mockReturnValue(true);
+    jest.mocked(getFound).mockResolvedValueOnce(find);
+    list.mockResolvedValue([shirt, jeans, shoes]);
+    await render(<Closet />);
+
+    expect(await screen.findByText('look what turned up', {}, { timeout: 5000 })).toBeOnTheScreen();
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('found-shown', '2026-11-09');
+    expect(screen.getByRole('button', { name: 'What to wear it with' })).toBeOnTheScreen();
+    reduced.mockReturnValue(false);
+  });
+
+  test('not again in a week she has seen it', async () => {
+    jest.mocked(SecureStore.getItemAsync).mockResolvedValueOnce('2026-11-09');
+    jest.mocked(getFound).mockResolvedValueOnce(find);
+    list.mockResolvedValue([shirt, jeans, shoes]);
+    await render(<Closet />);
+
+    await screen.findByRole('button', { name: 'White linen shirt' });
+    await waitFor(() => expect(getFound).toHaveBeenCalled());
+    expect(screen.queryByText('look what turned up')).not.toBeOnTheScreen();
   });
 });

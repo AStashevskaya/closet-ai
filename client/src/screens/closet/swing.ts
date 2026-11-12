@@ -82,7 +82,13 @@ const tick = () => void Haptics.selectionAsync();
 // passes, as when flipping through hangers on a real rail ("See all", 2026-11-12).
 // The frame loop only runs while the rail moves under a finger or coasts, and until every piece
 // has come to rest. With reduced motion it never starts and the pieces hang still.
-export function useRailSwing(category: ItemCategory, ids: readonly string[], tickEvery?: number) {
+export function useRailSwing(
+  category: ItemCategory,
+  ids: readonly string[],
+  tickEvery?: number,
+  // Called when a finger takes the rail.
+  onTouch?: () => void,
+) {
   const reduced = useReducedMotion();
   const rtl = I18nManager.isRTL;
   const offset = useSharedValue(0);
@@ -172,6 +178,26 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
     idle.set(0);
     scheduleOnRN(start);
   };
+  // The rail moved by the app rather than a finger ("look what turned up"): the pieces swing as
+  // the scroll goes by, but no hanger ticks. Off again when it has arrived.
+  const guide = useCallback(
+    (on: boolean) => {
+      if (reduced) return;
+      moving.set(on);
+      if (!on) return;
+      last.set(offset.get());
+      idle.set(0);
+      frames.setActive(true);
+    },
+    [reduced, moving, last, offset, idle, frames],
+  );
+  // A finger on the rail: whoever moves it by itself lets go.
+  const touchedBy = useRef(onTouch);
+  useEffect(() => {
+    touchedBy.current = onTouch;
+  }, [onTouch]);
+  const handOver = useCallback(() => touchedBy.current?.(), []);
+
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
       offset.set(event.contentOffset.x);
@@ -184,7 +210,11 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
         }
       }
     },
-    onBeginDrag: begin,
+    onBeginDrag: () => {
+      'worklet';
+      scheduleOnRN(handOver);
+      begin();
+    },
     onMomentumBegin: begin,
     onEndDrag: () => {
       moving.set(false);
@@ -197,7 +227,7 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
     },
   });
 
-  return { onScroll, swing };
+  return { onScroll, swing, guide };
 }
 
 // One piece's turn, read from its rail's swing.
