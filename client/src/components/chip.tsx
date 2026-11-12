@@ -8,30 +8,30 @@ import { CSS_EASE_OUT, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // What each palette color looks like as a small dot next to its name.
-// Tuned 2026-11-12 to read as fabrics, not as screen primaries: muted, a little warm.
+// Tuned 2026-11-12 (owner chose the juicier set): saturated like dyed fabrics, not screen primaries.
 export const SWATCHES: Record<Exclude<ItemColor, 'multicolor'>, string> = {
-  black: '#1C1A1B',
+  black: '#141414',
   white: '#FFFFFF',
-  cream: '#F3EAD7',
-  gray: '#A19C9A',
-  beige: '#DCC9AC',
-  camel: '#B98A55',
-  brown: '#6B4630',
-  red: '#C0302B',
-  burgundy: '#6E1A2B',
-  pink: '#E9A9B8',
-  orange: '#E07B39',
-  yellow: '#E9C75A',
-  khaki: '#8A8358',
-  green: '#3F6E4A',
-  light_blue: '#A9C4E2',
-  blue: '#2F5DA8',
-  navy: '#1F2B4A',
-  purple: '#6E4A8E',
-  gold: '#C9A64B',
-  silver: '#BFC3C7',
+  cream: '#F6E7C8',
+  gray: '#9B9B9B',
+  beige: '#E2C69B',
+  camel: '#C4893F',
+  brown: '#7B4423',
+  red: '#DA2A2A',
+  burgundy: '#8C1232',
+  pink: '#F493B3',
+  orange: '#F2741F',
+  yellow: '#F7C821',
+  khaki: '#8F8B35',
+  green: '#24914F',
+  light_blue: '#7FBDF2',
+  blue: '#1F62D1',
+  navy: '#16245A',
+  purple: '#7D35B0',
+  gold: '#D9A520',
+  silver: '#C4CBD3',
 };
-export const MULTICOLOR = ['#C0302B', '#E9C75A', '#2F5DA8'];
+export const MULTICOLOR = ['#DA2A2A', '#F7C821', '#1F62D1'];
 
 type Props = {
   label: string;
