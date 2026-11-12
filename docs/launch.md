@@ -84,3 +84,8 @@ eas submit --platform ios --profile testflight --latest
 ## Позже, перед публичным запуском
 
 Настоящее имя; второй сервер; Sentry; консультация юриста по Беларуси, Израилю и Украине; подписки RevenueCat.
+
+## Order for a release that adds colours (PR #173, 2026-11-12)
+
+Builds before #173 reject an unknown colour and would fail to open the whole closet. So: first the TestFlight build with #173 (it reads an unknown colour as multicolor), let testers update, and only then `docker compose up -d --build` on the server (migration 0029 and the tagger's new colours).
+

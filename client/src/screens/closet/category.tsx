@@ -66,15 +66,13 @@ export function ClosetCategory({ category }: { category: ItemCategory }) {
   }, [empty, router]);
 
   // Once the rails have played their entrance, a rail mounted later (a new colour) skips it.
+  const railCount = rails.length;
   useEffect(() => {
     if (!ready) return;
-    // The last colour's rail starts at most this late (one per palette colour).
-    const timer = setTimeout(
-      () => setEntered(true),
-      ITEM_COLORS.length * RAIL_STEP + durations.enter,
-    );
+    // The last rail starts this late.
+    const timer = setTimeout(() => setEntered(true), railCount * RAIL_STEP + durations.enter);
     return () => clearTimeout(timer);
-  }, [ready]);
+  }, [ready, railCount]);
 
   const isEditing = editing && pieces.length > 0;
   const startEditing = () => {
