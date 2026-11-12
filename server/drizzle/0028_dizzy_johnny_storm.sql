@@ -1,0 +1,2 @@
+ALTER TABLE "outfit_requests" ADD COLUMN "daily_on" date;--> statement-breakpoint
+CREATE UNIQUE INDEX "outfit_requests_user_daily_idx" ON "outfit_requests" USING btree ("user_id","daily_on") WHERE "outfit_requests"."daily_on" is not null;

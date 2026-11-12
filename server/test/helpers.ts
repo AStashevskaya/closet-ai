@@ -1,3 +1,4 @@
+import { pairKey } from "../src/modules/today/daily-look";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import type {
@@ -382,6 +383,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         mood,
         ...hero,
         verdict: null,
+        dailyOn: null,
         status: "pending",
         wardrobeSize,
         createdAt: now(),
@@ -477,6 +479,47 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
           })),
       };
     },
+    dailyRequest: async (userId, day, wardrobeSize) => {
+      const found = requests.find((r) => r.userId === userId && r.dailyOn === day);
+      if (found) return found.id;
+      const id = randomUUID();
+      requests.push({
+        id,
+        userId,
+        itemId: null,
+        heroPhotoKey: null,
+        heroNoun: null,
+        mood: null,
+        verdict: null,
+        status: "done",
+        wardrobeSize,
+        dailyOn: day,
+        createdAt: now(),
+      });
+      return id;
+    },
+    addDailyLook: async (requestId, userId, look) => {
+      storedOutfits.push({
+        ...look,
+        pieces: look.pieces.map((p) => ({ ...p, id: randomUUID(), struckAt: null })),
+        id: randomUUID(),
+        requestId,
+        userId,
+      });
+    },
+    struckPairs: async (userId, limit) =>
+      storedOutfits
+        .filter((o) => o.userId === userId)
+        .flatMap((o) =>
+          o.pieces
+            .filter((p) => p.struckAt && p.itemId)
+            .flatMap((c) =>
+              o.pieces
+                .filter((p) => p.itemId && p.itemId !== c.itemId)
+                .map((p) => pairKey(c.itemId!, p.itemId!)),
+            ),
+        )
+        .slice(0, limit),
     woreDays: async (userId, since, offsetSeconds) =>
       [
         ...new Set(

@@ -42,6 +42,7 @@ import {
   wishes,
 } from "../../db/schema";
 import { toCatalogItem } from "../catalog/catalog.repository";
+import { pairKey } from "../today/daily-look";
 import { toItem } from "../items/items.repository";
 
 // A wardrobe item with what styling needs: its tags, its picture and its embedding.
@@ -68,6 +69,8 @@ export interface OutfitRequestRow {
   wardrobeSize: number;
   verdict: BuyVerdict | null;
   createdAt: Date;
+  // The day of a look-of-the-day request; null for a styling she asked for.
+  dailyOn: string | null;
 }
 
 export interface NewOutfit {
@@ -175,6 +178,12 @@ export interface OutfitsRepository {
     userId: string,
     struck: boolean,
   ): Promise<"ok" | "hero" | "missing">;
+  // Her look-of-the-day request for a day (her city's date), made the first time it's asked for.
+  dailyRequest(userId: string, day: string, wardrobeSize: number): Promise<string>;
+  // A look added to her look-of-the-day request; the newest is the day's ("another").
+  addDailyLook(requestId: string, userId: string, look: NewOutfit): Promise<void>;
+  // Pairs of her pieces (keys from pairKey) where she cut one out of a look the other was in.
+  struckPairs(userId: string, limit: number): Promise<string[]>;
   // The days (YYYY-MM-DD at the given UTC offset, her city's) since `since` on which she marked a
   // look as worn.
   woreDays(userId: string, since: Date, offsetSeconds: number): Promise<string[]>;
@@ -233,6 +242,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     status: outfitRequests.status,
     wardrobeSize: outfitRequests.wardrobeSize,
     verdict: outfitRequests.verdict,
+    dailyOn: outfitRequests.dailyOn,
     createdAt: outfitRequests.createdAt,
   };
 
@@ -361,6 +371,73 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         }
         return true;
       });
+    },
+
+    async dailyRequest(userId, day, wardrobeSize) {
+      // Two at once both insert; the index keeps one, and both read it back.
+      await db
+        .insert(outfitRequests)
+        .values({ userId, dailyOn: day, wardrobeSize, status: "done" })
+        .onConflictDoNothing();
+      const [row] = await db
+        .select({ id: outfitRequests.id })
+        .from(outfitRequests)
+        .where(and(eq(outfitRequests.userId, userId), eq(outfitRequests.dailyOn, day)));
+      return row!.id;
+    },
+
+    async addDailyLook(requestId, userId, look) {
+      await db.transaction(async (tx) => {
+        const [{ n } = { n: 0 }] = await tx
+          .select({ n: count() })
+          .from(outfits)
+          .where(eq(outfits.requestId, requestId));
+        const [saved] = await tx
+          .insert(outfits)
+          .values({ requestId, userId, position: n, ...look })
+          .returning({ id: outfits.id });
+        if (look.pieces.length > 0) {
+          await tx
+            .insert(outfitPieces)
+            .values(
+              look.pieces.map((piece, i) => ({ outfitId: saved!.id, position: i, ...piece })),
+            );
+        }
+      });
+    },
+
+    async struckPairs(userId, limit) {
+      const cut = await db
+        .select({ outfitId: outfitPieces.outfitId, itemId: outfitPieces.itemId })
+        .from(outfitPieces)
+        .innerJoin(outfits, eq(outfits.id, outfitPieces.outfitId))
+        .where(
+          and(
+            eq(outfits.userId, userId),
+            isNotNull(outfitPieces.struckAt),
+            isNotNull(outfitPieces.itemId),
+          ),
+        )
+        .orderBy(desc(outfitPieces.struckAt))
+        .limit(limit);
+      if (cut.length === 0) return [];
+      const others = await db
+        .select({ outfitId: outfitPieces.outfitId, itemId: outfitPieces.itemId })
+        .from(outfitPieces)
+        .where(
+          and(
+            inArray(
+              outfitPieces.outfitId,
+              cut.map((c) => c.outfitId),
+            ),
+            isNotNull(outfitPieces.itemId),
+          ),
+        );
+      return cut.flatMap((c) =>
+        others
+          .filter((o) => o.outfitId === c.outfitId && o.itemId !== c.itemId)
+          .map((o) => pairKey(c.itemId!, o.itemId!)),
+      );
     },
 
     async markFailed(requestId) {

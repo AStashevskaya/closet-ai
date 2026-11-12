@@ -99,13 +99,57 @@ async function setup(weather: WeatherClient | null) {
     await outfits.react(look.id, userId, "wore");
     clock.now = new Date("2026-11-12T08:00:00Z");
   };
-  return { read, setCity, wear };
+  // A piece in her closet with a ready photo.
+  const addItem = async (category: string, noun: string) => {
+    const key = `photos/${userId}/${noun.replace(/\W/g, "")}.webp`;
+    await repositories.photosRepository.createReady({
+      key,
+      ownerId: userId,
+      tags: {
+        recognized: true,
+        name: noun,
+        category,
+        colors: ["black"],
+        seasons: [],
+        fit: null,
+        length: null,
+        fabric: null,
+        style: null,
+        brand: null,
+        condition: null,
+        noun,
+      } as never,
+    });
+    const res = await app!.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { name: noun, category, colors: ["black"], photoKey: key },
+    });
+    return res.json<{ id: string }>().id;
+  };
+  const another = async () =>
+    (
+      await app!.inject({ method: "POST", url: "/api/today/another?lang=ru", headers: { cookie } })
+    ).json<TodayWeek>();
+  const diary = async () =>
+    (await app!.inject({ method: "GET", url: "/api/wear-with", headers: { cookie } })).json<
+      unknown[]
+    >();
+  return { read, setCity, wear, addItem, another, diary };
 }
 
 describe("GET /api/today", () => {
   it("asks for a city first, then gives her week with its weather", async () => {
     const { read, setCity } = await setup(stubWeather());
-    expect(await read()).toEqual({ status: "no-city", place: null, today: null, days: [] });
+    expect(await read()).toEqual({
+      status: "no-city",
+      place: null,
+      today: null,
+      days: [],
+      look: null,
+      missing: ["top", "bottom", "shoes"],
+    });
 
     await setCity("Minsk");
     const answer = await read();
@@ -142,5 +186,41 @@ describe("GET /api/today", () => {
       await app!.close();
       app = undefined;
     }
+  });
+
+  it("gives a look of the day by the rules, the same one all day, and another on asking", async () => {
+    const { read, setCity, addItem, another } = await setup(stubWeather());
+    await setCity("Minsk");
+    await addItem("top", "tee");
+    await addItem("bottom", "jeans");
+    await addItem("bottom", "skirt");
+    expect((await read()).missing).toEqual(["shoes"]);
+
+    await addItem("shoes", "ankle boots");
+    await addItem("outerwear", "trench coat");
+    const first = await read();
+    expect(first.look).not.toBeNull();
+    const kinds = first.look!.pieces.map((p) => p.item!.category).sort();
+    // A cold, wet day: a coat over a top and a bottom, and boots.
+    expect(kinds).toEqual(["bottom", "outerwear", "shoes", "top"]);
+    expect((await read()).look!.id).toBe(first.look!.id);
+
+    const next = await another();
+    expect(next.look!.id).not.toBe(first.look!.id);
+    expect((await read()).look!.id).toBe(next.look!.id);
+  });
+
+  it("keeps the looks of the day out of her styling diary", async () => {
+    const { read, setCity, addItem, diary } = await setup(stubWeather());
+    await setCity("Minsk");
+    for (const [kind, noun] of [
+      ["top", "tee"],
+      ["bottom", "jeans"],
+      ["shoes", "boots"],
+    ] as const) {
+      await addItem(kind, noun);
+    }
+    expect((await read()).look).not.toBeNull();
+    expect(await diary()).toEqual([]);
   });
 });

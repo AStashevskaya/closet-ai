@@ -3,9 +3,15 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
-import type { WeatherClient } from "../../weather/weather";
+import { localDate, type DayWeather, type WeatherClient } from "../../weather/weather";
+import { RECENT_REQUESTS } from "../outfits/outfit-jobs";
 import type { OutfitsRepository } from "../outfits/outfits.repository";
+import { seasonOf } from "../outfits/wardrobe-sheet";
 import type { ProfileRepository } from "../profile/profile.repository";
+import { dailyLook, needOf } from "./daily-look";
+
+// How many of her latest cut pairs count against the look of the day.
+const STRUCK_PAIRS = 40;
 
 // Her week for the look of the day: the weather in her city from Monday to Sunday, and the days she
 // wore a look. The look itself comes next (docs/product.md, look of the day).
@@ -15,9 +21,82 @@ export const todayRoutes =
     outfits: OutfitsRepository,
     weather: WeatherClient | null,
     auth: Auth,
+    clock: () => Date,
   ): FastifyPluginAsyncZod =>
   async (app) => {
     app.addHook("preHandler", requireUser(auth));
+
+    // The day's look: the newest on her request for the day, made by the rules the first time
+    // (and on "another", with the looks already shown passed over). Rules, so no cost.
+    async function lookOfTheDay(
+      userId: string,
+      day: string,
+      weatherToday: DayWeather | null,
+      lang: (typeof APP_LANGUAGES)[number],
+      another: boolean,
+    ): Promise<Pick<TodayWeek, "look" | "missing">> {
+      const wardrobe = await outfits.wardrobe(userId);
+      const requestId = await outfits.dailyRequest(userId, day, wardrobe.length);
+      const shown = (await outfits.view(requestId, userId, lang))?.outfits ?? [];
+      if (shown.length === 0 || another) {
+        const recent = await outfits.recentlyUsed(userId, RECENT_REQUESTS);
+        const pick = dailyLook(wardrobe, {
+          season: seasonOf(clock()),
+          need: needOf(weatherToday, seasonOf(clock())),
+          recent: recent.pieces,
+          struck: new Set(await outfits.struckPairs(userId, STRUCK_PAIRS)),
+          skip: shown.length,
+        });
+        if ("missing" in pick) return { look: null, missing: pick.missing };
+        // Words come from the app, by the day's weather: the rules write none.
+        await outfits.addDailyLook(requestId, userId, {
+          caption: "",
+          occasion: "",
+          why: "",
+          missing: null,
+          pieces: pick.pieces.map((itemId) => ({ hero: false, itemId })),
+        });
+      }
+      const looks = (await outfits.view(requestId, userId, lang))?.outfits ?? [];
+      return { look: looks.at(-1) ?? null, missing: [] };
+    }
+
+    // Her week and its weather, for the look of the day.
+    async function weekOf(userId: string, lang: string) {
+      const { city, country } = await profiles.get(userId);
+      if (!city) return { status: "no-city" as const, week: null };
+      if (!weather) return { status: "unavailable" as const, week: null };
+      try {
+        const week = await weather.week({ city, country }, lang);
+        return { status: week ? ("ok" as const) : ("not-found" as const), week };
+      } catch (cause) {
+        app.log.warn({ err: cause }, "the weather didn't answer");
+        return { status: "unavailable" as const, week: null };
+      }
+    }
+
+    const answer = async (
+      userId: string,
+      lang: (typeof APP_LANGUAGES)[number],
+      another: boolean,
+    ): Promise<TodayWeek> => {
+      const { status, week } = await weekOf(userId, lang);
+      // Her city's day when the weather is known; else the server's.
+      const day = week?.today ?? localDate(clock().getTime(), 0);
+      const today = week?.days.find((d) => d.date === day) ?? null;
+      const daily = await lookOfTheDay(userId, day, today, lang, another);
+      if (!week) return { status, place: null, today: null, days: [], ...daily };
+      // Monday 00:00 in her city, and each mark on the day it was there.
+      const monday = Date.parse(`${week.days[0]!.date}T00:00:00Z`) - week.offsetSeconds * 1000;
+      const worn = new Set(await outfits.woreDays(userId, new Date(monday), week.offsetSeconds));
+      return {
+        status,
+        place: week.place,
+        today: week.today,
+        days: week.days.map((d) => ({ ...d, wore: worn.has(d.date) })),
+        ...daily,
+      };
+    };
 
     app.get(
       "/today",
@@ -27,29 +106,18 @@ export const todayRoutes =
           response: { 200: todayWeek },
         },
       },
-      async (request): Promise<TodayWeek> => {
-        const user = request.user as SessionUser;
-        const { city, country } = await profiles.get(user.id);
-        const none = { place: null, today: null, days: [] };
-        if (!city) return { status: "no-city", ...none };
-        if (!weather) return { status: "unavailable", ...none };
-        let week;
-        try {
-          week = await weather.week({ city, country }, request.query.lang);
-        } catch (cause) {
-          request.log.warn({ err: cause }, "the weather didn't answer");
-          return { status: "unavailable", ...none };
-        }
-        if (!week) return { status: "not-found", ...none };
-        // Monday 00:00 in her city, and each mark on the day it was there.
-        const monday = Date.parse(`${week.days[0]!.date}T00:00:00Z`) - week.offsetSeconds * 1000;
-        const worn = new Set(await outfits.woreDays(user.id, new Date(monday), week.offsetSeconds));
-        return {
-          status: "ok",
-          place: week.place,
-          today: week.today,
-          days: week.days.map((day) => ({ ...day, wore: worn.has(day.date) })),
-        };
+      (request) => answer((request.user as SessionUser).id, request.query.lang, false),
+    );
+
+    // "Another": the next look by the rules, kept as the day's.
+    app.post(
+      "/today/another",
+      {
+        schema: {
+          querystring: z.object({ lang: z.enum(APP_LANGUAGES).default("en") }),
+          response: { 200: todayWeek },
+        },
       },
+      (request) => answer((request.user as SessionUser).id, request.query.lang, true),
     );
   };
