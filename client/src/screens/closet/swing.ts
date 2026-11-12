@@ -162,7 +162,7 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
     'worklet';
     if (tickEvery) {
       touched.set(true);
-      slot.set(Math.floor(offset.get() / tickEvery));
+      slot.set(Math.max(0, Math.floor(offset.get() / tickEvery)));
     }
     if (reduced) return;
     moving.set(true);
@@ -176,7 +176,8 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
     onScroll: (event) => {
       offset.set(event.contentOffset.x);
       if (tickEvery && touched.get()) {
-        const now = Math.floor(event.contentOffset.x / tickEvery);
+        // Not past the ends: a rubber-band bounce isn't a hanger.
+        const now = Math.max(0, Math.floor(event.contentOffset.x / tickEvery));
         if (now !== slot.get()) {
           slot.set(now);
           scheduleOnRN(tick);

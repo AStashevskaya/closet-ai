@@ -174,6 +174,26 @@ describe('<ClosetCategory />', () => {
     expect(screen.getByText('Mostly black and pink.')).toBeOnTheScreen();
   });
 
+  test('a basic colour on any piece counts, not only as its main colour', async () => {
+    const piece = (n: number, colors: Item['colors']): Item => ({
+      ...skirt,
+      id: `6b1f7c3e-0000-4000-8000-00000000040${n}`,
+      name: `Skirt ${n}`,
+      colors,
+    });
+    list.mockResolvedValue([
+      piece(1, ['black', 'white']),
+      piece(2, ['black']),
+      piece(3, ['black']),
+      piece(4, ['gray', 'beige']),
+      piece(5, ['gray']),
+      piece(6, ['red']),
+    ]);
+    await render(<ClosetCategory category="bottom" />);
+
+    expect(await screen.findByText('Mostly black and grey.')).toBeOnTheScreen();
+  });
+
   test('names the basics a bigger category has none of', async () => {
     const piece = (n: number, colour: Item['colors'][number]): Item => ({
       ...skirt,

@@ -68,9 +68,10 @@ export function ClosetCategory({ category }: { category: ItemCategory }) {
   // Once the rails have played their entrance, a rail mounted later (a new colour) skips it.
   useEffect(() => {
     if (!ready) return;
+    // The last colour's rail starts at most this late (one per palette colour).
     const timer = setTimeout(
       () => setEntered(true),
-      ITEM_COLORS.length * STAGGER_STEP + durations.enter,
+      ITEM_COLORS.length * RAIL_STEP + durations.enter,
     );
     return () => clearTimeout(timer);
   }, [ready]);
@@ -82,7 +83,8 @@ export function ClosetCategory({ category }: { category: ItemCategory }) {
     setEditing(true);
   };
   const open = (item: Item) => router.push({ pathname: '/item/[id]', params: { id: item.id } });
-  const summary = ready && !isEditing ? summaryOf(rails, pieces.length) : null;
+  // Kept in edit mode too: going would move every rail up under the finger aiming at a badge.
+  const summary = ready ? summaryOf(rails, pieces) : null;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} scrollEnabled={ready}>
@@ -160,12 +162,16 @@ export function ClosetCategory({ category }: { category: ItemCategory }) {
 type T = ReturnType<typeof useTranslation>['t'];
 
 // What her colours say: the one or two she has most of, and the basics she has none of.
-function summaryOf(rails: ColourRail[], total: number): ((t: T) => string) | null {
-  if (total < SUMMARY_FROM || rails.length === 0) return null;
+function summaryOf(rails: ColourRail[], pieces: Item[]): ((t: T) => string) | null {
+  if (pieces.length < SUMMARY_FROM || rails.length === 0) return null;
   const [first, second] = rails;
+  // Absent from every piece, not only as the main colour: a black-and-white top has white.
   const missing =
-    total >= MISSING_FROM
-      ? BASICS.filter((colour) => !rails.some((rail) => rail.colour === colour)).slice(0, 2)
+    pieces.length >= MISSING_FROM
+      ? BASICS.filter((colour) => !pieces.some((piece) => piece.colors.includes(colour))).slice(
+          0,
+          2,
+        )
       : [];
   return (t) => {
     const of = (colour: ItemColor) => t(`closet.colours.of.${colour}`);
