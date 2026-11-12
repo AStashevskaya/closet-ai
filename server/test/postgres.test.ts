@@ -785,6 +785,31 @@ describe.skipIf(!url)("on Postgres", () => {
       new Date().toISOString().slice(0, 10),
     ]);
     expect(await outfits.woreDays(user!.id, new Date(Date.now() + 86_400_000), 0)).toEqual([]);
+    // And which look, once a day, for the week's recap.
+    expect(await outfits.woreLooks(user!.id, before, 0)).toEqual([
+      { day: new Date().toISOString().slice(0, 10), outfitId: look.id, requestId },
+    ]);
+    // In her city's day: three hours ahead, an hour before midnight UTC is already the next day.
+    // Yesterday's 23:00, so the mark stays in the past for the checks after this one.
+    const late = new Date();
+    late.setUTCDate(late.getUTCDate() - 1);
+    late.setUTCHours(23, 0, 0, 0);
+    const [reaction] = await db.db
+      .select()
+      .from(schema.outfitReactions)
+      .where(eq(schema.outfitReactions.outfitId, look.id));
+    await db.db
+      .update(schema.outfitReactions)
+      .set({ createdAt: late })
+      .where(eq(schema.outfitReactions.id, reaction!.id));
+    const nextDay = new Date(late.getTime() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+    expect(
+      await outfits.woreLooks(user!.id, new Date(late.getTime() - 3600_000), 3 * 3600),
+    ).toEqual([{ day: nextDay, outfitId: look.id, requestId }]);
+    // Another user's days never list her look.
+    expect((await outfits.woreLooks(other!.id, before, 0)).map((w) => w.outfitId)).not.toContain(
+      look.id,
+    );
 
     // For the week's find: when each piece was last worn, how often cut, which pairs worn together.
     const yearAgo = new Date(Date.now() - 365 * 86_400_000);

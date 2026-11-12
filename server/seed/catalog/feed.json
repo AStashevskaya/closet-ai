@@ -347,11 +347,11 @@
   "names": {
    "en": "Trench coat",
    "ru": "Тренч",
-   "he": "מעיל טרנץ&#x27;"
+   "he": "מעיל טרנץ׳"
   },
   "category": "outerwear",
   "colors": [
-   "green"
+   "beige"
   ],
   "price": 649.0,
   "currency": "ILS",
@@ -366,7 +366,7 @@
   "names": {
    "en": "Leather jacket",
    "ru": "Кожаная куртка",
-   "he": "ז&#x27;קט עור"
+   "he": "ז׳קט עור"
   },
   "category": "outerwear",
   "colors": [
@@ -499,7 +499,7 @@
   "names": {
    "en": "Denim skirt",
    "ru": "Юбка джинсовая",
-   "he": "חצאית ג&#x27;ינס"
+   "he": "חצאית ג׳ינס"
   },
   "category": "bottom",
   "colors": [
@@ -518,7 +518,7 @@
   "names": {
    "en": "Denim skirt",
    "ru": "Юбка джинсовая",
-   "he": "חצאית ג&#x27;ינס"
+   "he": "חצאית ג׳ינס"
   },
   "category": "bottom",
   "colors": [
@@ -574,8 +574,8 @@
   "brand": "STUDIO EDIT",
   "names": {
    "en": "Wide-leg jeans",
-   "ru": "Джинсы wide leg",
-   "he": "ג&#x27;ינס רחב"
+   "ru": "Широкие джинсы",
+   "he": "ג׳ינס רחב"
   },
   "category": "bottom",
   "colors": [
@@ -593,8 +593,8 @@
   "brand": "STUDIO EDIT",
   "names": {
    "en": "Wide-leg jeans",
-   "ru": "Джинсы wide leg",
-   "he": "ג&#x27;ינס רחב"
+   "ru": "Широкие джинсы",
+   "he": "ג׳ינס רחב"
   },
   "category": "bottom",
   "colors": [
@@ -613,7 +613,7 @@
   "names": {
    "en": "Straight jeans",
    "ru": "Джинсы straight",
-   "he": "ג&#x27;ינס ישר"
+   "he": "ג׳ינס ישר"
   },
   "category": "bottom",
   "colors": [
@@ -632,7 +632,7 @@
   "names": {
    "en": "Straight jeans",
    "ru": "Джинсы straight",
-   "he": "ג&#x27;ינס ישר"
+   "he": "ג׳ינס ישר"
   },
   "category": "bottom",
   "colors": [
@@ -1297,7 +1297,7 @@
   "names": {
    "en": "Clutch",
    "ru": "Клатч",
-   "he": "קלאץ&#x27;"
+   "he": "קלאץ׳"
   },
   "category": "accessory",
   "colors": [
@@ -1316,7 +1316,7 @@
   "names": {
    "en": "Clutch",
    "ru": "Клатч",
-   "he": "קלאץ&#x27;"
+   "he": "קלאץ׳"
   },
   "category": "accessory",
   "colors": [

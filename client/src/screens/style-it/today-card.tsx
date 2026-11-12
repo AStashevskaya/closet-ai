@@ -3,20 +3,25 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Button, maison } from '@/components/maison';
 import { OutfitMobile } from '@/components/outfit-mobile';
 import { anotherToday, getToday, reactToOutfit, strikePiece } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
+import {
+  declineMornings,
+  degrees,
+  morningState,
+  scheduleMornings,
+  turnOnMornings,
+  type MorningState,
+} from '@/lib/morning';
 import { arrive, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 type Day = TodayWeek['days'][number];
-
-// A temperature as the week shows it: +8°, 0°, −3° (a real minus).
-export const degrees = (t: number) => `${t > 0 ? '+' : t < 0 ? '−' : ''}${Math.abs(t)}°`;
 
 // What the day asks of clothes, for the line by hand under the look (the server's rules read it
 // the same way: server/src/modules/today/daily-look.ts, needOf).
@@ -46,6 +51,8 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
   const tapping = useRef(false);
   // Only the newest answer counts: an older one arriving late would undo a tap.
   const latest = useRef(0);
+  // The morning note: offered under her first look of the day, then kept up each time she comes.
+  const [morning, setMorning] = useState<MorningState | null>(null);
 
   const load = useCallback(async () => {
     if (tapping.current) return;
@@ -56,6 +63,14 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
         setToday(answer);
         setFailed(false);
       }
+      // The next mornings, with this week's weather: on the side, never holding the card.
+      void morningState()
+        .catch((): MorningState => 'off')
+        .then((state) => {
+          if (read !== latest.current) return;
+          setMorning(state);
+          if (state === 'on') void scheduleMornings(answer.days);
+        });
     } catch {
       // Style it carries on without its top: the card is a bonus, never in the way.
       if (read === latest.current) setFailed(true);
@@ -114,6 +129,17 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
       tapping.current = false;
       setBusy(false);
     }
+  }
+
+  async function answerMorning(yes: boolean) {
+    if (!yes) {
+      setMorning('off');
+      await declineMornings().catch(() => {});
+      return;
+    }
+    const granted = await turnOnMornings().catch(() => false);
+    setMorning(granted ? 'on' : 'off');
+    if (granted && today) void scheduleMornings(today.days);
   }
 
   function strike(pieceId: string, struck: boolean) {
@@ -257,6 +283,29 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
           </View>
         </Animated.View>
       ) : null}
+
+      {/* Asked here, under a look she has seen, rather than at launch: she knows what it'd send. */}
+      {look && morning === 'ask' && (
+        <Animated.View entering={arrive} style={styles.morning}>
+          <Text style={styles.hand}>{t('today.morning.ask')}</Text>
+          <View style={styles.buttons}>
+            <Button
+              kind="outline"
+              label={t('today.morning.yes')}
+              onPress={() => void answerMorning(true)}
+              style={styles.button}
+            />
+            <Pressable
+              onPress={() => void answerMorning(false)}
+              hitSlop={8}
+              accessibilityRole="button"
+              style={styles.later}
+            >
+              <Text style={styles.laterText}>{t('today.morning.no')}</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      )}
     </Animated.View>
   );
 }
@@ -309,6 +358,22 @@ const styles = StyleSheet.create({
   card: {
     marginTop: 18,
     gap: 6,
+  },
+  morning: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    gap: 8,
+  },
+  later: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  laterText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
+    textDecorationLine: 'underline',
   },
   week: {
     flexDirection: 'row',

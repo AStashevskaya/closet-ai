@@ -64,6 +64,12 @@
           "photosPermission": "Closet adds photos of your clothes from your library.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#D6E4F1"
+        }
       ]
     ],
     "experiments": {

@@ -569,6 +569,26 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         wornPairs: [...pairs],
       };
     },
+    woreLooks: async (userId, since, offsetSeconds) => {
+      const latest = new Map<
+        string,
+        { day: string; outfitId: string; requestId: string; at: number }
+      >();
+      for (const r of reactions) {
+        if (r.userId !== userId || r.reaction !== "wore" || r.createdAt < since) continue;
+        const look = storedOutfits.find((o) => o.id === r.outfitId);
+        if (!look) continue;
+        const day = new Date(r.createdAt.getTime() + offsetSeconds * 1000)
+          .toISOString()
+          .slice(0, 10);
+        const at = r.createdAt.getTime();
+        if ((latest.get(day)?.at ?? -1) <= at)
+          latest.set(day, { day, outfitId: look.id, requestId: look.requestId, at });
+      }
+      return [...latest.values()]
+        .sort((a, b) => a.day.localeCompare(b.day))
+        .map(({ day, outfitId, requestId }) => ({ day, outfitId, requestId }));
+    },
     strike: async (outfitId, pieceId, userId, struck) => {
       const look = storedOutfits.find((o) => o.id === outfitId && o.userId === userId);
       const piece = look?.pieces.find((p) => p.id === pieceId);
@@ -598,7 +618,14 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     },
     react: async (outfitId, userId, reaction, reason) => {
       if (!storedOutfits.some((o) => o.id === outfitId && o.userId === userId)) return false;
-      reactions.push({ outfitId, userId, reaction, reason: reason ?? null, createdAt: now() });
+      // On the test's clock, so a look worn "on Tuesday" is Tuesday's (the week's recap).
+      reactions.push({
+        outfitId,
+        userId,
+        reaction,
+        reason: reason ?? null,
+        createdAt: new Date(clock().getTime() + tick++),
+      });
       return true;
     },
     recentlyUsed: async (userId, count) => {

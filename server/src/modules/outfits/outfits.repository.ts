@@ -190,6 +190,13 @@ export interface OutfitsRepository {
   // The days (YYYY-MM-DD at the given UTC offset, her city's) since `since` on which she marked a
   // look as worn.
   woreDays(userId: string, since: Date, offsetSeconds: number): Promise<string[]>;
+  // The look she last said she wore on each day since `since` (days in her city, by
+  // `offsetSeconds`), for the week's recap.
+  woreLooks(
+    userId: string,
+    since: Date,
+    offsetSeconds: number,
+  ): Promise<{ day: string; outfitId: string; requestId: string }[]>;
   // For the week's find: each of her pieces' last wear since `since` and how often she cut it
   // out of a look, and the pairs of her pieces she has worn together since `since`.
   wearHistory(
@@ -646,6 +653,28 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           ),
         );
       return rows.map((r) => r.day).sort();
+    },
+
+    async woreLooks(userId, since, offsetSeconds) {
+      // Written into the query rather than bound: DISTINCT ON must repeat ORDER BY's expression
+      // exactly, and two parameters are two expressions. Checked to be an integer, so nothing else
+      // can get in.
+      if (!Number.isInteger(offsetSeconds)) throw new Error(`woreLooks: offset ${offsetSeconds}`);
+      const offset = sql.raw(String(offsetSeconds));
+      const day = sql<string>`to_char((${outfitReactions.createdAt} at time zone 'UTC') + make_interval(secs => ${offset}), 'YYYY-MM-DD')`;
+      const rows = await db
+        .selectDistinctOn([day], { day, outfitId: outfits.id, requestId: outfits.requestId })
+        .from(outfitReactions)
+        .innerJoin(outfits, eq(outfits.id, outfitReactions.outfitId))
+        .where(
+          and(
+            eq(outfitReactions.userId, userId),
+            eq(outfitReactions.reaction, "wore"),
+            gte(outfitReactions.createdAt, since),
+          ),
+        )
+        .orderBy(day, desc(outfitReactions.createdAt));
+      return rows;
     },
 
     async wearHistory(userId, since) {

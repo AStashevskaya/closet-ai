@@ -23,6 +23,7 @@ import { StyleExample } from './style-example';
 import { StyleThread, type Chosen as StyledPiece } from './style-thread';
 import { ThreadWaiting } from './thread-row';
 import { TodayCard } from './today-card';
+import { WeekRecap } from './week-recap';
 
 // The piece being styled: from the closet (so it can be asked about again) or styled before.
 type Chosen = StyledPiece & { item?: Item };
@@ -221,6 +222,8 @@ export function StyleIt() {
         </View>
       </View>
 
+      {/* Sunday evening: the week told, above the day's look. */}
+      <WeekRecap headers={headers} />
       {/* The look of the day, from her closet for today's weather: a reason to open the app each
           morning (2026-11-12). */}
       <TodayCard headers={headers} />
