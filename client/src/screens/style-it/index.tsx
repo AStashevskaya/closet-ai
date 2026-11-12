@@ -20,9 +20,9 @@ import { colors } from '@/theme';
 import { ClosetPicker } from './closet-picker';
 import { DiaryStop } from './diary-stop';
 import { StyleExample } from './style-example';
-import { TodayCard } from './today-card';
 import { StyleThread, type Chosen as StyledPiece } from './style-thread';
 import { ThreadWaiting } from './thread-row';
+import { TodayCard } from './today-card';
 
 // The piece being styled: from the closet (so it can be asked about again) or styled before.
 type Chosen = StyledPiece & { item?: Item };

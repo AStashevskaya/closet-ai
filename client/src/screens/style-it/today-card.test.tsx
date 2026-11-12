@@ -124,19 +124,17 @@ describe('<TodayCard />', () => {
   });
 
   test('asks for a city, and says what the closet lacks', async () => {
-    jest
-      .mocked(getToday)
-      .mockResolvedValue(
-        week({
-          status: 'no-city',
-          place: null,
-          today: null,
-          days: [],
-          look: null,
-          missing: ['shoes'],
-          shown: 0,
-        }),
-      );
+    jest.mocked(getToday).mockResolvedValue(
+      week({
+        status: 'no-city',
+        place: null,
+        today: null,
+        days: [],
+        look: null,
+        missing: ['shoes'],
+        shown: 0,
+      }),
+    );
     await render(<TodayCard headers={{}} />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Add my city' }));
     expect(mockPush).toHaveBeenCalledWith('/profile-details');
@@ -147,11 +145,25 @@ describe('<TodayCard />', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/add-item', params: { category: 'shoes' } });
   });
 
-  test('stays out of the way when it can’t load', async () => {
-    jest.mocked(getToday).mockRejectedValue(new Error('offline'));
+  test('waits with its week in place, and goes quietly when it can’t load', async () => {
+    let fail: (cause: Error) => void = () => {};
+    jest.mocked(getToday).mockReturnValue(new Promise((_, reject) => (fail = reject)));
     await render(<TodayCard headers={{}} />);
-    await waitFor(() => expect(getToday).toHaveBeenCalled());
+    expect(screen.getByTestId('today-waiting', { includeHiddenElements: true })).toBeOnTheScreen();
+    fail(new Error('offline'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('today-waiting', { includeHiddenElements: true })).toBeNull(),
+    );
     expect(screen.queryByTestId('today-card')).toBeNull();
+  });
+
+  test('“I wore it” goes back when the server doesn’t take it', async () => {
+    jest.mocked(getToday).mockResolvedValue(week());
+    jest.mocked(reactToOutfit).mockRejectedValue(new Error('offline'));
+    await render(<TodayCard headers={{}} />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'I wore it' }));
+    expect(await screen.findByRole('button', { name: 'I wore it' })).toBeOnTheScreen();
+    expect(screen.queryByText("worn — I'll remember")).toBeNull();
   });
 });
 

@@ -40,16 +40,25 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
   const lang = appLanguage(i18n.language);
   const [today, setToday] = useState<TodayWeek | null>(null);
   const [busy, setBusy] = useState(false);
+  // The first read failed: no card, no waiting week.
+  const [failed, setFailed] = useState(false);
+  // While a tap is on its way a reload waits for it: its answer could be older than the tap's.
+  const tapping = useRef(false);
   // Only the newest answer counts: an older one arriving late would undo a tap.
   const latest = useRef(0);
 
   const load = useCallback(async () => {
+    if (tapping.current) return;
     const read = ++latest.current;
     try {
       const answer = await getToday(lang);
-      if (read === latest.current) setToday(answer);
+      if (read === latest.current) {
+        setToday(answer);
+        setFailed(false);
+      }
     } catch {
       // Style it carries on without its top: the card is a bonus, never in the way.
+      if (read === latest.current) setFailed(true);
     }
   }, [lang]);
   useFocusEffect(
@@ -58,7 +67,8 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
     }, [load]),
   );
 
-  if (!today) return null;
+  // Waiting: the week's thread with seven faint beads, at its height, so nothing moves when it comes.
+  if (!today) return failed ? null : <WeekWaiting />;
   const look = today.look;
   const day = today.days.find((d) => d.date === today.today);
   const wornToday = (look?.woreCount ?? 0) > 0 || day?.wore === true;
@@ -72,20 +82,27 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
     setToday((current) => (current?.look ? { ...current, look: change(current.look) } : current));
 
   async function wore() {
-    if (!look || busy) return;
+    if (!look || tapping.current) return;
+    tapping.current = true;
+    setBusy(true);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     ++latest.current;
     setLook((o) => ({ ...o, woreCount: o.woreCount + 1 }));
     try {
       await reactToOutfit(look.id, 'wore');
+      tapping.current = false;
       void load();
     } catch {
       setLook((o) => ({ ...o, woreCount: Math.max(0, o.woreCount - 1) }));
+    } finally {
+      tapping.current = false;
+      setBusy(false);
     }
   }
 
   async function another() {
-    if (!today || busy) return;
+    if (!today || tapping.current) return;
+    tapping.current = true;
     setBusy(true);
     const read = ++latest.current;
     try {
@@ -94,6 +111,7 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
     } catch {
       // Keeps today's look; she can tap again.
     } finally {
+      tapping.current = false;
       setBusy(false);
     }
   }
@@ -126,8 +144,7 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
               .join('; '),
           })}
         >
-          <View style={styles.weekThread} />
-          {today.days.map((d) => {
+          {today.days.map((d, i) => {
             const isToday = d.date === today.today;
             const past = today.today !== null && d.date < today.today;
             return (
@@ -135,14 +152,16 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
                 <Text style={[styles.dayName, isToday && styles.dayNameToday]}>
                   {weekday(d.date, 'short')}
                 </Text>
-                <View
-                  style={[
-                    styles.bead,
-                    d.wore && styles.beadWorn,
-                    isToday && !d.wore && styles.beadToday,
-                    !past && !isToday && styles.beadAhead,
-                  ]}
-                />
+                <BeadRow first={i === 0} last={i === today.days.length - 1}>
+                  <View
+                    style={[
+                      styles.bead,
+                      d.wore && styles.beadWorn,
+                      isToday && !d.wore && styles.beadToday,
+                      !past && !isToday && styles.beadAhead,
+                    ]}
+                  />
+                </BeadRow>
                 <Text style={styles.temp}>{degrees(d.max)}</Text>
               </View>
             );
@@ -182,7 +201,7 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
         </View>
       ) : look ? (
         // On blue while it's new today; once worn, the blue goes and the line says so.
-        <View
+        <Animated.View
           style={[
             styles.look,
             !wornToday && styles.lookNew,
@@ -236,9 +255,52 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
               </>
             )}
           </View>
-        </View>
+        </Animated.View>
       ) : null}
     </Animated.View>
+  );
+}
+
+// A bead's row: the week's thread runs through its middle, from the first day's bead to the last's,
+// so it meets the beads whatever the size of the day names above.
+function BeadRow({
+  first,
+  last,
+  children,
+}: {
+  first: boolean;
+  last: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.beadRow}>
+      <View
+        style={[styles.weekThread, first && styles.threadFromMiddle, last && styles.threadToMiddle]}
+      />
+      {children}
+    </View>
+  );
+}
+
+// While the week is read: its thread and seven faint beads, where the week will be.
+function WeekWaiting() {
+  return (
+    <View
+      style={[styles.card, styles.week, styles.waiting]}
+      testID="today-waiting"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {Array.from({ length: 7 }, (_, i) => (
+        <View key={i} style={styles.day}>
+          <Text style={styles.dayName}> </Text>
+          <BeadRow first={i === 0} last={i === 6}>
+            <View style={[styles.bead, styles.beadFaint]} />
+          </BeadRow>
+          <Text style={styles.temp}> </Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -250,22 +312,40 @@ const styles = StyleSheet.create({
   },
   week: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
   },
-  // The thread the week's beads are on, through their middles.
+  waiting: {
+    opacity: 0.5,
+  },
+  // Each day takes an equal share, so the pieces of thread in each meet into one line.
+  day: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  beadRow: {
+    alignSelf: 'stretch',
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Through the middle of the row; from the middle on the first day, to the middle on the last.
   weekThread: {
     position: 'absolute',
-    start: 34,
-    end: 34,
-    top: 27,
+    start: 0,
+    end: 0,
+    top: 8.4,
     height: 1.2,
     backgroundColor: colors.text,
   },
-  day: {
-    width: 40,
-    alignItems: 'center',
-    gap: 6,
+  threadFromMiddle: {
+    start: '50%',
+  },
+  threadToMiddle: {
+    end: '50%',
+  },
+  beadFaint: {
+    borderColor: colors.textMuted,
   },
   dayName: {
     fontFamily: fonts.body,
@@ -291,7 +371,6 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    marginVertical: -2,
     borderColor: colors.bead,
     backgroundColor: colors.bead,
   },
