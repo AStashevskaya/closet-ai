@@ -3,7 +3,9 @@ import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { createAuth } from "../src/auth/auth";
+import { pickFound } from "../src/modules/found/found-piece";
 import { createMemoryStorage } from "../src/storage/storage";
+import { mondayOf, type WeatherClient } from "../src/weather/weather";
 import {
   createInMemoryRepositories,
   createManualOutfitQueue,
@@ -24,7 +26,7 @@ const DAY = 86_400_000;
 const TODAY = new Date(Date.now() + 40 * DAY);
 const MONTH_AGO = new Date(Date.now() - DAY);
 
-async function setup() {
+async function setup(weather: WeatherClient | null = null) {
   const clock = { now: TODAY };
   const repositories = createInMemoryRepositories(() => clock.now);
   app = await buildApp({
@@ -37,6 +39,7 @@ async function setup() {
     taggingEnabled: true,
     stylistEnabled: true,
     clock: () => clock.now,
+    weather,
   });
   const res = await app.inject({
     method: "POST",
@@ -111,7 +114,9 @@ async function setup() {
     (
       await app!.inject({ method: "GET", url: "/api/found?lang=en", headers: { cookie } })
     ).json<FoundPiece>();
-  return { addItem, wear, read, cookie };
+  const setCity = (city: string) =>
+    app!.inject({ method: "PATCH", url: "/api/profile", headers: { cookie }, payload: { city } });
+  return { addItem, wear, read, setCity, userId };
 }
 
 describe("GET /api/found", () => {
@@ -151,6 +156,49 @@ describe("GET /api/found", () => {
     expect(found.looks.map((look) => look.pieces.map((p) => p.id).sort())).toEqual([
       [fresh, jeans, loafers].sort(),
     ]);
+  });
+
+  it("draws the week's find by her city's week, not the server's", async () => {
+    // Her city is past midnight into a Monday while UTC is still on Sunday: find a Sunday where
+    // the two weeks draw differently, so the test tells them apart.
+    const sunday = (n: number) => {
+      const day = new Date(TODAY.getTime() + n * DAY);
+      return day.getUTCDay() === 0 ? day.toISOString().slice(0, 10) : null;
+    };
+    const city = { today: "" };
+    const { addItem, read, setCity, userId } = await setup({
+      week: async () => ({
+        place: "Минск",
+        today: city.today,
+        offsetSeconds: 3 * 3600,
+        days: [],
+      }),
+    });
+    await setCity("Minsk");
+    const tops = [];
+    for (const noun of ["tee", "blouse", "shirt", "polo", "tank"])
+      tops.push({
+        id: await addItem("top", noun),
+        category: "top",
+        seasons: [],
+        createdAt: MONTH_AGO,
+      });
+    await addItem("bottom", "jeans");
+    await addItem("shoes", "loafers");
+    const options = (week: string) => ({ season: "winter" as const, now: TODAY, userId, week });
+
+    for (let n = 0; n < 60; n++) {
+      const utcSunday = sunday(n);
+      if (!utcSunday) continue;
+      const cityMonday = new Date(Date.parse(utcSunday) + DAY).toISOString().slice(0, 10);
+      const byCity = pickFound(tops, [], options(mondayOf(cityMonday)))[0];
+      const byUtc = pickFound(tops, [], options(mondayOf(utcSunday)))[0];
+      if (byCity === byUtc) continue;
+      city.today = cityMonday;
+      expect((await read()).piece?.id).toBe(byCity);
+      return;
+    }
+    throw new Error("no Sunday drew differently in 60 days");
   });
 
   it("asks her to sign in", async () => {

@@ -56,7 +56,6 @@ export const foundRoutes =
       async (request) => {
         const userId = (request.user as SessionUser).id;
         const now = clock();
-        const season = seasonOf(now);
         // `wardrobe` holds the pieces with a ready photo and what styling reads; `closet` their
         // dates and what the app shows. Two reads: neither has both.
         const [wardrobe, closet, history, struck, today] = await Promise.all([
@@ -66,6 +65,8 @@ export const foundRoutes =
           outfits.struckPairs(userId, STRUCK_PAIRS),
           todayOf(userId, request.query.lang, now),
         ]);
+        // Her season and week by her city's day, as the look of the day goes.
+        const season = seasonOf(new Date(`${today}T12:00:00Z`));
         const ready = new Set(wardrobe.map((p) => p.id));
         const finds = pickFound(
           closet
@@ -88,12 +89,14 @@ export const foundRoutes =
         // The first find she can wear with something; a find with nothing to wear it with
         // would be a reproach after all.
         for (const pieceId of finds.slice(0, TRIES)) {
-          const looks = looksWith(wardrobe, pieceId, options);
+          // A look with a piece deleted between the two reads goes whole: never one without its
+          // shoes or its other half.
+          const looks = looksWith(wardrobe, pieceId, options).flatMap((ids) => {
+            const pieces = ids.flatMap((id) => byId.get(id) ?? []);
+            return pieces.length === ids.length ? [{ pieces }] : [];
+          });
           if (looks.length === 0) continue;
-          return {
-            piece: byId.get(pieceId)!,
-            looks: looks.map((ids) => ({ pieces: ids.flatMap((id) => byId.get(id) ?? []) })),
-          };
+          return { piece: byId.get(pieceId)!, looks };
         }
         return { piece: null, looks: [] };
       },
