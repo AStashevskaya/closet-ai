@@ -5,6 +5,7 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*', '.expo/*'],
+    // The icon renderer is a one-off Node script, not app code.
+    ignores: ['dist/*', '.expo/*', 'assets/icon-source/*'],
   },
 ]);
