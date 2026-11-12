@@ -23,16 +23,24 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// The notes already answered, for the app's life.
+const handled = new Set<string>();
+
 export default function TabsLayout() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  // A tap on the morning note opens the look of the day (src/lib/morning.ts).
+  // A tap on the morning note opens the look of the day (src/lib/morning.ts). Signed in only (the
+  // tabs exist only then), and each tap once: the last response outlives a remount, such as
+  // signing out and in again.
   const response = Notifications.useLastNotificationResponse();
   useEffect(() => {
     if (response?.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-    const url = response.notification.request.content.data?.url;
-    if (url === '/style') router.navigate('/style');
+    const { identifier, content } = response.notification.request;
+    if (handled.has(identifier)) return;
+    handled.add(identifier);
+    Notifications.clearLastNotificationResponse();
+    if (content.data?.url === '/style') router.navigate('/style');
   }, [response, router]);
 
   return (

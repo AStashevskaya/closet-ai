@@ -3,9 +3,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import i18n from '@/i18n';
 import { anotherToday, getToday, reactToOutfit } from '@/lib/api';
-import { declineMornings, morningState, scheduleMornings, turnOnMornings } from '@/lib/morning';
+import {
+  declineMornings,
+  degrees,
+  morningState,
+  scheduleMornings,
+  turnOnMornings,
+} from '@/lib/morning';
 
-import { degrees, TodayCard } from './today-card';
+import { TodayCard } from './today-card';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -205,6 +211,17 @@ describe('the morning note', () => {
     await render(<TodayCard headers={undefined} />);
 
     await waitFor(() => expect(scheduleMornings).toHaveBeenCalledWith(week().days));
+    expect(screen.queryByText('send you the look in the morning, at 8?')).not.toBeOnTheScreen();
+  });
+
+  test('turned off, nothing is scheduled and nothing offered', async () => {
+    jest.mocked(getToday).mockResolvedValue(week());
+    jest.mocked(morningState).mockResolvedValue('off');
+    await render(<TodayCard headers={undefined} />);
+
+    expect(await screen.findByTestId('today-card')).toBeOnTheScreen();
+    await waitFor(() => expect(morningState).toHaveBeenCalled());
+    expect(scheduleMornings).not.toHaveBeenCalled();
     expect(screen.queryByText('send you the look in the morning, at 8?')).not.toBeOnTheScreen();
   });
 });

@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import i18n from '@/i18n';
 
-import { declineMornings, morningState, scheduleMornings } from './morning';
+import { cancelMornings, declineMornings, morningState, scheduleMornings } from './morning';
 
 jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
@@ -18,6 +18,7 @@ jest.mock('expo-notifications', () => ({
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
 }));
 
 const notes = jest.mocked(Notifications);
@@ -64,29 +65,43 @@ describe('scheduleMornings', () => {
       now,
     );
 
-    expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(1);
-    expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledWith('morning-2026-11-12');
+    // Today's 8:00 is replaced in place, not cancelled first; other apps' notes are left alone.
+    expect(notes.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
     const calls = notes.scheduleNotificationAsync.mock.calls.map(([request]) => request);
-    expect(calls).toHaveLength(8);
+    expect(calls).toHaveLength(7);
     expect(calls[0]).toMatchObject({
       identifier: 'morning-2026-11-12',
       content: { title: 'Образ дня готов', body: 'Сегодня +4°, дождь. Посмотри, что надеть.' },
     });
     expect(calls[1]!.content.body).toBe('Сегодня −3°, снег. Посмотри, что надеть.');
     // Past the week the app knows: no weather, still the note.
-    expect(calls[7]).toMatchObject({
-      identifier: 'morning-2026-11-19',
+    expect(calls[6]).toMatchObject({
+      identifier: 'morning-2026-11-18',
       content: { body: 'Посмотри, что надеть сегодня.', data: { url: '/style' } },
     });
     const first = (calls[0]!.trigger as { date: Date }).date;
     expect([first.getHours(), first.getMinutes()]).toEqual([8, 0]);
   });
 
-  test('after 8 the first morning is tomorrow', async () => {
-    notes.getAllScheduledNotificationsAsync.mockResolvedValue([]);
+  test('after 8 the first morning is tomorrow, and a morning gone by is cancelled', async () => {
+    notes.getAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'morning-2026-11-12' },
+    ] as never);
     await scheduleMornings([], new Date(2026, 10, 12, 9, 0));
     const ids = notes.scheduleNotificationAsync.mock.calls.map(([request]) => request.identifier);
     expect(ids[0]).toBe('morning-2026-11-13');
     expect(ids).toHaveLength(7);
+    expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledWith('morning-2026-11-12');
+  });
+
+  test('signing out takes her mornings and her "not now" with her', async () => {
+    notes.getAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'morning-2026-11-13' },
+      { identifier: 'someone-else' },
+    ] as never);
+    await cancelMornings();
+    expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(1);
+    expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledWith('morning-2026-11-13');
+    expect(store.deleteItemAsync).toHaveBeenCalledWith('morning-declined');
   });
 });

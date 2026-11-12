@@ -23,8 +23,6 @@ import { colors, fonts } from '@/theme';
 
 type Day = TodayWeek['days'][number];
 
-export { degrees };
-
 // What the day asks of clothes, for the line by hand under the look (the server's rules read it
 // the same way: server/src/modules/today/daily-look.ts, needOf).
 function adviceOf(day: Day | undefined) {
@@ -65,10 +63,14 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
         setToday(answer);
         setFailed(false);
       }
-      // The next mornings, with this week's weather; never in the way of the card.
-      const state = await morningState().catch((): MorningState => 'off');
-      setMorning(state);
-      if (state === 'on') await scheduleMornings(answer.days).catch(() => {});
+      // The next mornings, with this week's weather: on the side, never holding the card.
+      void morningState()
+        .catch((): MorningState => 'off')
+        .then((state) => {
+          if (read !== latest.current) return;
+          setMorning(state);
+          if (state === 'on') void scheduleMornings(answer.days);
+        });
     } catch {
       // Style it carries on without its top: the card is a bonus, never in the way.
       if (read === latest.current) setFailed(true);
@@ -137,7 +139,7 @@ export function TodayCard({ headers }: { headers: Record<string, string> | undef
     }
     const granted = await turnOnMornings().catch(() => false);
     setMorning(granted ? 'on' : 'off');
-    if (granted && today) await scheduleMornings(today.days).catch(() => {});
+    if (granted && today) void scheduleMornings(today.days);
   }
 
   function strike(pieceId: string, struck: boolean) {
