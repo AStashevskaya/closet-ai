@@ -155,7 +155,7 @@ describe("GET /api/today", () => {
       look: null,
       missing: ["top", "bottom", "shoes"],
       shown: 0,
-      more: true,
+      more: false,
     });
 
     await setCity("Minsk");
@@ -248,6 +248,8 @@ describe("GET /api/today", () => {
     const next = await another(1);
     expect(next).toMatchObject({ more: false, shown: 1 });
     expect(next.look!.id).toBe(first.look!.id);
+    // Coming back to the screen doesn't offer it again.
+    expect(await read()).toMatchObject({ more: false, shown: 1 });
   });
 
   it("makes no request for a day with nothing to show, counts nothing, and isn't a styling", async () => {
