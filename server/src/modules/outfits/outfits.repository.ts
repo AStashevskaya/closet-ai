@@ -648,8 +648,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
 
     async woreLooks(userId, since, offsetSeconds) {
       // Written into the query rather than bound: DISTINCT ON must repeat ORDER BY's expression
-      // exactly, and two parameters are two expressions. An integer, so nothing can be injected.
-      const offset = sql.raw(String(Math.trunc(offsetSeconds)));
+      // exactly, and two parameters are two expressions. Checked to be an integer, so nothing else
+      // can get in.
+      if (!Number.isInteger(offsetSeconds)) throw new Error(`woreLooks: offset ${offsetSeconds}`);
+      const offset = sql.raw(String(offsetSeconds));
       const day = sql<string>`to_char((${outfitReactions.createdAt} at time zone 'UTC') + make_interval(secs => ${offset}), 'YYYY-MM-DD')`;
       const rows = await db
         .selectDistinctOn([day], { day, outfitId: outfits.id, requestId: outfits.requestId })

@@ -789,6 +789,21 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await outfits.woreLooks(user!.id, before, 0)).toEqual([
       { day: new Date().toISOString().slice(0, 10), outfitId: look.id, requestId },
     ]);
+    // In her city's day: three hours ahead, an hour before midnight UTC is already tomorrow.
+    const late = new Date();
+    late.setUTCHours(23, 0, 0, 0);
+    const [reaction] = await db.db
+      .select()
+      .from(schema.outfitReactions)
+      .where(eq(schema.outfitReactions.outfitId, look.id));
+    await db.db
+      .update(schema.outfitReactions)
+      .set({ createdAt: late })
+      .where(eq(schema.outfitReactions.id, reaction!.id));
+    const tomorrow = new Date(late.getTime() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+    expect(await outfits.woreLooks(user!.id, before, 3 * 3600)).toEqual([
+      { day: tomorrow, outfitId: look.id, requestId },
+    ]);
     // Another user's days never list her look.
     expect((await outfits.woreLooks(other!.id, before, 0)).map((w) => w.outfitId)).not.toContain(
       look.id,

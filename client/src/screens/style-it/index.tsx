@@ -222,10 +222,10 @@ export function StyleIt() {
         </View>
       </View>
 
-      {/* The look of the day, from her closet for today's weather: a reason to open the app each
-          morning (2026-11-12). */}
       {/* Sunday evening: the week told, above the day's look. */}
       <WeekRecap headers={headers} />
+      {/* The look of the day, from her closet for today's weather: a reason to open the app each
+          morning (2026-11-12). */}
       <TodayCard headers={headers} />
 
       {/* Two ways in: a piece of hers, or one from a photo she doesn't own yet (dashed: not hers).

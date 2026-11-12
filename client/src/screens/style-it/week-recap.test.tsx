@@ -75,17 +75,36 @@ test('hangs each worn day’s look under its bead, and says no look came twice',
     );
   await render(<WeekRecap headers={{ cookie: 'session=1' }} now={sunday} />);
 
-  expect(
-    await screen.findByRole('header', { name: '2 of 7 days — and not one look twice' }),
-  ).toBeOnTheScreen();
-  expect(screen.getByText(/Your week · /)).toBeOnTheScreen();
+  expect(await screen.findByText('2 of 7 days — and not one look twice')).toBeOnTheScreen();
+  expect(screen.getByRole('header', { name: /Your week · / })).toBeOnTheScreen();
 });
 
 test('the same look twice is just counted', async () => {
   jest.mocked(getWeekLooks).mockResolvedValue(week([look(1, [tee, jeans]), look(2, [jeans, tee])]));
   await render(<WeekRecap headers={undefined} now={sunday} />);
 
-  expect(await screen.findByRole('header', { name: '2 of 7 days' })).toBeOnTheScreen();
+  expect(await screen.findByText('2 of 7 days')).toBeOnTheScreen();
+});
+
+test('a look whose pieces she deleted is a day without', async () => {
+  jest
+    .mocked(getWeekLooks)
+    .mockResolvedValue(week([look(1, [tee, jeans]), look(2, []), look(3, [])]));
+  await render(<WeekRecap headers={undefined} now={sunday} />);
+
+  expect(await screen.findByText('1 of 7 days')).toBeOnTheScreen();
+});
+
+test('a week that isn’t the one ending today on the phone isn’t told', async () => {
+  // Already Monday in her city: the server's week is the new, empty one.
+  jest.mocked(getWeekLooks).mockResolvedValue({
+    ...week([look(1, [tee, jeans])]),
+    from: '2026-11-16',
+    to: '2026-11-22',
+  });
+  await render(<WeekRecap headers={undefined} now={sunday} />);
+  await waitFor(() => expect(getWeekLooks).toHaveBeenCalled());
+  expect(screen.queryByTestId('week-recap')).not.toBeOnTheScreen();
 });
 
 test('nothing for a week she marked nothing in, or on another day', async () => {
@@ -93,7 +112,7 @@ test('nothing for a week she marked nothing in, or on another day', async () => 
   const view = await render(<WeekRecap headers={undefined} now={sunday} />);
   await waitFor(() => expect(getWeekLooks).toHaveBeenCalled());
   expect(screen.queryByTestId('week-recap')).not.toBeOnTheScreen();
-  view.unmount();
+  await view.unmount();
 
   jest.mocked(getWeekLooks).mockClear();
   await render(<WeekRecap headers={undefined} now={() => new Date(2026, 10, 12, 18, 0)} />);

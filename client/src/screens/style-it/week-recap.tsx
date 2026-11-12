@@ -23,14 +23,17 @@ const LOOK_HEIGHT = 118;
 // Sunday evening, on the phone's clock.
 export const isRecapTime = (now: Date) => now.getDay() === 0 && now.getHours() >= FROM_HOUR;
 
+// The clock, kept stable for the focus effect (a new function each render would re-run it).
+const clock = () => new Date();
+// The phone's own date (YYYY-MM-DD).
+const phoneDate = (at: Date) =>
+  `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+
 // The week's recap on Sunday evening (decided 2026-11-12, prototype
 // `~/Desktop/closet/wrinkle-lab/design-hooks`, A): the week's thread, as on the look of the day,
 // with the look she wore hanging under each day's bead and a dashed bead for a day without; above
 // it, by hand, how many days, and whether no look came twice. A reward for the habit, no new sign.
 // Nothing at all for a week she marked nothing in. Sharing it comes later.
-// The clock, kept stable for the focus effect (a new function each render would re-run it).
-const clock = () => new Date();
-
 export function WeekRecap({
   headers,
   now = clock,
@@ -52,23 +55,30 @@ export function WeekRecap({
       let current = true;
       Promise.resolve()
         .then(() => getWeekLooks(lang))
-        .then((answer) => current && setWeek(answer))
+        // Her city's week must be the one ending today on the phone: travelling, or a city in
+        // another time zone, it may already be Monday there, and an empty new week isn't a recap.
+        .then((answer) => current && setWeek(answer.to === phoneDate(now()) ? answer : null))
         // A bonus on top of Style it: if it can't be read, it just isn't there.
-        .catch(() => current && setWeek(null));
+        .catch((cause: unknown) => {
+          if (__DEV__) console.warn('The week recap failed', cause);
+          if (current) setWeek(null);
+        });
       return () => {
         current = false;
       };
     }, [lang, now]),
   );
 
-  const worn = week?.days.filter((d) => d.look) ?? [];
+  // Her own pieces in a look: a look whose pieces she has since deleted shows as a day without.
+  const piecesOf = (look: Outfit | null) =>
+    look ? look.pieces.flatMap((p) => (p.item ? [p.item] : [])) : [];
+  const worn = week?.days.filter((d) => piecesOf(d.look).length > 0) ?? [];
   if (!week || worn.length === 0) return null;
 
-  const piecesOf = (look: Outfit) => look.pieces.flatMap((p) => (p.item ? [p.item] : []));
   // The same pieces on two days is the same look.
   const distinct = new Set(
     worn.map((d) =>
-      piecesOf(d.look!)
+      piecesOf(d.look)
         .map((p) => p.id)
         .sort()
         .join('|'),
@@ -87,13 +97,15 @@ export function WeekRecap({
       timeZone: 'UTC',
     });
   const column = width / 7;
+  // On a narrow phone the looks shrink, so neighbours on their alternating strings don't meet.
+  const scale = Math.min(1, (column * 1.5) / LOOK_WIDTH);
 
   return (
     <Animated.View entering={arrive} style={styles.card} testID="week-recap">
-      <Text style={styles.caps}>
+      <Text style={styles.caps} accessibilityRole="header">
         {t('today.recap.title', { range: `${dayMonth(week.from)} – ${dayMonth(week.to)}` })}
       </Text>
-      <Text style={styles.hand} accessibilityRole="header">
+      <Text style={styles.hand}>
         {t('today.recap.days', { count: worn.length })}
         {noRepeat ? ` — ${t('today.recap.noRepeat')}` : ''}
       </Text>
@@ -112,7 +124,7 @@ export function WeekRecap({
           week.days.map((d, i) => {
             const middle = column * (i + 0.5);
             const drop = DROPS[i % 2]!;
-            const pieces = d.look ? piecesOf(d.look) : [];
+            const pieces = piecesOf(d.look);
             return (
               <View
                 key={d.date}
@@ -134,11 +146,11 @@ export function WeekRecap({
                 <View
                   style={[
                     styles.bead,
-                    !d.look && styles.beadEmpty,
+                    pieces.length === 0 && styles.beadEmpty,
                     { start: middle - 6, top: THREAD_Y - 6 },
                   ]}
                 />
-                {d.look && (
+                {d.look && pieces.length > 0 && (
                   <>
                     <View
                       style={[
@@ -150,7 +162,11 @@ export function WeekRecap({
                       entering={arrive.delay(i * STAGGER_STEP)}
                       style={[
                         styles.look,
-                        { start: middle - LOOK_WIDTH / 2, top: THREAD_Y + 6 + drop },
+                        {
+                          start: middle - LOOK_WIDTH / 2,
+                          top: THREAD_Y + 6 + drop,
+                          transform: [{ scale }],
+                        },
                       ]}
                     >
                       <MiniLook look={d.look} headers={headers} />
@@ -256,10 +272,12 @@ const styles = StyleSheet.create({
     width: 1.3,
     backgroundColor: colors.text,
   },
+  // Shrinks from its top, where its string holds it.
   look: {
     position: 'absolute',
     width: LOOK_WIDTH,
     height: LOOK_HEIGHT,
+    transformOrigin: 'top',
   },
   mini: {
     width: LOOK_WIDTH,
