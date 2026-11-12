@@ -94,7 +94,7 @@ describe('<ClosetCategory />', () => {
 
       await answer([skirt]);
 
-      expect(screen.getByText('Satin skirt')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Satin skirt')).toBeOnTheScreen();
       expect(screen.getByText('1 item')).toBeOnTheScreen();
       expect(screen.getByText('Edit')).toBeOnTheScreen();
       expect(
@@ -124,7 +124,7 @@ describe('<ClosetCategory />', () => {
       expect(mockBack).not.toHaveBeenCalled();
 
       await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
-      expect(await screen.findByText('Satin skirt')).toBeOnTheScreen();
+      expect(await screen.findByLabelText('Satin skirt')).toBeOnTheScreen();
     });
 
     test('offline says so', async () => {
@@ -140,19 +140,68 @@ describe('<ClosetCategory />', () => {
     list.mockResolvedValue([skirt, shirt, jeans]);
     await render(<ClosetCategory category="bottom" />);
 
-    expect(await screen.findByText('Satin skirt')).toBeOnTheScreen();
-    expect(screen.getByText('Blue jeans')).toBeOnTheScreen();
+    expect(await screen.findByLabelText('Satin skirt')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Blue jeans')).toBeOnTheScreen();
     expect(screen.getByText('Bottoms')).toBeOnTheScreen();
     expect(screen.getByText('2 items')).toBeOnTheScreen();
-    expect(screen.queryByText('White linen shirt')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('White linen shirt')).not.toBeOnTheScreen();
   });
 
-  test('opens the item screen from a card', async () => {
+  test('opens the item screen from a piece', async () => {
     list.mockResolvedValue([skirt]);
     await render(<ClosetCategory category="bottom" />);
 
-    await fireEvent.press(await screen.findByText('Satin skirt'));
+    await fireEvent.press(await screen.findByLabelText('Satin skirt'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: skirt.id } });
+  });
+
+  test('hangs the pieces on one rail per colour, the colour she has most of first', async () => {
+    const black = (n: number): Item => ({
+      ...skirt,
+      id: `6b1f7c3e-0000-4000-8000-00000000020${n}`,
+      name: `Black skirt ${n}`,
+      colors: ['black', 'white'],
+    });
+    list.mockResolvedValue([skirt, black(1), black(2), jeans, black(3)]);
+    await render(<ClosetCategory category="bottom" />);
+
+    const rails = await screen.findAllByRole('header', { name: /items?$/ });
+    expect(rails.map((rail) => rail.props.accessibilityLabel)).toEqual([
+      'black, 3 items',
+      'pink, 2 items',
+    ]);
+    // An editorial line on what her colours say: the two she has most of.
+    expect(screen.getByText('Mostly black and pink.')).toBeOnTheScreen();
+  });
+
+  test('names the basics a bigger category has none of', async () => {
+    const piece = (n: number, colour: Item['colors'][number]): Item => ({
+      ...skirt,
+      id: `6b1f7c3e-0000-4000-8000-00000000030${n}`,
+      name: `Skirt ${n}`,
+      colors: [colour],
+    });
+    list.mockResolvedValue([
+      piece(1, 'black'),
+      piece(2, 'black'),
+      piece(3, 'black'),
+      piece(4, 'gray'),
+      piece(5, 'gray'),
+      piece(6, 'red'),
+    ]);
+    await render(<ClosetCategory category="bottom" />);
+
+    expect(
+      await screen.findByText('Mostly black and grey. Not a single white or beige one.'),
+    ).toBeOnTheScreen();
+  });
+
+  test('a small category has no line about its colours', async () => {
+    list.mockResolvedValue([skirt, jeans]);
+    await render(<ClosetCategory category="bottom" />);
+
+    expect(await screen.findByLabelText('Satin skirt')).toBeOnTheScreen();
+    expect(screen.queryByText(/^Mostly/)).not.toBeOnTheScreen();
   });
 
   test('deletes after asking, and goes back once the category is empty', async () => {

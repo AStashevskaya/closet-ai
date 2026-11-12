@@ -28,6 +28,9 @@ const FITS: Record<ItemCategory, Fit> = {
 
 // Pieces on a rail overlap a little, the way clothes are packed on a real one.
 const PIECE_OVERLAP = 12;
+// How far apart a rail's pieces of a category are: one slot less the overlap.
+export const pieceStep = (category: ItemCategory) => FITS[category].width - PIECE_OVERLAP;
+
 // How far a deleted piece drops, and how much it tips over on the way.
 const FALL_DISTANCE = 160;
 const FALL_TURN = 18;
