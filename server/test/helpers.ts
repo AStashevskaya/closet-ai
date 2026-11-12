@@ -1,4 +1,4 @@
-import { pairKey } from "../src/modules/today/daily-look";
+import { pairKey } from "../src/modules/outfits/pair-key";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import type {
@@ -479,6 +479,8 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
           })),
       };
     },
+    findDailyRequest: async (userId, day) =>
+      requests.find((r) => r.userId === userId && r.dailyOn === day)?.id ?? null,
     dailyRequest: async (userId, day, wardrobeSize) => {
       const found = requests.find((r) => r.userId === userId && r.dailyOn === day);
       if (found) return found.id;
@@ -498,7 +500,8 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       });
       return id;
     },
-    addDailyLook: async (requestId, userId, look) => {
+    addDailyLook: async (requestId, userId, look, shown) => {
+      if (storedOutfits.filter((o) => o.requestId === requestId).length !== shown) return false;
       storedOutfits.push({
         ...look,
         pieces: look.pieces.map((p) => ({ ...p, id: randomUUID(), struckAt: null })),
@@ -506,6 +509,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         requestId,
         userId,
       });
+      return true;
     },
     struckPairs: async (userId, limit) =>
       storedOutfits
@@ -564,7 +568,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     },
     recentlyUsed: async (userId, count) => {
       const recent = requests
-        .filter((r) => r.userId === userId && r.status === "done")
+        .filter((r) => r.userId === userId && r.status === "done" && !r.dailyOn)
         .slice(-count)
         .map((r) => r.id);
       const looks = storedOutfits.filter((o) => recent.includes(o.requestId));

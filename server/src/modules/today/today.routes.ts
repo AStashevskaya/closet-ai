@@ -33,32 +33,46 @@ export const todayRoutes =
       day: string,
       weatherToday: DayWeather | null,
       lang: (typeof APP_LANGUAGES)[number],
-      another: boolean,
-    ): Promise<Pick<TodayWeek, "look" | "missing">> {
+      // "Another": how many looks her screen showed. Undefined: just today's look.
+      after: number | undefined,
+    ): Promise<Pick<TodayWeek, "look" | "missing" | "shown" | "more">> {
+      const existing = await outfits.findDailyRequest(userId, day);
+      const shown = existing ? ((await outfits.view(existing, userId, lang))?.outfits ?? []) : [];
+      const current = { look: shown.at(-1) ?? null, missing: [], shown: shown.length, more: true };
+      // Today's look already made, or "another" from a screen that's behind (a tap sent twice,
+      // or another device): what's there.
+      if (shown.length > 0 && (after === undefined || after !== shown.length)) return current;
+
       const wardrobe = await outfits.wardrobe(userId);
-      const requestId = await outfits.dailyRequest(userId, day, wardrobe.length);
-      const shown = (await outfits.view(requestId, userId, lang))?.outfits ?? [];
-      if (shown.length === 0 || another) {
-        const recent = await outfits.recentlyUsed(userId, RECENT_REQUESTS);
-        const pick = dailyLook(wardrobe, {
-          season: seasonOf(clock()),
-          need: needOf(weatherToday, seasonOf(clock())),
-          recent: recent.pieces,
-          struck: new Set(await outfits.struckPairs(userId, STRUCK_PAIRS)),
-          skip: shown.length,
-        });
-        if ("missing" in pick) return { look: null, missing: pick.missing };
-        // Words come from the app, by the day's weather: the rules write none.
-        await outfits.addDailyLook(requestId, userId, {
+      const season = seasonOf(clock());
+      const recent = await outfits.recentlyUsed(userId, RECENT_REQUESTS);
+      const pick = dailyLook(wardrobe, {
+        season,
+        need: needOf(weatherToday, season),
+        recent: recent.pieces,
+        struck: new Set(await outfits.struckPairs(userId, STRUCK_PAIRS)),
+        skip: shown.length,
+      });
+      if ("missing" in pick) return { ...current, missing: pick.missing };
+      if ("exhausted" in pick) return { ...current, more: false };
+      // The day's request is made only once there's a look for it.
+      const requestId = existing ?? (await outfits.dailyRequest(userId, day, wardrobe.length));
+      // Words come from the app, by the day's weather: the rules write none. A racing request may
+      // have added first; then its look is the day's.
+      await outfits.addDailyLook(
+        requestId,
+        userId,
+        {
           caption: "",
           occasion: "",
           why: "",
           missing: null,
           pieces: pick.pieces.map((itemId) => ({ hero: false, itemId })),
-        });
-      }
+        },
+        shown.length,
+      );
       const looks = (await outfits.view(requestId, userId, lang))?.outfits ?? [];
-      return { look: looks.at(-1) ?? null, missing: [] };
+      return { look: looks.at(-1) ?? null, missing: [], shown: looks.length, more: true };
     }
 
     // Her week and its weather, for the look of the day.
@@ -78,13 +92,15 @@ export const todayRoutes =
     const answer = async (
       userId: string,
       lang: (typeof APP_LANGUAGES)[number],
-      another: boolean,
+      after: number | undefined,
     ): Promise<TodayWeek> => {
       const { status, week } = await weekOf(userId, lang);
       // Her city's day when the weather is known; else the server's.
       const day = week?.today ?? localDate(clock().getTime(), 0);
       const today = week?.days.find((d) => d.date === day) ?? null;
-      const daily = await lookOfTheDay(userId, day, today, lang, another);
+      // Without the weather the day is the server's (UTC): in Minsk after midnight that's yesterday
+      // for up to three hours, until the weather answers again.
+      const daily = await lookOfTheDay(userId, day, today, lang, after);
       if (!week) return { status, place: null, today: null, days: [], ...daily };
       // Monday 00:00 in her city, and each mark on the day it was there.
       const monday = Date.parse(`${week.days[0]!.date}T00:00:00Z`) - week.offsetSeconds * 1000;
@@ -106,7 +122,7 @@ export const todayRoutes =
           response: { 200: todayWeek },
         },
       },
-      (request) => answer((request.user as SessionUser).id, request.query.lang, false),
+      (request) => answer((request.user as SessionUser).id, request.query.lang, undefined),
     );
 
     // "Another": the next look by the rules, kept as the day's.
@@ -114,10 +130,15 @@ export const todayRoutes =
       "/today/another",
       {
         schema: {
-          querystring: z.object({ lang: z.enum(APP_LANGUAGES).default("en") }),
+          querystring: z.object({
+            lang: z.enum(APP_LANGUAGES).default("en"),
+            // How many looks her screen showed: a tap sent twice adds one.
+            shown: z.coerce.number().int().min(0),
+          }),
           response: { 200: todayWeek },
         },
       },
-      (request) => answer((request.user as SessionUser).id, request.query.lang, true),
+      (request) =>
+        answer((request.user as SessionUser).id, request.query.lang, request.query.shown),
     );
   };

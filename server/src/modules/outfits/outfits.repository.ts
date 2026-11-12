@@ -28,6 +28,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { pairKey } from "./pair-key";
 import type { ModelTokens } from "../../ai/stylist";
 import type { Db } from "../../db/client";
 import {
@@ -42,7 +43,6 @@ import {
   wishes,
 } from "../../db/schema";
 import { toCatalogItem } from "../catalog/catalog.repository";
-import { pairKey } from "../today/daily-look";
 import { toItem } from "../items/items.repository";
 
 // A wardrobe item with what styling needs: its tags, its picture and its embedding.
@@ -178,10 +178,13 @@ export interface OutfitsRepository {
     userId: string,
     struck: boolean,
   ): Promise<"ok" | "hero" | "missing">;
-  // Her look-of-the-day request for a day (her city's date), made the first time it's asked for.
+  // Her look-of-the-day request for a day (her city's date), if she has one yet.
+  findDailyRequest(userId: string, day: string): Promise<string | null>;
+  // That request, made the first time a look is found for the day.
   dailyRequest(userId: string, day: string, wardrobeSize: number): Promise<string>;
-  // A look added to her look-of-the-day request; the newest is the day's ("another").
-  addDailyLook(requestId: string, userId: string, look: NewOutfit): Promise<void>;
+  // A look added to her look-of-the-day request (the newest is the day's), only while it still
+  // holds `shown` looks: a second request racing this one, or a tap sent twice, adds nothing.
+  addDailyLook(requestId: string, userId: string, look: NewOutfit, shown: number): Promise<boolean>;
   // Pairs of her pieces (keys from pairKey) where she cut one out of a look the other was in.
   struckPairs(userId: string, limit: number): Promise<string[]>;
   // The days (YYYY-MM-DD at the given UTC offset, her city's) since `since` on which she marked a
@@ -373,6 +376,14 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       });
     },
 
+    async findDailyRequest(userId, day) {
+      const [row] = await db
+        .select({ id: outfitRequests.id })
+        .from(outfitRequests)
+        .where(and(eq(outfitRequests.userId, userId), eq(outfitRequests.dailyOn, day)));
+      return row?.id ?? null;
+    },
+
     async dailyRequest(userId, day, wardrobeSize) {
       // Two at once both insert; the index keeps one, and both read it back.
       await db
@@ -386,12 +397,19 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return row!.id;
     },
 
-    async addDailyLook(requestId, userId, look) {
-      await db.transaction(async (tx) => {
+    async addDailyLook(requestId, userId, look, shown) {
+      return db.transaction(async (tx) => {
+        // Locked, so a second add waits for this one and then counts its look.
+        await tx
+          .select({ id: outfitRequests.id })
+          .from(outfitRequests)
+          .where(eq(outfitRequests.id, requestId))
+          .for("update");
         const [{ n } = { n: 0 }] = await tx
           .select({ n: count() })
           .from(outfits)
           .where(eq(outfits.requestId, requestId));
+        if (n !== shown) return false;
         const [saved] = await tx
           .insert(outfits)
           .values({ requestId, userId, position: n, ...look })
@@ -403,6 +421,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
               look.pieces.map((piece, i) => ({ outfitId: saved!.id, position: i, ...piece })),
             );
         }
+        return true;
       });
     },
 
@@ -660,7 +679,14 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       const recent = await db
         .select({ id: outfitRequests.id })
         .from(outfitRequests)
-        .where(and(eq(outfitRequests.userId, userId), eq(outfitRequests.status, "done")))
+        // Her stylings only: a look of the day would take a styling's place, and count against itself.
+        .where(
+          and(
+            eq(outfitRequests.userId, userId),
+            eq(outfitRequests.status, "done"),
+            isNull(outfitRequests.dailyOn),
+          ),
+        )
         .orderBy(desc(outfitRequests.createdAt))
         .limit(requests);
       const pieces = new Map<string, number>();
@@ -719,9 +745,12 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           reason,
           wore: woreCount > 0,
           // Only wardrobe pieces have names here: a look of partner pieces is its caption alone.
-          description: names.length
-            ? `"${look.caption}": ${names.join(" + ")}`
-            : `"${look.caption}"`,
+          // A look of the day has no caption: its pieces say it.
+          description: look.caption
+            ? names.length
+              ? `"${look.caption}": ${names.join(" + ")}`
+              : `"${look.caption}"`
+            : names.join(" + "),
         };
       });
     },

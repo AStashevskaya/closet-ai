@@ -806,8 +806,13 @@ describe.skipIf(!url)("on Postgres", () => {
         { hero: false, itemId: shoes },
       ],
     });
-    await outfits.addDailyLook(a, user!.id, daily("first"));
-    await outfits.addDailyLook(a, user!.id, daily("another"));
+    expect(await outfits.addDailyLook(a, user!.id, daily("first"), 0)).toBe(true);
+    // "Another" sent twice at once: one adds, the other sees it's behind.
+    const added = await Promise.all([
+      outfits.addDailyLook(a, user!.id, daily("another"), 1),
+      outfits.addDailyLook(a, user!.id, daily("another"), 1),
+    ]);
+    expect(added.sort()).toEqual([false, true]);
     expect((await outfits.view(a, user!.id, "en"))!.outfits.map((o) => o.caption)).toEqual([
       "first",
       "another",

@@ -128,15 +128,20 @@ async function setup(weather: WeatherClient | null) {
     });
     return res.json<{ id: string }>().id;
   };
-  const another = async () =>
+  const another = async (shown: number) =>
     (
-      await app!.inject({ method: "POST", url: "/api/today/another?lang=ru", headers: { cookie } })
+      await app!.inject({
+        method: "POST",
+        url: `/api/today/another?lang=ru&shown=${shown}`,
+        headers: { cookie },
+      })
     ).json<TodayWeek>();
+  const get = (url: string) => app!.inject({ method: "GET", url, headers: { cookie } });
   const diary = async () =>
     (await app!.inject({ method: "GET", url: "/api/wear-with", headers: { cookie } })).json<
       unknown[]
     >();
-  return { read, setCity, wear, addItem, another, diary };
+  return { read, setCity, wear, addItem, another, diary, get };
 }
 
 describe("GET /api/today", () => {
@@ -149,6 +154,8 @@ describe("GET /api/today", () => {
       days: [],
       look: null,
       missing: ["top", "bottom", "shoes"],
+      shown: 0,
+      more: true,
     });
 
     await setCity("Minsk");
@@ -205,9 +212,12 @@ describe("GET /api/today", () => {
     expect(kinds).toEqual(["bottom", "outerwear", "shoes", "top"]);
     expect((await read()).look!.id).toBe(first.look!.id);
 
-    const next = await another();
+    const next = await another(1);
     expect(next.look!.id).not.toBe(first.look!.id);
     expect((await read()).look!.id).toBe(next.look!.id);
+    // The same tap sent again, from a screen that showed one look: nothing more is added.
+    expect((await another(1)).look!.id).toBe(next.look!.id);
+    expect((await read()).shown).toBe(2);
   });
 
   it("keeps the looks of the day out of her styling diary", async () => {
@@ -222,5 +232,35 @@ describe("GET /api/today", () => {
     }
     expect((await read()).look).not.toBeNull();
     expect(await diary()).toEqual([]);
+  });
+
+  it("says when there's no other look, rather than give the same one again", async () => {
+    const { read, setCity, addItem, another } = await setup(stubWeather());
+    await setCity("Minsk");
+    for (const [kind, noun] of [
+      ["top", "tee"],
+      ["bottom", "jeans"],
+      ["shoes", "boots"],
+    ] as const) {
+      await addItem(kind, noun);
+    }
+    const first = await read();
+    const next = await another(1);
+    expect(next).toMatchObject({ more: false, shown: 1 });
+    expect(next.look!.id).toBe(first.look!.id);
+  });
+
+  it("makes no request for a day with nothing to show, counts nothing, and isn't a styling", async () => {
+    const { read, setCity, addItem, get } = await setup(stubWeather());
+    await setCity("Minsk");
+    await addItem("top", "tee");
+    expect((await read()).look).toBeNull();
+    await addItem("bottom", "jeans");
+    await addItem("shoes", "boots");
+    const { look } = await read();
+    // Not a styling: its request isn't one to open, and it uses none of today's tries.
+    const usage = (await get("/api/usage")).json<{ wear_with: { used: number } }>();
+    expect(usage.wear_with.used).toBe(0);
+    expect(look).not.toBeNull();
   });
 });

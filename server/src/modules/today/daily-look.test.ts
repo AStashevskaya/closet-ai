@@ -79,6 +79,12 @@ describe("dailyLook", () => {
     const first = pick(wardrobe);
     const second = pick(wardrobe, mild, { skip: 1 });
     expect(second).not.toEqual(first);
+    // Past the last distinct look it says so.
+    expect(
+      pick([piece("top", "t"), piece("bottom", "b"), piece("shoes", "s")], mild, { skip: 1 }),
+    ).toEqual({
+      exhausted: true,
+    });
   });
 });
 

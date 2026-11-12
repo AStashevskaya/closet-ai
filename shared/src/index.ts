@@ -460,6 +460,10 @@ export const todayWeek = z.object({
   // and then what it lacks.
   look: outfit.nullable(),
   missing: z.array(z.enum(["top", "bottom", "shoes"])),
+  // How many looks the day has had, sent back with "another" so a tap sent twice adds one; and
+  // whether another, different one is left.
+  shown: z.number().int().min(0),
+  more: z.boolean(),
 });
 export type TodayWeek = z.infer<typeof todayWeek>;
 
