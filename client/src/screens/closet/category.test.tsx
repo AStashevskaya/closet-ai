@@ -191,7 +191,7 @@ describe('<ClosetCategory />', () => {
     ]);
     await render(<ClosetCategory category="bottom" />);
 
-    expect(await screen.findByText('Mostly black and grey.')).toBeOnTheScreen();
+    expect(await screen.findByText('Mostly black and gray.')).toBeOnTheScreen();
   });
 
   test('names the basics a bigger category has none of', async () => {
@@ -212,7 +212,23 @@ describe('<ClosetCategory />', () => {
     await render(<ClosetCategory category="bottom" />);
 
     expect(
-      await screen.findByText('Mostly black and grey. Not a single white or beige one.'),
+      await screen.findByText('Mostly black and gray. Not a single white or beige one.'),
+    ).toBeOnTheScreen();
+  });
+
+  test('in Russian the missing basics open their sentence with a capital', async () => {
+    await i18n.changeLanguage('ru');
+    const piece = (n: number, colour: Item['colors'][number]): Item => ({
+      ...skirt,
+      id: `6b1f7c3e-0000-4000-8000-00000000050${n}`,
+      name: `Skirt ${n}`,
+      colors: [colour],
+    });
+    list.mockResolvedValue([1, 2, 3, 4, 5, 6].map((n) => piece(n, n < 4 ? 'black' : 'gray')));
+    await render(<ClosetCategory category="bottom" />);
+
+    expect(
+      await screen.findByText('Больше всего чёрного и серого. Белого и бежевого нет совсем.'),
     ).toBeOnTheScreen();
   });
 

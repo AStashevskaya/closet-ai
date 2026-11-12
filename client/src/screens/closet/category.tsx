@@ -175,15 +175,17 @@ function summaryOf(rails: ColourRail[], pieces: Item[]): ((t: T) => string) | nu
       : [];
   return (t) => {
     const of = (colour: ItemColor) => t(`closet.colours.of.${colour}`);
+    // A sentence may open with the colour ("Белого и бежевого нет совсем"): it takes a capital.
+    const opening = (text: string) => text.charAt(0).toLocaleUpperCase() + text.slice(1);
     const most =
       first && second && second.items.length >= 2
         ? t('closet.colours.most', { a: of(first.colour), b: of(second.colour) })
         : t('closet.colours.mostOne', { a: of(first!.colour) });
     const none =
       missing.length === 2
-        ? t('closet.colours.noneTwo', { a: of(missing[0]!), b: of(missing[1]!) })
+        ? opening(t('closet.colours.noneTwo', { a: of(missing[0]!), b: of(missing[1]!) }))
         : missing.length === 1
-          ? t('closet.colours.noneOne', { a: of(missing[0]!) })
+          ? opening(t('closet.colours.noneOne', { a: of(missing[0]!) }))
           : '';
     return none ? `${most} ${none}` : most;
   };

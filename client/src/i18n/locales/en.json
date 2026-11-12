@@ -51,7 +51,7 @@
       "rail": {
         "black": "black",
         "white": "white",
-        "gray": "grey",
+        "gray": "gray",
         "beige": "beige",
         "brown": "brown",
         "red": "red",
@@ -61,12 +61,12 @@
         "green": "green",
         "blue": "blue",
         "purple": "purple",
-        "multicolor": "multicoloured"
+        "multicolor": "multicolor"
       },
       "of": {
         "black": "black",
         "white": "white",
-        "gray": "grey",
+        "gray": "gray",
         "beige": "beige",
         "brown": "brown",
         "red": "red",
@@ -76,7 +76,7 @@
         "green": "green",
         "blue": "blue",
         "purple": "purple",
-        "multicolor": "multicoloured"
+        "multicolor": "multicolor"
       },
       "most": "Mostly {{a}} and {{b}}.",
       "mostOne": "Mostly {{a}}.",
