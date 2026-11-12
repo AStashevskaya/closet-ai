@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 
+import { cancelMornings } from '@/lib/morning';
 import { Button, maison } from '@/components/maison';
 import { authClient } from '@/lib/auth-client';
 import { colors, fonts } from '@/theme';
@@ -33,6 +34,8 @@ export function DeleteAccount() {
         setBusy(false);
         return;
       }
+      // Her scheduled mornings go with the account.
+      await cancelMornings().catch(() => {});
       // The session is gone on the server; clearing it here too sends the app to sign-in.
       try {
         await authClient.signOut();
