@@ -47,6 +47,10 @@ When the app marks things on a photo (pieces found on a selfie, on a look):
 
 Decided 2026-11-11 (owner, prototype `~/Desktop/closet/wrinkle-lab/design-icon`, direction A): one coat hanger drawn in the thread colour on powder blue, a cherry bead on the tip of its hook. The same hanger as the rails, sign-up and the empty closet, so tapping the icon lands in the same picture. A sign, not letters: it doesn't depend on the name. iOS has light, dark (transparent, the hanger light) and tinted (grey) versions; Android an adaptive icon on the same blue with a monochrome layer; the splash is the hanger on blue. Rejected: B, the tab bar's sagging thread with a "+" bead (says nothing about clothes without the name), and C, a cherry swing tag (tied to the waiting sign still on trial, and reads as a price tag).
 
+## The look of the day
+
+Decided 2026-11-12 (owner chose C with A inside, prototype `~/Desktop/closet/wrinkle-lab/design-today`): on top of Style it, her week as seven beads on a thread (worn days solid, today the cherry bead, days ahead dashed, the high under each), and today's look under it on powder blue, the weather in words (no weather icons: our voice is a newspaper's first line), until she says she wore it: then the blue goes and the line by hand says "worn — I'll remember". No heart on "worn": hearts are for love.
+
 ## Empty screens
 
 A screen with nothing of hers yet shows the shape of what will be there, never a line of text in the middle of white (decided 2026-11-11, owner; prototype `~/Desktop/closet/wrinkle-lab/design-empty`).

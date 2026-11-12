@@ -559,5 +559,39 @@
     "updated": "Your style is updated",
     "ok": "Nice",
     "failed": "Couldn't update your style. Try again later."
+  },
+  "today": {
+    "title": "Your look for today",
+    "weekLabel": "Your week: {{days}}",
+    "worn": "worn",
+    "noCityHand": "what's the weather like today?",
+    "noCity": "Add your city and every morning I'll put a look together from your closet for the weather.",
+    "setCity": "Add my city",
+    "notFound": "I couldn't find your city: check it in My profile.",
+    "soon": "look of the day soon",
+    "missing": "To put a look together every day I need {{what}} in your closet.",
+    "add": "Add a piece",
+    "kinds": {
+      "top": "a top",
+      "bottom": "a bottom",
+      "shoes": "shoes"
+    },
+    "sky": {
+      "clear": "clear",
+      "clouds": "cloudy",
+      "fog": "foggy",
+      "rain": "rain",
+      "snow": "snow",
+      "storm": "storm"
+    },
+    "advice": {
+      "cold": "warm layers today",
+      "hot": "light and open today",
+      "wet": "take an umbrella",
+      "snow": "warm boots today"
+    },
+    "wore": "I wore it",
+    "another": "Another",
+    "woreNote": "worn — I'll remember"
   }
 }
