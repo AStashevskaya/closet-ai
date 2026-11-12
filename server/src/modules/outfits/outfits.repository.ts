@@ -19,6 +19,7 @@ import {
   DrizzleQueryError,
   eq,
   gt,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -174,6 +175,9 @@ export interface OutfitsRepository {
     userId: string,
     struck: boolean,
   ): Promise<"ok" | "hero" | "missing">;
+  // The days (YYYY-MM-DD at the given UTC offset, her city's) since `since` on which she marked a
+  // look as worn.
+  woreDays(userId: string, since: Date, offsetSeconds: number): Promise<string[]>;
   // The pieces she cut, newest first, each with the piece its look was built around, by name.
   struckPieces(userId: string, limit: number): Promise<{ hero: string; piece: string }[]>;
   // Storage keys of the looks the user saved (and "want" screenshots still around), newest first.
@@ -521,6 +525,22 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .set({ struckAt: struck ? sql`coalesce(${outfitPieces.struckAt}, now())` : null })
         .where(eq(outfitPieces.id, pieceId));
       return "ok";
+    },
+
+    async woreDays(userId, since, offsetSeconds) {
+      const rows = await db
+        .selectDistinct({
+          day: sql<string>`to_char((${outfitReactions.createdAt} at time zone 'UTC') + make_interval(secs => ${offsetSeconds}), 'YYYY-MM-DD')`,
+        })
+        .from(outfitReactions)
+        .where(
+          and(
+            eq(outfitReactions.userId, userId),
+            eq(outfitReactions.reaction, "wore"),
+            gte(outfitReactions.createdAt, since),
+          ),
+        );
+      return rows.map((r) => r.day).sort();
     },
 
     async struckPieces(userId, limit) {

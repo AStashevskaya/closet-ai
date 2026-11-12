@@ -1,3 +1,4 @@
+import { createOpenMeteo } from "./weather/weather";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { buildApp } from "./app";
 import { createAuth } from "./auth/auth";
@@ -47,6 +48,7 @@ const app = await buildApp({
   storage: s3.storage,
   taggingEnabled: env.ANTHROPIC_API_KEY !== undefined,
   stylistEnabled: env.ANTHROPIC_API_KEY !== undefined,
+  weather: createOpenMeteo(),
 });
 if (!env.WORKERS_IN_API) app.log.info("workers run in their own process (src/worker.ts)");
 if (!env.ANTHROPIC_API_KEY) app.log.warn("ANTHROPIC_API_KEY is not set: photos will not be tagged");

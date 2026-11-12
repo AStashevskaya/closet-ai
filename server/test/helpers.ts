@@ -477,6 +477,16 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
           })),
       };
     },
+    woreDays: async (userId, since, offsetSeconds) =>
+      [
+        ...new Set(
+          reactions
+            .filter((r) => r.userId === userId && r.reaction === "wore" && r.createdAt >= since)
+            .map((r) =>
+              new Date(r.createdAt.getTime() + offsetSeconds * 1000).toISOString().slice(0, 10),
+            ),
+        ),
+      ].sort(),
     strike: async (outfitId, pieceId, userId, struck) => {
       const look = storedOutfits.find((o) => o.id === outfitId && o.userId === userId);
       const piece = look?.pieces.find((p) => p.id === pieceId);

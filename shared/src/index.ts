@@ -438,6 +438,27 @@ export type StyledEntry = z.infer<typeof styledEntry>;
 export type StyledPreview = StyledEntry["previews"][number];
 export const styledList = z.array(styledEntry);
 
+// Her week for the look of the day (2026-11-12): Monday to Sunday with the weather in her city, and
+// which days she wore a look. `status` says why there's no weather: no city in her profile, a
+// city the weather service doesn't know, or the service didn't answer.
+export const DAY_SKIES = ["clear", "clouds", "fog", "rain", "snow", "storm"] as const;
+export const todayWeek = z.object({
+  status: z.enum(["ok", "no-city", "not-found", "unavailable"]),
+  place: z.string().nullable(),
+  today: z.string().nullable(),
+  days: z.array(
+    z.object({
+      date: z.string(),
+      max: z.number(),
+      min: z.number(),
+      sky: z.enum(DAY_SKIES),
+      wet: z.number(),
+      wore: z.boolean(),
+    }),
+  ),
+});
+export type TodayWeek = z.infer<typeof todayWeek>;
+
 // Cutting a piece's string in a look, or tying it back.
 export const pieceStrikeInput = z.object({ struck: z.boolean() });
 
