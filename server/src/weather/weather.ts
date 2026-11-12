@@ -79,7 +79,7 @@ const forecastAnswer = z.object({
 export const localDate = (at: number, offsetSeconds: number) =>
   new Date(at + offsetSeconds * 1000).toISOString().slice(0, 10);
 
-// The languages a city's name may be typed in: the app's.
+// All three app languages: she may type her city in any of them.
 const SEARCH_LANGUAGES = ["ru", "en", "he"];
 
 // Open-Meteo: free, no key, and only the city's name and coordinates leave the server (no user).
@@ -96,15 +96,24 @@ export function createOpenMeteo(fetcher: Fetch = fetch, now = () => Date.now()):
   // language first (its name for the place), then the others, since she may have typed the city
   // in another language than the one the app is in (QA, 2026-11-12).
   async function findSpot(city: string, country: string | null, lang: string) {
-    for (const language of [lang, ...SEARCH_LANGUAGES.filter((l) => l !== lang)]) {
-      const geo = new URL(GEOCODE);
-      geo.searchParams.set("name", city);
-      geo.searchParams.set("count", "1");
-      geo.searchParams.set("language", language);
-      if (country) geo.searchParams.set("countryCode", country);
-      const spot = geocodeAnswer.parse(await get(geo)).results?.[0];
-      if (spot) return spot;
-    }
+    const languages = [lang, ...SEARCH_LANGUAGES.filter((l) => l !== lang)];
+    // At once, so a city found in no language costs one wait, not three; one that fails or times
+    // out doesn't hide another that finds it.
+    const tries = await Promise.allSettled(
+      languages.map(async (language) => {
+        const geo = new URL(GEOCODE);
+        geo.searchParams.set("name", city);
+        geo.searchParams.set("count", "1");
+        geo.searchParams.set("language", language);
+        if (country) geo.searchParams.set("countryCode", country);
+        return geocodeAnswer.parse(await get(geo)).results?.[0] ?? null;
+      }),
+    );
+    // The app's language first: its name for the place.
+    for (const tried of tries) if (tried.status === "fulfilled" && tried.value) return tried.value;
+    // Nothing found: "not found" only when every language answered; else the weather is down.
+    const failed = tries.find((tried) => tried.status === "rejected");
+    if (failed) throw failed.reason;
     return null;
   }
 
