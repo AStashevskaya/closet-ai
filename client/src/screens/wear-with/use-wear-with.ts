@@ -83,7 +83,8 @@ export function useWearWith(id: string | null) {
                 wishId: request.wishId,
               },
             });
-            void Haptics.selectionAsync();
+            // Looks she waited for come with a success tap; one opened ready makes none.
+            if (composing) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             // A live region only speaks on Android; this says the looks arrived on iOS too.
             AccessibilityInfo.announceForAccessibility(
               request.outfits.length > 0
@@ -137,7 +138,9 @@ export function useWearWith(id: string | null) {
   // so two quick taps count twice and reactions to other outfits since then stay.
   function react(outfit: Outfit, reaction: OutfitReaction, reason?: DislikeReason) {
     if (state.status !== 'done') return;
-    void Haptics.selectionAsync();
+    // A like is a small success, felt a little more than the other reactions.
+    if (reaction === 'like') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else void Haptics.selectionAsync();
     const before = state.outfits.find((o) => o.id === outfit.id);
     let known = opinions.current.get(outfit.id);
     // Nothing on its way: what's on screen came from the server.
