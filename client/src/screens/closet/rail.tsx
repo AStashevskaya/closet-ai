@@ -1,13 +1,12 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
-import { useRef, type ComponentRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { isLaunching, reportLaunchRail } from '@/lib/launch';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { HANGER_PIVOT_Y } from '@/components/hanger';
 import { RAIL_WEIGHT, RailLine } from '@/components/rail-line';
+import { isLaunching, offerLaunchRail } from '@/lib/launch';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -74,12 +73,13 @@ export function Rail({
   );
   const settle = enterDelay === undefined ? undefined : arrive.delay(enterDelay);
   const line = useRef<ComponentRef<typeof View>>(null);
-  const placed = () => {
+  // The launch hanger's bar lands here: it measures the line when it lands.
+  useEffect(() => {
     if (!launchTarget || !isLaunching()) return;
-    line.current?.measureInWindow((_x, y, _width, lineHeight) =>
-      reportLaunchRail(y + lineHeight / 2),
+    return offerLaunchRail((done) =>
+      line.current?.measureInWindow((_x, y, _width, lineHeight) => done(y + lineHeight / 2)),
     );
-  };
+  }, [launchTarget]);
 
   return (
     <View style={styles.rail}>
@@ -122,7 +122,7 @@ export function Rail({
           />
         ) : (
           <Animated.View style={styles.linePlace} entering={lineStays ? undefined : settle}>
-            <View ref={line} onLayout={placed} collapsable={false}>
+            <View ref={line} collapsable={false}>
               <RailLine />
             </View>
           </Animated.View>

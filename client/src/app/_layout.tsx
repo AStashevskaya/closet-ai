@@ -3,7 +3,7 @@ import '@/i18n';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { LaunchCurtain } from '@/components/launch-curtain';
@@ -32,7 +32,12 @@ export default function RootLayout() {
 
   // The curtain is an exact copy of the launch screen: the system one goes once the copy is drawn
   // over it, so the switch can't be seen. The app comes in under the curtain when it's ready.
-  const hideSplash = useCallback(() => void SplashScreen.hideAsync(), []);
+  const hidden = useRef(false);
+  const hideSplash = useCallback(() => {
+    if (hidden.current) return;
+    hidden.current = true;
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
   useEffect(() => {
     if (ready) hideSplash();
   }, [ready, hideSplash]);

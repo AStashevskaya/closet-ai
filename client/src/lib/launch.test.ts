@@ -1,21 +1,24 @@
-import { isLaunching, launchDone, launchRailY, onLaunchRail, reportLaunchRail } from './launch';
+import { isLaunching, launchDone, launchRail, offerLaunchRail, onLaunchRail } from './launch';
 
 describe('the launch hand-off', () => {
-  test('tells the curtain where the first rail is, until the curtain has gone', () => {
+  test('hands the curtain a way to measure the first rail, until the curtain has gone', () => {
     const heard = jest.fn();
     const off = onLaunchRail(heard);
     expect(isLaunching()).toBe(true);
 
-    reportLaunchRail(212);
-    expect(launchRailY()).toBe(212);
+    const measure = jest.fn();
+    const takeBack = offerLaunchRail(measure);
+    expect(launchRail()).toBe(measure);
     expect(heard).toHaveBeenCalledTimes(1);
     off();
+    // The rail went (the closet unmounted): nothing to land on.
+    takeBack();
+    expect(launchRail()).toBeNull();
 
     launchDone();
     expect(isLaunching()).toBe(false);
-    expect(launchRailY()).toBeNull();
     // A rail laid out later (scrolled to, a new category) is no longer the launch's business.
-    reportLaunchRail(400);
-    expect(launchRailY()).toBeNull();
+    offerLaunchRail(measure);
+    expect(launchRail()).toBeNull();
   });
 });
