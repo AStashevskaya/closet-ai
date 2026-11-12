@@ -41,6 +41,8 @@ import {
   type StyledEntry,
   styleState,
   type StyleState,
+  todayWeek,
+  type TodayWeek,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
@@ -270,6 +272,16 @@ export async function reactToOutfit(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(reason ? { reaction, reason } : { reaction }),
   });
+}
+
+// Her week and the look of the day (Style it's top).
+export function getToday(lang: AppLanguage): Promise<TodayWeek> {
+  return request(`/api/today?lang=${lang}`, todayWeek);
+}
+
+// Another look of the day; `shown` is how many looks the screen showed, so a tap sent twice adds one.
+export function anotherToday(lang: AppLanguage, shown: number): Promise<TodayWeek> {
+  return request(`/api/today/another?lang=${lang}&shown=${shown}`, todayWeek, { method: 'POST' });
 }
 
 // Cuts a piece's string in her look (it didn't work there), or ties it back.
