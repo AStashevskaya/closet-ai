@@ -31,9 +31,11 @@ const TOP_HEIGHT =
   2 * BORDER;
 
 type Props = {
-  piece: Pick<Item, 'category' | 'photoUrl'>;
+  // The kind picks the hanger; a piece whose kind isn't known gets a coat hanger.
+  piece: Pick<Item, 'photoUrl' | 'cutoutUrl'> & { category?: Item['category'] };
   headers: Record<string, string> | undefined;
-  // Not in her closet yet: a dashed hanger.
+  // Not in her closet yet: a dashed hanger and a white-bordered print. Hers: a bare cut-out on a
+  // solid one (docs/design.md, "Cut-outs vs prints").
   dashed: boolean;
   label: string;
 };
@@ -44,7 +46,8 @@ type Props = {
 // it. The tag runs on the lower rail only, so there's still one sign of waiting.
 export function ComposingStage({ piece, headers, dashed, label }: Props) {
   // A bare hook doesn't reach down to a print, so that kind gets its clip (as on the pick screen).
-  const kind = HANGERS[piece.category] === 'hook' ? 'print' : HANGERS[piece.category];
+  const hanger = piece.category ? HANGERS[piece.category] : 'coat';
+  const kind = hanger === 'hook' ? 'print' : hanger;
   return (
     <Animated.View
       style={styles.stage}
@@ -59,9 +62,13 @@ export function ComposingStage({ piece, headers, dashed, label }: Props) {
         <RailLine style={styles.rail} />
         <View style={styles.hung}>
           <Hanger kind={kind} dashed={dashed} width={HANG_WIDTH} />
-          <View style={[styles.print, cutoutShadow('hanging')]}>
-            <BarePiece item={piece} headers={headers} style={styles.photo} />
-          </View>
+          {dashed ? (
+            <View style={[styles.print, cutoutShadow('hanging')]}>
+              <BarePiece item={piece} headers={headers} style={styles.photo} />
+            </View>
+          ) : (
+            <BarePiece item={piece} headers={headers} style={[styles.photo, styles.bare]} />
+          )}
         </View>
       </View>
       <ClosetBelt style={styles.belt} />
@@ -102,6 +109,10 @@ const styles = StyleSheet.create({
   photo: {
     width: PRINT_WIDTH,
     height: PRINT_HEIGHT,
+  },
+  // Hers: no border, so it sits where the print's photo would.
+  bare: {
+    marginTop: UNDER_HANGER + BORDER,
   },
   belt: {
     marginTop: 56,

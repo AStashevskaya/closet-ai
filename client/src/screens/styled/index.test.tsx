@@ -82,6 +82,8 @@ describe('<Styled />', () => {
 
     await screen.findByText('Looking through your closet…');
     expect(screen.getByTestId('closet-belt', { includeHiddenElements: true })).toBeOnTheScreen();
+    // The piece hangs alone over the rail, not as a picture at the side of its thread.
+    expect(screen.queryByRole('header', { name: /Satin midi skirt/ })).toBeNull();
     // The belt is the wait: no tag runs down the thread meanwhile.
     expect(screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true })).toHaveLength(
       0,
