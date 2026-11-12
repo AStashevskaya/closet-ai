@@ -38,23 +38,29 @@ export const todayRoutes =
     ): Promise<Pick<TodayWeek, "look" | "missing" | "shown" | "more">> {
       const existing = await outfits.findDailyRequest(userId, day);
       const shown = existing ? ((await outfits.view(existing, userId, lang))?.outfits ?? []) : [];
-      const current = { look: shown.at(-1) ?? null, missing: [], shown: shown.length, more: true };
-      // Today's look already made, or "another" from a screen that's behind (a tap sent twice,
-      // or another device): what's there.
-      if (shown.length > 0 && (after === undefined || after !== shown.length)) return current;
-
       const wardrobe = await outfits.wardrobe(userId);
       const season = seasonOf(clock());
       const recent = await outfits.recentlyUsed(userId, RECENT_REQUESTS);
-      const pick = dailyLook(wardrobe, {
+      const options = {
         season,
         need: needOf(weatherToday, season),
         recent: recent.pieces,
         struck: new Set(await outfits.struckPairs(userId, STRUCK_PAIRS)),
-        skip: shown.length,
-      });
+      };
+      // The look after the ones shown: what "another" would give, and so whether there's one.
+      const pick = dailyLook(wardrobe, { ...options, skip: shown.length });
+      const current = {
+        look: shown.at(-1) ?? null,
+        missing: [],
+        shown: shown.length,
+        more: "pieces" in pick,
+      };
+      // Today's look already made, or "another" from a screen that's behind (a tap sent twice,
+      // or another device): what's there.
+      if (shown.length > 0 && (after === undefined || after !== shown.length)) return current;
+
       if ("missing" in pick) return { ...current, missing: pick.missing };
-      if ("exhausted" in pick) return { ...current, more: false };
+      if ("exhausted" in pick) return current;
       // The day's request is made only once there's a look for it.
       const requestId = existing ?? (await outfits.dailyRequest(userId, day, wardrobe.length));
       // Words come from the app, by the day's weather: the rules write none. A racing request may
@@ -72,7 +78,14 @@ export const todayRoutes =
         shown.length,
       );
       const looks = (await outfits.view(requestId, userId, lang))?.outfits ?? [];
-      return { look: looks.at(-1) ?? null, missing: [], shown: looks.length, more: true };
+      // Rules, a few milliseconds: worth it so the button isn't offered for nothing.
+      const next = dailyLook(wardrobe, { ...options, skip: looks.length });
+      return {
+        look: looks.at(-1) ?? null,
+        missing: [],
+        shown: looks.length,
+        more: "pieces" in next,
+      };
     }
 
     // Her week and its weather, for the look of the day.

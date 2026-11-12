@@ -73,6 +73,27 @@ describe("createOpenMeteo", () => {
     expect(geo.searchParams.get("countryCode")).toBe("BY");
   });
 
+  it("finds a city typed in another language than the app's", async () => {
+    const fetcher = vi.fn(async (url: URL | string) => {
+      const href = new URL(String(url));
+      const found = href.searchParams.get("language") === "ru";
+      const body = href.href.includes("geocoding")
+        ? { results: found ? [{ name: "Минск", latitude: 53.9, longitude: 27.56 }] : [] }
+        : forecast;
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    const week = await createOpenMeteo(fetcher as typeof fetch).week(
+      { city: "Минск", country: "BY" },
+      "en",
+    );
+    expect(week!.place).toBe("Минск");
+    const asked = fetcher.mock.calls
+      .map(([url]) => new URL(String(url)))
+      .filter((url) => url.href.includes("geocoding"))
+      .map((url) => url.searchParams.get("language"));
+    expect(asked).toEqual(["en", "ru"]);
+  });
+
   it("keeps a city's week half an hour, asking once for requests at the same time", async () => {
     const fetcher = fakeFetch();
     // Thursday 2026-11-12, 10:00 in Minsk.
