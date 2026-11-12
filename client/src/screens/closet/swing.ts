@@ -1,4 +1,5 @@
 import type { ItemCategory } from '@closet-ai/shared';
+import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef } from 'react';
 import { I18nManager } from 'react-native';
 import {
@@ -73,11 +74,15 @@ function stiffnessFor(category: ItemCategory, id: string) {
   return STIFFNESS * (0.82 + (charSum(id) % 36) / 100) * (LENGTH[category] ?? 1);
 }
 
+const tick = () => void Haptics.selectionAsync();
+
 // The swing of one rail: its scroll handler, and every piece's pendulum, stepped each frame on
-// the UI thread from the scroll position, so it never waits for JavaScript.
+// the UI thread from the scroll position, so it never waits for JavaScript. With `tickEvery` (the
+// distance between pieces), a finger moving the rail feels a light tick for each hanger that
+// passes, as when flipping through hangers on a real rail ("See all", 2026-11-12).
 // The frame loop only runs while the rail moves under a finger or coasts, and until every piece
 // has come to rest. With reduced motion it never starts and the pieces hang still.
-export function useRailSwing(category: ItemCategory, ids: readonly string[]) {
+export function useRailSwing(category: ItemCategory, ids: readonly string[], tickEvery?: number) {
   const reduced = useReducedMotion();
   const rtl = I18nManager.isRTL;
   const offset = useSharedValue(0);
@@ -92,6 +97,10 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[]) {
   const moving = useSharedValue(false);
   const pieces = useSharedValue<{ id: string; stiffness: number }[]>([]);
   const swing = useSharedValue<Record<string, Pendulum>>({});
+  // Which hanger was last under the finger, while one moves the rail (ticks aren't motion, so
+  // they come with reduced motion too).
+  const touched = useSharedValue(false);
+  const slot = useSharedValue(0);
 
   // Keyed by the ids as one string, so a new array with the same pieces changes nothing.
   const key = ids.join(',');
@@ -151,6 +160,10 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[]) {
 
   const begin = () => {
     'worklet';
+    if (tickEvery) {
+      touched.set(true);
+      slot.set(Math.max(0, Math.floor(offset.get() / tickEvery)));
+    }
     if (reduced) return;
     moving.set(true);
     // The offset may have changed while the loop was off (a deleted piece shortens the rail),
@@ -162,14 +175,25 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[]) {
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
       offset.set(event.contentOffset.x);
+      if (tickEvery && touched.get()) {
+        // Not past the ends: a rubber-band bounce isn't a hanger.
+        const now = Math.max(0, Math.floor(event.contentOffset.x / tickEvery));
+        if (now !== slot.get()) {
+          slot.set(now);
+          scheduleOnRN(tick);
+        }
+      }
     },
     onBeginDrag: begin,
     onMomentumBegin: begin,
     onEndDrag: () => {
       moving.set(false);
+      // A coast after it starts the ticks again (onMomentumBegin).
+      touched.set(false);
     },
     onMomentumEnd: () => {
       moving.set(false);
+      touched.set(false);
     },
   });
 

@@ -46,7 +46,43 @@
     "deleteError": "לא הצלחנו למחוק את הפריט. נסו שוב.",
     "newIn": "חדש בארון",
     "seeAll": "לכל הפריטים",
-    "seeAllOf": "לכל הפריטים: {{category}}"
+    "seeAllOf": "לכל הפריטים: {{category}}",
+    "colours": {
+      "rail": {
+        "black": "שחור",
+        "white": "לבן",
+        "gray": "אפור",
+        "beige": "בז׳",
+        "brown": "חום",
+        "red": "אדום",
+        "pink": "ורוד",
+        "orange": "כתום",
+        "yellow": "צהוב",
+        "green": "ירוק",
+        "blue": "כחול",
+        "purple": "סגול",
+        "multicolor": "צבעוני"
+      },
+      "of": {
+        "black": "שחור",
+        "white": "לבן",
+        "gray": "אפור",
+        "beige": "בז׳",
+        "brown": "חום",
+        "red": "אדום",
+        "pink": "ורוד",
+        "orange": "כתום",
+        "yellow": "צהוב",
+        "green": "ירוק",
+        "blue": "כחול",
+        "purple": "סגול",
+        "multicolor": "צבעוני"
+      },
+      "most": "בעיקר {{a}} ו{{b}}.",
+      "mostOne": "בעיקר {{a}}.",
+      "noneOne": "ואין אף פריט {{a}}.",
+      "noneTwo": "ואין אף פריט {{a}} או {{b}}."
+    }
   },
   "addItem": {
     "title": "פריט חדש",

@@ -46,7 +46,43 @@
     "deleteError": "Couldn't delete the item. Try again.",
     "newIn": "New in your closet",
     "seeAll": "See all",
-    "seeAllOf": "See all {{category}}"
+    "seeAllOf": "See all {{category}}",
+    "colours": {
+      "rail": {
+        "black": "black",
+        "white": "white",
+        "gray": "gray",
+        "beige": "beige",
+        "brown": "brown",
+        "red": "red",
+        "pink": "pink",
+        "orange": "orange",
+        "yellow": "yellow",
+        "green": "green",
+        "blue": "blue",
+        "purple": "purple",
+        "multicolor": "multicolor"
+      },
+      "of": {
+        "black": "black",
+        "white": "white",
+        "gray": "gray",
+        "beige": "beige",
+        "brown": "brown",
+        "red": "red",
+        "pink": "pink",
+        "orange": "orange",
+        "yellow": "yellow",
+        "green": "green",
+        "blue": "blue",
+        "purple": "purple",
+        "multicolor": "multicolor"
+      },
+      "most": "Mostly {{a}} and {{b}}.",
+      "mostOne": "Mostly {{a}}.",
+      "noneOne": "Not a single {{a}} one.",
+      "noneTwo": "Not a single {{a}} or {{b}} one."
+    }
   },
   "addItem": {
     "title": "New item",

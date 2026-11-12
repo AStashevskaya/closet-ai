@@ -51,6 +51,10 @@ Decided 2026-11-11 (owner, prototype `~/Desktop/closet/wrinkle-lab/design-icon`,
 
 Decided 2026-11-12 (owner chose C with A inside, prototype `~/Desktop/closet/wrinkle-lab/design-today`): on top of Style it, her week as seven beads on a thread (worn days solid, today the cherry bead, days ahead dashed, the high under each), and today's look under it on powder blue, the weather in words (no weather icons: our voice is a newspaper's first line), until she says she wore it: then the blue goes and the line by hand says "worn — I'll remember". No heart on "worn": hearts are for love.
 
+## See all: rails by colour
+
+Decided 2026-11-12 (owner chose C with B's gesture, prototype `~/Desktop/closet/wrinkle-lab/design-see-all`): "See all" keeps the pieces on rails, one per colour, the colour she has most of first, named by hand with a swatch. On top, on powder blue (an editorial block), one handwritten line on what her colours say: the one or two she has most of, and the basics (black, white, beige, grey) she has none of. Moving a rail with a finger gives a light tick per hanger, like flipping through hangers in a shop. Rejected: A, tiers of rails three to a row (the grid again, on hangers), and B on its own, one rail with the front piece large (one piece at a time is slow in a big category).
+
 ## Empty screens
 
 A screen with nothing of hers yet shows the shape of what will be there, never a line of text in the middle of white (decided 2026-11-11, owner; prototype `~/Desktop/closet/wrinkle-lab/design-empty`).
