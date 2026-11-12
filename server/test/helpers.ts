@@ -534,6 +534,41 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
             ),
         ),
       ].sort(),
+    wearHistory: async (userId, since) => {
+      const wornLooks = storedOutfits.filter((o) =>
+        reactions.some(
+          (r) =>
+            r.outfitId === o.id &&
+            r.userId === userId &&
+            r.reaction === "wore" &&
+            r.createdAt >= since,
+        ),
+      );
+      const lastWorn = new Map<string, Date>();
+      const pairs = new Set<string>();
+      for (const look of wornLooks) {
+        const at = reactions
+          .filter((r) => r.outfitId === look.id && r.reaction === "wore" && r.createdAt >= since)
+          .reduce((latest, r) => (r.createdAt > latest ? r.createdAt : latest), new Date(0));
+        const ids = look.pieces.flatMap((p) => (p.itemId ? [p.itemId] : []));
+        for (const id of ids) if ((lastWorn.get(id) ?? new Date(0)) < at) lastWorn.set(id, at);
+        for (let i = 0; i < ids.length; i++)
+          for (let j = i + 1; j < ids.length; j++) pairs.add(pairKey(ids[i]!, ids[j]!));
+      }
+      const struck = new Map<string, number>();
+      for (const look of storedOutfits.filter((o) => o.userId === userId))
+        for (const p of look.pieces)
+          if (p.itemId && p.struckAt) struck.set(p.itemId, (struck.get(p.itemId) ?? 0) + 1);
+      const ids = new Set([...lastWorn.keys(), ...struck.keys()]);
+      return {
+        pieces: [...ids].map((itemId) => ({
+          itemId,
+          lastWorn: lastWorn.get(itemId) ?? null,
+          struck: struck.get(itemId) ?? 0,
+        })),
+        wornPairs: [...pairs],
+      };
+    },
     woreLooks: async (userId, since, offsetSeconds) => {
       const latest = new Map<
         string,

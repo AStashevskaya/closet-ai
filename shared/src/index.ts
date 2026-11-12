@@ -467,6 +467,13 @@ export const todayWeek = z.object({
 });
 export type TodayWeek = z.infer<typeof todayWeek>;
 
+// The week's find (decided 2026-11-12, D with E inside): a piece of hers that has hung untouched,
+// and up to three looks with it she hasn't worn, each as its pieces; null when there's none.
+export const foundPiece = z.object({
+  piece: item.nullable(),
+  looks: z.array(z.object({ pieces: z.array(item) })),
+});
+export type FoundPiece = z.infer<typeof foundPiece>;
 // The week's recap (decided 2026-11-12, prototype `design-hooks`, A): Monday to Sunday in her
 // city, with the look she said she wore each day, if any.
 export const weekLooks = z.object({

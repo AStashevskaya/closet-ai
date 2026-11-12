@@ -10,6 +10,7 @@ import { authRoutes } from "./auth/auth.routes";
 import type { Env } from "./config/env";
 import type { CatalogRepository } from "./modules/catalog/catalog.repository";
 import { catalogRoutes } from "./modules/catalog/catalog.routes";
+import { foundRoutes } from "./modules/found/found.routes";
 import type { ItemsRepository } from "./modules/items/items.repository";
 import { itemsRoutes } from "./modules/items/items.routes";
 import type { PhotosRepository } from "./modules/photos/photos.repository";
@@ -140,6 +141,10 @@ export async function buildApp({
   await app.register(todayRoutes(profileRepository, outfitsRepository, weather, auth, clock), {
     prefix: "/api",
   });
+  await app.register(
+    foundRoutes(outfitsRepository, itemsRepository, profileRepository, weather, auth, clock),
+    { prefix: "/api" },
+  );
   await app.register(catalogRoutes(catalogRepository, itemsRepository, storage, auth), {
     prefix: "/api",
   });
