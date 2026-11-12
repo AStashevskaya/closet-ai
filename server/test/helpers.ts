@@ -477,6 +477,14 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
           })),
       };
     },
+    woreDays: async (userId, since) =>
+      [
+        ...new Set(
+          reactions
+            .filter((r) => r.userId === userId && r.reaction === "wore" && r.createdAt >= since)
+            .map((r) => r.createdAt.toISOString().slice(0, 10)),
+        ),
+      ].sort(),
     strike: async (outfitId, pieceId, userId, struck) => {
       const look = storedOutfits.find((o) => o.id === outfitId && o.userId === userId);
       const piece = look?.pieces.find((p) => p.id === pieceId);

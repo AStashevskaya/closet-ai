@@ -48,6 +48,7 @@ To do the above, parts of your data are sent to these services, which process it
 | Cloudflare (R2) | your photos | stores the photos |
 | Anthropic (Claude) | item photos and screenshots, item descriptions, your style summary | recognises items, suggests outfits |
 | fal.ai | item photos | removes photo backgrounds |
+| Open-Meteo | the city in your profile (no name, email or account) | the weather for your look of the day |
 
 Each processes the data under its own terms and privacy policy. Item recognition for "similar items" runs on our own server. Some of these services are outside your country (for example in the United States).
 

@@ -777,6 +777,14 @@ describe.skipIf(!url)("on Postgres", () => {
     ]);
     expect(await outfits.strike(look.id, cut.id, user!.id, false)).toBe("ok");
     expect(await outfits.struckPieces(user!.id, 10)).toEqual([]);
+
+    // The days she wore a look, for her week.
+    const before = new Date(Date.now() - 60_000);
+    await outfits.react(look.id, user!.id, "wore");
+    expect(await outfits.woreDays(user!.id, before)).toEqual([
+      new Date().toISOString().slice(0, 10),
+    ]);
+    expect(await outfits.woreDays(user!.id, new Date(Date.now() + 86_400_000))).toEqual([]);
   });
 
   it("deletes a styling, keeping the piece and the looks she reacted to", async () => {

@@ -30,6 +30,10 @@ How the server works, module by module. Read the part you are changing; CLAUDE.m
 - Throw `httpError(status, message)` (`src/http-error.ts`) for 4xx from handlers instead of `reply.code()`: the Zod type provider only allows the statuses in the response schema.
 - Migrations are committed in `server/drizzle/`. `drizzle-kit generate` asks interactively when a column is renamed; generate a drop and an add separately and merge them into one migration (see `0001_photo_key`).
 
+## Weather and the week (look of the day, 2026-11-12)
+
+`src/weather/weather.ts`: one `WeatherClient` (Open-Meteo, no key), passed to `buildApp` as `weather` so tests use a stub and never reach the network; `null` means no weather. It finds the city from My profile (with its country), then asks for 6 days back and 6 ahead and keeps Monday to Sunday of the city's week, each day's high and low, a sky (`skyOf`: clear, clouds, fog, rain, snow, storm from WMO codes) and the chance of rain or snow. One call per city per hour (in memory). Only the city's name and coordinates leave the server. `GET /api/today` (`src/modules/today`) answers that week with the days she marked a look worn (`woreDays`, UTC days of her "wore" reactions), or a status: `no-city`, `not-found`, `unavailable`. The look of the day itself comes next.
+
 ## Shared
 
 `shared/` (`@closet-ai/shared`): Zod schemas and types for server and client. Exported as raw TS (`exports: ./src/index.ts`), no build step.

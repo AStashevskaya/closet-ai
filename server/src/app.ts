@@ -27,8 +27,10 @@ import { styleRoutes } from "./modules/style/style.routes";
 import type { WishesRepository } from "./modules/wishes/wishes.repository";
 import { wishesRoutes } from "./modules/wishes/wishes.routes";
 import type { PhotoQueue } from "./queue/photo-queue";
+import { todayRoutes } from "./modules/today/today.routes";
 import { healthRoutes } from "./routes/health";
 import type { Storage } from "./storage/storage";
+import type { WeatherClient } from "./weather/weather";
 
 // Dependencies are passed in rather than created here,
 // so tests can swap the database for in-memory fakes.
@@ -51,6 +53,8 @@ export interface AppDeps {
   stylistEnabled: boolean;
   // Tests move time on; the background jobs take the same clock.
   clock?: () => Date;
+  // The weather for the look of the day; without it the week says the weather is unavailable.
+  weather?: WeatherClient | null;
 }
 
 // The app sends a photo already shrunk to ~1600 px JPEG (well under 1 MB); the limit only
@@ -73,6 +77,7 @@ export async function buildApp({
   taggingEnabled,
   stylistEnabled,
   clock = () => new Date(),
+  weather = null,
 }: AppDeps) {
   const app = Fastify({
     logger:
@@ -132,6 +137,9 @@ export async function buildApp({
   );
   await app.register(usageRoutes(limits, usageRepository, auth), { prefix: "/api" });
   await app.register(profileRoutes(profileRepository, auth), { prefix: "/api" });
+  await app.register(todayRoutes(profileRepository, outfitsRepository, weather, auth), {
+    prefix: "/api",
+  });
   await app.register(catalogRoutes(catalogRepository, itemsRepository, storage, auth), {
     prefix: "/api",
   });
