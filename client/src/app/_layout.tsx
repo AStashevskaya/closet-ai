@@ -3,9 +3,10 @@ import '@/i18n';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { LaunchCurtain } from '@/components/launch-curtain';
 import { fontAssets } from '@/fonts';
 import { authClient } from '@/lib/auth-client';
 import { clearClosetPieces } from '@/lib/closet-pieces';
@@ -29,14 +30,15 @@ export default function RootLayout() {
     clearClosetPieces();
   }, [userId]);
 
+  // The curtain is an exact copy of the launch screen: the system one goes once the copy is drawn
+  // over it, so the switch can't be seen. The app comes in under the curtain when it's ready.
+  const hideSplash = useCallback(() => void SplashScreen.hideAsync(), []);
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync();
-  }, [ready]);
-
-  if (!ready) return null;
+    if (ready) hideSplash();
+  }, [ready, hideSplash]);
 
   // Protected screens exist only while their guard is true; Expo Router redirects away otherwise.
-  return (
+  const app = ready && (
     // No long-press history on the back button: the stack is shallow, and the tabs screen has
     // no title of its own to show there (it read "(tabs)").
     <Stack screenOptions={{ headerBackButtonMenuEnabled: false }}>
@@ -200,5 +202,11 @@ export default function RootLayout() {
         <Stack.Screen name="sign-up" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
+  );
+  return (
+    <>
+      {app}
+      <LaunchCurtain ready={ready} onShown={hideSplash} />
+    </>
   );
 }
