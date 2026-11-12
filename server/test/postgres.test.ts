@@ -785,6 +785,14 @@ describe.skipIf(!url)("on Postgres", () => {
       new Date().toISOString().slice(0, 10),
     ]);
     expect(await outfits.woreDays(user!.id, new Date(Date.now() + 86_400_000), 0)).toEqual([]);
+    // And which look, once a day, for the week's recap.
+    expect(await outfits.woreLooks(user!.id, before, 0)).toEqual([
+      { day: new Date().toISOString().slice(0, 10), outfitId: look.id, requestId },
+    ]);
+    // Another user's days never list her look.
+    expect((await outfits.woreLooks(other!.id, before, 0)).map((w) => w.outfitId)).not.toContain(
+      look.id,
+    );
 
     // Her cut pairs, by her pieces.
     await outfits.strike(look.id, cut.id, user!.id, true);

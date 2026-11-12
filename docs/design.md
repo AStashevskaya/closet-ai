@@ -51,6 +51,10 @@ Decided 2026-11-11 (owner, prototype `~/Desktop/closet/wrinkle-lab/design-icon`,
 
 Decided 2026-11-12 (owner chose C with A inside, prototype `~/Desktop/closet/wrinkle-lab/design-today`): on top of Style it, her week as seven beads on a thread (worn days solid, today the cherry bead, days ahead dashed, the high under each), and today's look under it on powder blue, the weather in words (no weather icons: our voice is a newspaper's first line), until she says she wore it: then the blue goes and the line by hand says "worn — I'll remember". No heart on "worn": hearts are for love.
 
+## The week's recap
+
+Decided 2026-11-12 (owner chose A, prototype `~/Desktop/closet/wrinkle-lab/design-hooks`): on Sunday from 17:00, above the look of the day on Style it, the week's thread again, with the look she said she wore hanging under each day's bead (one long string, one short, in turn) and a dashed bead for a day without; above it by hand how many days, and "and not one look twice" when that's true. Nothing for a week she marked nothing in. The closet map (C, worn pieces bright, the rest faint) is for a monthly recap later; sharing the week as a 9:16 picture (B) comes in its own PR.
+
 ## Launch
 
 Decided 2026-11-12 (owner chose B, prototype `~/Desktop/closet/wrinkle-lab/design-launch`): the icon becomes the closet. Over the system launch screen the app draws an exact copy (`LaunchCurtain`): the glossy hanger on powder blue swings once while the app loads; when it's ready the hanger fades, its bottom bar stretches into a thread across the screen and settles on the first rail, the blue melts, and the pieces hang in on that rail. It adds about 0.7 s at most after the app is ready. A slow start shows the bead running on a rail under the hanger (the waiting sign). Reduce Motion: a fade. Signed out, or a first rail off screen: the thread melts with the blue. Rejected: A, the blue lifting like a curtain (a common move; only the swing is ours), and C, a handwritten greeting tag (text to read on every launch; the greeting belongs to the look of the day).

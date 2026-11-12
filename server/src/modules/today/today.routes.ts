@@ -1,9 +1,15 @@
-import { APP_LANGUAGES, todayWeek, type TodayWeek } from "@closet-ai/shared";
+import {
+  APP_LANGUAGES,
+  todayWeek,
+  weekLooks,
+  type TodayWeek,
+  type WearWithRequest,
+} from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
-import { localDate, type DayWeather, type WeatherClient } from "../../weather/weather";
+import { localDate, mondayOf, type DayWeather, type WeatherClient } from "../../weather/weather";
 import { RECENT_REQUESTS } from "../outfits/outfit-jobs";
 import type { OutfitsRepository } from "../outfits/outfits.repository";
 import { seasonOf } from "../outfits/wardrobe-sheet";
@@ -136,6 +142,54 @@ export const todayRoutes =
         },
       },
       (request) => answer((request.user as SessionUser).id, request.query.lang, undefined),
+    );
+
+    // The week's recap: the look she wore each day this week, Monday to Sunday in her city (the
+    // server's UTC days when the weather doesn't know her city).
+    app.get(
+      "/today/week",
+      {
+        schema: {
+          querystring: z.object({ lang: z.enum(APP_LANGUAGES).default("en") }),
+          response: { 200: weekLooks },
+        },
+      },
+      async (request) => {
+        const userId = (request.user as SessionUser).id;
+        const { lang } = request.query;
+        const { week } = await weekOf(userId, lang);
+        const offset = week?.offsetSeconds ?? 0;
+        const from = mondayOf(week?.today ?? localDate(clock().getTime(), 0));
+        const monday = Date.parse(`${from}T00:00:00Z`);
+        const dates = Array.from({ length: 7 }, (_, i) =>
+          new Date(monday + i * 86_400_000).toISOString().slice(0, 10),
+        );
+        const worn = new Map(
+          (await outfits.woreLooks(userId, new Date(monday - offset * 1000), offset)).map((w) => [
+            w.day,
+            w,
+          ]),
+        );
+        // A styling's looks are read once, however many days she wore one of them.
+        const views = new Map<string, Promise<WearWithRequest | null>>();
+        const view = (requestId: string) => {
+          let read = views.get(requestId);
+          if (!read) {
+            read = outfits.view(requestId, userId, lang);
+            views.set(requestId, read);
+          }
+          return read;
+        };
+        const days = await Promise.all(
+          dates.map(async (date) => {
+            const wore = worn.get(date);
+            if (!wore) return { date, look: null };
+            const looks = (await view(wore.requestId))?.outfits ?? [];
+            return { date, look: looks.find((o) => o.id === wore.outfitId) ?? null };
+          }),
+        );
+        return { from, to: dates[6]!, days };
+      },
     );
 
     // "Another": the next look by the rules, kept as the day's.

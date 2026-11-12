@@ -638,6 +638,12 @@
     },
     "wore": "לבשתי",
     "another": "אחר",
-    "woreNote": "לבשת — אזכור"
+    "woreNote": "לבשת — אזכור",
+    "recap": {
+      "title": "השבוע שלך · {{range}}",
+      "days": "{{count}} מתוך 7 ימים",
+      "noRepeat": "ואף לוק לא חזר פעמיים",
+      "day": "{{day}}: {{pieces}}"
+    }
   }
 }

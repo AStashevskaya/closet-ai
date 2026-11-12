@@ -628,6 +628,12 @@
     },
     "wore": "I wore it",
     "another": "Another",
-    "woreNote": "worn — I'll remember"
+    "woreNote": "worn — I'll remember",
+    "recap": {
+      "title": "Your week · {{range}}",
+      "days": "{{count}} of 7 days",
+      "noRepeat": "and not one look twice",
+      "day": "{{day}}: {{pieces}}"
+    }
   }
 }
