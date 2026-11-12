@@ -1,4 +1,4 @@
-import type { TodayWeek } from "@closet-ai/shared";
+import type { TodayWeek, WeekLooks } from "@closet-ai/shared";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
@@ -80,7 +80,7 @@ async function setup(weather: WeatherClient | null) {
   });
   const userId = session.json<{ user: { id: string } }>().user.id;
   // She marks a look worn at this moment.
-  const wear = async (at: Date) => {
+  const wear = async (at: Date, caption = "Worn") => {
     clock.now = at;
     const outfits = repositories.outfitsRepository;
     const requestId = await outfits.createRequest(
@@ -92,7 +92,7 @@ async function setup(weather: WeatherClient | null) {
     await outfits.saveOutfits(
       requestId,
       userId,
-      [{ caption: "Worn", occasion: "day", why: "why", missing: null, pieces: [] }],
+      [{ caption, occasion: "day", why: "why", missing: null, pieces: [] }],
       { micros: 0 },
     );
     const look = (await outfits.view(requestId, userId, "en"))!.outfits[0]!;
@@ -264,5 +264,49 @@ describe("GET /api/today", () => {
     const usage = (await get("/api/usage")).json<{ wear_with: { used: number } }>();
     expect(usage.wear_with.used).toBe(0);
     expect(look).not.toBeNull();
+  });
+
+  describe("GET /api/today/week", () => {
+    it("gives the look she wore each day this week, Monday to Sunday in her city", async () => {
+      const { setCity, wear, get } = await setup(stubWeather());
+      await setCity("Minsk");
+      await wear(new Date("2026-11-08T12:00:00Z")); // last Sunday: not this week
+      await wear(new Date("2026-11-10T09:00:00Z")); // Tuesday
+      await wear(new Date("2026-11-12T07:00:00Z")); // Thursday, today
+
+      const res = await get("/api/today/week?lang=ru");
+      expect(res.statusCode).toBe(200);
+      const week = res.json<WeekLooks>();
+      expect(week).toMatchObject({ from: "2026-11-09", to: "2026-11-15" });
+      expect(week.days.map((d) => [d.date, d.look?.caption ?? null])).toEqual([
+        ["2026-11-09", null],
+        ["2026-11-10", "Worn"],
+        ["2026-11-11", null],
+        ["2026-11-12", "Worn"],
+        ["2026-11-13", null],
+        ["2026-11-14", null],
+        ["2026-11-15", null],
+      ]);
+    });
+
+    it("keeps the last look she marked in a day, and counts the day in her city", async () => {
+      const { setCity, wear, get } = await setup(stubWeather());
+      await setCity("Minsk");
+      await wear(new Date("2026-11-10T08:00:00Z"), "Morning");
+      await wear(new Date("2026-11-10T18:00:00Z"), "Evening");
+      // 23:30 UTC on Tuesday is 02:30 on Wednesday in Minsk (+3).
+      await wear(new Date("2026-11-10T23:30:00Z"), "Late");
+
+      const week = (await get("/api/today/week")).json<WeekLooks>();
+      const caption = (date: string) => week.days.find((d) => d.date === date)?.look?.caption;
+      expect(caption("2026-11-10")).toBe("Evening");
+      expect(caption("2026-11-11")).toBe("Late");
+    });
+
+    it("is only hers", async () => {
+      const { get } = await setup(stubWeather());
+      const week = (await get("/api/today/week")).json<WeekLooks>();
+      expect(week.days.every((d) => d.look === null)).toBe(true);
+    });
   });
 });

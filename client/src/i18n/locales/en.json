@@ -637,6 +637,12 @@
       "ask": "send you the look in the morning, at 8?",
       "yes": "Send it",
       "no": "Not now"
+    },
+    "recap": {
+      "title": "Your week · {{range}}",
+      "days": "{{count}} of 7 days",
+      "noRepeat": "and not one look twice",
+      "day": "{{day}}: {{pieces}}"
     }
   }
 }

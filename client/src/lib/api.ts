@@ -42,7 +42,9 @@ import {
   styleState,
   type StyleState,
   todayWeek,
+  weekLooks,
   type TodayWeek,
+  type WeekLooks,
 } from '@closet-ai/shared';
 import { File } from 'expo-file-system';
 
@@ -277,6 +279,11 @@ export async function reactToOutfit(
 // Her week and the look of the day (Style it's top).
 export function getToday(lang: AppLanguage): Promise<TodayWeek> {
   return request(`/api/today?lang=${lang}`, todayWeek);
+}
+
+// The week's recap: the look she wore each day this week.
+export function getWeekLooks(lang: AppLanguage): Promise<WeekLooks> {
+  return request(`/api/today/week?lang=${lang}`, weekLooks);
 }
 
 // Another look of the day; `shown` is how many looks the screen showed, so a tap sent twice adds one.

@@ -467,6 +467,15 @@ export const todayWeek = z.object({
 });
 export type TodayWeek = z.infer<typeof todayWeek>;
 
+// The week's recap (decided 2026-11-12, prototype `design-hooks`, A): Monday to Sunday in her
+// city, with the look she said she wore each day, if any.
+export const weekLooks = z.object({
+  from: z.string(),
+  to: z.string(),
+  days: z.array(z.object({ date: z.string(), look: outfit.nullable() })),
+});
+export type WeekLooks = z.infer<typeof weekLooks>;
+
 // Cutting a piece's string in a look, or tying it back.
 export const pieceStrikeInput = z.object({ struck: z.boolean() });
 
