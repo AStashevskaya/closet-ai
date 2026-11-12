@@ -175,8 +175,9 @@ export interface OutfitsRepository {
     userId: string,
     struck: boolean,
   ): Promise<"ok" | "hero" | "missing">;
-  // The days (UTC, YYYY-MM-DD) since `since` on which she marked a look as worn.
-  woreDays(userId: string, since: Date): Promise<string[]>;
+  // The days (YYYY-MM-DD at the given UTC offset, her city's) since `since` on which she marked a
+  // look as worn.
+  woreDays(userId: string, since: Date, offsetSeconds: number): Promise<string[]>;
   // The pieces she cut, newest first, each with the piece its look was built around, by name.
   struckPieces(userId: string, limit: number): Promise<{ hero: string; piece: string }[]>;
   // Storage keys of the looks the user saved (and "want" screenshots still around), newest first.
@@ -526,10 +527,10 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return "ok";
     },
 
-    async woreDays(userId, since) {
+    async woreDays(userId, since, offsetSeconds) {
       const rows = await db
         .selectDistinct({
-          day: sql<string>`to_char(${outfitReactions.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+          day: sql<string>`to_char((${outfitReactions.createdAt} at time zone 'UTC') + make_interval(secs => ${offsetSeconds}), 'YYYY-MM-DD')`,
         })
         .from(outfitReactions)
         .where(

@@ -41,9 +41,9 @@ export const todayRoutes =
           return { status: "unavailable", ...none };
         }
         if (!week) return { status: "not-found", ...none };
-        const worn = new Set(
-          await outfits.woreDays(user.id, new Date(`${week.days[0]!.date}T00:00:00Z`)),
-        );
+        // Monday 00:00 in her city, and each mark on the day it was there.
+        const monday = Date.parse(`${week.days[0]!.date}T00:00:00Z`) - week.offsetSeconds * 1000;
+        const worn = new Set(await outfits.woreDays(user.id, new Date(monday), week.offsetSeconds));
         return {
           status: "ok",
           place: week.place,

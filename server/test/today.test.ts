@@ -35,13 +35,16 @@ const stubWeather = (answer: "ok" | "none" | "down" = "ok"): WeatherClient => ({
     return {
       place: "Минск",
       today: "2026-11-12",
+      // Minsk, UTC+3.
+      offsetSeconds: 3 * 3600,
       days: week.map((date) => ({ date, max: 8, min: 2, sky: "rain", wet: 70 })),
     };
   },
 });
 
 async function setup(weather: WeatherClient | null) {
-  const repositories = createInMemoryRepositories(() => new Date("2026-11-12T08:00:00Z"));
+  const clock = { now: new Date("2026-11-12T08:00:00Z") };
+  const repositories = createInMemoryRepositories(() => clock.now);
   app = await buildApp({
     env,
     auth: createAuth(env, memoryAdapter({ user: [], session: [], account: [], verification: [] })),
@@ -70,7 +73,33 @@ async function setup(weather: WeatherClient | null) {
     ).json<TodayWeek>();
   const setCity = (city: string) =>
     app!.inject({ method: "PATCH", url: "/api/profile", headers: { cookie }, payload: { city } });
-  return { read, setCity };
+  const session = await app.inject({
+    method: "GET",
+    url: "/api/auth/get-session",
+    headers: { cookie },
+  });
+  const userId = session.json<{ user: { id: string } }>().user.id;
+  // She marks a look worn at this moment.
+  const wear = async (at: Date) => {
+    clock.now = at;
+    const outfits = repositories.outfitsRepository;
+    const requestId = await outfits.createRequest(
+      userId,
+      { itemId: "11111111-1111-4111-8111-111111111111" },
+      1,
+      null,
+    );
+    await outfits.saveOutfits(
+      requestId,
+      userId,
+      [{ caption: "Worn", occasion: "day", why: "why", missing: null, pieces: [] }],
+      { micros: 0 },
+    );
+    const look = (await outfits.view(requestId, userId, "en"))!.outfits[0]!;
+    await outfits.react(look.id, userId, "wore");
+    clock.now = new Date("2026-11-12T08:00:00Z");
+  };
+  return { read, setCity, wear };
 }
 
 describe("GET /api/today", () => {
@@ -90,6 +119,15 @@ describe("GET /api/today", () => {
       wet: 70,
       wore: false,
     });
+  });
+
+  it("marks the days she wore a look, by her city's day, not UTC's", async () => {
+    const { read, setCity, wear } = await setup(stubWeather());
+    await setCity("Minsk");
+    // 01:30 on Thursday in Minsk is still Wednesday in UTC.
+    await wear(new Date("2026-11-11T22:30:00Z"));
+    const days = (await read()).days;
+    expect(days.filter((d) => d.wore).map((d) => d.date)).toEqual(["2026-11-12"]);
   });
 
   it("says why there's no weather: an unknown city, a service down, none configured", async () => {
