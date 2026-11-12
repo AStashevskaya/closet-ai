@@ -1,8 +1,9 @@
-import { APP_LANGUAGES, foundPiece } from "@closet-ai/shared";
+import { APP_LANGUAGES, foundPiece, foundWear, foundWearInput } from "@closet-ai/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
+import { httpError } from "../../http-error";
 import { localDate, mondayOf, type WeatherClient } from "../../weather/weather";
 import type { ItemsRepository } from "../items/items.repository";
 import type { OutfitsRepository } from "../outfits/outfits.repository";
@@ -96,9 +97,64 @@ export const foundRoutes =
             return pieces.length === ids.length ? [{ pieces }] : [];
           });
           if (looks.length === 0) continue;
-          return { piece: byId.get(pieceId)!, looks };
+          return { piece: byId.get(pieceId)!, looks, week: mondayOf(today) };
         }
-        return { piece: null, looks: [] };
+        return { piece: null, looks: [], week: mondayOf(today) };
+      },
+    );
+
+    // "I'll wear it" (owner, 2026-11-12): one of the find's looks becomes tomorrow's look of the
+    // day, tomorrow in her city as the look of the day counts days. Sent again with the same
+    // pieces it answers the same; 409 when tomorrow already has another look she has seen.
+    app.post(
+      "/found/wear",
+      {
+        schema: {
+          querystring: z.object({ lang: z.enum(APP_LANGUAGES).default("en") }),
+          body: foundWearInput,
+          response: { 200: foundWear },
+        },
+      },
+      async (request) => {
+        const userId = (request.user as SessionUser).id;
+        const { lang } = request.query;
+        const ids = [...new Set(request.body.pieces)];
+        const wardrobe = await outfits.wardrobe(userId);
+        const hers = new Set(wardrobe.map((p) => p.id));
+        if (!ids.every((id) => hers.has(id))) throw httpError(404, "Item not found");
+        const today = await todayOf(userId, lang, clock());
+        const date = new Date(Date.parse(`${today}T12:00:00Z`) + 86_400_000)
+          .toISOString()
+          .slice(0, 10);
+        const same = (pieces: string[]) =>
+          pieces.length === ids.length && pieces.every((id) => ids.includes(id));
+        const existing = await outfits.findDailyRequest(userId, date);
+        if (existing) {
+          const looks = (await outfits.view(existing, userId, lang))?.outfits ?? [];
+          const first = looks[0]?.pieces.flatMap((p) => (p.item ? [p.item.id] : [])) ?? [];
+          if (looks.length > 0 && same(first)) return { date };
+          if (looks.length > 0) throw httpError(409, "Tomorrow already has a look");
+        }
+        const requestId = existing ?? (await outfits.dailyRequest(userId, date, wardrobe.length));
+        const added = await outfits.addDailyLook(
+          requestId,
+          userId,
+          {
+            caption: "",
+            occasion: "",
+            why: "",
+            missing: null,
+            pieces: ids.map((itemId) => ({ hero: false, itemId })),
+          },
+          0,
+        );
+        // Another tap or device got there first: fine if it was this look.
+        if (!added) {
+          const looks = (await outfits.view(requestId, userId, lang))?.outfits ?? [];
+          const first = looks[0]?.pieces.flatMap((p) => (p.item ? [p.item.id] : [])) ?? [];
+          if (!same(first)) throw httpError(409, "Tomorrow already has a look");
+        }
+        return { date };
       },
     );
   };
