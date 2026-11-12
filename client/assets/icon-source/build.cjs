@@ -10,7 +10,7 @@ const r = (o, file, flat) => { let s = sharp(Buffer.from(svg(o))); if (flat) s =
   await r({ mode: 'dark' }, 'icon-ios-dark.png', true);
   await r({ mode: 'tint', bg: false }, 'icon-ios-tinted.png');
   await r({ mode: 'light', bg: false, size: 512, scale: 0.62 }, 'android-icon-foreground.png');
-  await r({ mode: 'light', size: 512, noArt: true }, 'android-icon-background.png', true);
+  await r({ mode: 'light', size: 512, noArt: true }, 'android-icon-background.png');
   await r({ mode: 'tint', bg: false, size: 512, scale: 0.62 }, 'android-icon-monochrome.png');
   await r({ mode: 'light', bg: false }, 'splash-icon.png');
 })();

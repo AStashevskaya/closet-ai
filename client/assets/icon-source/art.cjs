@@ -1,19 +1,17 @@
-// The app icon: the hanger without the bead, with shine. variant: 1 satin, 2 lacquer, 3 glint.
+// The app icon: the hanger without the bead, glossy (2026-11-12).
 const HOOK = 'M512 430 V394 C512 364 468 352 468 320 C468 290 490 270 516 270 C544 270 566 290 566 318 C566 336 558 348 548 356';
 const BODY = 'M512 430 L190 640 C162 658 172 694 208 694 H816 C852 694 862 658 834 640 Z';
-function svg({ variant = 2, mode = 'light', bg = true, size = 1024, scale = 1, noArt = false }) {
+function svg({ mode = 'light', bg = true, size = 1024, scale = 1, noArt = false }) {
   const dark = mode === 'dark', tint = mode === 'tint';
   const bgTop = dark ? '#2A2024' : '#E6EEF8', bgBot = dark ? '#120C0E' : '#C5D7EC';
   const lineA = dark ? '#F7CFD9' : tint ? '#FFFFFF' : '#7A2A3A', lineB = dark ? '#D98CA2' : tint ? '#D8D8D8' : '#3A0E18';
   const g = `<g fill="none" stroke-linecap="round" stroke-linejoin="round">`;
   const shape = (stroke, w, extra = '') => `${g}<path d="${HOOK}" stroke="${stroke}" stroke-width="${w}" ${extra}/><path d="${BODY}" stroke="${stroke}" stroke-width="${w}" ${extra}/></g>`;
-  const glint = (cx, cy, r, op) => `<path d="M${cx} ${cy - r} C${cx + r * .12} ${cy - r * .12} ${cx + r * .12} ${cy - r * .12} ${cx + r} ${cy} C${cx + r * .12} ${cy + r * .12} ${cx + r * .12} ${cy + r * .12} ${cx} ${cy + r} C${cx - r * .12} ${cy + r * .12} ${cx - r * .12} ${cy + r * .12} ${cx - r} ${cy} C${cx - r * .12} ${cy - r * .12} ${cx - r * .12} ${cy - r * .12} ${cx} ${cy - r} Z" fill="#FFFFFF" opacity="${op}"/>`;
   const art = `
   <g transform="translate(512 512) scale(${scale}) translate(-512 -490)">
     ${tint ? '' : `<g filter="url(#shadow)" transform="translate(0 14)">${shape(dark ? '#000' : '#5B7FA8', 46, 'opacity="0.35"')}</g>`}
     ${shape('url(#metal)', 46)}
-    ${variant >= 2 && !tint ? `<g transform="translate(-4 -8)">${shape("url(#sheen)", 9)}</g>` : ''}
-    ${variant >= 3 && !tint ? `${glint(584, 286, 58, 0.95)}${glint(640, 236, 22, 0.8)}` : ''}
+    ${!tint ? `<g transform="translate(-4 -8)">${shape("url(#sheen)", 9)}</g>` : ''}
   </g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 1024 1024">
   <defs>
