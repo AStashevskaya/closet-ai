@@ -34,15 +34,18 @@ function hash(text: string) {
   return h >>> 0;
 }
 
-// The week's find, or null: in season, hers, not worn in UNWORN_DAYS (or never worn and hers for
-// NEW_DAYS), not cut out of looks again and again; tops, dresses and coats before bottoms; the
-// longest untouched first, and among the best few one drawn by the week, so the same one stays
-// all week and another may come the next. Shown once a week by the app, which keeps that.
+// The week's finds, best first: in season, hers, not worn in UNWORN_DAYS (or never worn and
+// hers for NEW_DAYS), not cut out of looks again and again; tops, dresses and coats before
+// bottoms; the longest untouched first. The first is one of the best few drawn by her and the
+// week (taken in id order, so it doesn't hang on how the few happen to be sorted), then the rest
+// of those few, then everyone else: the route takes the first that has looks to wear it with.
+// Shown once a week by the app, which remembers what it showed, since a piece worn mid-week
+// leaves the list and the draw may then land elsewhere.
 export function pickFound(
   items: Candidate[],
   wear: PieceWear[],
   options: { season: Season; now: Date; userId: string; week: string },
-): string | null {
+): string[] {
   const byItem = new Map(wear.map((w) => [w.itemId, w]));
   const now = options.now.getTime();
   const rank = (category: string) =>
@@ -60,15 +63,25 @@ export function pickFound(
       return [{ id: item.id, tier, untouched: since ?? item.createdAt.getTime() }];
     })
     .sort((a, b) => a.tier - b.tier || a.untouched - b.untouched || a.id.localeCompare(b.id));
-  if (candidates.length === 0) return null;
-  const best = candidates.filter((c) => c.tier === candidates[0]!.tier).slice(0, SHORTLIST);
-  return best[hash(`${options.userId}|${options.week}`) % best.length]!.id;
+  if (candidates.length === 0) return [];
+  const best = candidates
+    .filter((c) => c.tier === candidates[0]!.tier)
+    .slice(0, SHORTLIST)
+    .map((c) => c.id)
+    .sort();
+  const first = best[hash(`${options.userId}|${options.week}`) % best.length]!;
+  return [
+    first,
+    ...best.filter((id) => id !== first),
+    ...candidates.map((c) => c.id).filter((id) => !best.includes(id)),
+  ];
 }
 
 // Three looks with the piece in them that she hasn't worn: a dress alone, or the piece with a top
 // or a bottom, shoes, a bag when she has one, and the piece as the layer if it's a coat. Scored
-// by the look of the day's rules for the season (no weather: it's not for one day). A look whose
-// piece and other half she has worn together is passed over; the three differ in that half.
+// by the look of the day's rules for the season (no weather: it's not for one day). Pieces she
+// has worn with the found one are left out of the base before the pool is cut to size, so a long
+// history doesn't empty it; the three looks differ in their other half.
 export function looksWith(
   wardrobe: StylingItem[],
   pieceId: string,
@@ -78,9 +91,16 @@ export function looksWith(
   if (!piece) return [];
   const need = needOf(null, options.season);
   const kind = kindOf(piece);
-  const of = (k: string) =>
+  // `fresh`: only pieces she hasn't worn with the found one (the base, not shoes or a bag).
+  const of = (k: string, fresh = false) =>
     wardrobe
-      .filter((p) => p.id !== pieceId && kindOf(p) === k && fits(p.seasons, options.season))
+      .filter(
+        (p) =>
+          p.id !== pieceId &&
+          kindOf(p) === k &&
+          fits(p.seasons, options.season) &&
+          !(fresh && options.wornPairs.has(pairKey(pieceId, p.id))),
+      )
       .slice(0, POOL)
       .map(featuresOf);
   const hero = featuresOf(piece);
@@ -93,14 +113,14 @@ export function looksWith(
     kind === "dress"
       ? [{ base: [hero], other: null }]
       : kind === "top"
-        ? of("bottom").map((b) => ({ base: [hero, b], other: b }))
+        ? of("bottom", true).map((b) => ({ base: [hero, b], other: b }))
         : kind === "bottom"
-          ? of("top").map((t) => ({ base: [t, hero], other: t }))
+          ? of("top", true).map((t) => ({ base: [t, hero], other: t }))
           : kind === "outerwear"
             ? [
-                ...of("dress").map((d) => ({ base: [hero, d], other: d })),
-                ...of("top").flatMap((t) =>
-                  of("bottom").map((b) => ({ base: [hero, t, b], other: t })),
+                ...of("dress", true).map((d) => ({ base: [hero, d], other: d })),
+                ...of("top", true).flatMap((t) =>
+                  of("bottom", true).map((b) => ({ base: [hero, t, b], other: t })),
                 ),
               ]
             : [];
@@ -110,7 +130,6 @@ export function looksWith(
       : 0;
   const found: { pieces: Features[]; key: string; score: number }[] = [];
   for (const { base, other } of halves) {
-    if (other && options.wornPairs.has(pairKey(pieceId, other.id))) continue;
     for (const shoe of shoes) {
       for (const bag of bags.length > 0 ? bags : [null]) {
         const pieces = [...base, shoe, bag].filter((p): p is Features => p !== null);

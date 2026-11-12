@@ -534,15 +534,21 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
             ),
         ),
       ].sort(),
-    wearHistory: async (userId) => {
+    wearHistory: async (userId, since) => {
       const wornLooks = storedOutfits.filter((o) =>
-        reactions.some((r) => r.outfitId === o.id && r.userId === userId && r.reaction === "wore"),
+        reactions.some(
+          (r) =>
+            r.outfitId === o.id &&
+            r.userId === userId &&
+            r.reaction === "wore" &&
+            r.createdAt >= since,
+        ),
       );
       const lastWorn = new Map<string, Date>();
       const pairs = new Set<string>();
       for (const look of wornLooks) {
         const at = reactions
-          .filter((r) => r.outfitId === look.id && r.reaction === "wore")
+          .filter((r) => r.outfitId === look.id && r.reaction === "wore" && r.createdAt >= since)
           .reduce((latest, r) => (r.createdAt > latest ? r.createdAt : latest), new Date(0));
         const ids = look.pieces.flatMap((p) => (p.itemId ? [p.itemId] : []));
         for (const id of ids) if ((lastWorn.get(id) ?? new Date(0)) < at) lastWorn.set(id, at);

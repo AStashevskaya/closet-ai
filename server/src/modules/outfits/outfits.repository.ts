@@ -23,7 +23,6 @@ import {
   inArray,
   isNotNull,
   isNull,
-  max,
   ne,
   notInArray,
   or,
@@ -191,9 +190,12 @@ export interface OutfitsRepository {
   // The days (YYYY-MM-DD at the given UTC offset, her city's) since `since` on which she marked a
   // look as worn.
   woreDays(userId: string, since: Date, offsetSeconds: number): Promise<string[]>;
-  // For the week's find: each of her pieces' last wear and how often she cut it out of a look,
-  // and the pairs of her pieces she has worn together.
-  wearHistory(userId: string): Promise<{
+  // For the week's find: each of her pieces' last wear since `since` and how often she cut it
+  // out of a look, and the pairs of her pieces she has worn together since `since`.
+  wearHistory(
+    userId: string,
+    since: Date,
+  ): Promise<{
     pieces: { itemId: string; lastWorn: Date | null; struck: number }[];
     wornPairs: string[];
   }>;
@@ -646,19 +648,25 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
       return rows.map((r) => r.day).sort();
     },
 
-    async wearHistory(userId) {
+    async wearHistory(userId, since) {
+      // Each of her pieces in each look she wore, with when: read once for both the last wear and
+      // the pairs worn together.
       const worn = await db
-        .select({ itemId: outfitPieces.itemId, at: max(outfitReactions.createdAt) })
+        .select({
+          outfitId: outfitPieces.outfitId,
+          itemId: outfitPieces.itemId,
+          at: outfitReactions.createdAt,
+        })
         .from(outfitPieces)
         .innerJoin(outfitReactions, eq(outfitReactions.outfitId, outfitPieces.outfitId))
         .where(
           and(
             eq(outfitReactions.userId, userId),
             eq(outfitReactions.reaction, "wore"),
+            gte(outfitReactions.createdAt, since),
             isNotNull(outfitPieces.itemId),
           ),
-        )
-        .groupBy(outfitPieces.itemId);
+        );
       const struck = await db
         .select({ itemId: outfitPieces.itemId, n: count() })
         .from(outfitPieces)
@@ -671,31 +679,25 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           ),
         )
         .groupBy(outfitPieces.itemId);
-      // Her pieces in each look she wore, to tell which pairs she has worn together.
-      const together = await db
-        .selectDistinct({ outfitId: outfitPieces.outfitId, itemId: outfitPieces.itemId })
-        .from(outfitPieces)
-        .innerJoin(outfitReactions, eq(outfitReactions.outfitId, outfitPieces.outfitId))
-        .where(
-          and(
-            eq(outfitReactions.userId, userId),
-            eq(outfitReactions.reaction, "wore"),
-            isNotNull(outfitPieces.itemId),
-          ),
-        );
-      const byLook = new Map<string, string[]>();
-      for (const row of together)
-        byLook.set(row.outfitId, [...(byLook.get(row.outfitId) ?? []), row.itemId!]);
+      const lastWorn = new Map<string, Date>();
+      const byLook = new Map<string, Set<string>>();
+      for (const { outfitId, itemId, at } of worn) {
+        const id = itemId!;
+        if ((lastWorn.get(id)?.getTime() ?? -1) < at.getTime()) lastWorn.set(id, at);
+        byLook.set(outfitId, (byLook.get(outfitId) ?? new Set()).add(id));
+      }
       const pairs = new Set<string>();
-      for (const ids of byLook.values())
+      for (const look of byLook.values()) {
+        const ids = [...look];
         for (let i = 0; i < ids.length; i++)
           for (let j = i + 1; j < ids.length; j++) pairs.add(pairKey(ids[i]!, ids[j]!));
-      const ids = new Set([...worn, ...struck].map((row) => row.itemId!));
+      }
+      const cut = new Map(struck.map((row) => [row.itemId!, row.n]));
       return {
-        pieces: [...ids].map((itemId) => ({
+        pieces: [...new Set([...lastWorn.keys(), ...cut.keys()])].map((itemId) => ({
           itemId,
-          lastWorn: worn.find((w) => w.itemId === itemId)?.at ?? null,
-          struck: struck.find((s) => s.itemId === itemId)?.n ?? 0,
+          lastWorn: lastWorn.get(itemId) ?? null,
+          struck: cut.get(itemId) ?? 0,
         })),
         wornPairs: [...pairs],
       };

@@ -787,17 +787,27 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await outfits.woreDays(user!.id, new Date(Date.now() + 86_400_000), 0)).toEqual([]);
 
     // For the week's find: when each piece was last worn, how often cut, which pairs worn together.
-    const history = await outfits.wearHistory(user!.id);
+    const yearAgo = new Date(Date.now() - 365 * 86_400_000);
+    const history = await outfits.wearHistory(user!.id, yearAgo);
     expect(history.pieces.map((p) => p.itemId).sort()).toEqual([shoes, skirt].sort());
     expect(history.pieces.every((p) => p.lastWorn instanceof Date && p.struck === 0)).toBe(true);
     expect(history.wornPairs).toEqual([[shoes, skirt].sort().join("|")]);
-    expect((await outfits.wearHistory(other!.id)).wornPairs).not.toContain(
+    expect((await outfits.wearHistory(other!.id, yearAgo)).wornPairs).not.toContain(
       [shoes, skirt].sort().join("|"),
     );
+    // Wears before `since` don't count.
+    expect(await outfits.wearHistory(user!.id, new Date(Date.now() + 60_000))).toEqual({
+      pieces: [],
+      wornPairs: [],
+    });
 
     // Her cut pairs, by her pieces.
     await outfits.strike(look.id, cut.id, user!.id, true);
     expect(await outfits.struckPairs(user!.id, 10)).toEqual([[shoes, skirt].sort().join("|")]);
+    // And the find counts how often a piece was cut.
+    expect(
+      (await outfits.wearHistory(user!.id, yearAgo)).pieces.find((p) => p.itemId === shoes)?.struck,
+    ).toBe(1);
 
     // One look-of-the-day request a day, even asked for twice at once; its looks in order.
     const [a, b] = await Promise.all([

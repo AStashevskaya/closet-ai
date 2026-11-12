@@ -18,8 +18,11 @@ afterEach(async () => {
   await app?.close();
 });
 
-const TODAY = new Date("2026-11-12T08:00:00Z");
-const MONTH_AGO = new Date("2026-10-10T08:00:00Z");
+// Looks are marked worn on the real clock (the in-memory double's), so the test's "today" is set
+// 40 days after it, and pieces were added the day before it.
+const DAY = 86_400_000;
+const TODAY = new Date(Date.now() + 40 * DAY);
+const MONTH_AGO = new Date(Date.now() - DAY);
 
 async function setup() {
   const clock = { now: TODAY };
@@ -83,7 +86,7 @@ async function setup() {
     clock.now = TODAY;
     return created.json<{ id: string }>().id;
   };
-  // She wore a look of these pieces just now.
+  // She wore a look of these pieces (on the real clock: 40 days before the test's today).
   const wear = async (itemIds: string[]) => {
     const outfits = repositories.outfitsRepository;
     const requestId = await outfits.createRequest(userId, { itemId: itemIds[0]! }, 1, null);
@@ -127,15 +130,27 @@ describe("GET /api/found", () => {
     }
   });
 
-  it("brings back nothing she wore lately, and nothing without shoes to wear it with", async () => {
-    const { addItem, wear, read } = await setup();
-    const cardigan = await addItem("top", "cardigan");
-    const jeans = await addItem("bottom", "jeans");
-    expect((await read()).piece).toBeNull();
-
-    const loafers = await addItem("shoes", "loafers");
-    await wear([cardigan, jeans, loafers]);
+  it("brings back nothing without shoes to wear it with", async () => {
+    const { addItem, read } = await setup();
+    await addItem("top", "cardigan");
+    await addItem("bottom", "jeans");
     expect(await read()).toEqual({ piece: null, looks: [] });
+  });
+
+  it("passes to the next find when the first has nothing new to go with", async () => {
+    const { addItem, wear, read } = await setup();
+    // Worn with the only bottom 40 days ago: a find, but no new look.
+    const worn = await addItem("top", "striped tee");
+    const fresh = await addItem("top", "silk blouse");
+    const jeans = await addItem("bottom", "jeans");
+    const loafers = await addItem("shoes", "loafers");
+    await wear([worn, jeans, loafers]);
+
+    const found = await read();
+    expect(found.piece?.id).toBe(fresh);
+    expect(found.looks.map((look) => look.pieces.map((p) => p.id).sort())).toEqual([
+      [fresh, jeans, loafers].sort(),
+    ]);
   });
 
   it("asks her to sign in", async () => {

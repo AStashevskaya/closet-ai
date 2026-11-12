@@ -141,9 +141,10 @@ export async function buildApp({
   await app.register(todayRoutes(profileRepository, outfitsRepository, weather, auth, clock), {
     prefix: "/api",
   });
-  await app.register(foundRoutes(outfitsRepository, itemsRepository, auth, clock), {
-    prefix: "/api",
-  });
+  await app.register(
+    foundRoutes(outfitsRepository, itemsRepository, profileRepository, weather, auth, clock),
+    { prefix: "/api" },
+  );
   await app.register(catalogRoutes(catalogRepository, itemsRepository, storage, auth), {
     prefix: "/api",
   });
