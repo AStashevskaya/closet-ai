@@ -64,6 +64,7 @@ const geocodeAnswer = z.object({
     .array(z.object({ name: z.string(), latitude: z.number(), longitude: z.number() }))
     .optional(),
 });
+type GeocodeSpot = NonNullable<z.infer<typeof geocodeAnswer>["results"]>[number];
 const forecastAnswer = z.object({
   utc_offset_seconds: z.number(),
   daily: z.object({
@@ -99,21 +100,29 @@ export function createOpenMeteo(fetcher: Fetch = fetch, now = () => Date.now()):
     const languages = [lang, ...SEARCH_LANGUAGES.filter((l) => l !== lang)];
     // At once, so a city found in no language costs one wait, not three; one that fails or times
     // out doesn't hide another that finds it.
-    const tries = await Promise.allSettled(
-      languages.map(async (language) => {
-        const geo = new URL(GEOCODE);
-        geo.searchParams.set("name", city);
-        geo.searchParams.set("count", "1");
-        geo.searchParams.set("language", language);
-        if (country) geo.searchParams.set("countryCode", country);
-        return geocodeAnswer.parse(await get(geo)).results?.[0] ?? null;
-      }),
-    );
-    // The app's language first: its name for the place.
-    for (const tried of tries) if (tried.status === "fulfilled" && tried.value) return tried.value;
+    type Tried = { ok: true; spot: GeocodeSpot | null } | { ok: false; error: unknown };
+    const tries = languages.map(async (language): Promise<Tried> => {
+      const geo = new URL(GEOCODE);
+      geo.searchParams.set("name", city);
+      geo.searchParams.set("count", "1");
+      geo.searchParams.set("language", language);
+      if (country) geo.searchParams.set("countryCode", country);
+      try {
+        return { ok: true, spot: geocodeAnswer.parse(await get(geo)).results?.[0] ?? null };
+      } catch (error) {
+        return { ok: false, error };
+      }
+    });
+    // In order, the app's language first (its name for the place): the first that finds it wins,
+    // without waiting for the languages after it.
+    let failed: { error: unknown } | null = null;
+    for (const tried of tries) {
+      const answer = await tried;
+      if (answer.ok && answer.spot) return answer.spot;
+      if (!answer.ok) failed ??= { error: answer.error };
+    }
     // Nothing found: "not found" only when every language answered; else the weather is down.
-    const failed = tries.find((tried) => tried.status === "rejected");
-    if (failed) throw failed.reason;
+    if (failed) throw failed.error;
     return null;
   }
 

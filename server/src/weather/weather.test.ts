@@ -94,6 +94,28 @@ describe("createOpenMeteo", () => {
     expect(asked).toEqual(["en", "ru", "he"]);
   });
 
+  it("prefers the app's language's name, and doesn't wait for the others once it has it", async () => {
+    let hang = () => {};
+    const fetcher = vi.fn(async (url: URL | string) => {
+      const href = new URL(String(url));
+      if (!href.href.includes("geocoding")) return new Response(JSON.stringify(forecast));
+      const language = href.searchParams.get("language");
+      // Hebrew never answers: the Russian name is enough.
+      if (language === "he")
+        return new Promise<Response>((resolve) => (hang = () => resolve(new Response("{}"))));
+      const name = language === "ru" ? "Минск" : "Minsk";
+      return new Response(
+        JSON.stringify({ results: [{ name, latitude: 53.9, longitude: 27.56 }] }),
+      );
+    });
+    const week = await createOpenMeteo(fetcher as typeof fetch).week(
+      { city: "Minsk", country: "BY" },
+      "ru",
+    );
+    expect(week!.place).toBe("Минск");
+    hang();
+  });
+
   it("still finds the city when one language's lookup fails", async () => {
     const fetcher = vi.fn(async (url: URL | string) => {
       const href = new URL(String(url));
