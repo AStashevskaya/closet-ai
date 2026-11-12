@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import i18n from '@/i18n';
 import { anotherToday, getToday, reactToOutfit } from '@/lib/api';
+import { declineMornings, morningState, scheduleMornings, turnOnMornings } from '@/lib/morning';
 
 import { degrees, TodayCard } from './today-card';
 
@@ -18,6 +19,14 @@ jest.mock('@/lib/api', () => ({
   reactToOutfit: jest.fn(),
   strikePiece: jest.fn(),
   absoluteUrl: (path: string) => `http://api${path}`,
+}));
+
+jest.mock('@/lib/morning', () => ({
+  ...jest.requireActual<typeof import('@/lib/morning')>('@/lib/morning'),
+  morningState: jest.fn().mockResolvedValue('off'),
+  turnOnMornings: jest.fn(),
+  declineMornings: jest.fn().mockResolvedValue(undefined),
+  scheduleMornings: jest.fn().mockResolvedValue(undefined),
 }));
 
 const item = (id: string, name: string, category: Item['category']): Item => ({
@@ -164,6 +173,39 @@ describe('<TodayCard />', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'I wore it' }));
     expect(await screen.findByRole('button', { name: 'I wore it' })).toBeOnTheScreen();
     expect(screen.queryByText("worn — I'll remember")).toBeNull();
+  });
+});
+
+describe('the morning note', () => {
+  test('is offered under her first look, and scheduled with the week once she says yes', async () => {
+    jest.mocked(getToday).mockResolvedValue(week());
+    jest.mocked(morningState).mockResolvedValue('ask');
+    jest.mocked(turnOnMornings).mockResolvedValue(true);
+    await render(<TodayCard headers={undefined} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Send it' }));
+    await waitFor(() => expect(scheduleMornings).toHaveBeenCalledWith(week().days));
+    expect(screen.queryByText('send you the look in the morning, at 8?')).not.toBeOnTheScreen();
+  });
+
+  test('"Not now" is remembered and the offer goes', async () => {
+    jest.mocked(getToday).mockResolvedValue(week());
+    jest.mocked(morningState).mockResolvedValue('ask');
+    await render(<TodayCard headers={undefined} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Not now' }));
+    expect(declineMornings).toHaveBeenCalled();
+    expect(turnOnMornings).not.toHaveBeenCalled();
+    expect(screen.queryByText('send you the look in the morning, at 8?')).not.toBeOnTheScreen();
+  });
+
+  test('once on, each visit schedules the next mornings again', async () => {
+    jest.mocked(getToday).mockResolvedValue(week());
+    jest.mocked(morningState).mockResolvedValue('on');
+    await render(<TodayCard headers={undefined} />);
+
+    await waitFor(() => expect(scheduleMornings).toHaveBeenCalledWith(week().days));
+    expect(screen.queryByText('send you the look in the morning, at 8?')).not.toBeOnTheScreen();
   });
 });
 
