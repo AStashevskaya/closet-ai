@@ -629,6 +629,15 @@
     "wore": "I wore it",
     "another": "Another",
     "woreNote": "worn — I'll remember",
+    "morning": {
+      "title": "Today's look is ready",
+      "weather": "{{degrees}} and {{sky}} today. See what to wear.",
+      "plain": "See what to wear today.",
+      "channel": "Look of the day",
+      "ask": "send you the look in the morning, at 8?",
+      "yes": "Send it",
+      "no": "Not now"
+    },
     "recap": {
       "title": "Your week · {{range}}",
       "days": "{{count}} of 7 days",
