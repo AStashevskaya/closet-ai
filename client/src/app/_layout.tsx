@@ -38,8 +38,11 @@ export default function RootLayout() {
     hidden.current = true;
     SplashScreen.hideAsync().catch(() => {});
   }, []);
+  // The copy's picture is what hides it; this only covers a picture that never says it loaded.
   useEffect(() => {
-    if (ready) hideSplash();
+    if (!ready) return;
+    const timer = setTimeout(hideSplash, 1000);
+    return () => clearTimeout(timer);
   }, [ready, hideSplash]);
 
   // Protected screens exist only while their guard is true; Expo Router redirects away otherwise.

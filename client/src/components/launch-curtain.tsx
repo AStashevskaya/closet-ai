@@ -63,6 +63,7 @@ export function LaunchCurtain({ ready, onShown }: { ready: boolean; onShown: () 
   const from = useSharedValue(0);
   const target = useSharedValue(0);
 
+  // Physical left, not start: the system launch screen centres its picture the same in RTL.
   const left = (width - SIZE) / 2;
   const top = (height - SIZE) / 2;
   // Read when the hand-off starts, not depended on: a resize mid-way doesn't restart it.
@@ -125,9 +126,14 @@ export function LaunchCurtain({ ready, onShown }: { ready: boolean; onShown: () 
       bar.set(withDelay(lands ? 760 : 420, withTiming(0, { duration: 240 })));
     };
     // Measured now, when it lands: whatever came in above the rail meanwhile is counted.
+    // A fade has no line to land: it goes at once.
+    if (plain) {
+      land(null);
+      return;
+    }
     const measure = () => {
       const rail = launchRail();
-      if (!rail || plain) return land(null);
+      if (!rail) return land(null);
       rail((y) => land(y));
       // A rail that never answers doesn't hold the curtain.
       setTimeout(() => land(null), RAIL_WAIT_MS);
