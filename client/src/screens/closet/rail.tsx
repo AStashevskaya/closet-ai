@@ -1,11 +1,12 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { HANGER_PIVOT_Y } from '@/components/hanger';
 import { RAIL_WEIGHT, RailLine } from '@/components/rail-line';
+import { isLaunching, offerLaunchRail } from '@/lib/launch';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -38,6 +39,8 @@ type Props = {
   heading?: ReactNode;
   // A light tick for each hanger a finger moves past.
   ticks?: boolean;
+  // The first rail on screen at launch: the launch hanger's bar lands on its line.
+  launchTarget?: boolean;
 };
 
 // One category of the closet as a clothes rail: an ink line across the screen with the pieces
@@ -57,6 +60,7 @@ export function Rail({
   onSeeAll,
   heading,
   ticks = false,
+  launchTarget = false,
 }: Props) {
   const { t } = useTranslation();
   const title = t(`closet.filters.${category}`);
@@ -68,6 +72,14 @@ export function Rail({
     ticks ? pieceStep(category) : undefined,
   );
   const settle = enterDelay === undefined ? undefined : arrive.delay(enterDelay);
+  const line = useRef<ComponentRef<typeof View>>(null);
+  // The launch hanger's bar lands here: it measures the line when it lands.
+  useEffect(() => {
+    if (!launchTarget || !isLaunching()) return;
+    return offerLaunchRail((done) =>
+      line.current?.measureInWindow((_x, y, _width, lineHeight) => done(y + lineHeight / 2)),
+    );
+  }, [launchTarget]);
 
   return (
     <View style={styles.rail}>
@@ -110,7 +122,9 @@ export function Rail({
           />
         ) : (
           <Animated.View style={styles.linePlace} entering={lineStays ? undefined : settle}>
-            <RailLine />
+            <View ref={line} collapsable={false}>
+              <RailLine />
+            </View>
           </Animated.View>
         )}
         <Animated.FlatList

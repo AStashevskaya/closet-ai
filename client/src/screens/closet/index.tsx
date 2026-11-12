@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { StyleCard } from '@/components/style-card';
 import { useStyle } from '@/lib/style';
+import { isLaunching, LAUNCH_HANDOFF_MS } from '@/lib/launch';
 import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -39,6 +40,8 @@ export function Closet() {
   const { state, items, headers, leaving, retry, confirmDelete } = useCloset();
   const [editing, setEditing] = useState(false);
   const [entered, setEntered] = useState(false);
+  // Under the launch curtain: the pieces wait for the hanger's bar to land on the first rail.
+  const [launchDelay] = useState(() => (isLaunching() ? LAUNCH_HANDOFF_MS : 0));
   const scrollY = useSharedValue(0);
   // Held here, not in the card: the card unmounts in edit mode.
   const styleCard = useStyle(i18n.language);
@@ -53,10 +56,10 @@ export function Closet() {
     if (!ready) return;
     const timer = setTimeout(
       () => setEntered(true),
-      ITEM_CATEGORIES.length * STAGGER_STEP + durations.enter,
+      launchDelay + ITEM_CATEGORIES.length * STAGGER_STEP + durations.enter,
     );
     return () => clearTimeout(timer);
-  }, [ready]);
+  }, [ready, launchDelay]);
 
   // Nothing left to edit: leave edit mode by itself.
   const isEditing = editing && items.length > 0;
@@ -166,7 +169,8 @@ export function Closet() {
             headers={headers}
             editing={isEditing}
             leaving={leaving}
-            enterDelay={entered ? undefined : index * RAIL_STEP}
+            enterDelay={entered ? undefined : launchDelay + index * RAIL_STEP}
+            launchTarget={index === 0}
             // A block above the rails pushes the first one down from where the line waited.
             lineStays={index === 0 && !newest}
             onOpen={open}
