@@ -16,9 +16,15 @@ const WORN_WITH: Record<ItemCategory, readonly ItemCategory[]> = {
 const NEUTRAL: ReadonlySet<ItemColor> = new Set([
   "black",
   "white",
+  "cream",
   "gray",
   "beige",
+  "camel",
   "brown",
+  "navy",
+  "khaki",
+  "gold",
+  "silver",
   "multicolor",
 ]);
 

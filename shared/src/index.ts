@@ -10,20 +10,30 @@ export const ITEM_CATEGORIES = [
 ] as const;
 export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
 // A fixed palette rather than free text, so colors can be picked with chips,
+// in the order the chips show (light to dark within a family; 8 added 2026-11-12 after testers
+// missed burgundy: cream, camel, burgundy, khaki, light_blue, navy, gold, silver),
 // filtered on and, from step 4, returned by the vision model as structured output.
 export const ITEM_COLORS = [
   "black",
   "white",
+  "cream",
   "gray",
   "beige",
+  "camel",
   "brown",
   "red",
+  "burgundy",
   "pink",
   "orange",
   "yellow",
+  "khaki",
   "green",
+  "light_blue",
   "blue",
+  "navy",
   "purple",
+  "gold",
+  "silver",
   "multicolor",
 ] as const;
 
@@ -40,6 +50,10 @@ export type PhotoStatus = z.infer<typeof photoStatus>;
 
 export const itemColor = z.enum(ITEM_COLORS);
 export type ItemColor = z.infer<typeof itemColor>;
+// A colour as read back from the server: one this build doesn't know yet (the palette grew in
+// 2026-11, migration 0029) reads as multicolor rather than failing the whole list it's in, so an
+// older app keeps opening the closet when the server learns a new colour.
+const readColor = itemColor.catch("multicolor");
 
 // Currencies a price can be in: the first markets and the usual ones abroad. All have cents.
 export const CURRENCIES = ["ILS", "USD", "EUR", "GBP", "RUB", "UAH", "BYN"] as const;
@@ -84,6 +98,7 @@ export type ItemBox = z.infer<typeof itemBox>;
 export const CUTOUT_PADDING = 0.06;
 
 export const item = createItemInput.omit({ photoKey: true }).extend({
+  colors: z.array(readColor).min(1).max(5),
   id: z.string().uuid(),
   createdAt: z.string().datetime(),
   // API path of the photo, relative to the server (needs the session cookie). Set once the photo is ready.
@@ -122,7 +137,7 @@ export const itemTags = z.object({
   recognized: z.boolean(),
   name: z.string().max(120),
   category: itemCategory,
-  colors: z.array(itemColor).max(5),
+  colors: z.array(readColor).max(5),
   // All four for an all-season item, so an empty list only ever means "not tagged".
   seasons: z.array(season),
   fit: z.enum(ITEM_FITS).nullable(),
@@ -169,7 +184,7 @@ export const catalogItem = z.object({
   // In the app language asked for, English when the feed has none in it.
   name: z.string(),
   category: itemCategory,
-  colors: z.array(itemColor),
+  colors: z.array(readColor),
   // In the currency's main unit, like an item's price.
   price: z.number(),
   currency,
