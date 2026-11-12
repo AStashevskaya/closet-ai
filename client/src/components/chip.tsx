@@ -8,21 +8,30 @@ import { CSS_EASE_OUT, durations } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // What each palette color looks like as a small dot next to its name.
+// Tuned 2026-11-12 to read as fabrics, not as screen primaries: muted, a little warm.
 export const SWATCHES: Record<Exclude<ItemColor, 'multicolor'>, string> = {
-  black: '#1F1A1B',
+  black: '#1C1A1B',
   white: '#FFFFFF',
-  gray: '#9A9496',
-  beige: '#E3D2B8',
-  brown: '#7A5032',
-  red: '#C62F2F',
-  pink: '#EDA6B6',
-  orange: '#E8833A',
-  yellow: '#EFCB45',
-  green: '#4F8A4B',
-  blue: '#3C64B1',
-  purple: '#7E4FA0',
+  cream: '#F3EAD7',
+  gray: '#A19C9A',
+  beige: '#DCC9AC',
+  camel: '#B98A55',
+  brown: '#6B4630',
+  red: '#C0302B',
+  burgundy: '#6E1A2B',
+  pink: '#E9A9B8',
+  orange: '#E07B39',
+  yellow: '#E9C75A',
+  khaki: '#8A8358',
+  green: '#3F6E4A',
+  light_blue: '#A9C4E2',
+  blue: '#2F5DA8',
+  navy: '#1F2B4A',
+  purple: '#6E4A8E',
+  gold: '#C9A64B',
+  silver: '#BFC3C7',
 };
-export const MULTICOLOR = ['#C62F2F', '#EFCB45', '#3C64B1'];
+export const MULTICOLOR = ['#C0302B', '#E9C75A', '#2F5DA8'];
 
 type Props = {
   label: string;

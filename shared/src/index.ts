@@ -10,20 +10,30 @@ export const ITEM_CATEGORIES = [
 ] as const;
 export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
 // A fixed palette rather than free text, so colors can be picked with chips,
+// in the order the chips show (light to dark within a family; 8 added 2026-11-12 after testers
+// missed burgundy: cream, camel, burgundy, khaki, light_blue, navy, gold, silver),
 // filtered on and, from step 4, returned by the vision model as structured output.
 export const ITEM_COLORS = [
   "black",
   "white",
+  "cream",
   "gray",
   "beige",
+  "camel",
   "brown",
   "red",
+  "burgundy",
   "pink",
   "orange",
   "yellow",
+  "khaki",
   "green",
+  "light_blue",
   "blue",
+  "navy",
   "purple",
+  "gold",
+  "silver",
   "multicolor",
 ] as const;
 

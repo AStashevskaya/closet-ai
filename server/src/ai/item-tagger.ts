@@ -105,7 +105,7 @@ const TAG_RULES = `
 - recognized: false if there is no single clear item (a person wearing an outfit, a room, several items with none in focus, not clothing at all). Then use name "", category "top", empty colors and seasons, and null for the rest.
 - name: 2–4 words in the language you are given, like a shop listing: colour, then a material or detail if it is clear, then the type ("White linen shirt", "Белая льняная рубашка"). No brand in the name.
 - category: top (t-shirts, shirts, blouses, knitwear, hoodies), bottom (trousers, jeans, shorts, skirts), dress (dresses, jumpsuits), outerwear (coats, jackets, blazers), shoes, accessory (bags, belts, jewellery, hats, scarves).
-- colors: from the palette only, the base colour first, then up to two clearly visible others; use multicolor only when no one or two colours dominate. Pick the nearest palette colour (mint is green, navy is blue, cream is beige).
+- colors: from the palette only, the base colour first, then up to two clearly visible others; use multicolor only when no one or two colours dominate. Pick the nearest palette colour: mint is green, olive is khaki, wine and maroon are burgundy, ivory is cream, tan and cognac are camel, denim is light_blue or blue by its shade, dark navy is navy, metallic gold or silver are gold or silver.
 - seasons: from the type and how heavy the fabric looks. Year-round items (jeans, plain t-shirts) get all four.
 - fit, length, fabric, style: short English words, for search ("cropped", "knee-length", "linen", "cotton jersey", "denim", "casual", "minimal", "streetwear"). Fabric is a best guess from the texture; use null when you can't tell.
 - brand: only if a logo or label is legible in the photo, otherwise null.
