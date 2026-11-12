@@ -786,6 +786,15 @@ describe.skipIf(!url)("on Postgres", () => {
     ]);
     expect(await outfits.woreDays(user!.id, new Date(Date.now() + 86_400_000), 0)).toEqual([]);
 
+    // For the week's find: when each piece was last worn, how often cut, which pairs worn together.
+    const history = await outfits.wearHistory(user!.id);
+    expect(history.pieces.map((p) => p.itemId).sort()).toEqual([shoes, skirt].sort());
+    expect(history.pieces.every((p) => p.lastWorn instanceof Date && p.struck === 0)).toBe(true);
+    expect(history.wornPairs).toEqual([[shoes, skirt].sort().join("|")]);
+    expect((await outfits.wearHistory(other!.id)).wornPairs).not.toContain(
+      [shoes, skirt].sort().join("|"),
+    );
+
     // Her cut pairs, by her pieces.
     await outfits.strike(look.id, cut.id, user!.id, true);
     expect(await outfits.struckPairs(user!.id, 10)).toEqual([[shoes, skirt].sort().join("|")]);

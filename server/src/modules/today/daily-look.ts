@@ -33,7 +33,7 @@ const POOL_SMALL = 3;
 
 const text = (p: StylingItem) =>
   [p.name, p.tags?.noun, p.tags?.fabric, p.tags?.style].filter(Boolean).join(" ").toLowerCase();
-const kindOf = (p: StylingItem) =>
+export const kindOf = (p: StylingItem) =>
   p.category === "accessory"
     ? BAG.test(p.tags?.noun ?? p.name)
       ? "bag"
@@ -62,7 +62,7 @@ export function needOf(day: DayWeather | null, season: Season): DayNeed {
 }
 
 // What the rules read about a piece, worked out once per piece rather than once per pair.
-type Features = {
+export type Features = {
   id: string;
   kind: string;
   weight: number;
@@ -74,7 +74,7 @@ type Features = {
   boots: boolean;
   embedding: number[] | null;
 };
-const featuresOf = (p: StylingItem): Features => {
+export const featuresOf = (p: StylingItem): Features => {
   const words = text(p);
   return {
     id: p.id,
@@ -92,7 +92,7 @@ const featuresOf = (p: StylingItem): Features => {
 
 // How well a set of pieces holds together, as rated: one story, one weight of fabric, colours that
 // agree, her own refusals; and how well it suits the day.
-function score(
+export function score(
   pieces: Features[],
   need: DayNeed,
   struck: Set<string>,

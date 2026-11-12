@@ -23,6 +23,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  max,
   ne,
   notInArray,
   or,
@@ -190,6 +191,12 @@ export interface OutfitsRepository {
   // The days (YYYY-MM-DD at the given UTC offset, her city's) since `since` on which she marked a
   // look as worn.
   woreDays(userId: string, since: Date, offsetSeconds: number): Promise<string[]>;
+  // For the week's find: each of her pieces' last wear and how often she cut it out of a look,
+  // and the pairs of her pieces she has worn together.
+  wearHistory(userId: string): Promise<{
+    pieces: { itemId: string; lastWorn: Date | null; struck: number }[];
+    wornPairs: string[];
+  }>;
   // The pieces she cut, newest first, each with the piece its look was built around, by name.
   struckPieces(userId: string, limit: number): Promise<{ hero: string; piece: string }[]>;
   // Storage keys of the looks the user saved (and "want" screenshots still around), newest first.
@@ -637,6 +644,61 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           ),
         );
       return rows.map((r) => r.day).sort();
+    },
+
+    async wearHistory(userId) {
+      const worn = await db
+        .select({ itemId: outfitPieces.itemId, at: max(outfitReactions.createdAt) })
+        .from(outfitPieces)
+        .innerJoin(outfitReactions, eq(outfitReactions.outfitId, outfitPieces.outfitId))
+        .where(
+          and(
+            eq(outfitReactions.userId, userId),
+            eq(outfitReactions.reaction, "wore"),
+            isNotNull(outfitPieces.itemId),
+          ),
+        )
+        .groupBy(outfitPieces.itemId);
+      const struck = await db
+        .select({ itemId: outfitPieces.itemId, n: count() })
+        .from(outfitPieces)
+        .innerJoin(outfits, eq(outfits.id, outfitPieces.outfitId))
+        .where(
+          and(
+            eq(outfits.userId, userId),
+            isNotNull(outfitPieces.struckAt),
+            isNotNull(outfitPieces.itemId),
+          ),
+        )
+        .groupBy(outfitPieces.itemId);
+      // Her pieces in each look she wore, to tell which pairs she has worn together.
+      const together = await db
+        .selectDistinct({ outfitId: outfitPieces.outfitId, itemId: outfitPieces.itemId })
+        .from(outfitPieces)
+        .innerJoin(outfitReactions, eq(outfitReactions.outfitId, outfitPieces.outfitId))
+        .where(
+          and(
+            eq(outfitReactions.userId, userId),
+            eq(outfitReactions.reaction, "wore"),
+            isNotNull(outfitPieces.itemId),
+          ),
+        );
+      const byLook = new Map<string, string[]>();
+      for (const row of together)
+        byLook.set(row.outfitId, [...(byLook.get(row.outfitId) ?? []), row.itemId!]);
+      const pairs = new Set<string>();
+      for (const ids of byLook.values())
+        for (let i = 0; i < ids.length; i++)
+          for (let j = i + 1; j < ids.length; j++) pairs.add(pairKey(ids[i]!, ids[j]!));
+      const ids = new Set([...worn, ...struck].map((row) => row.itemId!));
+      return {
+        pieces: [...ids].map((itemId) => ({
+          itemId,
+          lastWorn: worn.find((w) => w.itemId === itemId)?.at ?? null,
+          struck: struck.find((s) => s.itemId === itemId)?.n ?? 0,
+        })),
+        wornPairs: [...pairs],
+      };
     },
 
     async struckPieces(userId, limit) {

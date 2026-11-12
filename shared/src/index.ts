@@ -467,6 +467,14 @@ export const todayWeek = z.object({
 });
 export type TodayWeek = z.infer<typeof todayWeek>;
 
+// The week's find (decided 2026-11-12, D with E inside): a piece of hers that has hung untouched,
+// and up to three looks with it she hasn't worn, each as its pieces; null when there's none.
+export const foundPiece = z.object({
+  piece: item.nullable(),
+  looks: z.array(z.object({ pieces: z.array(item) })),
+});
+export type FoundPiece = z.infer<typeof foundPiece>;
+
 // Cutting a piece's string in a look, or tying it back.
 export const pieceStrikeInput = z.object({ struck: z.boolean() });
 
