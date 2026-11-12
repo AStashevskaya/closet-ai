@@ -3,7 +3,13 @@ import * as SecureStore from 'expo-secure-store';
 
 import i18n from '@/i18n';
 
-import { cancelMornings, declineMornings, morningState, scheduleMornings } from './morning';
+import {
+  cancelMornings,
+  declineMornings,
+  morningState,
+  rememberMorning,
+  scheduleMornings,
+} from './morning';
 
 jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
@@ -103,5 +109,38 @@ describe('scheduleMornings', () => {
     expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(1);
     expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledWith('morning-2026-11-13');
     expect(store.deleteItemAsync).toHaveBeenCalledWith('morning-declined');
+    expect(store.deleteItemAsync).toHaveBeenCalledWith('morning-remember');
+  });
+});
+
+describe('rememberMorning', () => {
+  test('the chosen day’s note brings the piece up by name, with that day’s weather', async () => {
+    let kept: string | null = null;
+    store.getItemAsync.mockImplementation(async (key) =>
+      key === 'morning-remember' ? kept : null,
+    );
+    store.setItemAsync.mockImplementation(async (_key, value) => {
+      kept = value;
+    });
+    notes.getPermissionsAsync.mockResolvedValue({ status: 'granted', canAskAgain: true } as never);
+    notes.getAllScheduledNotificationsAsync.mockResolvedValue([]);
+    const now = new Date(2026, 10, 12, 9, 0);
+    // The week the card read earlier keeps its weather for the notes scheduled from the closet.
+    await scheduleMornings(
+      [{ date: '2026-11-13', max: 3, min: 0, sky: 'rain', wet: 80, wore: false }],
+      now,
+    );
+    notes.scheduleNotificationAsync.mockClear();
+
+    await rememberMorning('2026-11-13', 'Красный кардиган', now);
+
+    const tomorrow = notes.scheduleNotificationAsync.mock.calls
+      .map(([request]) => request)
+      .find((request) => request.identifier === 'morning-2026-11-13');
+    expect(tomorrow?.content.body).toBe('Красный кардиган — помнишь? Сегодня +3°, дождь.');
+    const after = notes.scheduleNotificationAsync.mock.calls
+      .map(([request]) => request)
+      .find((request) => request.identifier === 'morning-2026-11-14');
+    expect(after?.content.body).toBe('Посмотри, что надеть сегодня.');
   });
 });
