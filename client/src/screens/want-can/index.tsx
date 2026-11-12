@@ -142,7 +142,7 @@ export function WantCan({ underHeader = false }: { underHeader?: boolean }) {
                 ? { ...current, status: 'found', photoKey, found }
                 : current,
             );
-            void Haptics.selectionAsync();
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             return;
           }
           if (state.status === 'failed' || state.tagStatus !== 'pending') break;
