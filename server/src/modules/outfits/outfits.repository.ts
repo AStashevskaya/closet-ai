@@ -289,7 +289,8 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         colors: row.item.colors,
         seasons: row.item.seasons,
         tags: row.tags ?? null,
-        imageKey: row.cutoutKey ?? row.photoKey,
+        // The photo when she chose it over a cut-out that went wrong.
+        imageKey: (!row.item.showPhoto && row.cutoutKey) || row.photoKey,
         embedding: row.embedding ?? null,
       }));
     },

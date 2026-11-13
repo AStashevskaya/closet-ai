@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import type { Item } from "@closet-ai/shared";
+import type { Item, ItemDetail } from "@closet-ai/shared";
 import { eq, like } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -451,6 +451,28 @@ describe.skipIf(!url)("on Postgres", () => {
       await app.inject({ method: "GET", url: "/api/items", headers: { cookie } })
     ).json<Item[]>();
     expect(listed?.cutoutBox).toEqual(box);
+
+    // She chose the photo: the cut-out leaves the item and the stylist's sheet, but stays stored.
+    const chosen = await app.inject({
+      method: "PATCH",
+      url: `/api/items/${id}`,
+      headers: { cookie },
+      payload: { showPhoto: true },
+    });
+    expect(chosen.statusCode).toBe(200);
+    expect(chosen.json<ItemDetail>()).toMatchObject({
+      showPhoto: true,
+      storedCutoutUrl: item.cutoutUrl,
+    });
+    expect(chosen.json<ItemDetail>()).not.toHaveProperty("cutoutUrl");
+    const [shown] = (
+      await app.inject({ method: "GET", url: "/api/items", headers: { cookie } })
+    ).json<Item[]>();
+    expect(shown).not.toHaveProperty("cutoutUrl");
+    expect(shown).not.toHaveProperty("cutoutBox");
+    const [onSheet] = await createOutfitsRepository(db.db).wardrobe(user!.id);
+    expect(onSheet?.imageKey).toBe(key);
+    expect((await photos.get(key))?.cutoutKey).toBe(`photos/${user!.id}/cut-cutout.webp`);
   });
 
   it("copies a photo under new keys and points the item at the copy", async () => {

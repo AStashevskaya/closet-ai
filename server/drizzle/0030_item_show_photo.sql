@@ -1,0 +1,1 @@
+ALTER TABLE "items" ADD COLUMN "show_photo" boolean DEFAULT false NOT NULL;

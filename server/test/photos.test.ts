@@ -42,6 +42,7 @@ let embedding: ReturnType<typeof createStubEmbedder>;
 // Tagging is on by default, with a stub instead of Claude; pass tagger: null to turn it off.
 // Background removal is off unless a remover is passed.
 let catalog: ReturnType<typeof createInMemoryRepositories>["catalogRepository"];
+let repos: ReturnType<typeof createInMemoryRepositories>;
 
 async function setup({
   tagger,
@@ -53,6 +54,7 @@ async function setup({
   embedding = createStubEmbedder();
   const activeTagger = tagger === undefined ? stub.tagger : tagger;
   const repositories = createInMemoryRepositories();
+  repos = repositories;
   catalog = repositories.catalogRepository;
   jobDeps = {
     photos: repositories.photosRepository,
@@ -91,7 +93,12 @@ async function signUp(server: App, email: string) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
-    payload: { privacyConsent: "2026-11-05", name: "Test User", email, password: "correct-horse-battery" },
+    payload: {
+      privacyConsent: "2026-11-05",
+      name: "Test User",
+      email,
+      password: "correct-horse-battery",
+    },
   });
   return res.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
 }
@@ -661,6 +668,80 @@ describe("background removal", () => {
       headers: { cookie: maya },
     });
     expect(other.statusCode).toBe(404);
+  });
+
+  it("shows the photo instead of the cut-out when she chooses, keeps the cut-out, and switches back", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const anna = await signUp(server, "anna@example.com");
+    const maya = await signUp(server, "maya@example.com");
+    const { id, photoKey, cutoutUrl } = await addItem(server, anna);
+    const patch = (cookie: string, showPhoto: boolean) =>
+      server.inject({
+        method: "PATCH",
+        url: `/api/items/${id}`,
+        headers: { cookie },
+        payload: { showPhoto },
+      });
+    const detail = async () =>
+      (
+        await server.inject({ method: "GET", url: `/api/items/${id}`, headers: { cookie: anna } })
+      ).json<ItemDetail>();
+
+    expect(await detail()).toMatchObject({
+      showPhoto: false,
+      cutoutUrl,
+      storedCutoutUrl: cutoutUrl,
+    });
+
+    // Someone else can't choose for her.
+    expect((await patch(maya, true)).statusCode).toBe(404);
+    expect((await detail()).cutoutUrl).toBe(cutoutUrl);
+
+    const photo = await patch(anna, true);
+    expect(photo.statusCode).toBe(200);
+    expect(photo.json<ItemDetail>()).toMatchObject({ showPhoto: true, storedCutoutUrl: cutoutUrl });
+    expect(photo.json<ItemDetail>()).not.toHaveProperty("cutoutUrl");
+    expect(photo.json<ItemDetail>()).not.toHaveProperty("cutoutBox");
+    const [listed] = (
+      await server.inject({ method: "GET", url: "/api/items", headers: { cookie: anna } })
+    ).json<Item[]>();
+    expect(listed).toMatchObject({ id, showPhoto: true });
+    expect(listed).not.toHaveProperty("cutoutUrl");
+    // The stylist's contact sheet and the "want" matches see the photo too.
+    const ownerId = (await jobDeps.photos.get(photoKey))!.ownerId;
+    const [onSheet] = await repos.outfitsRepository.wardrobe(ownerId);
+    expect(onSheet?.imageKey).toBe(photoKey);
+    // The cut-out stays stored and served, for the way back.
+    const kept = await server.inject({ method: "GET", url: cutoutUrl!, headers: { cookie: anna } });
+    expect(kept.statusCode).toBe(200);
+
+    const back = await patch(anna, false);
+    expect(back.json<ItemDetail>()).toMatchObject({ showPhoto: false, cutoutUrl });
+    expect((await repos.outfitsRepository.wardrobe(ownerId))[0]?.imageKey).not.toBe(photoKey);
+  });
+
+  it("offers no cut-out to choose when the photo has none", async () => {
+    const server = await setup();
+    const anna = await signUp(server, "anna@example.com");
+    const { id } = await addItem(server, anna);
+    const detail = (
+      await server.inject({ method: "GET", url: `/api/items/${id}`, headers: { cookie: anna } })
+    ).json<ItemDetail>();
+    expect(detail).not.toHaveProperty("cutoutUrl");
+    expect(detail).not.toHaveProperty("storedCutoutUrl");
+  });
+
+  it("rejects a showPhoto that isn't true or false", async () => {
+    const server = await setup({ remover: createStubRemover().remover });
+    const anna = await signUp(server, "anna@example.com");
+    const { id } = await addItem(server, anna);
+    const res = await server.inject({
+      method: "PATCH",
+      url: `/api/items/${id}`,
+      headers: { cookie: anna },
+      payload: { showPhoto: "yes" },
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("shows the cut-out and its place in the photo before the piece is saved, to the owner only", async () => {

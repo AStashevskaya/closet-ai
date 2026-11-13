@@ -70,11 +70,16 @@ export function toColumns(input: UpdateItemInput & { photoKey?: string }) {
   return price === undefined ? rest : { ...rest, priceMinor: toMinor(price) };
 }
 
+// The stored cut-out of a ready photo, whether or not she shows it.
+const storedCutout = (row: ItemRow, { photoStatus, cutoutKey }: PhotoFields) =>
+  photoStatus === "ready" && row.photoKey ? cutoutKey : null;
+
 // The photo URL only appears once the worker has stored the WebP; until then the app
 // shows a placeholder and polls while photoStatus is "processing". The cut-out URL comes a few
-// seconds later, once the background is removed.
-export function toItem(row: ItemRow, { photoStatus, cutoutKey, cutoutBox }: PhotoFields): Item {
-  const cutout = photoStatus === "ready" && row.photoKey ? cutoutKey : null;
+// seconds later, once the background is removed, and never while she chose to show the photo.
+export function toItem(row: ItemRow, fields: PhotoFields): Item {
+  const { photoStatus, cutoutBox } = fields;
+  const cutout = row.showPhoto ? null : storedCutout(row, fields);
   return {
     id: row.id,
     name: row.name,
@@ -88,7 +93,23 @@ export function toItem(row: ItemRow, { photoStatus, cutoutKey, cutoutBox }: Phot
     cutoutUrl: cutout ? cutoutPath(row.id, cutout) : undefined,
     cutoutBox: cutout && cutoutBox !== undefined ? cutoutBox : undefined,
     photoStatus: photoStatus ?? undefined,
+    showPhoto: row.showPhoto,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+// The item screen's answer: the item, its photo's tags, and the stored cut-out even while she shows
+// the photo, so she can switch back.
+export function toItemDetail(
+  row: ItemRow,
+  fields: PhotoFields,
+  tags: ItemDetail["tags"],
+): ItemDetail {
+  const stored = storedCutout(row, fields);
+  return {
+    ...toItem(row, fields),
+    tags,
+    storedCutoutUrl: stored ? cutoutPath(row.id, stored) : undefined,
   };
 }
 
@@ -105,7 +126,7 @@ export function createItemsRepository(db: Db): ItemsRepository {
       .from(items)
       .leftJoin(photos, eq(photos.key, items.photoKey))
       .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
-    return row ? { ...toItem(row.item, row), tags: row.tags ?? null } : null;
+    return row ? toItemDetail(row.item, row, row.tags ?? null) : null;
   }
 
   return {
