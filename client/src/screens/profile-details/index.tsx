@@ -400,8 +400,8 @@ export function ProfileDetails() {
           onPress={async () => {
             // Her mornings, with her city's weather, don't stay for whoever signs in next.
             await cancelMornings().catch(() => {});
-            // And the first-photo hint is shown afresh to whoever signs in next.
-            await forgetFirstPhoto();
+            // Nor does what this phone remembers of her first photo.
+            await forgetFirstPhoto(session?.user.id);
             await authClient.signOut();
           }}
           accessibilityRole="button"

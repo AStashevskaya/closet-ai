@@ -121,6 +121,19 @@ export function flightFrom(from: Box | null, overlay: Box, index = 0, count = 1)
   return { railY, top, bottom, rest, x, y, scale };
 }
 
+// The lesson's "2. hanging it up", beside the piece hanging in the middle, toward the end: at
+// least STEP_MIN wide (it wraps onto two lines if it must), clear of the piece by STEP_GAP. On a
+// narrow phone the screen's margin gives way first, down to STEP_EDGE, so it never runs under
+// the piece.
+const STEP_MIN = 80;
+const STEP_GAP = 6;
+const STEP_EDGE = 8;
+export function besidePiece(width: number) {
+  const room = (width - SLOT) / 2 - STEP_GAP;
+  const end = Math.max(STEP_EDGE, Math.min(RAIL_INSET, room - STEP_MIN));
+  return { end, width: Math.max(STEP_MIN, room - end) };
+}
+
 // How long "Hang it up" waits for a view to say where it is before flying from the rail.
 const MEASURE_MS = 150;
 
@@ -198,8 +211,22 @@ export function HangUp({ pieces, caption, lesson, onDone }: Props) {
     AccessibilityInfo.announceForAccessibility(
       lesson ? [lesson.lifting, lesson.hanging, caption, lesson.note].join(' ') : caption,
     );
-    const timer = setTimeout(finish, reduceMotion ? pace.doneReduced : pace.doneAt + lag);
-    return () => clearTimeout(timer);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let gone = false;
+    const closeLater = () => {
+      if (!gone) timer = setTimeout(finish, reduceMotion ? pace.doneReduced : pace.doneAt + lag);
+    };
+    if (lesson) {
+      // The lesson is long to hear: with a screen reader on it stays until she taps it (the
+      // whole overlay is the button), so the announcement isn't cut off by the sheet closing.
+      AccessibilityInfo.isScreenReaderEnabled().then((on) => !on && closeLater(), closeLater);
+    } else {
+      closeLater();
+    }
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
     // Once, when the overlay comes up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -284,7 +311,7 @@ export function HangUp({ pieces, caption, lesson, onDone }: Props) {
               <Animated.Text
                 style={[
                   styles.hanging,
-                  { top: rail.railY + 36, width: (overlay.width - SLOT) / 2 - RAIL_INSET - 6 },
+                  { top: rail.railY + 36, ...besidePiece(overlay.width) },
                   hangingShown,
                 ]}
               >
@@ -440,7 +467,6 @@ const styles = StyleSheet.create({
   // Beside the piece hanging in the middle, toward the end.
   hanging: {
     position: 'absolute',
-    end: RAIL_INSET,
     fontFamily: fonts.hand,
     fontSize: 19,
     color: colors.text,

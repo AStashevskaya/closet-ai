@@ -34,6 +34,9 @@ jest.mock('@/lib/api', () => ({
 }));
 
 jest.mock('@/lib/first-photo', () => ({ firstPhotoDone: jest.fn(async () => {}) }));
+jest.mock('@/lib/auth-client', () => ({
+  authClient: { useSession: () => ({ data: { user: { id: 'user-1' } } }) },
+}));
 
 const list = jest.mocked(listItems);
 const remove = jest.mocked(deleteItem);
@@ -250,7 +253,7 @@ describe('<Closet />', () => {
     list.mockResolvedValue([shirt]);
     await render(<Closet />);
     expect(await screen.findByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
-    expect(firstPhotoDone).toHaveBeenCalled();
+    expect(firstPhotoDone).toHaveBeenCalledWith('user-1');
   });
 
   test('offers to retry after a failed load', async () => {

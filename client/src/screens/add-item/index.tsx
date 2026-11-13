@@ -36,6 +36,7 @@ import { PhotoCropper } from '@/components/photo-cropper';
 import { PressableScale } from '@/components/pressable-scale';
 import { WantMore } from '@/components/want-more';
 import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
+import { authClient } from '@/lib/auth-client';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
 import {
@@ -179,9 +180,12 @@ export function AddItem() {
   // A picked photo or a typed name is worth asking about before the sheet closes; once the piece
   // is saved, a swipe down just closes it.
   const leave = useConfirmLeave(!saved && (photoUri !== null || name.trim() !== ''));
+  // Whose first photo: what the phone remembers of it is kept per account. The root layout only
+  // shows this screen once the session has loaded, so it's known on the first render.
+  const userId = authClient.useSession().data?.user.id;
   // How to photograph a piece: before her first shot for the closet, once; "?" opens it again.
   const [hint, setHint] = useState<'first' | 'again' | null>(() =>
-    firstPhotoHintSeen() ? null : 'first',
+    firstPhotoHintSeen(userId) ? null : 'first',
   );
 
   async function pick(source: 'camera' | 'library') {
@@ -473,8 +477,10 @@ export function AddItem() {
     if (signal.aborted) return;
     // The lesson of her first piece needs the bare piece to lift off the photo: a photo that
     // flies as it is (no cut-out in time) keeps it for the next piece.
-    const lesson = cutout !== null && !firstPhotoLessonSeen();
-    if (lesson) void rememberFirstPhotoLesson();
+    const lesson = cutout !== null && !firstPhotoLessonSeen(userId);
+    // Remembered as it starts, not when it ends: an app killed or a sheet closed mid-lesson
+    // doesn't show it again (on purpose: a lesson is never repeated on a later piece).
+    if (lesson) void rememberFirstPhotoLesson(userId);
     setHanging({ from, category: rail, cutout, lesson });
   }
 
@@ -517,7 +523,7 @@ export function AddItem() {
   // sheet closed on the hint shows it again next time), and it stands in for the gallery an empty
   // closet's "Several photos" would have opened by itself.
   function shootFirst(source: 'camera' | 'library') {
-    void rememberFirstPhotoHint();
+    void rememberFirstPhotoHint(userId);
     openedGallery.current = true;
     setHint(null);
     void pick(source);

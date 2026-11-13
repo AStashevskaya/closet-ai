@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
-import { useEffect } from 'react';
+import { useEffect, useRef, type ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, I18nManager, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -23,6 +23,8 @@ import { colors, fonts } from '@/theme';
 // the app for Style it's example, so the hint needs no network.
 const PIECE = require('../../../assets/example/P004.webp');
 
+// Sizes from the prototype's "before → after" (its 140 × 175 frames, a little smaller so both
+// sides fit a 320-pt phone): the print, the bare piece's slot under its hanger.
 const PRINT_W = 124;
 const PRINT_H = 152;
 const SLOT_W = 112;
@@ -35,6 +37,7 @@ const TILT = I18nManager.isRTL ? '3deg' : '-3deg';
 const SWING_AT = 3 * STAGGER_STEP + durations.enter;
 
 const RULES = ['whole', 'flat', 'belts'] as const;
+const FOCUS_AFTER_MS = 300;
 
 type Props = {
   // first: before her first shot, with the two ways to take it; again: opened from "?".
@@ -70,13 +73,22 @@ export function FirstPhotoHint({ mode, onShoot, onGallery, onClose }: Props) {
     );
   }, [reduceMotion, swing]);
   const turn = useAnimatedStyle(() => ({ transform: [{ rotate: `${swing.value}deg` }] }));
+  // A screen reader starts on the title, on Android too (iOS follows accessibilityViewIsModal,
+  // Android would stay on whatever had focus under the overlay). After a beat, once it's laid out.
+  const title = useRef<ComponentRef<typeof Text>>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (title.current) AccessibilityInfo.sendAccessibilityEvent(title.current, 'focus');
+    }, FOCUS_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <View style={styles.screen} accessibilityViewIsModal testID="first-photo-hint">
       <ScrollView contentContainerStyle={styles.content}>
         <Animated.View entering={rise}>
           <Text style={styles.kicker}>{t('addItem.firstPhoto.kicker')}</Text>
-          <Text style={styles.title} accessibilityRole="header">
+          <Text ref={title} style={styles.title} accessibilityRole="header">
             {t('addItem.firstPhoto.title')}
           </Text>
         </Animated.View>

@@ -6,7 +6,11 @@ import { authClient } from '@/lib/auth-client';
 import { DeleteAccount } from '.';
 
 jest.mock('@/lib/auth-client', () => ({
-  authClient: { deleteUser: jest.fn(), signOut: jest.fn() },
+  authClient: {
+    deleteUser: jest.fn(),
+    signOut: jest.fn(),
+    useSession: () => ({ data: { user: { id: 'user-1' } } }),
+  },
 }));
 
 beforeEach(async () => {

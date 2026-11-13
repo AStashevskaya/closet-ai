@@ -57,6 +57,9 @@ jest.mock('@/lib/first-photo', () => ({
   rememberFirstPhotoHint: jest.fn(async () => {}),
   rememberFirstPhotoLesson: jest.fn(async () => {}),
 }));
+jest.mock('@/lib/auth-client', () => ({
+  authClient: { useSession: () => ({ data: { user: { id: 'user-1' } } }) },
+}));
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
 // The real overlay draws its pieces only once it's laid out, which never happens under Jest:
 // what flies is shown next to it here, so the tests can see the cut-out or the photo.
@@ -196,7 +199,7 @@ describe('<AddItem />', () => {
       expect(screen.queryByText('Take a photo')).not.toBeOnTheScreen();
 
       await fireEvent.press(screen.getByText('Photograph your first piece'));
-      expect(rememberFirstPhotoHint).toHaveBeenCalledTimes(1);
+      expect(rememberFirstPhotoHint).toHaveBeenCalledWith('user-1');
       expect(ImagePicker.launchCameraAsync).toHaveBeenCalledTimes(1);
       expect(screen.queryByText('How it gets into your closet')).not.toBeOnTheScreen();
     });
@@ -247,7 +250,7 @@ describe('<AddItem />', () => {
         await fillForm();
         await fireEvent.press(screen.getByText('Hang it in the closet'));
         await act(() => jest.advanceTimersByTimeAsync(700));
-        expect(rememberFirstPhotoLesson).toHaveBeenCalledTimes(1);
+        expect(rememberFirstPhotoLesson).toHaveBeenCalledWith('user-1');
         // The steps beside the piece wait for the overlay's place, which Jest never lays out; the
         // note under the caption is always there.
         expect(
