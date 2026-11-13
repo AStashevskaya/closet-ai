@@ -117,9 +117,8 @@ export function Rail({
     arrived.current = true;
     seek?.onArrived();
   }, [seek]);
-  // A finger on the rail before it got there: the flip was stopped on the UI thread (swing.ts);
-  // she has it, and the line just comes.
-  // Shoes stand still, so their rail has no pendulums to step.
+  // Shoes stand still, so their rail has no pendulums to step. A finger on the rail mid-flip stops
+  // the flip on the UI thread (swing.ts); she has it, and `land` brings the line.
   const { onScroll, swing, guide } = useRailSwing(
     category,
     shoes ? [] : items.map((item) => item.id),

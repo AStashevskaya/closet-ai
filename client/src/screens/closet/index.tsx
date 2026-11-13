@@ -85,6 +85,8 @@ export function Closet() {
   useEffect(() => {
     if (foundSaid) seen();
   }, [foundSaid, seen]);
+  // Edit mode only matters before the flip starts: `Rail` seeks a piece once, so turning editing on
+  // mid-flip drops `seek` but doesn't stop it, and that's fine (it's 2.4 s; a finger stops it).
   const seek = useMemo(
     () =>
       flips && entered && !isEditing && foundPiece

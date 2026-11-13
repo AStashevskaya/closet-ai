@@ -126,7 +126,11 @@ export const foundRoutes =
         if (!ids.every((id) => hers.has(id))) throw httpError(404, "Item not found");
         const same = (pieces: string[]) =>
           pieces.length === ids.length && pieces.every((id) => ids.includes(id));
-        // Only one of the looks this week's find offers: not any look sent our way.
+        // Only one of the looks this week's find offers: not any look sent our way. Worked out
+        // again here rather than stored (nothing about the find is kept on the server), so a find
+        // that changed between the app's GET and this POST (a piece worn or deleted meanwhile, or
+        // the week turning over) answers 400 and the app's "didn't work" alert. Intended: rare,
+        // and it can only refuse, never put a look she wasn't offered on tomorrow.
         if (!find.looks.some((look) => same(look.pieces.map((p) => p.id))))
           throw httpError(400, "Not one of this week's looks");
         const date = new Date(Date.parse(`${today}T12:00:00Z`) + 86_400_000)
