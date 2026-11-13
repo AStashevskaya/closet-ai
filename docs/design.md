@@ -73,6 +73,10 @@ A screen with nothing of hers yet shows the shape of what will be there, never a
 
 - **Wishes** (built, owner 2026-11-11, direction A "an example of the week"): a trench from the demo catalog on the diary's dashed thread as a tilted print marked "example", "Think it over", the week's seven beads with three gone and "4 days to go", and by hand "In a week I'll ask: «still want it?»". Under it how a wish gets here and "Photograph a piece", which opens "What do I wear this with?" on a photo, the only way a wish is made. It goes with her first wish.
 
+## Her first photo
+
+Decided 2026-11-12 (owner, prototype `~/Desktop/closet/wrinkle-lab/design-first-photo`, A and B; C, a care-label tag in the camera, rejected): before her first shot, once, a blue screen "before → after" (her photo as a print, the same piece bare on a hanger, the thread from one to the rail) with three rules, again from a "?"; after it, her first piece's "Hang it up" goes slowly with its steps by hand (the photo fades, the piece lifts off it and hangs). Built (see `docs/client.md`). Not built yet: "Cut out badly" in the item screen's menu (show the plain photo instead of the cut-out), which needs a decision on where that choice is stored.
+
 ## Decided, not built yet
 
 All prototyped in `~/Desktop/closet/wrinkle-lab/design-adding`, direction "Выбрано" on each screen. One PR per screen, no data-model change.
