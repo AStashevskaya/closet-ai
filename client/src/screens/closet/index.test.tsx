@@ -8,6 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { deleteItem, getFound, listItems } from '@/lib/api';
 import { OfflineError } from '@/lib/api-error';
+import { firstPhotoDone } from '@/lib/first-photo';
 
 import { Closet } from '.';
 
@@ -39,6 +40,11 @@ jest.mock('@/lib/api', () => ({
   deleteItem: jest.fn(),
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
   absoluteUrl: (path: string) => `http://api.test${path}`,
+}));
+
+jest.mock('@/lib/first-photo', () => ({ firstPhotoDone: jest.fn(async () => {}) }));
+jest.mock('@/lib/auth-client', () => ({
+  authClient: { useSession: () => ({ data: { user: { id: 'user-1' } } }) },
 }));
 
 const list = jest.mocked(listItems);
@@ -244,6 +250,19 @@ describe('<Closet />', () => {
     expect(
       screen.queryAllByTestId('empty-closet-piece', { includeHiddenElements: true }),
     ).toHaveLength(0);
+  });
+
+  test('a closet with pieces is past her first photo: the add sheet won’t teach her again', async () => {
+    list.mockResolvedValue([]);
+    await render(<Closet />);
+    expect(await screen.findByText(/waiting for its first piece/)).toBeOnTheScreen();
+    expect(firstPhotoDone).not.toHaveBeenCalled();
+    await screen.unmount();
+
+    list.mockResolvedValue([shirt]);
+    await render(<Closet />);
+    expect(await screen.findByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
+    expect(firstPhotoDone).toHaveBeenCalledWith('user-1');
   });
 
   test('offers to retry after a failed load', async () => {

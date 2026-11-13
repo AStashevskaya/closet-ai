@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 
-import { flightFrom, HangUp } from './hang-up';
+import { besidePiece, flightFrom, HangUp } from './hang-up';
 
 const overlay = { x: 0, y: 100, width: 390, height: 700 };
 
@@ -35,12 +36,69 @@ describe('<HangUp />', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
+  test('her first piece takes its time and says each step', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    const onDone = jest.fn();
+    await render(
+      <HangUp
+        pieces={[{ key: 'one', photo: null, from: null, category: 'top' }]}
+        caption="On the Tops rail"
+        lesson={{ lifting: '1. lifting', hanging: '2. hanging', note: 'shoot it whole' }}
+        onDone={onDone}
+      />,
+    );
+    expect(announce).toHaveBeenCalledWith('1. lifting 2. hanging On the Tops rail shoot it whole');
+    expect(screen.getByText('shoot it whole')).toBeOnTheScreen();
+    await act(() => jest.advanceTimersByTimeAsync(5000));
+    expect(onDone).not.toHaveBeenCalled();
+    await act(() => jest.advanceTimersByTimeAsync(3000));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  test('with a screen reader on, her first piece stays until she taps it', async () => {
+    jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValueOnce(true);
+    const onDone = jest.fn();
+    await render(
+      <HangUp
+        pieces={[{ key: 'one', photo: null, from: null, category: 'top' }]}
+        caption="On the Tops rail"
+        lesson={{ lifting: '1. lifting', hanging: '2. hanging', note: 'shoot it whole' }}
+        onDone={onDone}
+      />,
+    );
+    await act(() => jest.advanceTimersByTimeAsync(20_000));
+    expect(onDone).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText('shoot it whole'));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
   test('does nothing once the sheet is gone', async () => {
     const onDone = jest.fn();
     await hangUp(onDone);
     await screen.unmount();
     await act(() => jest.advanceTimersByTimeAsync(5000));
     expect(onDone).not.toHaveBeenCalled();
+  });
+});
+
+describe('besidePiece', () => {
+  // The piece hangs in the middle, 110 wide; the step stands between it and the screen's end.
+  const clear = (width: number) => {
+    const { end, width: w } = besidePiece(width);
+    return (width - 110) / 2 - end - w;
+  };
+
+  test('keeps the rail margin on a usual phone', () => {
+    expect(besidePiece(390)).toEqual({ end: 22, width: 112 });
+    expect(clear(390)).toBe(6);
+  });
+
+  test('never narrower than 80, nor under the piece, on the narrowest phones', () => {
+    for (const width of [375, 320, 300]) {
+      expect(besidePiece(width).width).toBeGreaterThanOrEqual(80);
+      expect(besidePiece(width).end).toBeGreaterThanOrEqual(8);
+      expect(clear(width)).toBeGreaterThanOrEqual(6);
+    }
   });
 });
 

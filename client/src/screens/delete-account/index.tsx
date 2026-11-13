@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 
+import { forgetFirstPhoto } from '@/lib/first-photo';
 import { cancelMornings } from '@/lib/morning';
 import { Button, maison } from '@/components/maison';
 import { authClient } from '@/lib/auth-client';
@@ -17,6 +18,8 @@ export function DeleteAccount() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ErrorKey | null>(null);
+  // Read before the account goes: what this phone remembers of her is kept under her id.
+  const userId = authClient.useSession().data?.user.id;
 
   async function remove() {
     setBusy(true);
@@ -36,6 +39,7 @@ export function DeleteAccount() {
       }
       // Her scheduled mornings go with the account.
       await cancelMornings().catch(() => {});
+      await forgetFirstPhoto(userId);
       // The session is gone on the server; clearing it here too sends the app to sign-in.
       try {
         await authClient.signOut();
