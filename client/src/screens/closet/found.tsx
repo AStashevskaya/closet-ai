@@ -4,8 +4,18 @@ import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, I18nManager, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  I18nManager,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -15,12 +25,12 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { BarePiece } from '@/components/bare-piece';
+import { MiniLook } from '@/components/mini-look';
 import { ApiError } from '@/lib/api-error';
 import { getFound, wearFound } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { rememberMorning } from '@/lib/morning';
 import { arrive, STAGGER_STEP } from '@/motion';
-import { MiniLook } from '@/screens/style-it/week-recap';
 import { colors, fonts } from '@/theme';
 
 // "Look what turned up" (decided 2026-11-12, D with E inside, prototype
@@ -44,20 +54,18 @@ export function useFound(active: boolean) {
     useCallback(() => {
       if (!active || asked.current) return;
       asked.current = true;
-      let live = true;
+      // Not dropped on leaving the tab: the answer is kept for when she's back.
       void (async () => {
         try {
           const answer = await getFound(lang);
           if (!answer.piece) return;
           const shown = await SecureStore.getItemAsync(SHOWN_KEY).catch(() => null);
-          if (shown !== answer.week && live) setFound(answer);
+          if (shown !== answer.week) setFound(answer);
         } catch {
-          // A bonus: if it can't be read, there's simply no find this time.
+          // A bonus: if it can't be read now, it's asked again next time she comes.
+          asked.current = false;
         }
       })();
-      return () => {
-        live = false;
-      };
     }, [active, lang]),
   );
 
@@ -82,6 +90,7 @@ export function FoundLine({ onOpen }: { onOpen: () => void }) {
         -1,
       ),
     );
+    return () => cancelAnimation(nudge);
   }, [reduced, nudge]);
   // The arrow points on: towards the end of the line, mirrored in Hebrew.
   const rtl = I18nManager.isRTL;
@@ -145,6 +154,7 @@ export function FoundSheet({ found, headers, visible, onClose }: Props) {
       );
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setChosen(index);
+      AccessibilityInfo.announceForAccessibility(t('closet.found.worn'));
       await rememberMorning(date, piece.name).catch(() => {});
     } catch (cause) {
       Alert.alert(
