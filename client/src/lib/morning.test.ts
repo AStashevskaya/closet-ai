@@ -110,6 +110,9 @@ describe('scheduleMornings', () => {
     expect(notes.cancelScheduledNotificationAsync).toHaveBeenCalledWith('morning-2026-11-13');
     expect(store.deleteItemAsync).toHaveBeenCalledWith('morning-declined');
     expect(store.deleteItemAsync).toHaveBeenCalledWith('morning-remember');
+    expect(store.deleteItemAsync).toHaveBeenCalledWith('morning-days');
+    // Whoever signs in next on this phone sees her own week's find.
+    expect(store.deleteItemAsync).toHaveBeenCalledWith('found-shown');
   });
 });
 
@@ -119,8 +122,8 @@ describe('rememberMorning', () => {
     store.getItemAsync.mockImplementation(async (key) =>
       key === 'morning-remember' ? kept : null,
     );
-    store.setItemAsync.mockImplementation(async (_key, value) => {
-      kept = value;
+    store.setItemAsync.mockImplementation(async (key, value) => {
+      if (key === 'morning-remember') kept = value;
     });
     notes.getPermissionsAsync.mockResolvedValue({ status: 'granted', canAskAgain: true } as never);
     notes.getAllScheduledNotificationsAsync.mockResolvedValue([]);
@@ -142,5 +145,36 @@ describe('rememberMorning', () => {
       .map(([request]) => request)
       .find((request) => request.identifier === 'morning-2026-11-14');
     expect(after?.content.body).toBe('Посмотри, что надеть сегодня.');
+  });
+
+  test('after a cold start the notes keep the weather the phone kept', async () => {
+    // Signing out empties the week held in memory, as a fresh start of the app would.
+    notes.getAllScheduledNotificationsAsync.mockResolvedValue([]);
+    await cancelMornings();
+    const phone = new Map<string, string>([
+      [
+        'morning-days',
+        JSON.stringify([
+          { date: '2026-11-14', max: -2, min: -5, sky: 'snow', wet: 60, wore: false },
+        ]),
+      ],
+    ]);
+    store.getItemAsync.mockImplementation(async (key) => phone.get(key) ?? null);
+    store.setItemAsync.mockImplementation(async (key, value) => {
+      phone.set(key, value);
+    });
+    notes.getPermissionsAsync.mockResolvedValue({ status: 'granted', canAskAgain: true } as never);
+    notes.scheduleNotificationAsync.mockClear();
+
+    await rememberMorning('2026-11-13', 'Красный кардиган', new Date(2026, 10, 12, 9, 0));
+
+    const body = (id: string) =>
+      notes.scheduleNotificationAsync.mock.calls
+        .map(([request]) => request)
+        .find((request) => request.identifier === id)?.content.body;
+    expect(body('morning-2026-11-13')).toBe(
+      'Красный кардиган — помнишь? Образ на сегодня ты выбрала сама.',
+    );
+    expect(body('morning-2026-11-14')).toContain('−2°');
   });
 });

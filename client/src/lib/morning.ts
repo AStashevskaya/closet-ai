@@ -22,7 +22,13 @@ const DECLINED_KEY = 'morning-declined';
 // Mornings with a piece of hers to bring up ("I'll wear it" on the week's find): date → its name.
 const REMEMBER_KEY = 'morning-remember';
 // The week the app last read, so a morning added from elsewhere (the closet) keeps its weather.
+// Kept on the phone too: after a cold start the closet may come before Today has read the week,
+// and rescheduling then from nothing would strip the weather from every note already there.
+const DAYS_KEY = 'morning-days';
 let lastDays: Day[] = [];
+// The week whose find ("look what turned up", src/screens/closet/found.tsx) she has been shown on
+// this phone. Here so signing out clears it with the rest: the next account sees its own find.
+export const FOUND_SHOWN_KEY = 'found-shown';
 
 // A temperature as the week shows it: +8°, 0°, −3° (a real minus).
 export const degrees = (t: number) => `${t > 0 ? '+' : t < 0 ? '−' : ''}${Math.abs(t)}°`;
@@ -66,6 +72,8 @@ export async function cancelMornings() {
   );
   await SecureStore.deleteItemAsync(DECLINED_KEY);
   await SecureStore.deleteItemAsync(REMEMBER_KEY);
+  await SecureStore.deleteItemAsync(DAYS_KEY);
+  await SecureStore.deleteItemAsync(FOUND_SHOWN_KEY);
   lastDays = [];
 }
 
@@ -87,9 +95,32 @@ let running: Promise<void> = Promise.resolve();
 // time zone they stay at 8 at home until she next opens the app.
 export function scheduleMornings(days: Day[], now = new Date()) {
   if (days.length > 0) lastDays = days;
-  const week = days.length > 0 ? days : lastDays;
-  running = running.then(() => schedule(week, now)).catch(() => {});
+  running = running
+    .then(async () => {
+      if (days.length > 0) await keepDays(days);
+      await schedule(days.length > 0 ? days : await keptDays(), now);
+    })
+    .catch(() => {});
   return running;
+}
+
+async function keepDays(days: Day[]) {
+  try {
+    await SecureStore.setItemAsync(DAYS_KEY, JSON.stringify(days));
+  } catch {
+    // Only the weather of a cold start's notes depends on it.
+  }
+}
+
+// The last week read, from memory or, after a cold start, from the phone.
+async function keptDays(): Promise<Day[]> {
+  if (lastDays.length > 0) return lastDays;
+  try {
+    const stored = JSON.parse((await SecureStore.getItemAsync(DAYS_KEY)) ?? '[]') as unknown;
+    return Array.isArray(stored) ? (stored as Day[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 async function remembered(): Promise<Record<string, string>> {

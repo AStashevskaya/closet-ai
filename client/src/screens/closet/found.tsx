@@ -29,7 +29,7 @@ import { MiniLook } from '@/components/mini-look';
 import { ApiError } from '@/lib/api-error';
 import { getFound, wearFound } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
-import { rememberMorning } from '@/lib/morning';
+import { FOUND_SHOWN_KEY, rememberMorning } from '@/lib/morning';
 import { arrive, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -39,9 +39,6 @@ import { colors, fonts } from '@/theme';
 // it with a way to what to wear it with, and "a new life for this piece" offers three looks she
 // hasn't worn. No day counts, no guilt: a find. The server picks it (GET /api/found); the app
 // shows it once for the week it belongs to.
-
-// The week whose find she has been shown, on this phone.
-const SHOWN_KEY = 'found-shown';
 
 export function useFound(active: boolean) {
   const { i18n } = useTranslation();
@@ -59,7 +56,7 @@ export function useFound(active: boolean) {
         try {
           const answer = await getFound(lang);
           if (!answer.piece) return;
-          const shown = await SecureStore.getItemAsync(SHOWN_KEY).catch(() => null);
+          const shown = await SecureStore.getItemAsync(FOUND_SHOWN_KEY).catch(() => null);
           if (shown !== answer.week) setFound(answer);
         } catch {
           // A bonus: if it can't be read now, it's asked again next time she comes.
@@ -71,7 +68,7 @@ export function useFound(active: boolean) {
 
   // Said once it has been seen: from then on, not again this week.
   const seen = useCallback(() => {
-    if (found) void SecureStore.setItemAsync(SHOWN_KEY, found.week).catch(() => {});
+    if (found) void SecureStore.setItemAsync(FOUND_SHOWN_KEY, found.week).catch(() => {});
   }, [found]);
 
   return { found, seen };
@@ -143,8 +140,11 @@ export function FoundSheet({ found, headers, visible, onClose }: Props) {
   const [busy, setBusy] = useState<number | null>(null);
   const piece = found.piece!;
 
+  // One look a sheet: none can be tapped while one is on its way or after one is chosen.
+  const locked = chosen !== null || busy !== null;
+
   async function wear(index: number) {
-    if (busy !== null || chosen !== null) return;
+    if (locked) return;
     setBusy(index);
     try {
       const look = found.looks[index]!;
@@ -234,7 +234,7 @@ export function FoundSheet({ found, headers, visible, onClose }: Props) {
               ) : (
                 <Pressable
                   onPress={() => void wear(i)}
-                  disabled={chosen !== null || busy !== null}
+                  disabled={locked}
                   style={[styles.wear, chosen !== null && styles.wearOff]}
                   accessibilityRole="button"
                   accessibilityLabel={t('closet.found.wearLabel', { n: i + 1 })}
