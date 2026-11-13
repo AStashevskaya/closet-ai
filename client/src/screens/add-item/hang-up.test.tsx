@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 
 import { flightFrom, HangUp } from './hang-up';
 
@@ -32,6 +33,25 @@ describe('<HangUp />', () => {
     await act(() => jest.advanceTimersByTimeAsync(3000));
     expect(onDone).not.toHaveBeenCalled();
     await act(() => jest.advanceTimersByTimeAsync(500));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  test('her first piece takes its time and says each step', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    const onDone = jest.fn();
+    await render(
+      <HangUp
+        pieces={[{ key: 'one', photo: null, from: null, category: 'top' }]}
+        caption="On the Tops rail"
+        lesson={{ lifting: '1. lifting', hanging: '2. hanging', note: 'shoot it whole' }}
+        onDone={onDone}
+      />,
+    );
+    expect(announce).toHaveBeenCalledWith('1. lifting 2. hanging On the Tops rail shoot it whole');
+    expect(screen.getByText('shoot it whole')).toBeOnTheScreen();
+    await act(() => jest.advanceTimersByTimeAsync(5000));
+    expect(onDone).not.toHaveBeenCalled();
+    await act(() => jest.advanceTimersByTimeAsync(3000));
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 

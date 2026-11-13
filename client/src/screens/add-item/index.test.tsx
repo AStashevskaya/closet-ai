@@ -13,6 +13,7 @@ import {
   sessionHeaders,
   uploadPhoto,
 } from '@/lib/api';
+import { rememberFirstPhotoHint, rememberFirstPhotoLesson } from '@/lib/first-photo';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
 
 import { AddItem } from '.';
@@ -47,6 +48,15 @@ jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,
 );
+// Past her first photo unless a test says otherwise, so the screen opens on the form.
+let mockHintSeen = true;
+let mockLessonSeen = true;
+jest.mock('@/lib/first-photo', () => ({
+  firstPhotoHintSeen: () => mockHintSeen,
+  firstPhotoLessonSeen: () => mockLessonSeen,
+  rememberFirstPhotoHint: jest.fn(async () => {}),
+  rememberFirstPhotoLesson: jest.fn(async () => {}),
+}));
 jest.mock('@/lib/shrink-photo', () => ({ shrinkPhoto: jest.fn(), rotatePhoto: jest.fn() }));
 // The real overlay draws its pieces only once it's laid out, which never happens under Jest:
 // what flies is shown next to it here, so the tests can see the cut-out or the photo.
@@ -93,6 +103,8 @@ const picked = {
 beforeEach(async () => {
   jest.clearAllMocks();
   mockParams = {};
+  mockHintSeen = true;
+  mockLessonSeen = true;
   jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   await i18n.changeLanguage('en');
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue(picked as never);
@@ -172,6 +184,114 @@ async function hangUp(rail = 'Tops') {
 }
 
 describe('<AddItem />', () => {
+  describe('her first photo', () => {
+    test('shows how to shoot a piece before the first shot, until she takes one', async () => {
+      mockHintSeen = false;
+      await render(<AddItem />);
+      expect(screen.getByText('How it gets into your closet')).toBeOnTheScreen();
+      expect(
+        screen.getByText("Belts and beads: lay them out flat, don't coil them"),
+      ).toBeOnTheScreen();
+      // The form under it is hidden from screen readers too.
+      expect(screen.queryByText('Take a photo')).not.toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByText('Photograph your first piece'));
+      expect(rememberFirstPhotoHint).toHaveBeenCalledTimes(1);
+      expect(ImagePicker.launchCameraAsync).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText('How it gets into your closet')).not.toBeOnTheScreen();
+    });
+
+    test("offers the gallery in place of the one an empty closet's link opens", async () => {
+      jest.useFakeTimers();
+      try {
+        mockHintSeen = false;
+        mockParams = { source: 'library' };
+        await render(<AddItem />);
+        await act(() => jest.advanceTimersByTimeAsync(1000));
+        expect(ImagePicker.launchImageLibraryAsync).not.toHaveBeenCalled();
+
+        await fireEvent.press(screen.getByText('Choose from gallery'));
+        await act(() => jest.advanceTimersByTimeAsync(1000));
+        expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1);
+        expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(
+          expect.objectContaining({ allowsMultipleSelection: true }),
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test('"?" shows it again, closed with "Got it"', async () => {
+      await render(<AddItem />);
+      expect(screen.queryByText('How it gets into your closet')).not.toBeOnTheScreen();
+      await fireEvent.press(screen.getByLabelText('How to photograph a piece'));
+      expect(screen.getByText('How it gets into your closet')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByText('Got it'));
+      expect(screen.queryByText('How it gets into your closet')).not.toBeOnTheScreen();
+      expect(rememberFirstPhotoHint).not.toHaveBeenCalled();
+      expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
+    });
+
+    test('has no "?" once a photo is in', async () => {
+      await render(<AddItem />);
+      await fireEvent.press(screen.getByText('Choose from gallery'));
+      expect(screen.queryByLabelText('How to photograph a piece')).not.toBeOnTheScreen();
+    });
+
+    test('her first piece hangs slowly, saying each step by hand', async () => {
+      jest.useFakeTimers();
+      try {
+        mockLessonSeen = false;
+        await render(<AddItem />);
+        await fillForm();
+        await fireEvent.press(screen.getByText('Hang it in the closet'));
+        await act(() => jest.advanceTimersByTimeAsync(700));
+        expect(rememberFirstPhotoLesson).toHaveBeenCalledTimes(1);
+        // The steps beside the piece wait for the overlay's place, which Jest never lays out; the
+        // note under the caption is always there.
+        expect(
+          screen.getByText(
+            "this is how your pieces will hang — shoot the whole piece, I'll do the rest",
+            { includeHiddenElements: true },
+          ),
+        ).toBeOnTheScreen();
+        // The photo stays under the piece, faded, instead of the bare piece on the print.
+        expect(screen.queryByTestId('band-cutout')).not.toBeOnTheScreen();
+
+        // Slower than the usual 3.2 s, so the steps can be read.
+        await act(() => jest.advanceTimersByTimeAsync(4000));
+        expect(mockBack).not.toHaveBeenCalled();
+        await act(() => jest.advanceTimersByTimeAsync(4000));
+        expect(mockBack).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test('keeps the lesson for a piece with a cut-out', async () => {
+      jest.useFakeTimers();
+      try {
+        mockLessonSeen = false;
+        jest.mocked(createItem).mockResolvedValue({ id: 'new-item' } as never);
+        await render(<AddItem />);
+        await fillForm();
+        await fireEvent.press(screen.getByText('Hang it in the closet'));
+        await act(() => jest.advanceTimersByTimeAsync(6000));
+        expect(screen.getByTestId('hung-photo', { includeHiddenElements: true })).toBeOnTheScreen();
+        expect(
+          screen.queryByText(
+            "this is how your pieces will hang — shoot the whole piece, I'll do the rest",
+            { includeHiddenElements: true },
+          ),
+        ).not.toBeOnTheScreen();
+        expect(rememberFirstPhotoLesson).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
   test('offers a whole outfit from a selfie until a photo is picked', async () => {
     await render(<AddItem />);
     await fireEvent.press(screen.getByText('A whole outfit? Add every item from a selfie'));

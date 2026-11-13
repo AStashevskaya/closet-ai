@@ -139,7 +139,27 @@
     "upToTwenty": "up to 20 photos at once",
     "rotateShort": "Rotate",
     "cropShort": "Crop",
-    "anotherPhoto": "Another photo"
+    "anotherPhoto": "Another photo",
+    "firstPhoto": {
+      "kicker": "Your first piece",
+      "title": "How it gets into your closet",
+      "demo": "Your photo of a top becomes the top alone, hanging on a hanger, without the background",
+      "before": "Your photo",
+      "after": "In your closet, without the background",
+      "rules": {
+        "whole": "The whole piece in the frame, nothing cut off",
+        "flat": "Laid flat or on a hanger, on a plain background",
+        "belts": "Belts and beads: lay them out flat, don't coil them"
+      },
+      "shoot": "Photograph your first piece",
+      "gotIt": "Got it",
+      "help": "How to photograph a piece",
+      "lesson": {
+        "lifting": "1. taking the background away…",
+        "hanging": "2. hanging it up",
+        "note": "this is how your pieces will hang — shoot the whole piece, I'll do the rest"
+      }
+    }
   },
   "tabs": {
     "closet": "Closet",

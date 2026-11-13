@@ -35,8 +35,11 @@ type Props = {
   caption: string;
   // A photo being shrunk, turned or saved: it fades back a little and the tools are off.
   busy: boolean;
-  // The piece is flying to its rail: the print fades as its photo leaves the frame.
+  // The piece is flying to its rail: the print fades as its photo leaves the frame. On her first
+  // piece (`lesson`) the photo comes back under the piece and stays, faded, while the piece lifts
+  // off it: "the photo fades, the piece lifts off" (first-photo lesson, B).
   leaving: boolean;
+  lesson?: boolean;
   onRotate: () => void;
   onCrop: () => void;
   onAnother: () => void;
@@ -50,7 +53,13 @@ type Props = {
   // exactly over the piece.
   photoSize?: Size | null;
   onPhotoSize?: (uri: string, size: Size) => void;
+  // "?": how to photograph a piece, the first-photo hint again. Only before a photo, when it's
+  // useful (and the corner is free: with a photo the tools stand there on narrow phones).
+  onHelp?: () => void;
 };
+
+// The photo left behind on her first piece, under the veil that comes over the screen.
+const FADED = 0.45;
 
 // How long the photo's background takes to dissolve when the cut-out comes.
 export const DISSOLVE_MS = 400;
@@ -73,6 +82,7 @@ export function PhotoBand({
   caption,
   busy,
   leaving,
+  lesson = false,
   onRotate,
   onCrop,
   onAnother,
@@ -81,12 +91,13 @@ export function PhotoBand({
   cutout,
   photoSize,
   onPhotoSize,
+  onHelp,
 }: Props) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   // A cut-out with a box waits for the photo's size, so it's laid over the piece from the start
   // instead of over the whole picture and then jumping into place.
-  const bare = cutout && (!cutout.box || photoSize) ? cutout : null;
+  const bare = cutout && (!cutout.box || photoSize) && !(leaving && lesson) ? cutout : null;
   // The cross-fade from photo to cut-out; with reduced motion it simply swaps.
   const dissolve = (property: 'opacity' | 'backgroundColor') => ({
     transitionProperty: property,
@@ -104,7 +115,7 @@ export function PhotoBand({
                 styles.print,
                 cutoutShadow('hanging'),
                 {
-                  opacity: leaving ? 0 : 1,
+                  opacity: leaving ? (lesson ? FADED : 0) : 1,
                   transitionProperty: 'opacity',
                   transitionDuration: durations.leave,
                   transitionTimingFunction: CSS_EASE_OUT,
@@ -165,6 +176,17 @@ export function PhotoBand({
         )}
       </View>
       <View style={styles.note}>{note}</View>
+      {onHelp && !photoUri && (
+        <PressableScale
+          style={styles.help}
+          onPress={onHelp}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('addItem.firstPhoto.help')}
+        >
+          <Text style={styles.helpMark}>?</Text>
+        </PressableScale>
+      )}
     </View>
   );
 }
@@ -355,6 +377,26 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.text,
     textAlign: 'center',
+  },
+  // In the band's top corner, clear of the print and its tools.
+  help: {
+    position: 'absolute',
+    top: 8,
+    end: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.2,
+    borderColor: colors.text,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpMark: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    lineHeight: 24,
+    color: colors.text,
   },
   note: {
     marginTop: 14,

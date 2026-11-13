@@ -45,14 +45,51 @@ const RAIL_INSET = 22;
 const GAP = 10;
 export const FLIGHT_MS = 1200;
 const LIFT = 14;
+// The width of a handwritten step of the first-photo lesson.
+const STEP_WIDTH = 220;
 const TILT = I18nManager.isRTL ? 3 : -3;
 // In a batch the pieces go one after another (docs/design.md).
 export const BATCH_STEP = 140;
-// When the swing starts, the caption comes and the screen closes, from the tap (for the last piece).
-const SWING_AT = 1050;
-const CAPTION_AT = 1440;
-const DONE_AT = 3200;
-const DONE_REDUCED = 1600;
+// The timings of one flight, from the tap (for the last piece): how long it flies, when in the
+// flight it has lifted off the print, when the swing starts, the caption comes, the veil starts to
+// cover the screen, and when the screen closes.
+type Pace = {
+  flight: number;
+  lifted: number;
+  swingAt: number;
+  captionAt: number;
+  veilAt: number;
+  veilMs: number;
+  doneAt: number;
+  doneReduced: number;
+};
+const USUAL: Pace = {
+  flight: FLIGHT_MS,
+  lifted: 0.22,
+  swingAt: 1050,
+  captionAt: 1440,
+  veilAt: 250,
+  veilMs: 700,
+  doneAt: 3200,
+  doneReduced: 1600,
+};
+// Her first piece (the first-photo lesson, B): slower, so each handwritten step can be read. The
+// photo fades under a slower veil while the piece lifts off it and holds a moment, then flies.
+export const LESSON_FLIGHT_MS = 2200;
+const LESSON: Pace = {
+  flight: LESSON_FLIGHT_MS,
+  lifted: 0.4,
+  swingAt: 2050,
+  captionAt: 2500,
+  veilAt: 600,
+  veilMs: 1400,
+  doneAt: 7500,
+  doneReduced: 5500,
+};
+// When the second step ("hanging it up") comes, as the piece leaves the print.
+const LESSON_HANGING_AT = 900;
+// The note under the caption follows it.
+const LESSON_NOTE_AT = 3100;
 
 // Where piece `index` of `count` hangs in an overlay of this size, and the move that takes it
 // there from its photo on the screen (`from`, both in window coordinates). Every piece is laid out
@@ -112,10 +149,16 @@ export type HangPiece = {
   tilted?: boolean;
 };
 
+// The handwritten steps of her first piece: under the print as it lifts off ("taking the
+// background away…"), beside the rail as it hangs ("hanging it up"), and a note under the caption.
+export type Lesson = { lifting: string; hanging: string; note: string };
+
 type Props = {
   pieces: HangPiece[];
   // "On the Tops rail" or "3 pieces in your closet", handwritten under the pieces.
   caption: string;
+  // Her first piece: slower, with the steps by hand (once, owner 2026-11-12).
+  lesson?: Lesson;
   onDone: () => void;
 };
 
@@ -125,12 +168,17 @@ type Props = {
 // another. A tap closes it at once. With reduced motion the pieces are simply there. What flies
 // is the caller's: the bare cut-out when it has one (add-item waits a moment for it), the photo
 // otherwise.
-export function HangUp({ pieces, caption, onDone }: Props) {
+export function HangUp({ pieces, caption, lesson, onDone }: Props) {
   const reduceMotion = useReducedMotion();
+  const pace = lesson ? LESSON : USUAL;
   const ref = useRef<ComponentRef<typeof View>>(null);
   const [overlay, setOverlay] = useState<Box | null>(null);
   const veil = useSharedValue(reduceMotion ? 0.92 : 0);
   const shown = useSharedValue(reduceMotion ? 1 : 0);
+  // The lesson's steps: lifting, hanging, the note (all there at once with reduced motion).
+  const lifting = useSharedValue(reduceMotion ? 1 : 0);
+  const hanging = useSharedValue(reduceMotion ? 1 : 0);
+  const noted = useSharedValue(reduceMotion ? 1 : 0);
   const done = useRef(onDone);
   useEffect(() => {
     done.current = onDone;
@@ -147,8 +195,10 @@ export function HangUp({ pieces, caption, onDone }: Props) {
 
   // The sheet closes on its own, counted from the tap; the motion waits for the overlay's place.
   useEffect(() => {
-    AccessibilityInfo.announceForAccessibility(caption);
-    const timer = setTimeout(finish, reduceMotion ? DONE_REDUCED : DONE_AT + lag);
+    AccessibilityInfo.announceForAccessibility(
+      lesson ? [lesson.lifting, lesson.hanging, caption, lesson.note].join(' ') : caption,
+    );
+    const timer = setTimeout(finish, reduceMotion ? pace.doneReduced : pace.doneAt + lag);
     return () => clearTimeout(timer);
     // Once, when the overlay comes up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,15 +207,30 @@ export function HangUp({ pieces, caption, onDone }: Props) {
   const ready = overlay !== null;
   useEffect(() => {
     if (!ready || reduceMotion) return;
-    veil.value = withDelay(250, withTiming(0.92, { duration: 700 }));
-    shown.value = withDelay(CAPTION_AT + lag, withTiming(1, { duration: 600 }));
-  }, [ready, reduceMotion, lag, veil, shown]);
+    veil.value = withDelay(pace.veilAt, withTiming(0.92, { duration: pace.veilMs }));
+    shown.value = withDelay(pace.captionAt + lag, withTiming(1, { duration: 600 }));
+    if (!lesson) return;
+    lifting.value = withDelay(100, withTiming(1, { duration: 500 }));
+    hanging.value = withDelay(LESSON_HANGING_AT, withTiming(1, { duration: 500 }));
+    noted.value = withDelay(LESSON_NOTE_AT, withTiming(1, { duration: 700 }));
+  }, [ready, reduceMotion, lag, veil, shown, pace, lesson, lifting, hanging, noted]);
 
   const rail = flightFrom(null, overlay ?? { x: 0, y: 0, width: 0, height: 0 }, 0, pieces.length);
   const veiled = useAnimatedStyle(() => ({ opacity: veil.value }));
   const railShown = useAnimatedStyle(() => ({ opacity: veil.value / 0.92 }));
   const captioned = useAnimatedStyle(() => ({ opacity: shown.value }));
-
+  const liftingShown = useAnimatedStyle(() => ({ opacity: lifting.value }));
+  const hangingShown = useAnimatedStyle(() => ({ opacity: hanging.value }));
+  const noteShown = useAnimatedStyle(() => ({ opacity: noted.value }));
+  // The first step sits under the photo the piece lifts off, the second beside the rail.
+  const first = pieces[0]?.from ?? null;
+  const liftingAt =
+    overlay && first
+      ? {
+          top: first.y - overlay.y + first.height + 34,
+          centre: first.x - overlay.x + first.width / 2,
+        }
+      : null;
   return (
     <Pressable
       style={StyleSheet.absoluteFill}
@@ -193,15 +258,48 @@ export function HangUp({ pieces, caption, onDone }: Props) {
               piece={piece}
               move={flightFrom(piece.from, overlay, index, pieces.length)}
               delay={index * BATCH_STEP}
+              pace={pace}
             />
           ))}
+          {lesson && (
+            <>
+              {/* Placed on the photo's own spot in window coordinates, so by left, in an LTR
+                  frame: React Native would swap left in Hebrew. */}
+              <View style={[StyleSheet.absoluteFill, styles.ltr]} pointerEvents="none">
+                <Animated.Text
+                  style={[
+                    styles.step,
+                    liftingAt
+                      ? { top: liftingAt.top, left: liftingAt.centre - STEP_WIDTH / 2 }
+                      : {
+                          top: Math.max(0, rail.top - 120),
+                          left: (overlay.width - STEP_WIDTH) / 2,
+                        },
+                    liftingShown,
+                  ]}
+                >
+                  {lesson.lifting}
+                </Animated.Text>
+              </View>
+              <Animated.Text
+                style={[
+                  styles.hanging,
+                  { top: rail.railY + 36, width: (overlay.width - SLOT) / 2 - RAIL_INSET - 6 },
+                  hangingShown,
+                ]}
+              >
+                {lesson.hanging}
+              </Animated.Text>
+            </>
+          )}
         </>
       )}
       {/* Always there, so a tap finds it before the overlay is measured. Screen readers hear it
           once, announced on mount; the overlay's label repeats it only if they land on it. */}
-      <Animated.Text style={[styles.caption, { top: rail.bottom + 24 }, captioned]}>
-        {caption}
-      </Animated.Text>
+      <View style={[styles.words, { top: rail.bottom + 24 }]}>
+        <Animated.Text style={[styles.caption, captioned]}>{caption}</Animated.Text>
+        {lesson && <Animated.Text style={[styles.note, noteShown]}>{lesson.note}</Animated.Text>}
+      </View>
     </Pressable>
   );
 }
@@ -211,10 +309,12 @@ function Hung({
   piece,
   move,
   delay,
+  pace,
 }: {
   piece: HangPiece;
   move: ReturnType<typeof flightFrom>;
   delay: number;
+  pace: Pace;
 }) {
   const reduceMotion = useReducedMotion();
   const flight = useSharedValue(reduceMotion ? 1 : 0);
@@ -222,10 +322,10 @@ function Hung({
 
   useEffect(() => {
     if (reduceMotion) return;
-    flight.value = withDelay(delay, withTiming(1, { duration: FLIGHT_MS, easing: EASE_OUT }));
+    flight.value = withDelay(delay, withTiming(1, { duration: pace.flight, easing: EASE_OUT }));
     const step = { duration: 320 };
     swing.value = withDelay(
-      delay + SWING_AT,
+      delay + pace.swingAt,
       withSequence(
         withTiming(8, step),
         withTiming(-5, step),
@@ -234,23 +334,24 @@ function Hung({
         withTiming(0, step),
       ),
     );
-  }, [reduceMotion, delay, flight, swing]);
+  }, [reduceMotion, delay, pace, flight, swing]);
 
   // Plain numbers for the worklet, listed as its dependencies: they change once, when measured.
   const { x, y, scale } = move;
   const { x: restX, y: restY, scale: restScale } = move.rest;
   const tilt = piece.tilted ? TILT : 0;
+  const { lifted } = pace;
   const placed = useAnimatedStyle(() => {
     const p = flight.value;
     return {
       transform: [
-        { translateX: interpolate(p, [0, 0.22, 1], [x, x, restX]) },
-        { translateY: interpolate(p, [0, 0.22, 1], [y, y - LIFT, restY]) },
-        { scale: interpolate(p, [0, 0.22, 1], [scale, scale * 1.04, restScale]) },
+        { translateX: interpolate(p, [0, lifted, 1], [x, x, restX]) },
+        { translateY: interpolate(p, [0, lifted, 1], [y, y - LIFT, restY]) },
+        { scale: interpolate(p, [0, lifted, 1], [scale, scale * 1.04, restScale]) },
         { rotate: `${interpolate(p, [0, 1], [tilt, 0])}deg` },
       ],
     };
-  }, [x, y, scale, restX, restY, restScale, tilt]);
+  }, [x, y, scale, restX, restY, restScale, tilt, lifted]);
   const hanger = useAnimatedStyle(() => ({
     opacity: interpolate(flight.value, [0, 0.7, 1], [0, 0, 1]),
   }));
@@ -306,12 +407,42 @@ const styles = StyleSheet.create({
     width: SLOT,
     height: PHOTO_H,
   },
-  caption: {
+  words: {
     position: 'absolute',
     start: 20,
     end: 20,
+    gap: 10,
+  },
+  caption: {
     fontFamily: fonts.hand,
     fontSize: 22,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  note: {
+    fontFamily: fonts.hand,
+    fontSize: 19,
+    lineHeight: 24,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  ltr: {
+    direction: 'ltr',
+  },
+  step: {
+    position: 'absolute',
+    width: STEP_WIDTH,
+    fontFamily: fonts.hand,
+    fontSize: 19,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  // Beside the piece hanging in the middle, toward the end.
+  hanging: {
+    position: 'absolute',
+    end: RAIL_INSET,
+    fontFamily: fonts.hand,
+    fontSize: 19,
     color: colors.text,
     textAlign: 'center',
   },

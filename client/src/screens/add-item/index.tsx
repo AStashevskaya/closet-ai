@@ -38,6 +38,12 @@ import { WantMore } from '@/components/want-more';
 import { askWearWith, createItem, getPhotoState, uploadPhoto } from '@/lib/api';
 import { limitReached } from '@/lib/api-error';
 import { appLanguage } from '@/lib/app-language';
+import {
+  firstPhotoHintSeen,
+  firstPhotoLessonSeen,
+  rememberFirstPhotoHint,
+  rememberFirstPhotoLesson,
+} from '@/lib/first-photo';
 import { alertAskFailed, limitText } from '@/lib/limits';
 import { defaultCurrency, parsePrice } from '@/lib/price';
 import { rotatePhoto, shrinkPhoto } from '@/lib/shrink-photo';
@@ -50,7 +56,8 @@ import { colors, fonts } from '@/theme';
 import { ColorSwatches } from './color-swatches';
 import type { Size } from './cutout-frame';
 import { FieldThread, RailStop, Stop } from './field-thread';
-import { FLIGHT_MS, HangUp, measureBox, PHOTO_FRAME, type Box } from './hang-up';
+import { FirstPhotoHint } from './first-photo-hint';
+import { FLIGHT_MS, HangUp, LESSON_FLIGHT_MS, measureBox, PHOTO_FRAME, type Box } from './hang-up';
 import { CutoutImage, DISSOLVE_MS, PhotoBand } from './photo-band';
 import { loadCutout, pause, waitForCutout, type Cutout } from './wait-for-cutout';
 
@@ -140,6 +147,8 @@ export function AddItem() {
     category: ItemCategory;
     // The bare piece, or null to fly the photo.
     cutout: Cutout | null;
+    // Her first piece: "Hang it up" slows down and says each step by hand.
+    lesson: boolean;
   } | null>(null);
   // The photo's cut-out, found while she fills the fields, for the photo it was made from: a
   // rotate, a crop or another photo is a new photo key, which leaves it behind. Also kept in a
@@ -170,6 +179,10 @@ export function AddItem() {
   // A picked photo or a typed name is worth asking about before the sheet closes; once the piece
   // is saved, a swipe down just closes it.
   const leave = useConfirmLeave(!saved && (photoUri !== null || name.trim() !== ''));
+  // How to photograph a piece: before her first shot for the closet, once; "?" opens it again.
+  const [hint, setHint] = useState<'first' | 'again' | null>(() =>
+    firstPhotoHintSeen() ? null : 'first',
+  );
 
   async function pick(source: 'camera' | 'library') {
     if (source === 'camera') {
@@ -458,7 +471,11 @@ export function AddItem() {
     }
     const from = await measureBox(picture.current);
     if (signal.aborted) return;
-    setHanging({ from, category: rail, cutout });
+    // The lesson of her first piece needs the bare piece to lift off the photo: a photo that
+    // flies as it is (no cut-out in time) keeps it for the next piece.
+    const lesson = cutout !== null && !firstPhotoLessonSeen();
+    if (lesson) void rememberFirstPhotoLesson();
+    setHanging({ from, category: rail, cutout, lesson });
   }
 
   const note =
@@ -487,13 +504,24 @@ export function AddItem() {
     latestPick.current = pick;
   });
   useEffect(() => {
-    if (params.source !== 'library' || openedGallery.current) return;
+    // The first-photo hint is up: it offers the gallery itself.
+    if (params.source !== 'library' || openedGallery.current || hint === 'first') return;
     const timer = setTimeout(() => {
       openedGallery.current = true;
       void latestPick.current('library');
     }, SHEET_UP_MS);
     return () => clearTimeout(timer);
-  }, [params.source]);
+  }, [params.source, hint]);
+
+  // The hint's own ways to take the first photo. It counts as seen once she takes one of them (a
+  // sheet closed on the hint shows it again next time), and it stands in for the gallery an empty
+  // closet's "Several photos" would have opened by itself.
+  function shootFirst(source: 'camera' | 'library') {
+    void rememberFirstPhotoHint();
+    openedGallery.current = true;
+    setHint(null);
+    void pick(source);
+  }
 
   return (
     <View
@@ -505,8 +533,9 @@ export function AddItem() {
         style={[styles.screen, handingOff && styles.handingOff]}
         // Hidden means hidden for touch and screen readers too, not only to the eye.
         pointerEvents={handingOff ? 'none' : 'auto'}
-        accessibilityElementsHidden={handingOff}
-        importantForAccessibility={handingOff ? 'no-hide-descendants' : 'auto'}
+        // The first-photo hint covers it: screen readers stay on the hint too.
+        accessibilityElementsHidden={handingOff || hint !== null}
+        importantForAccessibility={handingOff || hint !== null ? 'no-hide-descendants' : 'auto'}
         // The view shrinks above the keyboard on both platforms, so the bar under the scroll (the
         // Hang button and its errors) stays in sight. It measures itself from its parent, not the
         // window, so on iOS it's told where the sheet starts (the sheet's top and the header).
@@ -525,6 +554,7 @@ export function AddItem() {
             caption={name}
             busy={busy}
             leaving={hanging !== null}
+            lesson={hanging?.lesson ?? false}
             onRotate={rotate}
             onCrop={() => photoUri && setCropping(photoUri)}
             onAnother={another}
@@ -533,6 +563,7 @@ export function AddItem() {
             cutout={bandCutout}
             photoSize={photoSize}
             onPhotoSize={(uri, size) => setLoaded({ uri, size })}
+            onHelp={() => setHint('again')}
           />
 
           {photoUri ? (
@@ -699,6 +730,14 @@ export function AddItem() {
           )}
         </View>
       </KeyboardAvoidingView>
+      {hint && (
+        <FirstPhotoHint
+          mode={hint}
+          onShoot={() => shootFirst('camera')}
+          onGallery={() => shootFirst('library')}
+          onClose={() => setHint(null)}
+        />
+      )}
       <PhotoCropper uri={cropping} onCancel={() => setCropping(null)} onDone={cropped} />
       {hanging && photoUri && (
         <HangUp
@@ -712,7 +751,7 @@ export function AddItem() {
                   cutout={hanging.cutout}
                   frame={PHOTO_FRAME}
                   photo={photoSize}
-                  growMs={FLIGHT_MS}
+                  growMs={hanging.lesson ? LESSON_FLIGHT_MS : FLIGHT_MS}
                   shadow
                   testID="hung-cutout"
                 />
@@ -730,6 +769,15 @@ export function AddItem() {
             },
           ]}
           caption={t('addItem.hungOn', { rail: t(`closet.filters.${hanging.category}`) })}
+          lesson={
+            hanging.lesson
+              ? {
+                  lifting: t('addItem.firstPhoto.lesson.lifting'),
+                  hanging: t('addItem.firstPhoto.lesson.hanging'),
+                  note: t('addItem.firstPhoto.lesson.note'),
+                }
+              : undefined
+          }
           onDone={() => leave(() => router.back())}
         />
       )}
