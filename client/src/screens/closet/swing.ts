@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef } from 'react';
 import { I18nManager } from 'react-native';
 import {
+  cancelAnimation,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useFrameCallback,
@@ -86,7 +87,8 @@ export function useRailSwing(
   category: ItemCategory,
   ids: readonly string[],
   tickEvery?: number,
-  // Called when a finger takes the rail.
+  // A scroll the app drives (its flag and progress): a finger stops it; `onTouch` then hears.
+  guided?: { flipping: SharedValue<boolean>; progress: SharedValue<number> },
   onTouch?: () => void,
 ) {
   const reduced = useReducedMotion();
@@ -212,7 +214,13 @@ export function useRailSwing(
     },
     onBeginDrag: () => {
       'worklet';
-      scheduleOnRN(handOver);
+      // Stopped here, on the UI thread, before the next frame: a scroll still driven by the app
+      // for a few frames more would fight the finger. Only the news goes to JS.
+      if (guided?.flipping.get()) {
+        guided.flipping.set(false);
+        cancelAnimation(guided.progress);
+        scheduleOnRN(handOver);
+      }
       begin();
     },
     onMomentumBegin: begin,

@@ -1,7 +1,16 @@
 import type { Item, ItemCategory } from '@closet-ai/shared';
 import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  FlatList,
+  I18nManager,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -108,19 +117,23 @@ export function Rail({
     arrived.current = true;
     seek?.onArrived();
   }, [seek]);
-  // A finger on the rail before it got there: she has it; the line just comes.
-  const handOver = useCallback(() => {
-    if (!flipping.get()) return;
-    flipping.set(false);
-    cancelAnimation(seeking);
-    land();
-  }, [flipping, seeking, land]);
+  // A finger on the rail before it got there: the flip was stopped on the UI thread (swing.ts);
+  // she has it, and the line just comes.
   // Shoes stand still, so their rail has no pendulums to step.
   const { onScroll, swing, guide } = useRailSwing(
     category,
     shoes ? [] : items.map((item) => item.id),
     ticks ? pieceStep(category) : undefined,
-    handOver,
+    { flipping, progress: seeking },
+    land,
+  );
+  // Leaving the closet mid-flip: the flip stops with it and says nothing to a rail that's gone.
+  useEffect(
+    () => () => {
+      flipping.set(false);
+      cancelAnimation(seeking);
+    },
+    [flipping, seeking],
   );
   useAnimatedReaction(
     () => seeking.get(),
@@ -136,26 +149,35 @@ export function Rail({
     if (index < 0) return;
     sought.current = seek.itemId;
     arrived.current = false;
-    const end = contentWidth > 0 ? Math.max(0, contentWidth - screen) : Infinity;
-    const target = Math.min(
-      end,
-      Math.max(0, TRACK_START + pieceMiddle(category, index) - screen / 2),
-    );
+    // Without the track's length it can't be placed safely: the rail stays and the line comes.
+    if (contentWidth === 0) {
+      land();
+      return;
+    }
+    const end = Math.max(0, contentWidth - screen);
+    const along = (x: number) => Math.min(end, Math.max(0, x));
+    // Along the reading direction, from the rail's start. On Android in RTL a horizontal list's
+    // offset still counts from the left edge, where its end is; iOS mirrors it, so there the
+    // offset counts from the start as in LTR.
+    const offsetOf = (x: number) =>
+      I18nManager.isRTL && Platform.OS === 'android' ? end - along(x) : along(x);
+    const target = TRACK_START + pieceMiddle(category, index) - screen / 2;
     const done = () => {
       guide(false);
       flipping.set(false);
       land();
     };
     if (reduced) {
+      const there = offsetOf(target);
       scheduleOnUI(() => {
         'worklet';
-        scrollTo(list, target, 0, false);
+        scrollTo(list, there, 0, false);
       });
       land();
       return;
     }
-    from.set(Math.max(0, target - SEEK_FROM * pieceStep(category)));
-    to.set(target);
+    from.set(offsetOf(target - SEEK_FROM * pieceStep(category)));
+    to.set(offsetOf(target));
     scheduleOnUI(() => {
       'worklet';
       scrollTo(list, from.get(), 0, false);
