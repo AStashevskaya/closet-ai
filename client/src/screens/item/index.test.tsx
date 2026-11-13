@@ -266,6 +266,78 @@ describe('<ItemScreen />', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  describe('cut-out or photo', () => {
+    const cutoutUrl = `/api/items/${shirt.id}/photo?variant=cutout&v=1`;
+    const cutShirt: ItemDetail = {
+      ...shirt,
+      showPhoto: false,
+      cutoutUrl,
+      storedCutoutUrl: cutoutUrl,
+    };
+    const asPhoto: ItemDetail = { ...cutShirt, showPhoto: true, cutoutUrl: undefined };
+
+    test('offers no choice for a piece without a cut-out', async () => {
+      await render(<ItemScreen id={shirt.id} />);
+      expect(await screen.findByDisplayValue('White linen shirt')).toBeOnTheScreen();
+      expect(screen.queryByText('Cut out wrong?')).not.toBeOnTheScreen();
+    });
+
+    test('switches to the photo at once, saves it, and tells the hero', async () => {
+      jest.mocked(getItem).mockResolvedValue(cutShirt);
+      jest.mocked(updateItem).mockResolvedValue(asPhoto);
+      await render(<ItemScreen id={shirt.id} />);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Cut out wrong?' }));
+
+      expect(screen.getByText('how should it hang?')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: 'without background', selected: true }),
+      ).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'as in the photo' }));
+
+      expect(updateItem).toHaveBeenCalledWith(shirt.id, { showPhoto: true });
+      expect(
+        screen.getByRole('button', { name: 'as in the photo', selected: true }),
+      ).toBeOnTheScreen();
+      // The hero shows the photo now, and the line under the rail offers the way back.
+      expect(screen.getAllByTestId('item-photo')[0]).toHaveProp('source', [
+        expect.objectContaining({ uri: `http://api.test${shirt.photoUrl}` }),
+      ]);
+      expect(
+        screen.getByRole('button', { name: 'Show it without the background?' }),
+      ).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+      expect(screen.queryByText('how should it hang?')).not.toBeOnTheScreen();
+    });
+
+    test('puts the cut-out back when saving the choice fails', async () => {
+      jest.mocked(getItem).mockResolvedValue(cutShirt);
+      jest.mocked(updateItem).mockRejectedValue(new Error('offline'));
+      await render(<ItemScreen id={shirt.id} />);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Cut out wrong?' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'as in the photo' }));
+
+      expect(alert).toHaveBeenCalledWith("Couldn't save the changes. Try again.");
+      expect(
+        screen.getByRole('button', { name: 'without background', selected: true }),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Cut out wrong?' })).toBeOnTheScreen();
+    });
+
+    test('offers the cut-out back for a piece shown as its photo', async () => {
+      jest.mocked(getItem).mockResolvedValue(asPhoto);
+      jest.mocked(updateItem).mockResolvedValue(cutShirt);
+      await render(<ItemScreen id={shirt.id} />);
+      await fireEvent.press(
+        await screen.findByRole('button', { name: 'Show it without the background?' }),
+      );
+      await fireEvent.press(screen.getByRole('button', { name: 'without background' }));
+
+      expect(updateItem).toHaveBeenCalledWith(shirt.id, { showPhoto: false });
+      expect(screen.getByRole('button', { name: 'Cut out wrong?' })).toBeOnTheScreen();
+    });
+  });
+
   describe('waiting in place', () => {
     const sign = () => screen.queryAllByTestId('thread-waiting', { includeHiddenElements: true });
 

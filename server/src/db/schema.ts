@@ -121,6 +121,10 @@ export const items = pgTable(
     // In cents (minor units) of `currency`, so sums stay exact; the API speaks main units.
     priceMinor: integer("price_minor"),
     currency: currencyEnum("currency"),
+    // She chose to see the photo rather than its cut-out (the cut-out went wrong, decided
+    // 2026-11-13): the API then leaves the cut-out out everywhere, but it stays stored, so the
+    // choice can be undone.
+    showPhoto: boolean("show_photo").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   // Every items query filters by owner.

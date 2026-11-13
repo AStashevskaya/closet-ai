@@ -111,6 +111,10 @@ export const item = createItemInput.omit({ photoKey: true }).extend({
   // absent when there is no cutoutUrl.
   cutoutBox: itemBox.nullable().optional(),
   photoStatus: photoStatus.optional(),
+  // She chose to show the photo instead of the cut-out (the cut-out went wrong): cutoutUrl and
+  // cutoutBox are then left out, so every screen shows the photo. Optional only so a build reading
+  // a server from before this field still works; absent means false.
+  showPhoto: z.boolean().optional(),
 });
 export type Item = z.infer<typeof item>;
 
@@ -253,7 +257,12 @@ export type PhotoState = z.infer<typeof photoState>;
 
 // Response of GET /api/items/:id and PATCH /api/items/:id: the item plus what the vision
 // model read off its photo (null until tagged, or when tagging is off).
-export const itemDetail = item.extend({ tags: itemTags.nullable() });
+// storedCutoutUrl is the cut-out even while she shows the photo, so the item screen can offer the
+// choice between the two; absent when the photo has no cut-out at all.
+export const itemDetail = item.extend({
+  tags: itemTags.nullable(),
+  storedCutoutUrl: z.string().optional(),
+});
 export type ItemDetail = z.infer<typeof itemDetail>;
 
 // Body of PATCH /api/items/:id: the fields the user can correct on the item screen.
@@ -267,6 +276,8 @@ export const updateItemInput = z
     brand: brand.nullable(),
     price: price.nullable(),
     currency: currency.nullable(),
+    // Photo or cut-out on her rails and in her looks (see item.showPhoto).
+    showPhoto: z.boolean(),
   })
   .partial();
 export type UpdateItemInput = z.infer<typeof updateItemInput>;

@@ -211,6 +211,13 @@
       "when": 1794508692033,
       "tag": "0029_good_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794585279926,
+      "tag": "0030_item_show_photo",
+      "breakpoints": true
     }
   ]
 }

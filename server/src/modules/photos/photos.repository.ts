@@ -160,6 +160,7 @@ export function createPhotosRepository(db: Db): PhotosRepository {
           name: items.name,
           photoKey: photos.key,
           cutoutKey: photos.cutoutKey,
+          showPhoto: items.showPhoto,
           distance,
         })
         .from(items)
@@ -173,7 +174,12 @@ export function createPhotosRepository(db: Db): PhotosRepository {
         )
         .orderBy(distance)
         .limit(limit);
-      return rows.map(({ distance: d, ...row }) => ({ ...row, similarity: 1 - Number(d) }));
+      // A piece she shows as its photo (its cut-out went wrong) is compared as that photo.
+      return rows.map(({ distance: d, showPhoto, cutoutKey, ...row }) => ({
+        ...row,
+        cutoutKey: showPhoto ? null : cutoutKey,
+        similarity: 1 - Number(d),
+      }));
     },
 
     async setEmbedding(key, embedding) {

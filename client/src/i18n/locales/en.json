@@ -289,7 +289,16 @@
     "saveError": "Couldn't save the changes. Try again.",
     "rotateError": "Couldn't turn the photo. Try again.",
     "more": "More",
-    "edit": "Edit"
+    "edit": "Edit",
+    "hang": {
+      "ask": "Cut out wrong?",
+      "askPhoto": "Show it without the background?",
+      "title": "how should it hang?",
+      "cutout": "without background",
+      "photo": "as in the photo",
+      "note": "This is how it'll look in your closet and in your outfits. Change your mind? Change it right here.",
+      "done": "Done"
+    }
   },
   "addLook": {
     "title": "Outfit from a selfie",

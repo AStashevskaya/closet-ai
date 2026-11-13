@@ -25,7 +25,12 @@ import {
 } from "../src/modules/catalog/catalog.repository";
 import type { WishesRepository, WishRow } from "../src/modules/wishes/wishes.repository";
 import { EMPTY_PROFILE, type ProfileRepository } from "../src/modules/profile/profile.repository";
-import { toItem, toMinor, type ItemsRepository } from "../src/modules/items/items.repository";
+import {
+  toItem,
+  toItemDetail,
+  toMinor,
+  type ItemsRepository,
+} from "../src/modules/items/items.repository";
 import {
   cutOutPhoto,
   embedPhoto,
@@ -83,14 +88,27 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
   // A millisecond apart, so rows made in one test keep their order.
   let ticks = 0;
   const stamp = () => new Date(clock().getTime() + ticks++);
-  type ItemRow = { id: string; ownerId: string; input: CreateItemInput; createdAt: Date };
+  type ItemRow = {
+    id: string;
+    ownerId: string;
+    input: CreateItemInput & { showPhoto?: boolean };
+    createdAt: Date;
+  };
   const itemRows: ItemRow[] = [];
   const photoRows = new Map<string, Photo & { createdAt: Date; embedding?: number[] }>();
 
-  const toApiItem = ({ id, ownerId, input, createdAt }: ItemRow) => {
-    const { photoKey = null, seasons = [], brand = null, price, currency = null, ...rest } = input;
+  const toRow = ({ id, ownerId, input, createdAt }: ItemRow) => {
+    const {
+      photoKey = null,
+      seasons = [],
+      brand = null,
+      price,
+      currency = null,
+      showPhoto = false,
+      ...rest
+    } = input;
     const photo = photoKey ? photoRows.get(photoKey) : undefined;
-    return toItem(
+    return [
       {
         ...rest,
         seasons,
@@ -100,6 +118,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         brand,
         priceMinor: toMinor(price),
         currency,
+        showPhoto,
         createdAt,
       },
       {
@@ -107,12 +126,13 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         cutoutKey: photo?.cutoutKey ?? null,
         cutoutBox: photo?.cutoutBox ?? null,
       },
-    );
+    ] as const;
   };
+  const toApiItem = (row: ItemRow) => toItem(...toRow(row));
 
   const toDetail = (row: ItemRow) => {
     const photoKey = row.input.photoKey;
-    return { ...toApiItem(row), tags: (photoKey && photoRows.get(photoKey)?.tags) || null };
+    return toItemDetail(...toRow(row), (photoKey && photoRows.get(photoKey)?.tags) || null);
   };
 
   const itemsRepository: ItemsRepository = {
@@ -222,7 +242,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
               itemId: row.id,
               name: row.input.name,
               photoKey: photo.key,
-              cutoutKey: photo.cutoutKey,
+              cutoutKey: row.input.showPhoto ? null : photo.cutoutKey,
               similarity: dot(photo.embedding, embedding),
             },
           ];
@@ -367,7 +387,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
           colors: row.input.colors,
           seasons: row.input.seasons ?? [],
           tags: photo.tags,
-          imageKey: photo.cutoutKey ?? photo.key,
+          imageKey: (!row.input.showPhoto && photo.cutoutKey) || photo.key,
           embedding: photo.embedding ?? null,
         };
       }),
