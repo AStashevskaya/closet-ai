@@ -9,7 +9,20 @@ export { pairKey };
 // rules are the ones rated against the stylist on 2026-11-10 (wrinkle-lab/outfit-eval/rules.mjs,
 // 3.37 against 3.42 for someone with no likes yet), with the day's weather on top.
 
-const NEUTRAL = new Set(["black", "white", "gray", "beige", "brown"]);
+// Colours that go with anything: the dark and light basics, the earthy ones and metallics.
+const NEUTRAL = new Set([
+  "black",
+  "white",
+  "cream",
+  "gray",
+  "beige",
+  "camel",
+  "brown",
+  "navy",
+  "khaki",
+  "gold",
+  "silver",
+]);
 const BAG = /\b(bag|tote|clutch|backpack|purse|crossbody|handbag)\b/i;
 const HEAVY = /wool|tweed|leather|suede|fur|shearling|puffer|down|fleece|corduroy|heavy|knit/i;
 const LIGHT = /linen|silk|satin|chiffon|lace|mesh|sheer|gauze|light/i;

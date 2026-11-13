@@ -66,6 +66,9 @@ export const BUDGET_WARN_SHARE = 0.5;
 // halfway; the server's daily budget and a spend cap of their own still apply to them. Taking
 // an id out of the variable puts that account on the free tier, with no change to the code.
 export const TESTER_LIMITS: Partial<Record<UsageAction, number>> = {
+  // Filling a whole closet in an evening (owner, 2026-11-12: Palina needed more than 50); a cut-out
+  // is about 0.5 ¢, so 300 is ~$1.50 at most, within their monthly cap.
+  item_photo: 300,
   wear_with: 8,
   want: 30,
   look: 30,
