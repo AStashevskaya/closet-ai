@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
+import { forgetFirstPhoto } from '@/lib/first-photo';
 import { cancelMornings } from '@/lib/morning';
 import { Chip } from '@/components/chip';
 import { Button, maison } from '@/components/maison';
@@ -399,6 +400,8 @@ export function ProfileDetails() {
           onPress={async () => {
             // Her mornings, with her city's weather, don't stay for whoever signs in next.
             await cancelMornings().catch(() => {});
+            // And the first-photo hint is shown afresh to whoever signs in next.
+            await forgetFirstPhoto();
             await authClient.signOut();
           }}
           accessibilityRole="button"

@@ -6,6 +6,7 @@ import * as Reanimated from 'react-native-reanimated';
 import i18n from '@/i18n';
 import { deleteItem, listItems } from '@/lib/api';
 import { OfflineError } from '@/lib/api-error';
+import { firstPhotoDone } from '@/lib/first-photo';
 
 import { Closet } from '.';
 
@@ -31,6 +32,8 @@ jest.mock('@/lib/api', () => ({
   sessionHeaders: jest.fn().mockResolvedValue({ cookie: 'session=1' }),
   absoluteUrl: (path: string) => `http://api.test${path}`,
 }));
+
+jest.mock('@/lib/first-photo', () => ({ firstPhotoDone: jest.fn(async () => {}) }));
 
 const list = jest.mocked(listItems);
 const remove = jest.mocked(deleteItem);
@@ -235,6 +238,19 @@ describe('<Closet />', () => {
     expect(
       screen.queryAllByTestId('empty-closet-piece', { includeHiddenElements: true }),
     ).toHaveLength(0);
+  });
+
+  test('a closet with pieces is past her first photo: the add sheet won’t teach her again', async () => {
+    list.mockResolvedValue([]);
+    await render(<Closet />);
+    expect(await screen.findByText(/waiting for its first piece/)).toBeOnTheScreen();
+    expect(firstPhotoDone).not.toHaveBeenCalled();
+    await screen.unmount();
+
+    list.mockResolvedValue([shirt]);
+    await render(<Closet />);
+    expect(await screen.findByRole('button', { name: 'White linen shirt' })).toBeOnTheScreen();
+    expect(firstPhotoDone).toHaveBeenCalled();
   });
 
   test('offers to retry after a failed load', async () => {

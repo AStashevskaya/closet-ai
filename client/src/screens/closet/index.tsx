@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBarClearance } from '@/components/tab-bar';
 import { StyleCard } from '@/components/style-card';
+import { firstPhotoDone } from '@/lib/first-photo';
 import { useStyle } from '@/lib/style';
 import { isLaunching, LAUNCH_HANDOFF_MS } from '@/lib/launch';
 import { arrive, durations, STAGGER_STEP } from '@/motion';
@@ -60,6 +61,13 @@ export function Closet() {
     );
     return () => clearTimeout(timer);
   }, [ready, launchDelay]);
+
+  // Pieces in her closet: she's past her first photo, so the add-item sheet doesn't teach her
+  // again (after a sign-in on a new phone, or for a tester from before the hint).
+  const hasPieces = ready && items.length > 0;
+  useEffect(() => {
+    if (hasPieces) void firstPhotoDone();
+  }, [hasPieces]);
 
   // Nothing left to edit: leave edit mode by itself.
   const isEditing = editing && items.length > 0;
