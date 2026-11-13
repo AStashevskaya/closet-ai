@@ -241,6 +241,30 @@ describe("POST /api/found/wear", () => {
     expect(await tomorrowsLook()).toEqual([...first!].sort());
   });
 
+  it("takes only a look this week's find offers", async () => {
+    const { addItem, read, wearFound } = await setup();
+    const cardigan = await addItem("top", "cardigan");
+    const jeans = await addItem("bottom", "jeans");
+    await addItem("bottom", "skirt");
+    await addItem("shoes", "loafers");
+    expect((await read()).piece?.id).toBe(cardigan);
+    // Hers, but not one of the looks offered: no shoes.
+    expect((await wearFound([cardigan, jeans])).statusCode).toBe(400);
+  });
+
+  it("two looks for tomorrow at once: one is taken, the other refused", async () => {
+    const { addItem, read, wearFound, tomorrowsLook } = await setup();
+    await addItem("top", "cardigan");
+    for (const noun of ["jeans", "skirt"]) await addItem("bottom", noun);
+    await addItem("shoes", "loafers");
+    const [first, second] = (await read()).looks.map((look) => look.pieces.map((p) => p.id));
+
+    const answers = await Promise.all([wearFound(first!), wearFound(second!)]);
+    expect(answers.map((res) => res.statusCode).sort()).toEqual([200, 409]);
+    const taken = answers[0].statusCode === 200 ? first! : second!;
+    expect(await tomorrowsLook()).toEqual([...taken].sort());
+  });
+
   it("takes only her own pieces", async () => {
     const { addItem, wearFound } = await setup();
     await addItem("top", "cardigan");
