@@ -487,8 +487,16 @@ export type TodayWeek = z.infer<typeof todayWeek>;
 export const foundPiece = z.object({
   piece: item.nullable(),
   looks: z.array(z.object({ pieces: z.array(item) })),
+  // The Monday of her week the find belongs to: the app shows it once for that week.
+  week: z.string(),
 });
 export type FoundPiece = z.infer<typeof foundPiece>;
+
+// "I'll wear it": one of the find's looks as tomorrow's look of the day.
+export const foundWearInput = z.object({ pieces: z.array(z.string().uuid()).min(1).max(8) });
+export type FoundWearInput = z.infer<typeof foundWearInput>;
+export const foundWear = z.object({ date: z.string() });
+
 // The week's recap (decided 2026-11-12, prototype `design-hooks`, A): Monday to Sunday in her
 // city, with the look she said she wore each day, if any.
 export const weekLooks = z.object({

@@ -116,7 +116,22 @@ async function setup(weather: WeatherClient | null = null) {
     ).json<FoundPiece>();
   const setCity = (city: string) =>
     app!.inject({ method: "PATCH", url: "/api/profile", headers: { cookie }, payload: { city } });
-  return { addItem, wear, read, setCity, userId };
+  const wearFound = (pieces: string[]) =>
+    app!.inject({
+      method: "POST",
+      url: "/api/found/wear?lang=en",
+      headers: { cookie },
+      payload: { pieces },
+    });
+  const tomorrowsLook = async () => {
+    clock.now = new Date(TODAY.getTime() + DAY);
+    const today = (
+      await app!.inject({ method: "GET", url: "/api/today?lang=en", headers: { cookie } })
+    ).json<{ look: { pieces: { item: { id: string } | null }[] } | null }>();
+    clock.now = TODAY;
+    return today.look?.pieces.flatMap((p) => (p.item ? [p.item.id] : [])).sort() ?? null;
+  };
+  return { addItem, wear, read, setCity, userId, wearFound, tomorrowsLook };
 }
 
 describe("GET /api/found", () => {
@@ -139,7 +154,7 @@ describe("GET /api/found", () => {
     const { addItem, read } = await setup();
     await addItem("top", "cardigan");
     await addItem("bottom", "jeans");
-    expect(await read()).toEqual({ piece: null, looks: [] });
+    expect(await read()).toMatchObject({ piece: null, looks: [] });
   });
 
   it("passes to the next find when the first has nothing new to go with", async () => {
@@ -204,5 +219,56 @@ describe("GET /api/found", () => {
   it("asks her to sign in", async () => {
     await setup();
     expect((await app!.inject({ method: "GET", url: "/api/found" })).statusCode).toBe(401);
+  });
+});
+
+describe("POST /api/found/wear", () => {
+  it("makes the look tomorrow's look of the day, once, and refuses another for that day", async () => {
+    const { addItem, read, wearFound, tomorrowsLook } = await setup();
+    await addItem("top", "cardigan");
+    for (const noun of ["jeans", "skirt", "trousers"]) await addItem("bottom", noun);
+    await addItem("shoes", "loafers");
+    const [first, second] = (await read()).looks.map((look) => look.pieces.map((p) => p.id));
+
+    const tomorrow = new Date(TODAY.getTime() + DAY).toISOString().slice(0, 10);
+    const res = await wearFound(first!);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ date: tomorrow });
+    // The same tap again answers the same; another look for that day is refused.
+    expect((await wearFound([...first!].reverse())).statusCode).toBe(200);
+    expect((await wearFound(second!)).statusCode).toBe(409);
+
+    expect(await tomorrowsLook()).toEqual([...first!].sort());
+  });
+
+  it("takes only a look this week's find offers", async () => {
+    const { addItem, read, wearFound } = await setup();
+    const cardigan = await addItem("top", "cardigan");
+    const jeans = await addItem("bottom", "jeans");
+    await addItem("bottom", "skirt");
+    await addItem("shoes", "loafers");
+    expect((await read()).piece?.id).toBe(cardigan);
+    // Hers, but not one of the looks offered: no shoes.
+    expect((await wearFound([cardigan, jeans])).statusCode).toBe(400);
+  });
+
+  it("two looks for tomorrow at once: one is taken, the other refused", async () => {
+    const { addItem, read, wearFound, tomorrowsLook } = await setup();
+    await addItem("top", "cardigan");
+    for (const noun of ["jeans", "skirt"]) await addItem("bottom", noun);
+    await addItem("shoes", "loafers");
+    const [first, second] = (await read()).looks.map((look) => look.pieces.map((p) => p.id));
+
+    const answers = await Promise.all([wearFound(first!), wearFound(second!)]);
+    expect(answers.map((res) => res.statusCode).sort()).toEqual([200, 409]);
+    const taken = answers[0].statusCode === 200 ? first! : second!;
+    expect(await tomorrowsLook()).toEqual([...taken].sort());
+  });
+
+  it("takes only her own pieces", async () => {
+    const { addItem, wearFound } = await setup();
+    await addItem("top", "cardigan");
+    const res = await wearFound(["11111111-1111-4111-8111-111111111111"]);
+    expect(res.statusCode).toBe(404);
   });
 });

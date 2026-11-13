@@ -1,4 +1,7 @@
 import {
+  foundPiece,
+  foundWear,
+  type FoundPiece,
   type AddLookItemsInput,
   type AppLanguage,
   type CreateItemInput,
@@ -279,6 +282,20 @@ export async function reactToOutfit(
 // Her week and the look of the day (Style it's top).
 export function getToday(lang: AppLanguage): Promise<TodayWeek> {
   return request(`/api/today?lang=${lang}`, todayWeek);
+}
+
+// The week's find: a piece that has hung untouched, and three looks with it she hasn't worn.
+export function getFound(lang: AppLanguage): Promise<FoundPiece> {
+  return request(`/api/found?lang=${lang}`, foundPiece);
+}
+
+// "I'll wear it": that look becomes tomorrow's look of the day; answers with tomorrow's date.
+export function wearFound(lang: AppLanguage, pieces: string[]): Promise<{ date: string }> {
+  return request(`/api/found/wear?lang=${lang}`, foundWear, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ pieces }),
+  });
 }
 
 // The week's recap: the look she wore each day this week.

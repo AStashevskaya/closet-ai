@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { BarePiece } from '@/components/bare-piece';
+import { MiniLook } from '@/components/mini-look';
 import { getWeekLooks } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
 import { arrive, STAGGER_STEP } from '@/motion';
@@ -169,7 +169,7 @@ export function WeekRecap({
                         },
                       ]}
                     >
-                      <MiniLook look={d.look} headers={headers} />
+                      <MiniLook items={piecesOf(d.look)} headers={headers} />
                     </Animated.View>
                   </>
                 )}
@@ -178,38 +178,6 @@ export function WeekRecap({
           })}
       </View>
     </Animated.View>
-  );
-}
-
-// A worn look, small: the top or dress (a coat behind it), the bottom under it, the shoes at the
-// foot. Bags and other accessories are left out at this size.
-function MiniLook({
-  look,
-  headers,
-}: {
-  look: Outfit;
-  headers: Record<string, string> | undefined;
-}) {
-  const items = look.pieces.flatMap((p) => (p.item ? [p.item] : []));
-  const of = (category: string) => items.find((item) => item.category === category);
-  const dress = of('dress');
-  const top = of('top');
-  const bottom = of('bottom');
-  const shoes = of('shoes');
-  const coat = of('outerwear');
-  return (
-    <View style={styles.mini}>
-      {coat && <BarePiece item={coat} headers={headers} style={styles.miniCoat} />}
-      {dress ? (
-        <BarePiece item={dress} headers={headers} style={styles.miniDress} />
-      ) : (
-        <>
-          {top && <BarePiece item={top} headers={headers} style={styles.miniTop} />}
-          {bottom && <BarePiece item={bottom} headers={headers} style={styles.miniBottom} />}
-        </>
-      )}
-      {shoes && <BarePiece item={shoes} headers={headers} style={styles.miniShoes} />}
-    </View>
   );
 }
 
@@ -278,44 +246,5 @@ const styles = StyleSheet.create({
     width: LOOK_WIDTH,
     height: LOOK_HEIGHT,
     transformOrigin: 'top',
-  },
-  mini: {
-    width: LOOK_WIDTH,
-    height: LOOK_HEIGHT,
-  },
-  miniCoat: {
-    position: 'absolute',
-    start: 0,
-    top: 0,
-    width: 52,
-    height: 70,
-  },
-  miniTop: {
-    position: 'absolute',
-    start: 12,
-    top: 0,
-    width: 54,
-    height: 54,
-  },
-  miniDress: {
-    position: 'absolute',
-    start: 10,
-    top: 0,
-    width: 56,
-    height: 92,
-  },
-  miniBottom: {
-    position: 'absolute',
-    start: 16,
-    top: 44,
-    width: 48,
-    height: 52,
-  },
-  miniShoes: {
-    position: 'absolute',
-    start: 18,
-    top: 96,
-    width: 36,
-    height: 22,
   },
 });

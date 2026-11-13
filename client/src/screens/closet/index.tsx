@@ -1,7 +1,7 @@
 import { ITEM_CATEGORIES, type Item } from '@closet-ai/shared';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -22,6 +22,7 @@ import { arrive, durations, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 import { EmptyCloset } from './empty-closet';
+import { FoundLine, FoundSheet, useFound } from './found';
 import { NewIn } from './new-in';
 import { Rail, RailWaiting } from './rail';
 import { useCloset } from './use-closet';
@@ -67,6 +68,32 @@ export function Closet() {
     category,
     items: items.filter((item) => item.category === category),
   })).filter((rail) => rail.items.length > 0);
+
+  // "Look what turned up" (found.tsx): the week's find, once. Its rail flips to it after the rails
+  // have come in; only the first two rails do, since further down she may not be looking there,
+  // and then the line just comes.
+  const { found, seen } = useFound(ready && items.length > 0);
+  const [arrivedAt, setArrivedAt] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const foundPiece = found?.piece ?? null;
+  const foundIndex = foundPiece
+    ? rails.findIndex((rail) => rail.items.some((item) => item.id === foundPiece.id))
+    : -1;
+  const foundRail = foundIndex >= 0 ? rails[foundIndex]!.category : null;
+  const flips = foundIndex >= 0 && foundIndex < 2;
+  const foundSaid = foundPiece !== null && (arrivedAt === foundPiece.id || foundIndex >= 2);
+  useEffect(() => {
+    if (foundSaid) seen();
+  }, [foundSaid, seen]);
+  // Edit mode only matters before the flip starts: `Rail` seeks a piece once, so turning editing on
+  // mid-flip drops `seek` but doesn't stop it, and that's fine (it's 2.4 s; a finger stops it).
+  const seek = useMemo(
+    () =>
+      flips && entered && !isEditing && foundPiece
+        ? { itemId: foundPiece.id, onArrived: () => setArrivedAt(foundPiece.id) }
+        : undefined,
+    [flips, entered, isEditing, foundPiece],
+  );
 
   // A long press is a shortcut into edit mode, the way it is on the home screen.
   const startEditing = () => {
@@ -179,9 +206,23 @@ export function Closet() {
             onSeeAll={() =>
               router.push({ pathname: '/closet/[category]', params: { category: rail.category } })
             }
+            seek={rail.category === foundRail ? seek : undefined}
+            below={
+              rail.category === foundRail && foundSaid ? (
+                <FoundLine onOpen={() => setSheetOpen(true)} />
+              ) : undefined
+            }
           />
         ))}
       </Animated.ScrollView>
+      {found?.piece && (
+        <FoundSheet
+          found={found}
+          headers={headers}
+          visible={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
 
       {/* Decoration only: the big title above is the heading screen readers get. */}
       <Animated.View

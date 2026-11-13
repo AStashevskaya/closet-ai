@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef } from 'react';
 import { I18nManager } from 'react-native';
 import {
+  cancelAnimation,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useFrameCallback,
@@ -82,7 +83,14 @@ const tick = () => void Haptics.selectionAsync();
 // passes, as when flipping through hangers on a real rail ("See all", 2026-11-12).
 // The frame loop only runs while the rail moves under a finger or coasts, and until every piece
 // has come to rest. With reduced motion it never starts and the pieces hang still.
-export function useRailSwing(category: ItemCategory, ids: readonly string[], tickEvery?: number) {
+export function useRailSwing(
+  category: ItemCategory,
+  ids: readonly string[],
+  tickEvery?: number,
+  // A scroll the app drives (its flag and progress): a finger stops it; `onTouch` then hears.
+  guided?: { flipping: SharedValue<boolean>; progress: SharedValue<number> },
+  onTouch?: () => void,
+) {
   const reduced = useReducedMotion();
   const rtl = I18nManager.isRTL;
   const offset = useSharedValue(0);
@@ -172,6 +180,26 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
     idle.set(0);
     scheduleOnRN(start);
   };
+  // The rail moved by the app rather than a finger ("look what turned up"): the pieces swing as
+  // the scroll goes by, but no hanger ticks. Off again when it has arrived.
+  const guide = useCallback(
+    (on: boolean) => {
+      if (reduced) return;
+      moving.set(on);
+      if (!on) return;
+      last.set(offset.get());
+      idle.set(0);
+      frames.setActive(true);
+    },
+    [reduced, moving, last, offset, idle, frames],
+  );
+  // A finger on the rail: whoever moves it by itself lets go.
+  const touchedBy = useRef(onTouch);
+  useEffect(() => {
+    touchedBy.current = onTouch;
+  }, [onTouch]);
+  const handOver = useCallback(() => touchedBy.current?.(), []);
+
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
       offset.set(event.contentOffset.x);
@@ -184,7 +212,17 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
         }
       }
     },
-    onBeginDrag: begin,
+    onBeginDrag: () => {
+      'worklet';
+      // Stopped here, on the UI thread, before the next frame: a scroll still driven by the app
+      // for a few frames more would fight the finger. Only the news goes to JS.
+      if (guided?.flipping.get()) {
+        guided.flipping.set(false);
+        cancelAnimation(guided.progress);
+        scheduleOnRN(handOver);
+      }
+      begin();
+    },
     onMomentumBegin: begin,
     onEndDrag: () => {
       moving.set(false);
@@ -197,7 +235,7 @@ export function useRailSwing(category: ItemCategory, ids: readonly string[], tic
     },
   });
 
-  return { onScroll, swing };
+  return { onScroll, swing, guide };
 }
 
 // One piece's turn, read from its rail's swing.

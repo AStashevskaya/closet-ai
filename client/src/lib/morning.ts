@@ -19,6 +19,16 @@ const PREFIX = 'morning-';
 const CHANNEL = 'morning';
 // She said "not now" to the offer: it isn't made again on this phone until someone signs out.
 const DECLINED_KEY = 'morning-declined';
+// Mornings with a piece of hers to bring up ("I'll wear it" on the week's find): date → its name.
+const REMEMBER_KEY = 'morning-remember';
+// The week the app last read, so a morning added from elsewhere (the closet) keeps its weather.
+// Kept on the phone too: after a cold start the closet may come before Today has read the week,
+// and rescheduling then from nothing would strip the weather from every note already there.
+const DAYS_KEY = 'morning-days';
+let lastDays: Day[] = [];
+// The week whose find ("look what turned up", src/screens/closet/found.tsx) she has been shown on
+// this phone. Here so signing out clears it with the rest: the next account sees its own find.
+export const FOUND_SHOWN_KEY = 'found-shown';
 
 // A temperature as the week shows it: +8°, 0°, −3° (a real minus).
 export const degrees = (t: number) => `${t > 0 ? '+' : t < 0 ? '−' : ''}${Math.abs(t)}°`;
@@ -61,6 +71,10 @@ export async function cancelMornings() {
       .map((note) => Notifications.cancelScheduledNotificationAsync(note.identifier)),
   );
   await SecureStore.deleteItemAsync(DECLINED_KEY);
+  await SecureStore.deleteItemAsync(REMEMBER_KEY);
+  await SecureStore.deleteItemAsync(DAYS_KEY);
+  await SecureStore.deleteItemAsync(FOUND_SHOWN_KEY);
+  lastDays = [];
 }
 
 export async function declineMornings() {
@@ -80,13 +94,59 @@ let running: Promise<void> = Promise.resolve();
 // none); only mornings outside the window are. The times are absolute: after flying to another
 // time zone they stay at 8 at home until she next opens the app.
 export function scheduleMornings(days: Day[], now = new Date()) {
-  running = running.then(() => schedule(days, now)).catch(() => {});
+  if (days.length > 0) lastDays = days;
+  running = running
+    .then(async () => {
+      if (days.length > 0) await keepDays(days);
+      await schedule(days.length > 0 ? days : await keptDays(), now);
+    })
+    .catch(() => {});
   return running;
+}
+
+async function keepDays(days: Day[]) {
+  try {
+    await SecureStore.setItemAsync(DAYS_KEY, JSON.stringify(days));
+  } catch {
+    // Only the weather of a cold start's notes depends on it.
+  }
+}
+
+// The last week read, from memory or, after a cold start, from the phone.
+async function keptDays(): Promise<Day[]> {
+  if (lastDays.length > 0) return lastDays;
+  try {
+    const stored = JSON.parse((await SecureStore.getItemAsync(DAYS_KEY)) ?? '[]') as unknown;
+    return Array.isArray(stored) ? (stored as Day[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function remembered(): Promise<Record<string, string>> {
+  try {
+    const stored = JSON.parse((await SecureStore.getItemAsync(REMEMBER_KEY)) ?? '{}') as unknown;
+    return stored && typeof stored === 'object' ? (stored as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+// The morning of `date` (YYYY-MM-DD on the phone) brings up the piece she chose to wear: its
+// name, then the weather. Kept until that day has passed; rescheduled now if the notes are on.
+export async function rememberMorning(date: string, name: string, now = new Date()) {
+  const today = localDate(now);
+  const kept = Object.fromEntries(
+    Object.entries(await remembered()).filter(([day]) => day >= today),
+  );
+  await SecureStore.setItemAsync(REMEMBER_KEY, JSON.stringify({ ...kept, [date]: name }));
+  if ((await morningState()) === 'on') await scheduleMornings([], now);
 }
 
 async function schedule(days: Day[], now: Date) {
   const t = i18n.t.bind(i18n);
   await channel();
+  const remember = await remembered();
   const wanted = new Map<string, Date>();
   for (let i = 0; i <= DAYS_AHEAD; i++) {
     const at = new Date(now);
@@ -101,17 +161,24 @@ async function schedule(days: Day[], now: Date) {
       .map((note) => Notifications.cancelScheduledNotificationAsync(note.identifier)),
   );
   for (const [identifier, at] of wanted) {
-    const day = days.find((d) => d.date === identifier.slice(PREFIX.length));
+    const date = identifier.slice(PREFIX.length);
+    const day = days.find((d) => d.date === date);
+    const weather = day && {
+      degrees: i18n.language === 'he' ? isolated(degrees(day.max)) : degrees(day.max),
+      sky: t(`today.sky.${day.sky}`),
+    };
+    const name = remember[date];
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
         title: t('today.morning.title'),
-        body: day
-          ? t('today.morning.weather', {
-              degrees: i18n.language === 'he' ? isolated(degrees(day.max)) : degrees(day.max),
-              sky: t(`today.sky.${day.sky}`),
-            })
-          : t('today.morning.plain'),
+        body: name
+          ? weather
+            ? t('today.morning.rememberWeather', { name, ...weather })
+            : t('today.morning.remember', { name })
+          : weather
+            ? t('today.morning.weather', weather)
+            : t('today.morning.plain'),
         data: { url: '/style' },
       },
       trigger: {

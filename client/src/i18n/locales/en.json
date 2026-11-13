@@ -98,6 +98,19 @@
       "mostOne": "Mostly {{a}}.",
       "noneOne": "Not a single {{a}} one.",
       "noneTwo": "Not a single {{a}} or {{b}} one."
+    },
+    "found": {
+      "line": "look what turned up",
+      "button": "What to wear it with",
+      "title": "a new life for this piece",
+      "sub": "Three combinations you haven't worn yet",
+      "wear": "I'll wear it",
+      "worn": "wearing it tomorrow ✓",
+      "taken": "Tomorrow already has its look.",
+      "failed": "Couldn't save it. Try again.",
+      "close": "Close",
+      "look": "Look {{n}}: {{pieces}}",
+      "wearLabel": "Wear look {{n}} tomorrow"
     }
   },
   "addItem": {
@@ -660,7 +673,9 @@
       "channel": "Look of the day",
       "ask": "send you the look in the morning, at 8?",
       "yes": "Send it",
-      "no": "Not now"
+      "no": "Not now",
+      "remember": "{{name}} — remember it? You chose today's look yourself.",
+      "rememberWeather": "{{name}} — remember it? {{degrees}} and {{sky}} today."
     },
     "recap": {
       "title": "Your week · {{range}}",
