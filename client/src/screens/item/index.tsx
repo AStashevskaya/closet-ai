@@ -59,6 +59,8 @@ import { styledParams } from '@/lib/styled';
 import { arrive, durations, EASE_OUT, STAGGER_STEP } from '@/motion';
 import { colors, fonts } from '@/theme';
 
+import { canChooseHang, HangChoiceLink, HangChoiceSheet, shownAs } from './hang-choice';
+
 const MAX_COLORS = 5;
 
 // The editable part of an item: what the user can correct when the model got it wrong.
@@ -109,6 +111,9 @@ export function ItemScreen({ id }: { id: string }) {
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [busy, setBusy] = useState(false);
   const [similar, setSimilar] = useState<SimilarItem[]>([]);
+  // The sheet choosing cut-out or photo, and a choice on its way to the server.
+  const [hangOpen, setHangOpen] = useState(false);
+  const [hangSaving, setHangSaving] = useState(false);
   // The item as last loaded, to tell unsaved corrections from what the server has.
   const loaded = useRef<ItemDetail | null>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -272,6 +277,29 @@ export function ItemScreen({ id }: { id: string }) {
     }
   }
 
+  // Cut-out or photo, saved at once like a turn and shown before the server answers; a failure puts
+  // back what was there. `updateItem` tells the closet, so her rails hang it the new way too.
+  async function chooseHang(showPhoto: boolean) {
+    if (state.status !== 'ready' || hangSaving) return;
+    const before = state.item;
+    if ((before.showPhoto ?? false) === showPhoto) return;
+    setState({ status: 'ready', item: shownAs(before, showPhoto) });
+    setHangSaving(true);
+    void Haptics.selectionAsync();
+    try {
+      const saved = await updateItem(id, { showPhoto });
+      loaded.current = saved;
+      setState({ status: 'ready', item: saved });
+    } catch (cause) {
+      if (__DEV__) console.warn('Saving how the piece hangs failed', cause);
+      setState({ status: 'ready', item: before });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(t('item.saveError'));
+    } finally {
+      setHangSaving(false);
+    }
+  }
+
   // The fields are always editable, under the tall photo: "Edit" brings them up.
   function startEditing() {
     scroll.current?.scrollTo({ y: fieldsY.current, animated: true });
@@ -364,6 +392,19 @@ export function ItemScreen({ id }: { id: string }) {
           {item.photoUrl && <RotateButton onPress={rotate} disabled={busy} style={styles.rotate} />}
         </View>
         <RailLine waiting={false} />
+        {canChooseHang(item) && (
+          <>
+            <HangChoiceLink showPhoto={item.showPhoto ?? false} onPress={() => setHangOpen(true)} />
+            <HangChoiceSheet
+              item={item}
+              headers={headers}
+              visible={hangOpen}
+              saving={hangSaving}
+              onChoose={chooseHang}
+              onClose={() => setHangOpen(false)}
+            />
+          </>
+        )}
 
         <View
           style={styles.body}
