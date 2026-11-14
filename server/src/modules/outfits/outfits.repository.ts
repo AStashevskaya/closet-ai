@@ -500,7 +500,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         // Locked, so a second delete at once waits for this one, then reads the row as it left it:
         // gone, or with neither piece. It finds nothing to delete, and answers false.
         const [own] = await tx
-          .select({ id: outfitRequests.id })
+          .select({ id: outfitRequests.id, hiddenAt: outfitRequests.hiddenAt })
           .from(outfitRequests)
           .where(
             and(eq(outfitRequests.id, requestId), eq(outfitRequests.userId, userId), aboutAPiece),
@@ -523,11 +523,16 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         // Its piece is in her wishes: deleting the styling isn't letting the piece go (owner,
         // 2026-11-14). The looks she never reacted to go, the row leaves the diary, and the piece,
         // photo and verdict stay for the wish until she lets it go.
+        // Locked, so letting the wish go at the same moment waits for this and then sees hiddenAt
+        // (and deletes the styling), rather than leaving a hidden row with no wish.
         const [wish] = await tx
           .select({ id: wishes.id })
           .from(wishes)
-          .where(eq(wishes.requestId, requestId));
+          .where(eq(wishes.requestId, requestId))
+          .for("update");
         if (wish) {
+          // Already deleted from her diary: a second delete finds nothing, as for any styling.
+          if (own.hiddenAt) return false;
           await tx.delete(outfits).where(
             and(
               eq(outfits.requestId, requestId),

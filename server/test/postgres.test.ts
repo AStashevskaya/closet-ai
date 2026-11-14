@@ -940,6 +940,31 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await outfits.getRequest(wishedStyling)).toBeNull();
     expect(await wishes.list(userId)).toEqual([]);
 
+    // Deleted again while hidden: gone, as far as she can tell.
+    const boughtCrop = `photos/${userId}/bought-crop.webp`;
+    await photos.createReady({ key: boughtCrop, ownerId: userId, tags: shirtTags });
+    const boughtStyling = await outfits.createRequest(
+      userId,
+      { heroPhotoKey: boughtCrop, heroNoun: "shirt" },
+      1,
+    );
+    await outfits.saveOutfits(boughtStyling, userId, [look("Bought", null)], { micros: 1 });
+    await wishes.add(userId, boughtStyling, new Date(0));
+    expect((await del(boughtStyling)).statusCode).toBe(204);
+    expect((await del(boughtStyling)).statusCode).toBe(404);
+    // Bought: added to her closet from its photo, the wish goes and the hidden styling with it;
+    // the photo is the piece's now.
+    const added = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { name: "Shirt", category: "top", colors: ["white"], photoKey: boughtCrop },
+    });
+    expect(added.statusCode).toBe(201);
+    expect(await outfits.getRequest(boughtStyling)).toBeNull();
+    expect(await wishes.list(userId)).toEqual([]);
+    expect(await photos.get(boughtCrop)).not.toBeNull();
+
     // A closet piece she reacted to: the reacted look stays for the brief, the rest goes.
     const styled = await outfits.createRequest(userId, { itemId: item.id }, 1);
     await outfits.saveOutfits(styled, userId, [look("Kept", item.id), look("Dropped", item.id)], {

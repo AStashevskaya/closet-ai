@@ -33,7 +33,8 @@ export interface WishesRepository {
   // Lets the wish go; its request's id, or null when there was no such wish.
   remove(userId: string, id: string): Promise<string | null>;
   // The piece of this photo is in her closet now: bought, so its wish goes.
-  removeForPhoto(userId: string, photoKey: string): Promise<void>;
+  // Returns the requests whose wishes went.
+  removeForPhoto(userId: string, photoKey: string): Promise<string[]>;
 }
 
 export function createWishesRepository(db: Db): WishesRepository {
@@ -118,9 +119,11 @@ export function createWishesRepository(db: Db): WishesRepository {
         .select({ id: outfitRequests.id })
         .from(outfitRequests)
         .where(eq(outfitRequests.heroPhotoKey, photoKey));
-      await db
+      const rows = await db
         .delete(wishes)
-        .where(and(eq(wishes.userId, userId), inArray(wishes.requestId, requests)));
+        .where(and(eq(wishes.userId, userId), inArray(wishes.requestId, requests)))
+        .returning({ requestId: wishes.requestId });
+      return rows.map((row) => row.requestId);
     },
   };
 }

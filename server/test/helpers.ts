@@ -446,13 +446,15 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     deleteRequest: async (requestId, userId) => {
       const request = requests.find((r) => r.id === requestId && r.userId === userId);
       if (!request || (!request.itemId && !request.heroPhotoKey)) return false;
+      const wished = wishRows.some((w) => w.requestId === requestId);
+      if (wished && request.hiddenAt) return false;
       const reacted = (o: { id: string }) => reactions.some((r) => r.outfitId === o.id);
       const looks = storedOutfits.filter((o) => o.requestId === requestId);
       for (const look of looks.filter((o) => !reacted(o))) {
         storedOutfits.splice(storedOutfits.indexOf(look), 1);
       }
       // Its piece is a wish: only hidden, as in the Drizzle repository.
-      if (wishRows.some((w) => w.requestId === requestId)) {
+      if (wished) {
         request.hiddenAt = now();
         return true;
       }
@@ -862,12 +864,15 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
       return removed!.requestId;
     },
     removeForPhoto: async (userId, photoKey) => {
+      const removed: string[] = [];
       for (const w of [...wishRows]) {
         const request = requests.find((r) => r.id === w.requestId);
         if (w.userId === userId && request?.heroPhotoKey === photoKey) {
           wishRows.splice(wishRows.indexOf(w), 1);
+          removed.push(w.requestId);
         }
       }
+      return removed;
     },
   };
 
