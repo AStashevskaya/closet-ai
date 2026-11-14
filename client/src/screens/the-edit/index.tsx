@@ -2,13 +2,14 @@ import { ITEM_CATEGORIES, type CatalogFeedItem } from '@closet-ai/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HangerLoader } from '@/components/hanger-loader';
 import { Icon } from '@/components/icon';
 import { maison, ScreenTitle } from '@/components/maison';
+import { ScrollTitleBar, useScrollTitle } from '@/components/scroll-title-bar';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { listCatalog, sessionHeaders } from '@/lib/api';
 import { appLanguage } from '@/lib/app-language';
@@ -34,6 +35,8 @@ export function TheEdit() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [filter, setFilter] = useState<Filter>('all');
   const insets = useSafeAreaInsets();
+  // The big title scrolls away and a frosted bar comes in, so nothing runs under the clock.
+  const { scrollY, onScroll } = useScrollTitle();
   const clearance = useTabBarClearance();
   const { width } = useWindowDimensions();
 
@@ -108,37 +111,41 @@ export function TheEdit() {
   const visible = active === 'all' ? items : items.filter((item) => item.category === active);
 
   return (
-    <FlatList
-      style={styles.screen}
-      data={visible}
-      key={active}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 20, paddingBottom: clearance },
-      ]}
-      ListHeaderComponent={
-        <Animated.View entering={rise} style={styles.header}>
-          {heading}
-          {categories.length > 1 && (
-            <CategoryFilter categories={categories} value={active} onChange={setFilter} />
-          )}
-        </Animated.View>
-      }
-      ListEmptyComponent={<Text style={[maison.body, maison.gutter]}>{t('edit.empty')}</Text>}
-      renderItem={({ item, index }) => (
-        // Only the first screen staggers: a page scrolled back to mustn't wait to reappear.
-        <Animated.View entering={index < 3 ? rise.delay(STAGGER_STEP * index) : undefined}>
-          <Spread
-            item={item}
-            headers={headers}
-            width={width}
-            flipped={index % 2 === 1}
-            onPress={() => router.push({ pathname: '/catalog/[id]', params: { id: item.id } })}
-          />
-        </Animated.View>
-      )}
-    />
+    <View style={styles.screen}>
+      <Animated.FlatList
+        style={styles.screen}
+        onScroll={onScroll}
+        data={visible}
+        key={active}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 20, paddingBottom: clearance },
+        ]}
+        ListHeaderComponent={
+          <Animated.View entering={rise} style={styles.header}>
+            {heading}
+            {categories.length > 1 && (
+              <CategoryFilter categories={categories} value={active} onChange={setFilter} />
+            )}
+          </Animated.View>
+        }
+        ListEmptyComponent={<Text style={[maison.body, maison.gutter]}>{t('edit.empty')}</Text>}
+        renderItem={({ item, index }) => (
+          // Only the first screen staggers: a page scrolled back to mustn't wait to reappear.
+          <Animated.View entering={index < 3 ? rise.delay(STAGGER_STEP * index) : undefined}>
+            <Spread
+              item={item}
+              headers={headers}
+              width={width}
+              flipped={index % 2 === 1}
+              onPress={() => router.push({ pathname: '/catalog/[id]', params: { id: item.id } })}
+            />
+          </Animated.View>
+        )}
+      />
+      <ScrollTitleBar title={t('edit.title')} scrollY={scrollY} />
+    </View>
   );
 }
 

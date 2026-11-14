@@ -86,6 +86,13 @@ export function hang(pieces: MobilePiece[], width: number): Hung[] {
   }));
 }
 
+// The heart of a loved look hangs near the wire's end on a short string of its own, like the
+// pieces, instead of sitting on the wire (which read as crossed out).
+const HEART_SIZE = 30;
+const HEART_END = 4;
+const HEART_STRING = 8;
+const heartX = (width: number) => width - HEART_END - HEART_SIZE / 2;
+
 // Where the wire is at x: a soft sag between its two ends.
 const wireY = (x: number, width: number) => {
   const t = (2 * x) / width - 1;
@@ -184,6 +191,16 @@ export function OutfitMobile({
                   strokeWidth={1}
                 />
               ))}
+            {loved && (
+              <Line
+                x1={heartX(width)}
+                y1={wireY(heartX(width), width)}
+                x2={heartX(width)}
+                y2={wireY(heartX(width), width) + HEART_STRING}
+                stroke={colors.text}
+                strokeWidth={1}
+              />
+            )}
           </Svg>
           {hung.map((h, index) => (
             <Hanging
@@ -195,7 +212,7 @@ export function OutfitMobile({
             />
           ))}
           {loved && (
-            <View style={styles.heart}>
+            <View style={[styles.heart, { top: wireY(heartX(width), width) + HEART_STRING - 3 }]}>
               <HandDrawn shape="heart" drawn seed={seed} fill />
             </View>
           )}
@@ -298,10 +315,10 @@ const styles = StyleSheet.create({
   },
   heart: {
     position: 'absolute',
-    top: 0,
-    end: 4,
-    width: 30,
+    end: HEART_END,
+    width: HEART_SIZE,
     height: 28,
+    zIndex: 1,
   },
   caption: {
     fontFamily: fonts.hand,
