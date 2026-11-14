@@ -284,5 +284,4 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
   },
-  // The frosted bar over the rails once the big title has scrolled away.
 });

@@ -341,6 +341,7 @@ export function Menu() {
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
   screen: {
+    flex: 1,
     backgroundColor: colors.background,
   },
   container: {
