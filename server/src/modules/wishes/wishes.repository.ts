@@ -30,7 +30,8 @@ export interface WishesRepository {
   // She still wants it: asked again at askAt. Only once it's due, so a retried request can't
   // count twice.
   keep(userId: string, id: string, now: Date, askAt: Date): Promise<KeepResult>;
-  remove(userId: string, id: string): Promise<boolean>;
+  // Lets the wish go; its request's id, or null when there was no such wish.
+  remove(userId: string, id: string): Promise<string | null>;
   // The piece of this photo is in her closet now: bought, so its wish goes.
   removeForPhoto(userId: string, photoKey: string): Promise<void>;
 }
@@ -105,8 +106,11 @@ export function createWishesRepository(db: Db): WishesRepository {
     },
 
     async remove(userId, id) {
-      const rows = await db.delete(wishes).where(own(userId, id)).returning({ id: wishes.id });
-      return rows.length > 0;
+      const [row] = await db
+        .delete(wishes)
+        .where(own(userId, id))
+        .returning({ requestId: wishes.requestId });
+      return row?.requestId ?? null;
     },
 
     async removeForPhoto(userId, photoKey) {

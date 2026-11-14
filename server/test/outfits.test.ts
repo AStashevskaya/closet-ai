@@ -2072,7 +2072,7 @@ describe("an item from a photo", () => {
       expect(await s.storage.get(cutoutKey)).toBeNull();
     }
 
-    it("takes a loose piece's wish and its photo with it, at once", async () => {
+    it("keeps a loose piece's wish when its styling goes, and lets it all go with the wish", async () => {
       const s = await setup();
       const anna = await signUp(s, "anna@example.com");
       await addItem(s, anna, "top");
@@ -2080,7 +2080,6 @@ describe("an item from a photo", () => {
       const { photoKey } = (await view(s, anna.cookie, id)).addable!;
       const { cutoutKey } = (await s.repositories.photosRepository.get(photoKey))!;
       expect(cutoutKey).toBeTruthy();
-      expect(await s.storage.get(cutoutKey!)).not.toBeNull();
       await s.server.inject({
         method: "POST",
         url: "/api/wishes",
@@ -2090,12 +2089,23 @@ describe("an item from a photo", () => {
       const look = (await view(s, anna.cookie, id)).outfits[0]!;
       await react(s, anna.cookie, look.id, { reaction: "dislike", reason: "style" });
 
+      // She didn't like the looks, but still wants the piece (owner, 2026-11-14).
       expect((await remove(s, anna.cookie, id)).statusCode).toBe(204);
 
+      const [wish] = s.repositories.wishesRepository.rows;
+      expect(wish?.requestId).toBe(id);
+      expect(await s.repositories.outfitsRepository.history(anna.userId, 10)).toEqual([]);
+      expect((await get(s, anna.cookie, `/api/wear-with/${id}/photo`)).statusCode).toBe(200);
+      expect(await s.storage.get(cutoutKey!)).not.toBeNull();
+
+      const answer = await s.server.inject({
+        method: "POST",
+        url: `/api/wishes/${wish!.id}/answer`,
+        headers: { cookie: anna.cookie },
+        payload: { answer: "no" },
+      });
+      expect(answer.statusCode).toBe(204);
       expect(s.repositories.wishesRepository.rows).toEqual([]);
-      expect(await s.repositories.wishesRepository.countDue(anna.userId, new Date(2100, 0))).toBe(
-        0,
-      );
       expect((await get(s, anna.cookie, `/api/wear-with/${id}/photo`)).statusCode).toBe(404);
       expect(await s.repositories.outfitsRepository.reactedOutfitCount(anna.userId)).toBe(1);
       await expectPhotoGone(s, photoKey, cutoutKey!);

@@ -171,7 +171,7 @@ export async function buildApp({
       prefix: "/api",
     },
   );
-  await app.register(wishesRoutes(wishesRepository, outfitsRepository, photosRepository, auth), {
+  await app.register(wishesRoutes(wishesRepository, outfitsRepository, photosRepository, storage, auth), {
     prefix: "/api",
   });
 
