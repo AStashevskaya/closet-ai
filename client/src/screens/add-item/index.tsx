@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandPriceFields } from '@/components/brand-price-fields';
 import { Chip } from '@/components/chip';
+import { HangerLoader } from '@/components/hanger-loader';
 import { Icon } from '@/components/icon';
 import { MAX_COLORS } from '@/components/item-fields';
 import { Button, maison } from '@/components/maison';
@@ -122,8 +123,9 @@ export function AddItem() {
   const [cropping, setCropping] = useState<string | null>(null);
   const [error, setError] = useState<ErrorKey | null>(null);
   const [busy, setBusy] = useState(false);
-  // While the gallery that takes several photos is open, the form underneath stays empty: if she
-  // picks several, the gallery slides away straight onto the batch screen, not onto this one.
+  // While the gallery that takes several photos is open, the form underneath stays hidden: if she
+  // picks several, the gallery slides away onto the batch screen, not onto this one. Until the
+  // photos are handed over (iCloud ones are downloaded first), the loader says they're coming.
   const [handingOff, setHandingOff] = useState(false);
   // A limit the save ran into (the day's photos, or the server's daily stop).
   const [limit, setLimit] = useState<LimitCode | null>(null);
@@ -187,10 +189,17 @@ export function AddItem() {
       allowsMultipleSelection: several,
       selectionLimit: several ? MAX_PHOTOS : 1,
       orderedSelection: several,
+      // iOS would turn every HEIC into a JPEG before handing the photos over, which took tens of
+      // seconds for a batch; shrinkPhoto re-encodes each one as JPEG anyway.
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Current,
     }).catch((cause: unknown) => {
       setHandingOff(false);
       throw cause;
     });
+    // Closed while the gallery was still handing the photos over: navigating now would replace
+    // the screen underneath (the closet) instead of this one, and leave the app stuck.
+    if (closing.current?.signal.aborted) return;
     if (result.canceled || result.assets.length <= 1) setHandingOff(false);
     if (!result.canceled && result.assets.length > 1) {
       const photos: PickedPhoto[] = result.assets.map(({ uri, width, height }) => ({
@@ -699,6 +708,16 @@ export function AddItem() {
           )}
         </View>
       </KeyboardAvoidingView>
+      {handingOff && (
+        <Animated.View
+          style={styles.gettingPhotos}
+          entering={FadeIn.duration(durations.state)}
+          accessibilityLiveRegion="polite"
+        >
+          <HangerLoader />
+          <Text style={styles.bandNote}>{t('addItem.gettingPhotos')}</Text>
+        </Animated.View>
+      )}
       <PhotoCropper uri={cropping} onCancel={() => setCropping(null)} onDone={cropped} />
       {hanging && photoUri && (
         <HangUp
@@ -740,6 +759,15 @@ export function AddItem() {
 // textAlign has no start/end in React Native: 'left' follows the layout direction, so it acts as start in RTL.
 const styles = StyleSheet.create({
   handingOff: { opacity: 0 },
+  // The photos on their way from the gallery: the loader on the blue of something new arriving.
+  gettingPhotos: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+    paddingHorizontal: 22,
+    backgroundColor: colors.ground,
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.background,

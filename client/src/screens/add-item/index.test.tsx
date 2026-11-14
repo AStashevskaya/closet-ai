@@ -32,6 +32,7 @@ jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(),
   launchCameraAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
+  UIImagePickerPreferredAssetRepresentationMode: { Current: 'current' },
 }));
 // Leaving needs a real navigator; the screens' own navigations go straight through here.
 // `mockGuarded` records whether a swipe down would ask first, render by render.
@@ -827,6 +828,45 @@ describe('<AddItem />', () => {
     ).not.toBeVisible();
     // Hidden from screen readers too: a default query no longer finds it.
     expect(screen.queryByText('Choose from gallery')).toBeNull();
+  });
+  test('says the photos are coming while the gallery hands them over, without converting them', async () => {
+    let handOver: (value: unknown) => void = () => {};
+    jest
+      .mocked(ImagePicker.launchImageLibraryAsync)
+      .mockReturnValue(new Promise((resolve) => (handOver = resolve)) as never);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+
+    // iOS would otherwise turn every HEIC into a JPEG first; shrinkPhoto does that anyway.
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ preferredAssetRepresentationMode: 'current' }),
+    );
+    expect(screen.getByText('Getting the photos from your gallery…')).toBeVisible();
+
+    await act(async () => handOver({ canceled: true, assets: null }));
+    expect(screen.queryByText('Getting the photos from your gallery…')).toBeNull();
+    expect(screen.getByText('Choose from gallery')).toBeVisible();
+  });
+  test('stays put when the sheet was closed before the gallery handed the photos over', async () => {
+    let handOver: (value: unknown) => void = () => {};
+    jest
+      .mocked(ImagePicker.launchImageLibraryAsync)
+      .mockReturnValue(new Promise((resolve) => (handOver = resolve)) as never);
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+    await screen.unmount();
+
+    await act(async () =>
+      handOver({
+        canceled: false,
+        assets: [
+          { uri: 'file:///a.heic', width: 4032, height: 3024 },
+          { uri: 'file:///b.heic', width: 3024, height: 4032 },
+        ],
+      }),
+    );
+    // Replacing now would replace the closet underneath, not this sheet.
+    expect(mockReplace).not.toHaveBeenCalled();
   });
   test('shows the form again when the gallery closes without several photos', async () => {
     jest
