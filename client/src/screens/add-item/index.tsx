@@ -194,12 +194,14 @@ export function AddItem() {
       preferredAssetRepresentationMode:
         ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Current,
     }).catch((cause: unknown) => {
+      // The form comes back as it was; nothing was picked.
+      if (__DEV__) console.warn('Opening the photo picker failed', cause);
       setHandingOff(false);
-      throw cause;
+      return null;
     });
     // Closed while the gallery was still handing the photos over: navigating now would replace
     // the screen underneath (the closet) instead of this one, and leave the app stuck.
-    if (closing.current?.signal.aborted) return;
+    if (!result || closing.current?.signal.aborted) return;
     if (result.canceled || result.assets.length <= 1) setHandingOff(false);
     if (!result.canceled && result.assets.length > 1) {
       const photos: PickedPhoto[] = result.assets.map(({ uri, width, height }) => ({

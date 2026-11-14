@@ -847,6 +847,16 @@ describe('<AddItem />', () => {
     expect(screen.queryByText('Getting the photos from your gallery…')).toBeNull();
     expect(screen.getByText('Choose from gallery')).toBeVisible();
   });
+  test('shows the form again when the gallery fails to open', async () => {
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockRejectedValue(new Error('no picker'));
+    await render(<AddItem />);
+    await fireEvent.press(screen.getByText('Choose from gallery'));
+
+    await waitFor(() =>
+      expect(screen.queryByText('Getting the photos from your gallery…')).toBeNull(),
+    );
+    expect(screen.getByText('Choose from gallery')).toBeVisible();
+  });
   test('stays put when the sheet was closed before the gallery handed the photos over', async () => {
     let handOver: (value: unknown) => void = () => {};
     jest
