@@ -1,20 +1,12 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Alert,
-  I18nManager,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, I18nManager, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { maison } from '@/components/maison';
+import { ScrollTitleBar, useScrollTitle } from '@/components/scroll-title-bar';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { Icon } from '@/components/icon';
 import { Select, type SelectOption } from '@/components/select';
@@ -85,6 +77,8 @@ export function Menu() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // The big title scrolls away and a frosted bar comes in, so nothing runs under the clock.
+  const { scrollY, onScroll } = useScrollTitle();
   const clearance = useTabBarClearance();
   const { data: session } = authClient.useSession();
   const { usage } = useUsage();
@@ -249,94 +243,98 @@ export function Menu() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.container,
-        { paddingTop: insets.top + 12, paddingBottom: clearance },
-      ]}
-    >
-      <Animated.View entering={rise} style={[maison.gutter, styles.head]}>
-        <Text style={maison.note}>{t('menu.thread')}</Text>
-        <Text style={styles.name} numberOfLines={2} accessibilityRole="header">
-          {session?.user.name}
-        </Text>
-        {style ? (
-          <Text
-            style={[maison.body, styles.letter]}
-            accessibilityLabel={`${t('style.title')}: ${style}`}
-          >
-            {style}
+    <View style={styles.screen}>
+      <Animated.ScrollView
+        style={styles.screen}
+        onScroll={onScroll}
+        contentContainerStyle={[
+          styles.container,
+          { paddingTop: insets.top + 12, paddingBottom: clearance },
+        ]}
+      >
+        <Animated.View entering={rise} style={[maison.gutter, styles.head]}>
+          <Text style={maison.note}>{t('menu.thread')}</Text>
+          <Text style={styles.name} numberOfLines={2} accessibilityRole="header">
+            {session?.user.name}
           </Text>
-        ) : (
-          <Text style={[maison.body, styles.letter]}>{t('app.tagline')}</Text>
-        )}
-      </Animated.View>
-
-      {/* Drawn once there is something to thread: the line grows with the stops it holds. */}
-      {stops.length > 0 && (
-        <ProfileThread>
-          {stops.map(({ key, ...stop }, index) => (
-            <Stop key={key} index={index} {...stop} />
-          ))}
-        </ProfileThread>
-      )}
-
-      {/* The language heads the list, so its line and the list's are one: apart, the gap between
-          them read as an empty row (owner's phone, 2026-11-11). */}
-      <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.list}>
-        <Select
-          label={t('menu.language')}
-          value={language}
-          options={[{ value: null, label: t('menu.languageAuto') }, ...LANGUAGES]}
-          onChange={pickLanguage}
-          disabled={switching}
-        />
-        <View accessibilityRole="menu">
-          <Pressable
-            style={styles.row}
-            onPress={() => router.push('/profile-details')}
-            accessibilityRole="menuitem"
-          >
-            <Text style={styles.rowLabel}>{t('details.row')}</Text>
-            <View style={styles.chevron}>
-              <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
-            </View>
-          </Pressable>
-          {SECTIONS.map(({ key, href }) => {
-            // Brands are closed for now: the row stays, faint, with "soon".
-            const closed = key === 'theEdit' && !BRANDS_OPEN;
-            return (
-              <Pressable
-                key={key}
-                style={styles.row}
-                onPress={() => router.navigate(href)}
-                disabled={closed}
-                accessibilityRole="menuitem"
-                accessibilityState={{ disabled: closed }}
-              >
-                <Text style={[styles.rowLabel, closed && styles.rowClosed]}>
-                  {t(`menu.sections.${key}`)}
-                </Text>
-                {closed && <Text style={styles.soon}>{t('menu.soon')}</Text>}
-                {key === 'wishes' && due > 0 && (
-                  <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
-                )}
-                <View style={styles.chevron}>
-                  <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
-                </View>
-              </Pressable>
-            );
-          })}
-
-          {supportEmail() && (
-            <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
-              <Text style={styles.rowLabel}>{t('menu.report')}</Text>
-            </Pressable>
+          {style ? (
+            <Text
+              style={[maison.body, styles.letter]}
+              accessibilityLabel={`${t('style.title')}: ${style}`}
+            >
+              {style}
+            </Text>
+          ) : (
+            <Text style={[maison.body, styles.letter]}>{t('app.tagline')}</Text>
           )}
-        </View>
-      </Animated.View>
-    </ScrollView>
+        </Animated.View>
+
+        {/* Drawn once there is something to thread: the line grows with the stops it holds. */}
+        {stops.length > 0 && (
+          <ProfileThread>
+            {stops.map(({ key, ...stop }, index) => (
+              <Stop key={key} index={index} {...stop} />
+            ))}
+          </ProfileThread>
+        )}
+
+        {/* The language heads the list, so its line and the list's are one: apart, the gap between
+          them read as an empty row (owner's phone, 2026-11-11). */}
+        <Animated.View entering={rise.delay(STAGGER_STEP * 2)} style={styles.list}>
+          <Select
+            label={t('menu.language')}
+            value={language}
+            options={[{ value: null, label: t('menu.languageAuto') }, ...LANGUAGES]}
+            onChange={pickLanguage}
+            disabled={switching}
+          />
+          <View accessibilityRole="menu">
+            <Pressable
+              style={styles.row}
+              onPress={() => router.push('/profile-details')}
+              accessibilityRole="menuitem"
+            >
+              <Text style={styles.rowLabel}>{t('details.row')}</Text>
+              <View style={styles.chevron}>
+                <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+              </View>
+            </Pressable>
+            {SECTIONS.map(({ key, href }) => {
+              // Brands are closed for now: the row stays, faint, with "soon".
+              const closed = key === 'theEdit' && !BRANDS_OPEN;
+              return (
+                <Pressable
+                  key={key}
+                  style={styles.row}
+                  onPress={() => router.navigate(href)}
+                  disabled={closed}
+                  accessibilityRole="menuitem"
+                  accessibilityState={{ disabled: closed }}
+                >
+                  <Text style={[styles.rowLabel, closed && styles.rowClosed]}>
+                    {t(`menu.sections.${key}`)}
+                  </Text>
+                  {closed && <Text style={styles.soon}>{t('menu.soon')}</Text>}
+                  {key === 'wishes' && due > 0 && (
+                    <Text style={styles.due}>{t('wishes.due', { count: due })}</Text>
+                  )}
+                  <View style={styles.chevron}>
+                    <Icon name="chevron" color={colors.iconMuted} size={16} strokeWidth={1.4} />
+                  </View>
+                </Pressable>
+              );
+            })}
+
+            {supportEmail() && (
+              <Pressable style={styles.row} onPress={report} accessibilityRole="menuitem">
+                <Text style={styles.rowLabel}>{t('menu.report')}</Text>
+              </Pressable>
+            )}
+          </View>
+        </Animated.View>
+      </Animated.ScrollView>
+      <ScrollTitleBar title={t('menu.title')} scrollY={scrollY} />
+    </View>
   );
 }
 

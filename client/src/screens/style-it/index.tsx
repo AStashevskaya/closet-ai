@@ -3,11 +3,12 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, maison, ScreenTitle } from '@/components/maison';
+import { ScrollTitleBar, useScrollTitle } from '@/components/scroll-title-bar';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { useAnnounce } from '@/lib/announce';
 import { askWearWith, listItems, listStyled, sessionHeaders } from '@/lib/api';
@@ -67,6 +68,7 @@ export function StyleIt() {
   // earlier is stale (owner, 2026-10-30: it jumped somewhere above). The diary's own place on the
   // screen is added, since a row's layout is relative to the diary.
   const scroll = useRef<ScrollViewInstance>(null);
+  const { scrollY, onScroll } = useScrollTitle();
   const diaryY = useRef(0);
   const scrollWhenLaidOut = useRef(false);
   function choose(next: Chosen) {
@@ -200,161 +202,166 @@ export function StyleIt() {
   );
 
   return (
-    <ScrollView
-      ref={scroll}
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 20, paddingBottom: clearance },
-      ]}
-    >
-      {/* One layout for every state (docs/design.md, "Waiting"): the title and the diary's thread
+    <View style={styles.screen}>
+      <Animated.ScrollView
+        ref={scroll}
+        style={styles.screen}
+        onScroll={onScroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 20, paddingBottom: clearance },
+        ]}
+      >
+        {/* One layout for every state (docs/design.md, "Waiting"): the title and the diary's thread
           stay where they are, and what's read settles in around them; nothing here enters again. */}
-      <View style={maison.gutter}>
-        <ScreenTitle title={t('styleIt.title')} subtitle={t('styleIt.subtitle')} />
-        {/* Its line is kept, so what's below doesn't move when it comes. */}
-        <View style={styles.leftLine}>
-          {left !== null && (
-            <Animated.Text style={maison.note} entering={arrive}>
-              {t('wearWith.left', { left, limit: usage!.wear_with.limit })}
-            </Animated.Text>
+        <View style={maison.gutter}>
+          <ScreenTitle title={t('styleIt.title')} subtitle={t('styleIt.subtitle')} />
+          {/* Its line is kept, so what's below doesn't move when it comes. */}
+          <View style={styles.leftLine}>
+            {left !== null && (
+              <Animated.Text style={maison.note} entering={arrive}>
+                {t('wearWith.left', { left, limit: usage!.wear_with.limit })}
+              </Animated.Text>
+            )}
+          </View>
+        </View>
+
+        {/* Sunday evening: the week told, above the day's look. */}
+        <WeekRecap headers={headers} />
+        {/* The look of the day, from her closet for today's weather: a reason to open the app each
+          morning (2026-11-12). */}
+        <TodayCard headers={headers} />
+
+        {/* Two ways in: a piece of hers, or one from a photo she doesn't own yet (dashed: not hers).
+          Whether they're on offer depends on the closet, so until it's read their place stays empty. */}
+        <View style={[maison.gutter, styles.start]}>
+          {closetError ? (
+            <Animated.View style={styles.empty} entering={arrive}>
+              <Text style={maison.body}>{closetError}</Text>
+              <Button kind="outline" label={t('closet.retry')} onPress={retry} />
+            </Animated.View>
+          ) : items === null ? null : items.length === 0 ? (
+            <Animated.View style={styles.empty} entering={arrive}>
+              <Text style={maison.body}>{t('styleIt.emptyCloset')}</Text>
+              <Button
+                kind="outline"
+                label={t('styleIt.addFirst')}
+                onPress={() => router.push('/add-item')}
+              />
+            </Animated.View>
+          ) : (
+            <Animated.View style={styles.buttons} entering={arrive}>
+              <Button
+                kind="bright"
+                label={t('styleIt.fromCloset')}
+                onPress={() => setPicking(true)}
+                busy={asking !== null}
+                style={styles.button}
+              />
+              <Button
+                kind="outline"
+                label={t('styleIt.fromPhoto')}
+                onPress={() => router.push('/wear-with-pick')}
+                style={[styles.button, styles.dashed]}
+              />
+            </Animated.View>
           )}
         </View>
-      </View>
 
-      {/* Sunday evening: the week told, above the day's look. */}
-      <WeekRecap headers={headers} />
-      {/* The look of the day, from her closet for today's weather: a reason to open the app each
-          morning (2026-11-12). */}
-      <TodayCard headers={headers} />
-
-      {/* Two ways in: a piece of hers, or one from a photo she doesn't own yet (dashed: not hers).
-          Whether they're on offer depends on the closet, so until it's read their place stays empty. */}
-      <View style={[maison.gutter, styles.start]}>
-        {closetError ? (
-          <Animated.View style={styles.empty} entering={arrive}>
-            <Text style={maison.body}>{closetError}</Text>
-            <Button kind="outline" label={t('closet.retry')} onPress={retry} />
-          </Animated.View>
-        ) : items === null ? null : items.length === 0 ? (
-          <Animated.View style={styles.empty} entering={arrive}>
-            <Text style={maison.body}>{t('styleIt.emptyCloset')}</Text>
-            <Button
-              kind="outline"
-              label={t('styleIt.addFirst')}
-              onPress={() => router.push('/add-item')}
-            />
-          </Animated.View>
-        ) : (
-          <Animated.View style={styles.buttons} entering={arrive}>
-            <Button
-              kind="bright"
-              label={t('styleIt.fromCloset')}
-              onPress={() => setPicking(true)}
-              busy={asking !== null}
-              style={styles.button}
-            />
-            <Button
-              kind="outline"
-              label={t('styleIt.fromPhoto')}
-              onPress={() => router.push('/wear-with-pick')}
-              style={[styles.button, styles.dashed]}
-            />
-          </Animated.View>
-        )}
-      </View>
-
-      {/* The diary: everything she styled, newest on top, on one thread; the open one grows its
+        {/* The diary: everything she styled, newest on top, on one thread; the open one grows its
           outfits full width, the others show theirs folded small. */}
-      <View
-        style={styles.diary}
-        testID="diary"
-        onLayout={(event) => {
-          diaryY.current = event.nativeEvent.layout.y;
-        }}
-      >
-        {entries.length === 0 ? (
-          styled === null && styledFailure === null ? (
-            <ThreadWaiting />
-          ) : diaryError ? (
-            // Said once above when the closet failed too.
-            !closetError && (
-              <Animated.View style={[maison.gutter, styles.empty]} entering={arrive}>
-                <Text style={maison.body}>{diaryError}</Text>
-                <Button kind="outline" label={t('closet.retry')} onPress={retry} />
-              </Animated.View>
+        <View
+          style={styles.diary}
+          testID="diary"
+          onLayout={(event) => {
+            diaryY.current = event.nativeEvent.layout.y;
+          }}
+        >
+          {entries.length === 0 ? (
+            styled === null && styledFailure === null ? (
+              <ThreadWaiting />
+            ) : diaryError ? (
+              // Said once above when the closet failed too.
+              !closetError && (
+                <Animated.View style={[maison.gutter, styles.empty]} entering={arrive}>
+                  <Text style={maison.body}>{diaryError}</Text>
+                  <Button kind="outline" label={t('closet.retry')} onPress={retry} />
+                </Animated.View>
+              )
+            ) : (
+              <StyleExample />
             )
           ) : (
-            <StyleExample />
-          )
-        ) : (
-          entries.map((entry, index) =>
-            entry.id === chosen?.requestId ? (
-              <View
-                key={entry.id}
-                testID="open-stop"
-                onLayout={(event) => {
-                  if (!scrollWhenLaidOut.current) return;
-                  scrollWhenLaidOut.current = false;
-                  const y = diaryY.current + event.nativeEvent.layout.y - 16;
-                  scroll.current?.scrollTo({ y: Math.max(0, y), animated: true });
-                }}
-              >
-                <StyleThread
-                  chosen={chosen}
+            entries.map((entry, index) =>
+              entry.id === chosen?.requestId ? (
+                <View
+                  key={entry.id}
+                  testID="open-stop"
+                  onLayout={(event) => {
+                    if (!scrollWhenLaidOut.current) return;
+                    scrollWhenLaidOut.current = false;
+                    const y = diaryY.current + event.nativeEvent.layout.y - 16;
+                    scroll.current?.scrollTo({ y: Math.max(0, y), animated: true });
+                  }}
+                >
+                  <StyleThread
+                    chosen={chosen}
+                    headers={headers}
+                    onAskAgain={asked ? () => style(asked) : undefined}
+                    asking={asking !== null}
+                    joined={index > 0}
+                    continues={index < entries.length - 1}
+                    onDeleted={() => onDeleted(entry.id)}
+                  />
+                </View>
+              ) : (
+                <DiaryStop
+                  key={entry.id}
+                  entry={entry}
                   headers={headers}
-                  onAskAgain={asked ? () => style(asked) : undefined}
-                  asking={asking !== null}
                   joined={index > 0}
-                  continues={index < entries.length - 1}
+                  last={index === entries.length - 1}
+                  now={readAt}
+                  settleDelay={settled ? undefined : Math.min(index, SETTLING) * STAGGER_STEP}
                   onDeleted={() => onDeleted(entry.id)}
+                  onOpen={() => {
+                    // Not hers yet: its own screen, with the verdict and "Add to wishes" / "Add to
+                    // my closet", rather than the looks alone.
+                    if (entry.loose) {
+                      router.push({ pathname: '/wear-with/[id]', params: { id: entry.id } });
+                      return;
+                    }
+                    // While a piece is being asked about, its answer would replace this choice.
+                    if (asking !== null) return;
+                    choose({
+                      requestId: entry.id,
+                      name: entry.name,
+                      photoUrl: entry.photoUrl ?? undefined,
+                      cutoutUrl: entry.cutoutUrl ?? undefined,
+                    });
+                  }}
                 />
-              </View>
-            ) : (
-              <DiaryStop
-                key={entry.id}
-                entry={entry}
-                headers={headers}
-                joined={index > 0}
-                last={index === entries.length - 1}
-                now={readAt}
-                settleDelay={settled ? undefined : Math.min(index, SETTLING) * STAGGER_STEP}
-                onDeleted={() => onDeleted(entry.id)}
-                onOpen={() => {
-                  // Not hers yet: its own screen, with the verdict and "Add to wishes" / "Add to
-                  // my closet", rather than the looks alone.
-                  if (entry.loose) {
-                    router.push({ pathname: '/wear-with/[id]', params: { id: entry.id } });
-                    return;
-                  }
-                  // While a piece is being asked about, its answer would replace this choice.
-                  if (asking !== null) return;
-                  choose({
-                    requestId: entry.id,
-                    name: entry.name,
-                    photoUrl: entry.photoUrl ?? undefined,
-                    cutoutUrl: entry.cutoutUrl ?? undefined,
-                  });
-                }}
-              />
-            ),
-          )
-        )}
-      </View>
+              ),
+            )
+          )}
+        </View>
 
-      <ClosetPicker
-        visible={picking}
-        items={items ?? []}
-        headers={headers}
-        mood={mood}
-        onMood={setMood}
-        onPick={(item) => {
-          setPicking(false);
-          void style(item);
-        }}
-        onClose={() => setPicking(false)}
-      />
-    </ScrollView>
+        <ClosetPicker
+          visible={picking}
+          items={items ?? []}
+          headers={headers}
+          mood={mood}
+          onMood={setMood}
+          onPick={(item) => {
+            setPicking(false);
+            void style(item);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      </Animated.ScrollView>
+      {/* Nothing that scrolls (the diary's thread, a look's words) runs under the clock. */}
+      <ScrollTitleBar title={t('styleIt.title')} scrollY={scrollY} />
+    </View>
   );
 }
 

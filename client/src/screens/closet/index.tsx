@@ -4,16 +4,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { BlurView } from 'expo-blur';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useAnimatedScrollHandler,
-  useAnimatedStyle,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ScrollTitleBar, useScrollTitle } from '@/components/scroll-title-bar';
 import { useTabBarClearance } from '@/components/tab-bar';
 import { StyleCard } from '@/components/style-card';
 import { useStyle } from '@/lib/style';
@@ -43,7 +37,8 @@ export function Closet() {
   const [entered, setEntered] = useState(false);
   // Under the launch curtain: the pieces wait for the hanger's bar to land on the first rail.
   const [launchDelay] = useState(() => (isLaunching() ? LAUNCH_HANDOFF_MS : 0));
-  const scrollY = useSharedValue(0);
+  // The big title scrolls away; a frosted bar with the small one comes in over the rails.
+  const { scrollY, onScroll } = useScrollTitle();
   // Held here, not in the card: the card unmounts in edit mode.
   const styleCard = useStyle(i18n.language);
 
@@ -117,13 +112,6 @@ export function Closet() {
     </Animated.View>
   );
 
-  // The big title scrolls away; a frosted bar with the small one comes in over the rails.
-  const bar = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.get(), [60, 120], [0, 1], Extrapolation.CLAMP),
-  }));
-  const onScroll = useAnimatedScrollHandler((event) => {
-    scrollY.set(event.contentOffset.y);
-  });
   // A closet of a few items has nothing to feature; the banner would only repeat the rails.
   const newest = items.length >= NEW_IN_FROM ? items[0] : undefined;
   // A closet with nothing in it yet: the first screen she sees, on the blue of something new.
@@ -224,23 +212,7 @@ export function Closet() {
         />
       )}
 
-      {/* Decoration only: the big title above is the heading screen readers get. */}
-      <Animated.View
-        style={[styles.bar, { height: insets.top + 48 }, bar]}
-        pointerEvents="none"
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      >
-        <BlurView
-          intensity={70}
-          tint="light"
-          experimentalBlurMethod="dimezisBlurView"
-          style={[StyleSheet.absoluteFill, styles.barGlass]}
-        />
-        <View style={[styles.barRow, { paddingTop: insets.top }]}>
-          <Text style={styles.barTitle}>{t('closet.title')}</Text>
-        </View>
-      </Animated.View>
+      <ScrollTitleBar title={t('closet.title')} scrollY={scrollY} />
     </View>
   );
 }
@@ -313,25 +285,4 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   // The frosted bar over the rails once the big title has scrolled away.
-  bar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  barGlass: {
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
-  },
-  barRow: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  barTitle: {
-    fontFamily: fonts.display,
-    fontSize: 20,
-    color: colors.text,
-  },
 });
