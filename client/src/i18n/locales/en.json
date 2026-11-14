@@ -501,7 +501,7 @@
     "delete": "Delete styling",
     "deleteNamed": "Delete the styling of {{name}}",
     "deleteTitle": "Delete this styling?",
-    "deleteMessage": "This can't be undone, and the try doesn't come back. A piece from your closet stays there; one from a photo goes, along with its wish. What you liked or marked “Not me” keeps teaching me your style.",
+    "deleteMessage": "This can't be undone, and the try doesn't come back. A piece from your closet stays there; one from a photo goes too, unless it's in your wishes; then it stays there. What you liked or marked “Not me” keeps teaching me your style.",
     "deleted": "Styling deleted",
     "deleteFailed": "Couldn't delete the styling. Try again."
   },

@@ -71,6 +71,8 @@ export interface OutfitRequestRow {
   createdAt: Date;
   // The day of a look-of-the-day request; null for a styling she asked for.
   dailyOn: string | null;
+  // Deleted from her diary while its piece is a wish (see deleteRequest); null otherwise.
+  hiddenAt: Date | null;
 }
 
 export interface NewOutfit {
@@ -146,9 +148,11 @@ export interface OutfitsRepository {
     verdict?: BuyVerdict | null,
   ): Promise<boolean>;
   markFailed(requestId: string): Promise<void>;
-  // Deletes her styling; false when it isn't hers or is already gone. Its wish and every look she
-  // never reacted to go. Looks she did react to stay for the brief, on a row with neither piece,
-  // the state a deleted item already leaves: out of the diary, and read by nothing else.
+  // Deletes her styling; false when it isn't hers or is already gone. Every look she never reacted
+  // to goes. Looks she did react to stay for the brief, on a row with neither piece, the state a
+  // deleted item already leaves: out of the diary, and read by nothing else. A styling whose piece
+  // is in her wishes is only hidden (hiddenAt): the wish keeps its piece; letting the wish go
+  // deletes it then.
   deleteRequest(requestId: string, userId: string): Promise<boolean>;
   // The request's outfits with their items and the user's reactions; null when not theirs.
   // Partner pieces are named in the language asked for.
@@ -262,6 +266,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
     wardrobeSize: outfitRequests.wardrobeSize,
     verdict: outfitRequests.verdict,
     dailyOn: outfitRequests.dailyOn,
+    hiddenAt: outfitRequests.hiddenAt,
     createdAt: outfitRequests.createdAt,
   };
 
@@ -324,7 +329,12 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         .select(requestColumns)
         .from(outfitRequests)
         .where(
-          and(eq(outfitRequests.userId, userId), eq(outfitRequests.status, "done"), aboutAPiece),
+          and(
+            eq(outfitRequests.userId, userId),
+            eq(outfitRequests.status, "done"),
+            aboutAPiece,
+            isNull(outfitRequests.hiddenAt),
+          ),
         )
         .orderBy(desc(outfitRequests.createdAt))
         .limit(limit);
@@ -340,6 +350,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
             eq(outfitRequests.itemId, itemId),
             mood ? eq(outfitRequests.mood, mood) : isNull(outfitRequests.mood),
             eq(outfitRequests.status, "done"),
+            isNull(outfitRequests.hiddenAt),
           ),
         )
         .orderBy(desc(outfitRequests.createdAt))
@@ -359,6 +370,8 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
               : eq(outfitRequests.heroPhotoKey, hero.heroPhotoKey),
             mood ? eq(outfitRequests.mood, mood) : isNull(outfitRequests.mood),
             ne(outfitRequests.status, "failed"),
+            // A styling she deleted stays deleted: asking again makes a new one, in her diary.
+            isNull(outfitRequests.hiddenAt),
           ),
         )
         .orderBy(desc(outfitRequests.createdAt))
@@ -487,7 +500,7 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
         // Locked, so a second delete at once waits for this one, then reads the row as it left it:
         // gone, or with neither piece. It finds nothing to delete, and answers false.
         const [own] = await tx
-          .select({ id: outfitRequests.id })
+          .select({ id: outfitRequests.id, hiddenAt: outfitRequests.hiddenAt })
           .from(outfitRequests)
           .where(
             and(eq(outfitRequests.id, requestId), eq(outfitRequests.userId, userId), aboutAPiece),
@@ -507,12 +520,41 @@ export function createOutfitsRepository(db: Db): OutfitsRepository {
           .from(outfits)
           .innerJoin(outfitReactions, eq(outfitReactions.outfitId, outfits.id))
           .where(eq(outfits.requestId, requestId));
+        // Its piece is in her wishes: deleting the styling isn't letting the piece go (owner,
+        // 2026-11-14). The looks she never reacted to go, the row leaves the diary, and the piece,
+        // photo and verdict stay for the wish until she lets it go.
+        // Locked, so letting the wish go at the same moment waits for this and then sees hiddenAt
+        // (and deletes the styling), rather than leaving a hidden row with no wish.
+        const [wish] = await tx
+          .select({ id: wishes.id })
+          .from(wishes)
+          .where(eq(wishes.requestId, requestId))
+          .for("update");
+        if (wish) {
+          // Already deleted from her diary: a second delete finds nothing, as for any styling.
+          if (own.hiddenAt) return false;
+          await tx.delete(outfits).where(
+            and(
+              eq(outfits.requestId, requestId),
+              reacted.length > 0
+                ? notInArray(
+                    outfits.id,
+                    reacted.map((look) => look.id),
+                  )
+                : undefined,
+            ),
+          );
+          await tx
+            .update(outfitRequests)
+            .set({ hiddenAt: new Date() })
+            .where(eq(outfitRequests.id, requestId));
+          return true;
+        }
         if (reacted.length === 0) {
-          // Looks, pieces and the wish go with it (foreign keys).
+          // Looks and pieces go with it (foreign keys).
           await tx.delete(outfitRequests).where(eq(outfitRequests.id, requestId));
           return true;
         }
-        await tx.delete(wishes).where(eq(wishes.requestId, requestId));
         await tx.delete(outfits).where(
           and(
             eq(outfits.requestId, requestId),

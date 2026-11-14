@@ -219,6 +219,10 @@ export const outfitRequests = pgTable(
     // The look of the day (2026-11-12): the day in her city it's for; null for a styling she asked
     // for. Its looks are built by rules, about no piece in particular, and stay out of her diary.
     dailyOn: date("daily_on", { mode: "string" }),
+    // She deleted the styling while its piece is in her wishes (2026-11-14): out of her diary, its
+    // unreacted looks gone, but the piece, its photo and verdict stay for the wish. Deleted for good
+    // when the wish is let go.
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -384,6 +384,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         ...hero,
         verdict: null,
         dailyOn: null,
+        hiddenAt: null,
         status: "pending",
         wardrobeSize,
         createdAt: now(),
@@ -393,14 +394,24 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     getRequest: async (id) => requests.find((r) => r.id === id) ?? null,
     history: async (userId, limit) =>
       requests
-        .filter((r) => r.userId === userId && r.status === "done" && (r.itemId || r.heroPhotoKey))
+        .filter(
+          (r) =>
+            r.userId === userId &&
+            r.status === "done" &&
+            (r.itemId || r.heroPhotoKey) &&
+            !r.hiddenAt,
+        )
         .reverse()
         .slice(0, limit),
     latestDone: async (userId, itemId, mood) =>
       requests
         .filter(
           (r) =>
-            r.userId === userId && r.itemId === itemId && r.mood === mood && r.status === "done",
+            r.userId === userId &&
+            r.itemId === itemId &&
+            r.mood === mood &&
+            r.status === "done" &&
+            !r.hiddenAt,
         )
         .at(-1) ?? null,
     latestAsked: async (userId, hero, mood) =>
@@ -410,6 +421,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
             r.userId === userId &&
             ("itemId" in hero ? r.itemId === hero.itemId : r.heroPhotoKey === hero.heroPhotoKey) &&
             r.mood === mood &&
+            !r.hiddenAt &&
             r.status !== "failed",
         )
         .at(-1) ?? null,
@@ -434,13 +446,17 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     deleteRequest: async (requestId, userId) => {
       const request = requests.find((r) => r.id === requestId && r.userId === userId);
       if (!request || (!request.itemId && !request.heroPhotoKey)) return false;
+      const wished = wishRows.some((w) => w.requestId === requestId);
+      if (wished && request.hiddenAt) return false;
       const reacted = (o: { id: string }) => reactions.some((r) => r.outfitId === o.id);
       const looks = storedOutfits.filter((o) => o.requestId === requestId);
       for (const look of looks.filter((o) => !reacted(o))) {
         storedOutfits.splice(storedOutfits.indexOf(look), 1);
       }
-      for (const wish of wishRows.filter((w) => w.requestId === requestId)) {
-        wishRows.splice(wishRows.indexOf(wish), 1);
+      // Its piece is a wish: only hidden, as in the Drizzle repository.
+      if (wished) {
+        request.hiddenAt = now();
+        return true;
       }
       if (looks.some(reacted)) {
         Object.assign(request, { itemId: null, heroPhotoKey: null, heroNoun: null, verdict: null });
@@ -496,6 +512,7 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
         status: "done",
         wardrobeSize,
         dailyOn: day,
+        hiddenAt: null,
         createdAt: now(),
       });
       return id;
@@ -842,17 +859,20 @@ export function createInMemoryRepositories(clock: () => Date = () => new Date())
     },
     remove: async (userId, id) => {
       const index = wishRows.findIndex((w) => w.userId === userId && w.id === id);
-      if (index < 0) return false;
-      wishRows.splice(index, 1);
-      return true;
+      if (index < 0) return null;
+      const [removed] = wishRows.splice(index, 1);
+      return removed!.requestId;
     },
     removeForPhoto: async (userId, photoKey) => {
+      const removed: string[] = [];
       for (const w of [...wishRows]) {
         const request = requests.find((r) => r.id === w.requestId);
         if (w.userId === userId && request?.heroPhotoKey === photoKey) {
           wishRows.splice(wishRows.indexOf(w), 1);
+          removed.push(w.requestId);
         }
       }
+      return removed;
     },
   };
 

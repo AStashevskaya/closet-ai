@@ -897,21 +897,73 @@ describe.skipIf(!url)("on Postgres", () => {
       (await db.db.select().from(schema.outfits).where(eq(schema.outfits.requestId, requestId)))
         .length;
 
-    // A loose piece with a wish and no reactions: the whole row goes, and its photo at once.
+    // A loose piece without a wish and no reactions: the whole row goes, and its photo at once.
     const crop = `photos/${userId}/styled-crop.webp`;
     await photos.createReady({ key: crop, ownerId: userId, tags: shirtTags });
     const loose = await outfits.createRequest(userId, { heroPhotoKey: crop, heroNoun: "shirt" }, 1);
     expect(await outfits.saveOutfits(loose, userId, [look("Loose", null)], { micros: 1 })).toBe(
       true,
     );
-    await wishes.add(userId, loose, new Date(0));
     expect((await del(loose, await signUp("not-the-owner@example.com"))).statusCode).toBe(404);
     expect(await outfits.getRequest(loose)).not.toBeNull();
     expect((await del(loose)).statusCode).toBe(204);
     expect(await outfits.getRequest(loose)).toBeNull();
     expect(await looks(loose)).toBe(0);
-    expect(await wishes.countDue(userId, new Date())).toBe(0);
     expect(await photos.get(crop)).toBeNull();
+
+    // A loose piece in her wishes: deleting the styling leaves the wish (owner, 2026-11-14). The
+    // row only leaves the diary, with its piece and photo, until she lets the wish go.
+    const wished = `photos/${userId}/wished-crop.webp`;
+    await photos.createReady({ key: wished, ownerId: userId, tags: shirtTags });
+    const wishedStyling = await outfits.createRequest(
+      userId,
+      { heroPhotoKey: wished, heroNoun: "shirt" },
+      1,
+    );
+    await outfits.saveOutfits(wishedStyling, userId, [look("Wished", null)], { micros: 1 });
+    const wish = await wishes.add(userId, wishedStyling, new Date(0));
+    expect((await del(wishedStyling)).statusCode).toBe(204);
+    expect((await outfits.getRequest(wishedStyling))?.hiddenAt).toBeInstanceOf(Date);
+    expect(await looks(wishedStyling)).toBe(0);
+    expect(await outfits.history(userId, 5)).toEqual([]);
+    expect(await outfits.latestAsked(userId, { heroPhotoKey: wished }, null)).toBeNull();
+    expect((await wishes.list(userId)).map((w) => w.id)).toEqual([wish.id]);
+    expect(await photos.get(wished)).not.toBeNull();
+    // Letting the wish go deletes the hidden styling for good.
+    const answer = await app.inject({
+      method: "POST",
+      url: `/api/wishes/${wish.id}/answer`,
+      headers: { cookie },
+      payload: { answer: "no" },
+    });
+    expect(answer.statusCode).toBe(204);
+    expect(await outfits.getRequest(wishedStyling)).toBeNull();
+    expect(await wishes.list(userId)).toEqual([]);
+
+    // Deleted again while hidden: gone, as far as she can tell.
+    const boughtCrop = `photos/${userId}/bought-crop.webp`;
+    await photos.createReady({ key: boughtCrop, ownerId: userId, tags: shirtTags });
+    const boughtStyling = await outfits.createRequest(
+      userId,
+      { heroPhotoKey: boughtCrop, heroNoun: "shirt" },
+      1,
+    );
+    await outfits.saveOutfits(boughtStyling, userId, [look("Bought", null)], { micros: 1 });
+    await wishes.add(userId, boughtStyling, new Date(0));
+    expect((await del(boughtStyling)).statusCode).toBe(204);
+    expect((await del(boughtStyling)).statusCode).toBe(404);
+    // Bought: added to her closet from its photo, the wish goes and the hidden styling with it;
+    // the photo is the piece's now.
+    const added = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      headers: { cookie },
+      payload: { name: "Shirt", category: "top", colors: ["white"], photoKey: boughtCrop },
+    });
+    expect(added.statusCode).toBe(201);
+    expect(await outfits.getRequest(boughtStyling)).toBeNull();
+    expect(await wishes.list(userId)).toEqual([]);
+    expect(await photos.get(boughtCrop)).not.toBeNull();
 
     // A closet piece she reacted to: the reacted look stays for the brief, the rest goes.
     const styled = await outfits.createRequest(userId, { itemId: item.id }, 1);
@@ -1337,6 +1389,6 @@ describe.skipIf(!url)("on Postgres", () => {
     expect(await wishes.list(user!.id)).toHaveLength(1);
     await wishes.removeForPhoto(user!.id, crop);
     expect(await wishes.list(user!.id)).toEqual([]);
-    expect(await wishes.remove(user!.id, saved.id)).toBe(false);
+    expect(await wishes.remove(user!.id, saved.id)).toBeNull();
   });
 });

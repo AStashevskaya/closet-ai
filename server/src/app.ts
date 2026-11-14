@@ -119,7 +119,15 @@ export async function buildApp({
     new Set(env.TESTER_USER_IDS),
   );
   await app.register(
-    itemsRoutes(itemsRepository, photosRepository, storage, photoQueue, wishesRepository, auth),
+    itemsRoutes(
+      itemsRepository,
+      photosRepository,
+      storage,
+      photoQueue,
+      wishesRepository,
+      outfitsRepository,
+      auth,
+    ),
     { prefix: "/api" },
   );
   await app.register(
@@ -171,9 +179,12 @@ export async function buildApp({
       prefix: "/api",
     },
   );
-  await app.register(wishesRoutes(wishesRepository, outfitsRepository, photosRepository, auth), {
-    prefix: "/api",
-  });
+  await app.register(
+    wishesRoutes(wishesRepository, outfitsRepository, photosRepository, storage, auth),
+    {
+      prefix: "/api",
+    },
+  );
 
   return app;
 }

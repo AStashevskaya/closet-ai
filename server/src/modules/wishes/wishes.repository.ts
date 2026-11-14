@@ -30,9 +30,11 @@ export interface WishesRepository {
   // She still wants it: asked again at askAt. Only once it's due, so a retried request can't
   // count twice.
   keep(userId: string, id: string, now: Date, askAt: Date): Promise<KeepResult>;
-  remove(userId: string, id: string): Promise<boolean>;
+  // Lets the wish go; its request's id, or null when there was no such wish.
+  remove(userId: string, id: string): Promise<string | null>;
   // The piece of this photo is in her closet now: bought, so its wish goes.
-  removeForPhoto(userId: string, photoKey: string): Promise<void>;
+  // Returns the requests whose wishes went.
+  removeForPhoto(userId: string, photoKey: string): Promise<string[]>;
 }
 
 export function createWishesRepository(db: Db): WishesRepository {
@@ -105,8 +107,11 @@ export function createWishesRepository(db: Db): WishesRepository {
     },
 
     async remove(userId, id) {
-      const rows = await db.delete(wishes).where(own(userId, id)).returning({ id: wishes.id });
-      return rows.length > 0;
+      const [row] = await db
+        .delete(wishes)
+        .where(own(userId, id))
+        .returning({ requestId: wishes.requestId });
+      return row?.requestId ?? null;
     },
 
     async removeForPhoto(userId, photoKey) {
@@ -114,9 +119,11 @@ export function createWishesRepository(db: Db): WishesRepository {
         .select({ id: outfitRequests.id })
         .from(outfitRequests)
         .where(eq(outfitRequests.heroPhotoKey, photoKey));
-      await db
+      const rows = await db
         .delete(wishes)
-        .where(and(eq(wishes.userId, userId), inArray(wishes.requestId, requests)));
+        .where(and(eq(wishes.userId, userId), inArray(wishes.requestId, requests)))
+        .returning({ requestId: wishes.requestId });
+      return rows.map((row) => row.requestId);
     },
   };
 }

@@ -19,6 +19,8 @@ import { cutoutKeyFor, deletePhoto } from "../photos/photo-jobs";
 import { photoPrefix } from "../photos/photos.routes";
 import { rotateBoxQuarter, rotateQuarter } from "../photos/process-photo";
 import type { PhotosRepository } from "../photos/photos.repository";
+import type { OutfitsRepository } from "../outfits/outfits.repository";
+import { deleteStyling } from "../outfits/outfits.routes";
 import type { WishesRepository } from "../wishes/wishes.repository";
 import type { ItemsRepository } from "./items.repository";
 import { keyVersion } from "./items.repository";
@@ -33,6 +35,7 @@ export const itemsRoutes =
     storage: Storage,
     photoQueue: PhotoQueue,
     wishes: WishesRepository,
+    outfits: OutfitsRepository,
     auth: Auth,
   ): FastifyPluginAsyncZod =>
   async (app) => {
@@ -201,7 +204,19 @@ export const itemsRoutes =
         const earlier = photoKey === undefined ? null : await repo.findByPhoto(user.id, photoKey);
         const created = earlier ?? (await repo.create(user.id, request.body));
         // A piece from a photo she wished for, now in her closet: bought, so the wish goes.
-        if (photoKey !== undefined) await wishes.removeForPhoto(user.id, photoKey);
+        if (photoKey !== undefined) {
+          const requestIds = await wishes.removeForPhoto(user.id, photoKey);
+          // A styling she deleted while it was a wish goes for good now; the photo is the piece's.
+          for (const requestId of requestIds) {
+            if ((await outfits.getRequest(requestId))?.hiddenAt) {
+              await deleteStyling(
+                { outfits, photos, storage, log: request.log },
+                requestId,
+                user.id,
+              );
+            }
+          }
+        }
         return reply.code(201).send(created);
       },
     );

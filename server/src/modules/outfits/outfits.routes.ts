@@ -1,3 +1,4 @@
+import type { FastifyBaseLogger } from "fastify";
 import { createHash } from "node:crypto";
 import {
   APP_LANGUAGES,
@@ -82,6 +83,38 @@ function previewsOf(request: WearWithRequest | null): StyledPreview[] {
           cutoutUrl: item.cutoutUrl ?? null,
         })),
     }));
+}
+
+// Deletes her styling (see OutfitsRepository.deleteRequest) and, when nothing else uses it, its
+// piece's photo at once; false when it isn't hers or is already gone. A styling whose piece is in
+// her wishes is only hidden and keeps its photo; letting the wish go calls this again.
+export async function deleteStyling(
+  deps: {
+    outfits: OutfitsRepository;
+    photos: PhotosRepository;
+    storage: Storage;
+    log: FastifyBaseLogger;
+  },
+  requestId: string,
+  userId: string,
+): Promise<boolean> {
+  const { outfits, photos, storage, log } = deps;
+  // Read first: the delete clears it.
+  const key = (await outfits.getRequest(requestId))?.heroPhotoKey;
+  if (!(await outfits.deleteRequest(requestId, userId))) return false;
+  if (key) {
+    try {
+      // Other requests about the same piece share this crop (a hidden one too), and it may be in
+      // her closet.
+      const inUse = (await outfits.isAttached(key)) || (await photos.isHeroOfRequest(key));
+      if (!inUse) await deletePhoto({ photos, storage }, key);
+    } catch (error) {
+      // The styling is already gone, so she still gets 204. No request points to the photo now,
+      // so the hourly cleanup job tries again.
+      log.warn({ err: error, key }, "failed to delete a styling's photo");
+    }
+  }
+  return true;
 }
 
 export const outfitsRoutes =
@@ -329,22 +362,12 @@ export const outfitsRoutes =
       { schema: { params: z.object({ id: z.string().uuid() }) } },
       async (request, reply) => {
         const user = request.user as SessionUser;
-        // Read first: the delete clears it.
-        const key = (await outfits.getRequest(request.params.id))?.heroPhotoKey;
-        if (!(await outfits.deleteRequest(request.params.id, user.id))) {
-          throw httpError(404, "request not found");
-        }
-        if (key) {
-          try {
-            // Other requests about the same piece share this crop, and it may be in her closet.
-            const inUse = (await outfits.isAttached(key)) || (await photos.isHeroOfRequest(key));
-            if (!inUse) await deletePhoto({ photos, storage }, key);
-          } catch (error) {
-            // The styling is already gone, so she still gets 204. No request points to the photo
-            // now, so the hourly cleanup job tries again.
-            request.log.warn({ err: error, key }, "failed to delete a styling's photo");
-          }
-        }
+        const deleted = await deleteStyling(
+          { outfits, photos, storage, log: request.log },
+          request.params.id,
+          user.id,
+        );
+        if (!deleted) throw httpError(404, "request not found");
         return reply.code(204).send();
       },
     );

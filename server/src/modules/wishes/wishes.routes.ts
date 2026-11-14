@@ -12,8 +12,9 @@ import type { Auth } from "../../auth/auth";
 import { requireUser, type SessionUser } from "../../auth/require-user";
 import { httpError } from "../../http-error";
 import type { OutfitsRepository } from "../outfits/outfits.repository";
-import { heroPath } from "../outfits/outfits.routes";
+import { deleteStyling, heroPath } from "../outfits/outfits.routes";
 import type { PhotosRepository } from "../photos/photos.repository";
+import type { Storage } from "../../storage/storage";
 import type { WishesRepository, WishRow } from "./wishes.repository";
 
 // A week to cool off before asking whether she still wants it.
@@ -25,6 +26,7 @@ export const wishesRoutes =
     wishes: WishesRepository,
     outfits: OutfitsRepository,
     photos: PhotosRepository,
+    storage: Storage,
     auth: Auth,
     clock: () => Date = () => new Date(),
   ): FastifyPluginAsyncZod =>
@@ -94,8 +96,14 @@ export const wishesRoutes =
           );
           if (result === "missing") throw httpError(404, "wish not found");
           if (result === "not-due") throw httpError(409, "not asked yet");
-        } else if (!(await wishes.remove(userId, id))) {
-          throw httpError(404, "wish not found");
+        } else {
+          const requestId = await wishes.remove(userId, id);
+          if (!requestId) throw httpError(404, "wish not found");
+          // Its styling was deleted while it was a wish: now it goes for good, photo and all.
+          const styling = await outfits.getRequest(requestId);
+          if (styling?.hiddenAt) {
+            await deleteStyling({ outfits, photos, storage, log: request.log }, requestId, userId);
+          }
         }
         return reply.code(204).send();
       },
